@@ -85,10 +85,13 @@ at the same time.
 | Probe | `crates/cli` | Exists |
 | Engine | `crates/engine` | Exists |
 | GUI application | `crates/app` | Exists |
+| Built-in action handlers | `crates/actions` | Phase 3 |
 
-The reason for these crates is in
-[decision 0008](decisions/0008-crate-boundaries.md). The GUI application does
-not depend on `crates/core`.
+The reason for these crates is in decisions
+[0008](decisions/0008-crate-boundaries.md) and
+[0012](decisions/0012-action-handler-interface.md). The GUI application does
+not depend on `crates/core`. The built-in action handlers are not a layer:
+they use only the handler interface of the engine (rule 8).
 
 ## 5. Rules
 
@@ -121,7 +124,11 @@ These rules stay true in all phases.
 ### Engine
 
 8. **An action is data, and all actions use one handler interface.** See
-   [decision 0006](decisions/0006-action-kinds-and-handler-interface.md).
+   [decision 0006](decisions/0006-action-kinds-and-handler-interface.md). The
+   interface is in decisions
+   [0012](decisions/0012-action-handler-interface.md),
+   [0013](decisions/0013-action-feedback-on-a-surface.md), and
+   [0014](decisions/0014-action-settings-description.md).
    - An action has a kind and settings. The kind is an identifier with a
      namespace, for example `opencraft.hotkey`.
    - The engine sends the settings to the handler for that kind and does not
@@ -168,7 +175,6 @@ you make one, write a decision record and remove the row.
 |---|---|---|
 | Engine in the GUI process, or in a different process | 5 | Rules 2 and 3 keep the two options open. |
 | Menu bar item | 5 | GPUI has no API for this. |
-| How an action describes its settings to the GUI | 3 | The answer must also be correct for a plug-in. |
 | Plug-in protocol, language, package format, and installation | After the first release | Rule 8 keeps this possible. |
 | Compatibility with Stream Deck plug-ins | After the first release | This is a different feature from our own plug-ins. See [kb/prior-art.md](kb/prior-art.md#stream-deck-plug-in-model). |
 | Async runtime | When a need shows | See [decision 0003](decisions/0003-blocking-device-layer.md). |
