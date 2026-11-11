@@ -76,8 +76,8 @@ These commands help a person with the device to measure. The
 [issues](https://github.com/shantanugoel/OpenCraft/issues) for the
 measurements give the procedures.
 
-The device stops the USB connection approximately 35 seconds after a draw, if
-it gets no keep-alive command. Its displays then go blank. Thus each command
+The device stops the USB connection 35 seconds after the start command, if it
+gets no keep-alive command. It then shows its logo again. Thus each command
 below has `--hold <n>`. It keeps the connection for `<n>` seconds after the
 command and sends the keep-alive. `--keep-alive <n>` changes the interval, and
 `0` sends no keep-alive. If the connection fails during the hold, the command

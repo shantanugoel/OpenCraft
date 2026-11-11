@@ -123,21 +123,21 @@ OPTIONS FOR 'background':
     --quality <1-100>    JPEG quality (default: 60, the value of the vendor SDK)
     --with-surfaces      Then draw the numbered key faces and bar panels on top
     --clear              Remove the background image. Draw nothing.
-    --init               Send the start sequence before the background (it
-                         clears all slots)
+    --init               Send the start sequence before the background. It
+                         removes all slot images.
     --hold <n>           Keep the connection for <n> seconds after the draw
 
 OPTIONS FOR 'send', 'bars', 'wide' AND 'repaint':
     --hold <n>           Keep the connection for <n> seconds after the command,
-                         with the keep-alive. Without it, the device stops the
-                         connection approximately 35 seconds after a draw, and
-                         its displays go blank.
+                         with the keep-alive. Without the keep-alive, the
+                         device stops the connection 35 seconds after the
+                         start command, and it shows its logo again.
     --keep-alive <n>     The keep-alive interval in seconds for --hold
                          (default: 10). 0 sends no keep-alive.
     --no-init            'bars', 'wide' and 'repaint' send the start sequence
-                         (DIS, the brightness command, then the clear command
-                         for all slots) before they draw. This option skips
-                         it.
+                         before they draw: DIS, the brightness command, the
+                         clear command for all slots, and the commit. It
+                         removes all slot images. This option skips it.
     --brightness <0-100> The brightness of the start commands (default: 80)
 
 OPTIONS FOR 'send':
@@ -640,7 +640,7 @@ fn cmd_background(rest: &[String]) -> AnyResult {
     if rest.iter().any(|a| a == "--init") {
         // The same start as the test command.
         start_display(&mut t, 80)?;
-        println!("  init   : DIS, brightness 80%, then the clear command for all slots");
+        println!("  init   : DIS, brightness 80%, the clear command for all slots, the commit");
     }
 
     t.send_background(&data)?;
@@ -662,9 +662,9 @@ fn cmd_background(rest: &[String]) -> AnyResult {
         println!("A grey line each 40 pixels. The text \"x,y\" gives the coordinates of a bright crossing.");
     }
 
-    // The device stops the connection 35 seconds after the last command, and
-    // its displays go blank. Keep the connection, so that a person has the
-    // time to look at the result.
+    // With no keep-alive, the device stops the connection 35 seconds after
+    // the start command, and it shows its logo again. Keep the connection, so
+    // that a person has the time to look at the result.
     if let Some(seconds) = flag_u64(rest, "--hold") {
         let mut keeper = measure::Keeper::new(Some(KEEP_ALIVE_INTERVAL));
         measure::hold(&mut t, seconds, &mut keeper)?;
@@ -854,7 +854,7 @@ mod tests {
             .transport()
             .writes()
             .iter()
-            .map(|w| w[..12].to_vec())
+            .map(|w| w[..13].to_vec())
             .collect();
         let want: Vec<Vec<u8>> = [
             protocol::init(),
@@ -864,7 +864,7 @@ mod tests {
         ]
         .into_iter()
         .map(|mut c| {
-            c.resize(12, 0);
+            c.resize(13, 0);
             c
         })
         .collect();

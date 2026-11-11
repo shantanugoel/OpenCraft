@@ -211,8 +211,11 @@ and connects again.
 
 Thus the safe sequence after each connection is: `DIS`, the brightness
 command, `CLE 0xFF`, the images, `STP`. Do not send `STP` before `DIS`. The
-probe uses this sequence for each command that draws (`start_display` in
-`crates/cli/src/main.rs`). The probe command `clear` sends `CLE` and `STP`
+probe function `start_display` in `crates/cli/src/main.rs` sends `DIS`, the
+brightness command, `CLE 0xFF`, and `STP`. The probe commands `test`,
+`raw --draw`, `bars`, `wide`, `repaint`, and `send --draw` use it. The
+command `background` uses it only with `--init`. The command `draw` sends
+only `DIS`. The probe command `clear` sends `CLE` and `STP`
 with no `DIS`. On a new connection, that causes the fault for a program that
 does not send `CLE 0xFF` after `DIS`.
 
@@ -222,28 +225,31 @@ All rows are measured on 2026-11-11, with no person at the device. A test
 program sent the commands and recorded the time at which the device stopped
 the USB connection. The times are in seconds after `DIS`.
 
-| `CONNECT` sent at | The device stopped the connection at |
-|---|---|
-| Not sent | 35.0, 35.1, 35.4 |
-| 10.0 | 34.9 |
-| 14.0 | 34.9 |
-| 16.0 | 49.9 |
-| 20.0 | 49.9 |
-| 29.0 | 49.9 |
-| 30, and in a second test 33 | 34.9 |
-| 16.0 and 44.1 | 64.9 |
-| Each 20 seconds: 20.0, 40.1, 60.1 | 64.9 |
-| Each 16 seconds, 15 times, the last at 240.5 | 244.6 |
-| Each 14 seconds | Not stopped in 300 seconds |
-| Each 10 seconds | Not stopped. The longest test was 125 seconds. |
+| `CONNECT` sent at | The device stopped the connection at | First period with no `CONNECT`, after the period 0 to 15 | Stop that the rule gives |
+|---|---|---|---|
+| Not sent | 35.0, 35.1, 35.4 | 15 to 30 | 35 |
+| 10.0 | 34.9 | 15 to 30 | 35 |
+| 14.0 | 34.9 | 15 to 30 | 35 |
+| 16.0 | 49.9 | 30 to 45 | 50 |
+| 20.0 | 49.9 | 30 to 45 | 50 |
+| 29.0 | 49.9 | 30 to 45 | 50 |
+| 30, and in a second test 33 | 34.9 | 15 to 30 | 35 |
+| 16.0 and 44.1 | 64.9 | 45 to 60 | 65 |
+| Each 20 seconds: 20.0, 40.1, 60.1 | 64.9 | 45 to 60 | 65 |
+| Each 16 seconds, 15 times: 16.0, 32.1, and so on, the last 2 at 224.4 and 240.5 | 244.6 | 225 to 240 | 245 |
+| Each 14 seconds | Not stopped in 300 seconds | None | No stop |
+| Each 10 seconds | Not stopped. The longest test was 125 seconds. | None | No stop |
 
 One rule agrees with each row:
 
-- `DIS` starts a timer. The timer has periods of 15 seconds.
+- `DIS` starts a timer. The timer has periods of 15 seconds: 0 to 15, 15 to
+  30, 30 to 45, and so on.
 - The device must get one `CONNECT` or more in each period, but not in the
-  first period (0 to 15 seconds).
+  first period (0 to 15 seconds). A `CONNECT` in the first period does not
+  count for a later period.
 - If a period ends with no `CONNECT`, the device stops the USB connection
-  5 seconds later. A `CONNECT` in these 5 seconds does not prevent the stop.
+  5 seconds after the end of that period. A `CONNECT` in these 5 seconds does
+  not prevent the stop.
 
 The rule is an inference from the rows. It gave the correct time for the test
 with 16 seconds before that test ran: the period from 225 to 240 seconds had
@@ -251,10 +257,11 @@ no `CONNECT`.
 
 | Fact | Confidence | Source |
 |---|---|---|
-| The keep-alive is necessary, and the interval must be less than 15 seconds | Measured | The table above |
+| The keep-alive is necessary | Measured | The table above |
+| An interval that is less than 15 seconds puts a `CONNECT` in each period. An interval of exactly 15 seconds is not tested. | Inference | The rule |
 | Only `DIS` starts the timer. On a connection with no timer in operation, the device stayed connected for 60 seconds after each of these: no command, the brightness command, an image and `STP`, `CONNECT`, `STP`. After `DIS` alone, it stopped the connection at 35.1 seconds. | Measured | Test program |
 | A second `DIS`, a draw, and input from the user do not start the timer again and do not move its periods. A test that started 300 seconds after the first `DIS`, on the same connection, kept the periods of the first `DIS`. | Measured | Test program, probe |
-| The device sent no input report in answer to a command in these tests. It sends no acknowledgement for a write. | Measured | Test program, probe |
+| The device sent no input report in answer to a command in these tests. No acknowledgement for a write was seen. | Measured | Test program, probe |
 | The SDK and `opendeck-akp05` send `CONNECT` each 10 seconds | Source | Their source code |
 | When the device stops the connection, it starts again: it shows the boot animation and then the logo, and the knob lights go off. The images are gone. | Measured | Camera |
 | The device is on the bus again 6 to 7 seconds after the stop. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and the probe then draws again. | Measured | Test program: 20 times. Probe and owner: 2 times. |
@@ -267,7 +274,7 @@ What the user sees when the host stops:
 |---|---|---|
 | The probe stops and sends no clear command (`test --keep`) | The images and the knob lights stay. The keys and the knobs do nothing. At 35 seconds after `DIS`, the device starts again and shows the logo. | Measured: camera |
 | The probe is killed (`kill -9`) 15 seconds after `DIS` | The same. The logo showed at 36 seconds, and it was the same after 10 minutes. | Measured: camera |
-| General | The images stay for 20 to 35 seconds after the last `CONNECT`: until 5 seconds after the end of the first period that has no `CONNECT`. | Inference from the rule |
+| General | The images stay until 5 seconds after the end of the first period that has no `CONNECT`. That is 20 to 35 seconds after the last `CONNECT` that was in a period and not in the 5 seconds before a stop. | Inference from the rule |
 | The host sends `CLE`, `0x00 0x00`, `"DC"` (the SDK command "disconnected") | In less than 1 second, the device shows the logo, and the knob lights go off. The device stays on the bus: it did not stop the connection in 60 seconds with no `CONNECT`. Slot images show again after that, and `DIS` starts the knob lights again. | Measured: camera, 1 time |
 | VSD Craft quits | The displays and the knob lights go off, and the device does not show the logo. It was the same 50 seconds later. The next `DIS` and brightness command showed the last background of VSD Craft again. Which commands VSD Craft sends is not known. | Measured: camera, 1 time |
 
@@ -280,8 +287,9 @@ The device layer sends `CONNECT` each 10 seconds while a device is connected:
 `Link::next_event` in `crates/core/src/link.rs` sends it, and the constant
 `KEEP_ALIVE_INTERVAL` holds the interval. It sends the keep-alive also when
 other commands went to the device, because a draw does not start the timer
-again. With 10 seconds, one keep-alive can be 5 seconds late and the device
-stays connected.
+again. With 10 seconds, the time between two keep-alive commands stays less
+than 15 seconds if one keep-alive is less than 5 seconds late. (Inference
+from the rule)
 
 ## Sleep
 

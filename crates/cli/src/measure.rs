@@ -8,12 +8,13 @@
 //!
 //! Each command that a person must look at has `--hold <seconds>`, which keeps
 //! the connection with the keep-alive. Without the keep-alive the device stops
-//! the connection approximately 35 seconds after a draw, and its displays go
-//! blank. `--keep-alive <n>` changes the interval, and `0` stops the
+//! the connection 35 seconds after the start command, and it shows its logo
+//! again. `--keep-alive <n>` changes the interval, and `0` stops the
 //! keep-alive.
 //!
-//! A command that draws sends the start sequence first (`DIS`, the brightness
-//! command, then the clear command for all slots). `--no-init` skips it.
+//! A command that draws sends the start sequence first: `DIS`, the brightness
+//! command, the clear command for all slots, and the commit. It removes all
+//! slot images. `--no-init` skips it.
 //!
 //! The code that writes to the device works with any transport, so the tests
 //! run it on a fake transport.
@@ -355,7 +356,9 @@ fn begin<T: Transport>(device: &mut Device<T>, args: &Args) -> Res<()> {
     } else {
         let brightness = args.brightness()?;
         start_display(device, brightness)?;
-        println!("  start  : DIS, brightness {brightness}%, then the clear command for all slots");
+        println!(
+            "  start  : DIS, brightness {brightness}%, the clear command for all slots, the commit"
+        );
     }
     Ok(())
 }
