@@ -19,6 +19,14 @@ pub enum Error {
     #[error("image encoding failed: {0}")]
     Image(#[from] image::ImageError),
 
+    /// The image data is too large for the 4-byte length field.
+    #[error("the image has {0} bytes, which is too large for the image header")]
+    ImageTooLarge(usize),
+
+    /// The descriptor of the device has no background.
+    #[error("this device has no background image")]
+    NoBackground,
+
     #[error("panel {0} does not exist on this device")]
     NoSuchPanel(u8),
 

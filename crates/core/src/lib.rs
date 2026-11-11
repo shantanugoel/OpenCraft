@@ -13,7 +13,7 @@ pub mod recording;
 pub mod transport;
 
 pub use connection::Device;
-pub use device::{Descriptor, Panel, PanelKind};
+pub use device::{Background, Descriptor, Panel, PanelKind};
 pub use error::{Error, Result};
 pub use events::{decode, Direction, Event};
 pub use transport::{list_devices, scan, select, FakeTransport, Found, HidTransport, Transport};

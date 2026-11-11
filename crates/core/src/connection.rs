@@ -1,7 +1,7 @@
 //! An open device: the command logic above the transport.
 
 use crate::device::Descriptor;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::protocol;
 use crate::transport::{Found, HidTransport, Transport};
 use std::time::Duration;
@@ -66,10 +66,46 @@ impl<T: Transport> Device<T> {
 
     /// Send an image to a slot: header packet, then payload chunks.
     pub fn send_image(&mut self, slot: u8, png: &[u8]) -> Result<()> {
-        self.send(protocol::image_header(png.len(), slot))?;
+        self.send(protocol::image_header(image_len(png)?, slot))?;
+        self.send_parts(png)
+    }
 
+    /// Send a JPEG to the background of the device. Send [`Self::commit`]
+    /// after it, as for the key faces.
+    ///
+    /// The image must have the background size of the descriptor, and it must
+    /// be turned 180° (see [`crate::image::render_background_test`]). The
+    /// method puts the image at 0, 0 on frame buffer layer 0, as the SDK does
+    /// for a full background. The SDK calls this image a temporary
+    /// background, and sends one for each frame of an animation. This is not
+    /// the boot logo.
+    pub fn send_background(&mut self, jpeg: &[u8]) -> Result<()> {
+        let bg = self.descriptor.background.ok_or(Error::NoBackground)?;
+        self.send(protocol::background_header(
+            image_len(jpeg)?,
+            0,
+            0,
+            bg.width,
+            bg.height,
+            0,
+        ))?;
+        self.send_parts(jpeg)
+    }
+
+    /// Remove the background image. The SDK uses layer `0x03` for this. Send
+    /// [`Self::commit`] after it.
+    pub fn clear_background(&mut self) -> Result<()> {
+        if self.descriptor.background.is_none() {
+            return Err(Error::NoBackground);
+        }
+        self.send(protocol::clear_background(0x03))
+    }
+
+    /// Send image data in parts of one report payload each. Each part has the
+    /// report ID in front.
+    fn send_parts(&mut self, data: &[u8]) -> Result<()> {
         let chunk = self.descriptor.packet_size;
-        for part in png.chunks(chunk) {
+        for part in data.chunks(chunk) {
             let mut buf = Vec::with_capacity(1 + part.len());
             buf.push(protocol::REPORT_ID);
             buf.extend_from_slice(part);
@@ -116,11 +152,15 @@ impl<T: Transport> Device<T> {
     }
 }
 
+/// The length of image data for the 4-byte length field of an image header.
+fn image_len(data: &[u8]) -> Result<u32> {
+    u32::try_from(data.len()).map_err(|_| Error::ImageTooLarge(data.len()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::device::DESCRIPTORS;
-    use crate::error::Error;
+    use crate::device::{Descriptor, DESCRIPTORS};
     use crate::transport::FakeTransport;
     use std::ffi::CString;
 
@@ -316,6 +356,87 @@ mod tests {
         assert_report(&writes[0], b"CRT\x00\x00DIS");
         assert_report(&writes[1], b"CRT\x00\x00LIG\x00\x00\x50");
         assert_report(&writes[2], b"CRT\x00\x00CONNECT");
+    }
+
+    /// Image data of `len` bytes with no zero byte, so that the padding is
+    /// clear in each part.
+    fn image_data(len: usize) -> Vec<u8> {
+        (0..len).map(|i| (i % 251) as u8 + 1).collect()
+    }
+
+    /// Check that `parts` are the reports for `data` in parts of 1024 bytes.
+    fn assert_parts(parts: &[Vec<u8>], data: &[u8]) {
+        assert_eq!(parts.len(), data.len().div_ceil(1024), "number of parts");
+        for (report, part) in parts.iter().zip(data.chunks(1024)) {
+            assert_report(report, part);
+        }
+    }
+
+    #[test]
+    fn send_image_larger_than_65535_bytes_has_the_full_length() {
+        // 70 000 = 0x0001_1170 = 68 parts of 1024 bytes and one part of 368.
+        let image = image_data(70_000);
+        let mut dev = fake_device();
+
+        dev.send_image(6, &image).unwrap();
+
+        let writes = dev.into_transport().take_writes();
+        assert_eq!(writes.len(), 1 + 69, "header and 69 parts");
+        let header = [
+            b'C', b'R', b'T', 0x00, 0x00, b'B', b'A', b'T', 0x00, 0x01, 0x11, 0x70, 6,
+        ];
+        assert_report(&writes[0], &header);
+        assert_parts(&writes[1..], &image);
+        assert_eq!(image.len() - 68 * 1024, 368);
+    }
+
+    #[test]
+    fn send_background_writes_header_parts_and_commit() {
+        // A real JPEG of 800 x 480 can be larger than 65 535 bytes.
+        let image = image_data(70_000);
+        let mut dev = fake_device();
+
+        dev.send_background(&image).unwrap();
+        dev.commit().unwrap();
+
+        let writes = dev.into_transport().take_writes();
+        assert_eq!(writes.len(), 1 + 69 + 1, "header, 69 parts, commit");
+
+        // "BGPIC", length 0x0001_1170, x 0, y 0, width 800 (0x0320),
+        // height 480 (0x01E0), 0x00, layer 0.
+        let header = [
+            b'C', b'R', b'T', 0x00, 0x00, b'B', b'G', b'P', b'I', b'C', 0x00, 0x01, 0x11, 0x70,
+            0x00, 0x00, 0x00, 0x00, 0x03, 0x20, 0x01, 0xE0, 0x00, 0x00,
+        ];
+        assert_report(&writes[0], &header);
+        assert_parts(&writes[1..70], &image);
+        assert_report(&writes[70], b"CRT\x00\x00STP");
+    }
+
+    #[test]
+    fn background_needs_a_background_in_the_descriptor() {
+        static NO_BACKGROUND: Descriptor = Descriptor {
+            background: None,
+            ..DESCRIPTORS[0]
+        };
+        let mut fake = FakeTransport::new();
+        let mut dev = Device::new(&mut fake, &NO_BACKGROUND);
+
+        assert!(matches!(
+            dev.send_background(&[1, 2, 3]),
+            Err(Error::NoBackground)
+        ));
+        assert!(matches!(dev.clear_background(), Err(Error::NoBackground)));
+        assert!(fake.writes().is_empty());
+    }
+
+    #[test]
+    fn clear_background_writes_one_report() {
+        let mut dev = fake_device();
+        dev.clear_background().unwrap();
+        let writes = dev.into_transport().take_writes();
+        assert_eq!(writes.len(), 1);
+        assert_report(&writes[0], b"CRT\x00\x00BGCLE\x03");
     }
 
     #[test]

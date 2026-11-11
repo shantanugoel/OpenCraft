@@ -49,8 +49,14 @@ on hardware.
 - The device has no display other than these. The SDK has no other draw
   method. (Source)
 - 800 × 480 is not the size of the touch bar. The SDK method
-  `set_touchscreen_image` sets the boot logo and the background. The method
+  `set_touchscreen_image` sets the boot logo, not the background. The method
   name caused an error in the first plan. (Source)
+- The SDK method `set_frame_background` sets the background. The SDK calls it
+  a temporary background. (Source)
+- The device writes the boot logo to ROM. OpenCraft does not send the boot
+  logo command. See
+  [streamdock-protocol.md](streamdock-protocol.md#background-image). (Source)
+- The SDK encodes the background as a JPEG with quality 60. (Source)
 - The code calls a bar panel a "knob display" (`PanelKind::Knob`). Phase 1
   changes this name.
 
@@ -145,6 +151,9 @@ Measure these in Phase 1.
 
 - Mirabox StreamDock Device SDK, `StreamDockN4Pro.py`:
   <https://github.com/MiraboxSpace/StreamDock-Device-SDK/blob/main/Python-SDK/src/StreamDock/Devices/StreamDockN4Pro.py>
+- Mirabox StreamDock Device SDK, `StreamDock.py` and `PILHelper.py`: the
+  background and the boot logo. The other files are in
+  [streamdock-protocol.md](streamdock-protocol.md#sources).
 - `opendeck-akp05` README: <https://github.com/ambiso/opendeck-akp05>
 - Mirabox N4 Pro product page: <https://mirabox.net/products/mirabox-stream-dock-n4-pro>
 - VSDinside, N4 Pro and Stream Deck Plus comparison:

@@ -86,17 +86,54 @@ pub fn set_vibration(enabled: bool) -> Vec<u8> {
     v
 }
 
-/// Header announcing an image transfer to `slot`, followed by the payload in
-/// 1024-byte chunks.
-pub fn image_header(payload_len: usize, slot: u8) -> Vec<u8> {
+/// Header of an image transfer to `slot`. The image data follows in parts of
+/// 1024 bytes.
+///
+/// The length is 4 bytes, big-endian. The Mirabox SDK transport
+/// (`Transport::setKeyBitmap`) writes the 4 bytes in this order. For an image
+/// smaller than 65 536 bytes, the first 2 bytes are zero.
+pub fn image_header(payload_len: u32, slot: u8) -> Vec<u8> {
     let mut v = cmd(b"BAT");
-    v.extend_from_slice(&[
-        0x00,
-        0x00,
-        (payload_len >> 8) as u8,
-        payload_len as u8,
-        slot,
-    ]);
+    v.extend_from_slice(&payload_len.to_be_bytes());
+    v.push(slot);
+    v
+}
+
+/// Header of a background image transfer. The JPEG data follows in parts of
+/// 1024 bytes, as for [`image_header`].
+///
+/// The device puts the image at `x`, `y` with the size `width` × `height`, on
+/// the frame buffer layer `layer`. The SDK calls this a "frame background"
+/// (`Transport::setBackgroundFrameStream`). It is the temporary background,
+/// not the boot logo. All numbers are big-endian. The layout is:
+/// length (4 bytes), x (2), y (2), width (2), height (2), `0x00`, layer.
+///
+/// The boot logo has a different command. OpenCraft does not make that
+/// command, because the device writes the boot logo to permanent memory. See
+/// `docs/kb/streamdock-protocol.md`.
+pub fn background_header(
+    payload_len: u32,
+    x: u16,
+    y: u16,
+    width: u16,
+    height: u16,
+    layer: u8,
+) -> Vec<u8> {
+    let mut v = cmd(b"BGPIC");
+    v.extend_from_slice(&payload_len.to_be_bytes());
+    v.extend_from_slice(&x.to_be_bytes());
+    v.extend_from_slice(&y.to_be_bytes());
+    v.extend_from_slice(&width.to_be_bytes());
+    v.extend_from_slice(&height.to_be_bytes());
+    v.extend_from_slice(&[0x00, layer]);
+    v
+}
+
+/// Remove the background image from the frame buffer layer `layer`. The SDK
+/// uses `0x03` as the default (`Transport::clearBackgroundFrameStream`).
+pub fn clear_background(layer: u8) -> Vec<u8> {
+    let mut v = cmd(b"BGCLE");
+    v.push(layer);
     v
 }
 
@@ -241,5 +278,48 @@ mod tests {
             set_vibration(false),
             command(b"QUCMD\x1F\x11\x00\xFF\x00\x11")
         );
+    }
+    #[test]
+    fn image_header_has_a_4_byte_big_endian_length() {
+        // 2500 = 0x09C4. The bytes are the same as in the 2-byte form.
+        assert_eq!(
+            image_header(2500, 7),
+            b"\x00CRT\x00\x00BAT\x00\x00\x09\xC4\x07".to_vec()
+        );
+        // 70 000 = 0x0001_1170 is larger than 65 535.
+        assert_eq!(
+            image_header(70_000, 6),
+            b"\x00CRT\x00\x00BAT\x00\x01\x11\x70\x06".to_vec()
+        );
+    }
+
+    #[test]
+    fn background_header_layout() {
+        // 70 000 = 0x0001_1170, 800 = 0x0320, 480 = 0x01E0.
+        assert_eq!(
+            background_header(70_000, 0, 0, 800, 480, 0),
+            b"\x00CRT\x00\x00BGPIC\x00\x01\x11\x70\x00\x00\x00\x00\x03\x20\x01\xE0\x00\x00"
+                .to_vec()
+        );
+        let v = background_header(1, 0x0102, 0x0304, 0x0506, 0x0708, 0x09);
+        assert_eq!(&v[15..], &[1, 2, 3, 4, 5, 6, 7, 8, 0, 9]);
+    }
+
+    #[test]
+    fn clear_background_has_the_layer_after_the_operation_code() {
+        assert_eq!(clear_background(3), b"\x00CRT\x00\x00BGCLE\x03".to_vec());
+    }
+
+    /// The boot logo is possibly in permanent memory (issue #15). No builder
+    /// in the device layer may make its operation code.
+    #[test]
+    fn no_code_makes_the_boot_logo_command() {
+        let logo = concat!("b\"", "LO", "G\"");
+        for (name, source) in [
+            ("protocol.rs", include_str!("protocol.rs")),
+            ("connection.rs", include_str!("connection.rs")),
+        ] {
+            assert!(!source.contains(logo), "{name} contains the boot logo code");
+        }
     }
 }
