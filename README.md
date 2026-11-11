@@ -33,9 +33,21 @@ runs; each event prints with its decoded meaning. Panels are blanked on exit
 | `listen` | Decode input only |
 | `draw <slot> <rrggbb>` | Paint one slot a solid colour |
 | `clear` | Blank every panel |
-| `raw` | Hexdump raw input reports (for unknown hardware) |
+| `raw` | Hexdump raw input reports. Can save the full reports to a file. |
 
 Options: `--seconds`, `--brightness`, `--mode <0-9>`, `--keep`, `--verbose`.
+
+Options of `raw`:
+
+| Option | What it does |
+|---|---|
+| `--save <file>` | Write each full input report to the file. See [the format](crates/core/tests/fixtures/input/README.md). |
+| `--note <text>` | Write a text in the file that says which gesture it holds |
+| `--until-enter` | Stop when you press Enter. `--seconds` is the time limit. |
+
+To record the input of every control, run `scripts/record-input.sh`. It guides
+you through each gesture. See
+[crates/core/tests/fixtures/input/README.md](crates/core/tests/fixtures/input/README.md).
 
 ---
 
@@ -63,6 +75,7 @@ the 800×480 background image at this time. The full hardware facts are in
 ```
 crates/core/     device descriptors, transport (HID and fake), protocol, panel rendering
 crates/cli/      opencraft-probe — hardware bring-up tool
+scripts/         record-input.sh — guided recording of input reports
 docs/            architecture, roadmap, decision records, knowledge base
 ```
 
