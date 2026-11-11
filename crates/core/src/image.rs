@@ -655,13 +655,19 @@ mod tests {
             ..KEY_FACE
         };
         for surface in [KEY_FACE, bar_panel] {
-            for data in [
-                render_test_surface(&surface, 12, [10, 20, 30]).unwrap(),
-                render_solid(&surface, [10, 20, 30]).unwrap(),
-            ] {
-                let img = image::load_from_memory(&data).unwrap().to_rgb8();
+            let solid = render_solid(&surface, [10, 20, 30]).unwrap();
+            let solid = image::load_from_memory(&solid).unwrap().to_rgb8();
+            let numbered = render_test_surface(&surface, 12, [10, 20, 30]).unwrap();
+            let numbered = image::load_from_memory(&numbered).unwrap().to_rgb8();
+            for img in [&solid, &numbered] {
                 assert_eq!(img.dimensions(), (surface.width as u32, 112));
+                assert_eq!(img.get_pixel(10, 40).0, [10, 20, 30]);
             }
+            assert!(solid.pixels().all(|p| p.0 == [10, 20, 30]));
+            let centre = surface.width as u32 / 2;
+            assert!((40..72).any(|y| (centre - 16..centre + 16)
+                .any(|x| numbered.get_pixel(x, y).0 == [255, 255, 255])));
+            assert_eq!(numbered.get_pixel(0, 0).0, [255, 255, 255]);
         }
     }
 }

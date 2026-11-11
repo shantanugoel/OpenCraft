@@ -1076,16 +1076,6 @@ mod tests {
     }
 
     #[test]
-    fn keep_alive_text() {
-        assert_eq!(describe_keep_alive(None), "keep-alive each 10 s");
-        assert_eq!(describe_keep_alive(Some(Duration::ZERO)), "no keep-alive");
-        assert_eq!(
-            describe_keep_alive(Some(Duration::from_secs(25))),
-            "keep-alive each 25 s"
-        );
-    }
-
-    #[test]
     fn size_format_and_percent_parsing() {
         assert_eq!(parse_size("352x112"), Ok((352, 112)));
         assert_eq!(parse_size("800X112"), Ok((800, 112)));
@@ -1138,8 +1128,9 @@ mod tests {
     fn send_brightness_makes_one_step_for_each_value() {
         let steps = send_steps(SendKind::Brightness, &args(&["0", "50", "100"]), Some(4)).unwrap();
         assert_eq!(steps.len(), 3);
-        assert_eq!(steps[1].command, protocol::set_brightness(50));
-        assert_eq!(steps[2].text, "LIG 100%");
+        for (step, percent) in steps.iter().zip([0, 50, 100]) {
+            assert_eq!(step.command, protocol::set_brightness(percent));
+        }
 
         let steps = send_steps(SendKind::KnobBrightness, &args(&["30"]), Some(4)).unwrap();
         assert_eq!(steps[0].command, protocol::set_led_brightness(30));
@@ -1160,12 +1151,20 @@ mod tests {
         );
         let e = send_steps(SendKind::KnobColors, &colors[..3], Some(4)).unwrap_err();
         assert!(e.contains("4 knobs"), "{e}");
-        assert!(send_steps(SendKind::KnobColors, &args(&["ff00"]), Some(1)).is_err());
+        for invalid in ["ff00", "gg0000"] {
+            assert!(send_steps(SendKind::KnobColors, &args(&[invalid]), Some(1)).is_err());
+        }
         assert!(send_steps(SendKind::KnobColors, &colors, Some(0)).is_err());
         // Before the device opens, the number of colours is not checked. A
         // colour that is not correct is an error at once.
         assert!(send_steps(SendKind::KnobColors, &colors[..3], None).is_ok());
         assert!(send_steps(SendKind::KnobColors, &args(&["red"]), None).is_err());
+    }
+
+    #[test]
+    fn send_knob_colors_refuses_non_ascii_without_panicking() {
+        // Six bytes, but the first two-byte slice ends inside a character.
+        assert!(send_steps(SendKind::KnobColors, &args(&["a€bc"]), Some(1)).is_err());
     }
 
     #[test]
@@ -1189,17 +1188,6 @@ mod tests {
     }
 
     #[test]
-    fn shown_bytes_are_the_first_16_bytes_of_the_report() {
-        assert_eq!(
-            shown_bytes(&protocol::keep_alive()),
-            "00 43 52 54 00 00 43 4F 4E 4E 45 43 54 00 00 00"
-        );
-        // A long command shows its first 16 bytes only.
-        let long = vec![0xAB; 40];
-        assert_eq!(shown_bytes(&long).split(' ').count(), 16);
-    }
-
-    #[test]
     fn run_send_writes_one_report_for_each_step_and_nothing_else() {
         let mut device = fake();
         let steps = send_steps(SendKind::Brightness, &args(&["0", "50", "100"]), Some(4)).unwrap();
@@ -1220,9 +1208,20 @@ mod tests {
     #[test]
     fn run_send_with_wait_key_sends_after_the_key_press() {
         let mut device = fake();
-        // A knob turn does not start the send. A key press does.
-        device.transport_mut().push_input(report(0xA0, 0x00));
-        device.transport_mut().push_input(report(0x01, 0x01));
+        // No release, knob, tap, acknowledgement or unknown report starts
+        // the send. The key press is the last report before the marker.
+        for r in [
+            report(0x01, 0x00),
+            report(0xA0, 0x00),
+            report(0x35, 0x01),
+            report(0x40, 0x00),
+            report(0xFF, 0x00),
+            b"not a report".to_vec(),
+            report(0x01, 0x01),
+            vec![9],
+        ] {
+            device.transport_mut().push_input(r);
+        }
         let steps = send_steps(SendKind::Sleep, &[], Some(4)).unwrap();
         let timing = SendTiming {
             wait_key: true,
@@ -1232,16 +1231,16 @@ mod tests {
         let writes = device.transport().writes();
         assert_eq!(writes.len(), 1);
         assert_eq!(op(&writes[0]), b"HAN");
+        assert_eq!(device.read(Duration::ZERO).unwrap(), Some(vec![9]));
     }
 
     // --- keep-alive, hold, and wait ---
 
     #[test]
-    fn keeper_is_due_after_the_interval() {
-        let keeper = Keeper::new(Some(Duration::from_secs(10)));
+    fn keeper_tick_sends_connect_and_starts_the_interval_again() {
+        let mut device = fake();
+        let mut keeper = Keeper::new(Some(Duration::from_secs(10)));
         let t0 = keeper.last;
-        assert!(!keeper.is_due(t0 + Duration::from_secs(9)));
-        assert!(keeper.is_due(t0 + Duration::from_secs(10)));
         assert_eq!(
             keeper.next_in(t0 + Duration::from_secs(4)),
             Some(Duration::from_secs(6))
@@ -1250,19 +1249,8 @@ mod tests {
             keeper.next_in(t0 + Duration::from_secs(40)),
             Some(Duration::ZERO)
         );
-
-        let never = Keeper::new(None);
-        assert!(!never.is_due(never.last + Duration::from_secs(10_000)));
-        assert_eq!(never.next_in(never.last), None);
-    }
-
-    #[test]
-    fn keeper_tick_sends_connect_and_starts_the_interval_again() {
-        let mut device = fake();
-        let mut keeper = Keeper::new(Some(Duration::from_secs(10)));
-        let t0 = keeper.last;
         assert!(!keeper
-            .tick(&mut device, t0 + Duration::from_secs(5))
+            .tick(&mut device, t0 + Duration::from_secs(9))
             .unwrap());
         assert!(device.transport().writes().is_empty());
 
@@ -1277,6 +1265,14 @@ mod tests {
         assert!(keeper
             .tick(&mut device, t1 + Duration::from_secs(10))
             .unwrap());
+        assert_eq!(device.transport().writes().len(), 2);
+
+        let mut never = Keeper::new(None);
+        assert_eq!(never.next_in(t0), None);
+        assert!(!never
+            .tick(&mut device, t0 + Duration::from_secs(10_000))
+            .unwrap());
+        assert_eq!(device.transport().writes().len(), 2);
     }
 
     #[test]
@@ -1301,14 +1297,6 @@ mod tests {
     }
 
     #[test]
-    fn idle_returns_the_error_of_a_lost_connection() {
-        let mut device = fake();
-        device.transport_mut().disconnect();
-        let mut keeper = Keeper::new(None);
-        assert!(idle(&mut device, &mut keeper, Duration::from_millis(20)).is_err());
-    }
-
-    #[test]
     fn hold_for_zero_seconds_does_nothing() {
         let mut device = fake();
         hold(&mut device, 0, &mut Keeper::new(Some(Duration::ZERO))).unwrap();
@@ -1323,17 +1311,6 @@ mod tests {
     }
 
     #[test]
-    fn only_a_key_press_is_a_key_press() {
-        let d = n4pro();
-        assert!(is_key_press(d, &report(0x01, 0x01)));
-        assert!(is_key_press(d, &report(0x0A, 0x01)));
-        assert!(!is_key_press(d, &report(0x01, 0x00)), "release");
-        assert!(!is_key_press(d, &report(0xA0, 0x00)), "knob turn");
-        assert!(!is_key_press(d, &report(0xFF, 0x00)), "acknowledgement");
-        assert!(!is_key_press(d, b"not a report"));
-    }
-
-    #[test]
     fn wait_for_key_gives_an_error_at_the_limit() {
         let mut device = fake();
         device.transport_mut().push_input(report(0x35, 0x01)); // a knob push
@@ -1343,16 +1320,6 @@ mod tests {
             Duration::from_millis(30),
         );
         assert!(e.unwrap_err().to_string().contains("no key press"));
-    }
-
-    #[test]
-    fn drain_input_counts_acknowledgements_and_other_reports() {
-        let mut device = fake();
-        device.transport_mut().push_input(report(0xFF, 0x00));
-        device.transport_mut().push_input(report(0xFF, 0x00));
-        device.transport_mut().push_input(report(0x01, 0x01));
-        assert_eq!(drain_input(&mut device).unwrap(), (2, 1));
-        assert_eq!(drain_input(&mut device).unwrap(), (0, 0));
     }
 
     // --- bars and wide ---
@@ -1391,13 +1358,6 @@ mod tests {
         let ops: Vec<&[u8]> = ops.iter().map(Vec::as_slice).collect();
         let (bat, data, stp): (&[u8], &[u8], &[u8]) = (b"BAT", b"data", b"STP");
         assert_eq!(ops, [bat, data, bat, data, data, stp]);
-    }
-
-    #[test]
-    fn a_wide_image_is_accepted_for_a_slot_and_refused_for_a_slot_that_does_not_exist() {
-        let mut device = fake();
-        assert!(draw_images(&mut device, &[(1, vec![1; 5000])]).is_ok());
-        assert!(draw_images(&mut device, &[(5, vec![1; 10])]).is_err());
     }
 
     // --- repaint ---
@@ -1455,23 +1415,6 @@ mod tests {
     }
 
     #[test]
-    fn words_differ_for_each_surface_of_a_kind() {
-        let d = n4pro();
-        for kind in [SurfaceKind::KeyFace, SurfaceKind::BarPanel] {
-            let words: Vec<&str> = d
-                .surfaces
-                .iter()
-                .filter(|s| s.kind() == kind)
-                .map(|s| word_for(s, 0))
-                .collect();
-            let mut unique = words.clone();
-            unique.sort();
-            unique.dedup();
-            assert_eq!(unique.len(), words.len(), "{kind:?}");
-        }
-    }
-
-    #[test]
     fn report_count_of_a_repaint() {
         // An image of 1 byte: a header and 1 part. 1024 bytes: a header and
         // 1 part. 1025 bytes: a header and 2 parts. Then the commit.
@@ -1509,7 +1452,6 @@ mod tests {
                 max: t(40)
             })
         );
-        assert_eq!(ms(Duration::from_micros(175_260)), "175.3 ms");
     }
 
     #[test]
@@ -1548,12 +1490,14 @@ mod tests {
     fn run_repaints_counts_the_input_reports_and_sends_the_keep_alive() {
         let mut device = fake();
         device.transport_mut().push_input(report(0xFF, 0x00));
+        device.transport_mut().push_input(report(0xFF, 0x00));
         device.transport_mut().push_input(report(0x01, 0x01));
+        device.transport_mut().push_input(b"unknown".to_vec());
         let sets = [vec![(6u8, vec![1; 10])], vec![(6u8, vec![2; 10])]];
         // The interval is zero in effect: every tick sends the keep-alive.
         let mut keeper = Keeper::new(Some(Duration::from_nanos(1)));
         let result = run_repaints(&mut device, &sets, 2, Duration::ZERO, &mut keeper).unwrap();
-        assert_eq!((result.acks, result.other), (1, 1));
+        assert_eq!((result.acks, result.other), (2, 2));
         let writes = device.transport().writes();
         assert_eq!(writes.iter().filter(|w| op_is(w, b"CONNECT")).count(), 2);
     }

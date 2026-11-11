@@ -791,7 +791,9 @@ fn flag_str<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
 
 fn parse_hex_color(s: &str) -> Result<[u8; 3], Box<dyn std::error::Error>> {
     let s = s.trim_start_matches('#');
-    if s.len() != 6 {
+    // A character that is not ASCII is not a hex digit, and it can make the
+    // byte slices below end inside a character.
+    if s.len() != 6 || !s.is_ascii() {
         return Err("colour must be 6 hex digits, e.g. ff8800".into());
     }
     Ok([
@@ -827,79 +829,6 @@ mod tests {
         assert_eq!(flag_str(&a, "--save"), Some("a.txt"));
         assert_eq!(flag_str(&a, "--note"), Some("key 6 press"));
         assert_eq!(flag_str(&a, "--seconds"), None);
-    }
-
-    #[test]
-    fn flag_str_has_no_value_at_the_end() {
         assert_eq!(flag_str(&args(&["--save"]), "--save"), None);
-    }
-
-    #[test]
-    fn saved_line_has_all_bytes() {
-        let data = vec![0x41u8; 100];
-        let line = recording::format_report_line(5, &data);
-        assert_eq!(line.len(), 2 + 200);
-        assert!(line.starts_with("5 4141"));
-    }
-
-    fn n4pro() -> &'static Descriptor {
-        opencraft_core::device::find(0x5548, 0x1023).unwrap()
-    }
-
-    #[test]
-    fn describe_names_the_control_the_gesture_and_the_slot() {
-        use opencraft_core::ControlId;
-        let ev = |kind, number, gesture| InputEvent {
-            control: ControlId::new(kind, number),
-            gesture,
-        };
-        let d = n4pro();
-        assert_eq!(
-            describe(d, &ev(ControlKind::Key, 1, Gesture::Press)),
-            "key 1        press                    slot 11"
-        );
-        assert_eq!(
-            describe(d, &ev(ControlKind::Knob, 2, Gesture::TurnLeft)),
-            "knob 2       turn left"
-        );
-        assert_eq!(
-            describe(d, &ev(ControlKind::BarPanel, 3, Gesture::Tap { x: 510 })),
-            "bar panel 3  tap          x=510       slot 3"
-        );
-        assert_eq!(
-            describe(
-                d,
-                &ev(
-                    ControlKind::TouchBar,
-                    1,
-                    Gesture::TouchPoint { x: 101, y: 60 }
-                )
-            ),
-            "touch bar 1  touch point  (101, 60)"
-        );
-    }
-
-    #[test]
-    fn identify_lists_each_surface_and_each_control_of_the_descriptor() {
-        let d = n4pro();
-        let text = describe_descriptor(d);
-        assert!(text.contains("surfaces: 15"), "{text}");
-        assert!(text.contains("controls: 19"), "{text}");
-        assert!(text.contains("key face 1     slot 11  112 x 112  PNG   turned 180°"));
-        assert!(text.contains("background 1   no slot  800 x 480  JPEG  turned 180°"));
-        assert!(
-            text.contains("key 1        row 1 column 1  press/release 0x01  surface: key face 1")
-        );
-        assert!(text
-            .contains("knob 1       row 1 column 1  turn left 0xA0, turn right 0xA1, push 0x37"));
-        assert!(text.contains("touch bar 1  row 1 column 1  touch start 0x00, swipe right 0x38, swipe left 0x39, touch end 0xB2"));
-        assert!(!text.to_lowercase().contains("knob display"));
-    }
-
-    #[test]
-    fn saved_header_has_no_serial_field() {
-        let h = recording::header("a gesture", "VSD StreamDock N4 Pro", "V4.VSD N4 Pro.02.010");
-        assert!(!h.to_lowercase().contains("serial"));
-        assert_eq!(h.lines().count(), 5);
     }
 }

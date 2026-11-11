@@ -16,6 +16,31 @@ fn n4pro() -> &'static Descriptor {
 // --- Rules for each descriptor ------------------------------------------------
 
 #[test]
+fn each_usb_identity_selects_one_descriptor() {
+    let mut identities = HashSet::new();
+    for d in DESCRIPTORS {
+        assert!(
+            identities.insert((d.vid, d.pid)),
+            "duplicate USB identity: {}",
+            d.name
+        );
+        assert!(
+            std::ptr::eq(device::find(d.vid, d.pid).unwrap(), d),
+            "{}",
+            d.name
+        );
+        assert!(
+            device::find(0xFFFF, d.pid).is_none(),
+            "vendor is part of the identity"
+        );
+        assert!(
+            device::find(d.vid, 0xFFFF).is_none(),
+            "product is part of the identity"
+        );
+    }
+}
+
+#[test]
 fn no_two_controls_share_an_input_code() {
     // All codes are in control reports. The touch reports have no code.
     for d in DESCRIPTORS {

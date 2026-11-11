@@ -712,17 +712,39 @@ mod tests {
     #[test]
     fn errors_in_sequence_below_the_limit_are_not_a_disconnection() {
         let mut link = connected_link(vec![]);
-        for _ in 0..3 {
+        for recovery in 0..3 {
+            // Do not use with_device here: a successful closure resets the
+            // error count and would hide a missing reset after a good read.
+            link.device
+                .as_mut()
+                .unwrap()
+                .transport_mut()
+                .fail_reads("hiccup");
             for _ in 0..ERROR_LIMIT - 1 {
-                link.with_device(|d| {
-                    d.transport_mut().fail_next_read("hiccup");
-                    Ok(())
-                })
-                .unwrap();
-                assert!(link.next_event(STEP).is_err());
+                assert!(matches!(link.next_event(STEP), Err(Error::Transport(_))));
             }
-            // A good read resets the count.
-            assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Timeout);
+            link.device.as_mut().unwrap().transport_mut().clear_errors();
+            match recovery {
+                0 => assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Timeout),
+                1 => {
+                    link.device
+                        .as_mut()
+                        .unwrap()
+                        .transport_mut()
+                        .push_input(vec![7]);
+                    assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Input(vec![7]));
+                }
+                _ => link.with_device(|d| d.commit()).unwrap(),
+            }
+        }
+        // The last success also resets the count.
+        link.device
+            .as_mut()
+            .unwrap()
+            .transport_mut()
+            .fail_reads("hiccup");
+        for _ in 0..ERROR_LIMIT - 1 {
+            assert!(matches!(link.next_event(STEP), Err(Error::Transport(_))));
         }
         assert!(link.is_connected());
     }
@@ -837,7 +859,7 @@ mod tests {
         }
         assert_eq!(event, LinkEvent::Connected);
         assert_eq!(link.connector().0, 2);
-        assert!(link.clock().slept() <= RETRY_INTERVAL);
+        assert_eq!(link.clock().slept(), RETRY_INTERVAL);
     }
 
     #[test]
@@ -952,6 +974,77 @@ mod tests {
         // Each failed try paused, so the tries did not use the processor.
         assert_eq!(world(&link).keep_alive_times().len(), ERROR_LIMIT as usize);
         assert!(link.clock().sleeps.iter().all(|&s| s == ERROR_PAUSE));
+    }
+
+    #[test]
+    fn a_failed_keep_alive_retries_before_the_next_interval() {
+        let mut link = connected_link(vec![]);
+        run_until(&mut link, secs(10));
+        link.with_device(|d| {
+            d.transport_mut().fail_writes("temporary error");
+            Ok(())
+        })
+        .unwrap();
+        assert!(matches!(
+            link.next_event(Duration::ZERO),
+            Err(Error::Transport(_))
+        ));
+        assert_eq!(world(&link).elapsed(), secs(10) + ERROR_PAUSE);
+        link.device.as_mut().unwrap().transport_mut().clear_errors();
+        assert_eq!(link.next_event(Duration::ZERO).unwrap(), LinkEvent::Timeout);
+        let retried_at = secs(10) + ERROR_PAUSE;
+        assert_eq!(world(&link).keep_alive_times(), vec![secs(10), retried_at]);
+        assert!(link.is_connected());
+
+        assert_eq!(link.next_event(secs(10)).unwrap(), LinkEvent::Timeout);
+        assert_eq!(world(&link).keep_alive_times().len(), 2);
+        assert_eq!(link.next_event(Duration::ZERO).unwrap(), LinkEvent::Timeout);
+        assert_eq!(
+            world(&link).keep_alive_times(),
+            vec![secs(10), retried_at, retried_at + secs(10)]
+        );
+    }
+
+    #[test]
+    fn repeated_write_errors_disconnect_once_and_a_success_resets_the_count() {
+        let mut link = connected_link(vec![]);
+        for cycle in 0..2 {
+            link.device
+                .as_mut()
+                .unwrap()
+                .transport_mut()
+                .fail_writes("write failed");
+            for _ in 0..ERROR_LIMIT - 1 {
+                assert!(matches!(
+                    link.with_device(|d| d.commit()),
+                    Err(Error::Transport(_))
+                ));
+                assert!(link.is_connected());
+            }
+            if cycle == 0 {
+                link.device.as_mut().unwrap().transport_mut().clear_errors();
+                link.with_device(|d| d.commit()).unwrap();
+            }
+        }
+        assert!(matches!(
+            link.with_device(|d| d.commit()),
+            Err(Error::Transport(_))
+        ));
+        assert!(!link.is_connected());
+        let mut called = false;
+        assert!(matches!(
+            link.with_device(|_| {
+                called = true;
+                Ok(())
+            }),
+            Err(Error::Disconnected)
+        ));
+        assert!(!called, "a closure must not run without a device");
+        assert_eq!(
+            link.next_event(Duration::ZERO).unwrap(),
+            LinkEvent::Disconnected
+        );
+        assert_eq!(link.next_event(Duration::ZERO).unwrap(), LinkEvent::Timeout);
     }
 
     #[test]
