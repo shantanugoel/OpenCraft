@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/cli", "crates/engine"]
+members = ["crates/core", "crates/cli", "crates/engine", "crates/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -9,6 +9,8 @@ license = "MIT"
 repository = "https://github.com/shantanugoel/OpenCraft"
 
 [workspace.dependencies]
+gpui-kit = "=0.9.1"
+async-channel = "2"
 opencraft-core = { path = "crates/core" }
 opencraft-engine = { path = "crates/engine" }
 hidapi = "2"

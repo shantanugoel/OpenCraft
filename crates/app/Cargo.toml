@@ -1,0 +1,19 @@
+[package]
+name = "opencraft-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "opencraft"
+path = "src/main.rs"
+
+[dependencies]
+opencraft-engine.workspace = true
+gpui-kit.workspace = true
+async-channel.workspace = true
+image.workspace = true
+
+[dev-dependencies]
+gpui-kit = { workspace = true, features = ["test-support"] }

@@ -19,15 +19,18 @@ jobs:
   check:
     name: Format, lint, build, test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
-      # hidapi (default feature linux-static-hidraw) needs libudev and pkg-config.
+      # hidapi and GPUI need native headers. No WebView is used.
       - name: Install system packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libudev-dev pkg-config
+          sudo apt-get install -y --no-install-recommends \
+            libudev-dev pkg-config clang libfontconfig-dev libwayland-dev \
+            libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev \
+            libasound2-dev libvulkan1
 
       - uses: dtolnay/rust-toolchain@stable
         with:

@@ -84,7 +84,7 @@ at the same time.
 | Device layer | `crates/core` | Exists |
 | Probe | `crates/cli` | Exists |
 | Engine | `crates/engine` | Exists |
-| GUI application | `crates/app` | Starts in Phase 2 |
+| GUI application | `crates/app` | Exists |
 
 The reason for these crates is in
 [decision 0008](decisions/0008-crate-boundaries.md). The GUI application does
