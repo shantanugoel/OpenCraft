@@ -15,16 +15,22 @@ repository:
 scripts/record-input.sh
 ```
 
-The script has 4 passes. Each pass is one recording. The script shows a short
-list of gestures for the pass. Do the gestures in the order of the list, then
-press Enter. The order tells which report comes from which control.
+The probe draws the panels, then it shows one line for each gesture. Do the
+gesture on the device, then wait for the next line. The probe goes to the next
+line when the device sends no more reports. Do not use the keyboard. Each
+gesture goes to one file. A gesture that gives no report has no file.
 
-To do one pass again, give its number: `scripts/record-input.sh 2`.
+The probe sends the keep-alive command each 10 seconds. Without it, the device
+stops the connection. See
+[the protocol entry](../../../../../docs/kb/streamdock-protocol.md#keep-alive-and-stop).
 
-You can also record one gesture by hand:
+To continue after a stop, give the step number:
+`scripts/record-input.sh --from 13`.
+
+You can also record by hand, with no prompts:
 
 ```sh
-opencraft-probe raw --draw --save key.txt --note "one key: press and release" --until-enter
+opencraft-probe raw --draw --keep-alive 10 --save key.txt --note "one key: press and release" --until-enter
 ```
 
 ## File format
@@ -61,9 +67,16 @@ the numbers from the panels. The lines are `key_row_1`, `key_row_2`, and
 
 ## Files and gestures
 
-| File | Gestures, in this order |
+The file name is the step number and a short name, for example
+`13-knob-1-left.txt`. The `note` line in each file gives the gesture. In a
+file, the time of the first report is 0.
+
+| Files | Gestures |
 |---|---|
-| `session-1-keys.txt` | Each key one time: top row from left to right, then second row from left to right. Then 2 adjacent keys together. Then 1 key held for 3 seconds. |
-| `session-2-knobs.txt` | For each knob from left to right: turn left 5 clicks, turn right 5 clicks, push. Then the left knob turned as fast as possible for 5 seconds. |
-| `session-3-touch-bar.txt` | 4 taps on the touch bar from left to right. A slow slide from the left end to the right end. A slow slide from the top edge to the bottom edge. A finger held for 2 seconds at the left end. |
-| `session-4-swipes.txt` | 20 swipes left, then 20 swipes right. |
+| `01` to `10` | Each key, 1 press: top row from left to right, then second row from left to right |
+| `11`, `12` | 2 keys together. 1 key held for 3 seconds. |
+| `13` to `24` | For each knob from left to right: turn left 5 clicks, turn right 5 clicks, push |
+| `25` | The left knob turned as fast as possible |
+| `26` to `29` | A tap on each quarter of the touch bar, from left to right |
+| `30` to `32` | A slow move from the left end to the right end. A slow move from the top edge to the bottom edge. A finger held for 2 seconds. |
+| `33` to `36` | 1 swipe left, 1 swipe right, 20 swipes left, 20 swipes right. A knob push ends the steps with 20 swipes. That push is not in the file. |

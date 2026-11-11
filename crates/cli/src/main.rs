@@ -13,6 +13,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+mod record;
+
 type AnyResult = Result<(), Box<dyn std::error::Error>>;
 
 fn main() -> ExitCode {
@@ -35,6 +37,7 @@ fn main() -> ExitCode {
         "draw" => cmd_draw(rest),
         "clear" => cmd_clear(),
         "raw" => cmd_raw(rest),
+        "record" => record::cmd_record(rest),
         "help" | "--help" | "-h" => {
             usage();
             Ok(())
@@ -70,6 +73,8 @@ COMMANDS:
     draw <slot> <rrggbb> Paint one slot a solid colour
     clear                Blank every panel
     raw                  Hexdump raw input reports; can save them to a file
+    record               Record each gesture to a file, one prompt at a time
+                         (--out <dir>, --from <step>)
 
 OPTIONS:
     --seconds <n>        How long to listen (default: 30 for test, 15 for listen)
@@ -84,6 +89,7 @@ OPTIONS FOR 'raw':
     --until-enter        Stop when you press Enter ('--seconds' is the time
                          limit; default: 10)
     --draw               Draw the slot numbers first, as 'test' does
+    --keep-alive <n>     Send the keep-alive command each <n> seconds
 
 NOTE: quit VSD Craft before running — two apps driving one device will fight."
     );
@@ -250,6 +256,7 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     let note = flag_str(rest, "--note").unwrap_or("");
     let until_enter = rest.iter().any(|a| a == "--until-enter");
     let draw = rest.iter().any(|a| a == "--draw");
+    let keep_alive = flag_u64(rest, "--keep-alive").map(Duration::from_secs);
     let mut t = open_device()?;
 
     // The file never gets the serial number: the header has the model name
@@ -286,9 +293,16 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     let deadline = start + Duration::from_secs(seconds);
     let mut errors = 0u32;
     let mut saved = 0u64;
+    let mut last_keep_alive = Instant::now();
     while Instant::now() < deadline && !stop.load(Ordering::Relaxed) {
         if errors >= 10 {
             return Err("too many consecutive read errors".into());
+        }
+        if let Some(interval) = keep_alive {
+            if last_keep_alive.elapsed() >= interval {
+                t.keep_alive()?;
+                last_keep_alive = Instant::now();
+            }
         }
         if let Some(data) = read_tolerant(&mut t, &mut errors) {
             let ms = start.elapsed().as_millis() as u64;

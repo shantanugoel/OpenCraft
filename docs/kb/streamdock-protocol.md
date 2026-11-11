@@ -72,19 +72,23 @@ before the length are possibly the high bytes of a 4-byte length. (Inference)
 | Fact | Confidence | Source |
 |---|---|---|
 | The SDK and `opendeck-akp05` send `CONNECT` each 10 seconds | Source | Their source code |
-| The probe does not send `CONNECT`, and the bring-up passed | Measured | Probe |
+| The keep-alive is necessary. If the host sends no command, the device stops the USB connection approximately 35 seconds after the last command. Input from the user does not change this time. | Measured | Probe, 2026-11-11: 35.1 s and 35.4 s after the draw |
+| With `CONNECT` each 10 seconds, the connection stays. The test was 100 seconds. | Measured | Probe, 2026-11-11 |
+| After the device stops the connection, it is on the USB bus again in less than 2 seconds, and its panels are blank | Measured | Probe and owner, 2026-11-11 |
+| The bring-up in Phase 0 passed with no `CONNECT`, because its test was 30 seconds | Inference | The rows above |
 | `opendeck-akp05` sends a clear command and then `HAN` when it stops | Source | Its source code |
-| After the probe draws the panels and stops with no clear command, the panels go blank after a short time. The time is not measured. | Measured | Owner, 2026-11-11 |
-| The probe saw no acknowledgement for a write | Measured | Probe |
+| After the probe draws the panels and stops with no clear command, the panels go blank after a short time. The cause is possibly the same 35 seconds. | Measured (the blank panels), Inference (the cause) | Owner, 2026-11-11 |
+| The device sent no input report in answer to the draw commands or to `CONNECT` during 100 seconds | Measured | Probe, 2026-11-11 |
 | The SDK README refers to `ACK` and `OK` in input reports for newer protocol versions | Source | SDK README |
 
 ## Not known
 
 Measure these in Phase 1.
 
-- What the device does when the host sends no keep-alive for a long time.
+- The longest interval between two keep-alive commands that keeps the
+  connection. Only 10 seconds is tested.
+- Whether a command that is not `CONNECT` also starts the 35 seconds again.
 - What the device shows after the host process is killed.
-- Whether the device sends an acknowledgement for a write in some conditions.
 - Whether each command with the label "Sent" gives the correct result.
 - The time to paint all 14 panels.
 - Whether JPEG is quicker than PNG for a full repaint.

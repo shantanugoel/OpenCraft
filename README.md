@@ -34,6 +34,7 @@ runs; each event prints with its decoded meaning. Panels are blanked on exit
 | `draw <slot> <rrggbb>` | Paint one slot a solid colour |
 | `clear` | Blank every panel |
 | `raw` | Hexdump raw input reports. Can save the full reports to a file. |
+| `record` | Record each gesture to a file, one prompt at a time. Options: `--out <dir>`, `--from <step>`. |
 
 Options: `--seconds`, `--brightness`, `--mode <0-9>`, `--keep`, `--verbose`.
 
@@ -45,9 +46,10 @@ Options of `raw`:
 | `--note <text>` | Write a text in the file that says which gesture it holds |
 | `--until-enter` | Stop when you press Enter. `--seconds` is the time limit. |
 | `--draw` | Draw the slot numbers first, as `test` does |
+| `--keep-alive <n>` | Send the keep-alive command each `<n>` seconds |
 
-To record the input of every control, run `scripts/record-input.sh`. It has 4
-short passes. See
+To record the input of every control, run `scripts/record-input.sh`. It runs
+`opencraft-probe record`, which shows one line for each gesture. See
 [crates/core/tests/fixtures/input/README.md](crates/core/tests/fixtures/input/README.md).
 
 ---
