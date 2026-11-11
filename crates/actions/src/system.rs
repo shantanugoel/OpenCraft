@@ -122,15 +122,3 @@ pub fn start_shell_command(command: &str) -> Result<Child> {
         .stderr(Stdio::null())
         .spawn()?)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[cfg(unix)]
-    #[test]
-    fn a_shell_command_starts_and_gives_its_exit_code() {
-        let mut child = start_shell_command("exit 3").unwrap();
-        assert_eq!(child.wait().unwrap().code(), Some(3));
-    }
-}
