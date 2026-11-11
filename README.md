@@ -39,9 +39,10 @@ runs; each event prints with its decoded meaning. Panels are blanked on exit
 
 Options: `--seconds`, `--brightness`, `--mode <0-9>`, `--keep`, `--verbose`.
 
-`test`, `listen`, and `raw` continue after a disconnection. They wait for the
-device to connect again. Then `test` draws the panels again. `--seconds` is
-the total time.
+`test`, `listen`, and `raw` send the keep-alive command, so the device stays
+connected for the full `--seconds`. They continue after a disconnection and
+wait for the device to connect again. Then `test` draws the panels again.
+`--seconds` is the total time.
 
 Options of `background`:
 
@@ -66,7 +67,7 @@ Options of `raw`:
 | `--note <text>` | Write a text in the file that says which gesture it holds |
 | `--until-enter` | Stop when you press Enter. `--seconds` is the time limit. |
 | `--draw` | Draw the slot numbers after each connection, as `test` does |
-| `--keep-alive <n>` | Send the keep-alive command each `<n>` seconds |
+| `--keep-alive <n>` | Not necessary: `raw` sends the keep-alive each 10 seconds. For a measurement, `<n>` changes the interval in seconds. `0` stops the keep-alive. |
 
 To record the input of every control, run `scripts/record-input.sh`. It runs
 `opencraft-probe record`, which shows one line for each gesture. See

@@ -38,7 +38,7 @@ means that the command is in the code but is not tested.
 | Knob light colours | `SETLB` | Red, green, blue for each knob | Sent |
 | Knob light brightness | `LBLIG` | Percent 0 to 100 | Source: not sent |
 | Sleep | `HAN` | None | Source: not sent |
-| Keep-alive | `CONNECT` | None | Source: not sent |
+| Keep-alive | `CONNECT` | None | Measured. See "Keep-alive and stop". |
 | Set the firmware mode | `MOD` | `0x00 0x00`, ASCII digit | Source: not sent |
 | Haptic feedback | `QUCMD` | `0x1F 0x11 0x00`, `0x11` on or `0xFF` off, `0x00 0x11` | Source: not sent |
 
@@ -146,6 +146,12 @@ codes of the N4 Pro are in
 | After the probe draws the panels and stops with no clear command, the panels go blank after a short time. The cause is possibly the same 35 seconds. | Measured (the blank panels), Inference (the cause) | Owner, 2026-11-11 |
 | The device sent no input report in answer to the draw commands or to `CONNECT` during 100 seconds | Measured | Probe, 2026-11-11 |
 | The SDK README refers to `ACK` and `OK` in input reports for newer protocol versions | Source | SDK README |
+
+The device layer sends `CONNECT` each 10 seconds while a device is connected:
+`Link::next_event` in `crates/core/src/link.rs` sends it, and the constant
+`KEEP_ALIVE_INTERVAL` holds the interval. It sends the keep-alive also when
+other commands went to the device, because the effect of the other commands
+on the 35 seconds is not known.
 
 ## Not known
 

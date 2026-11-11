@@ -3,6 +3,7 @@
 //! Confirms that we can talk to a StreamDock-class device without the vendor
 //! software: enumerate it, draw on every panel, and decode every input.
 
+use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 use opencraft_core::{
     events, image, list_devices, protocol, recording, select, Device, Error, Event, Found,
     HidConnector, HidTransport, Link, LinkEvent,
@@ -92,7 +93,9 @@ OPTIONS FOR 'raw':
                          limit; default: 10)
     --draw               Draw the slot numbers after each connection, as
                          'test' does
-    --keep-alive <n>     Send the keep-alive command each <n> seconds
+    --keep-alive <n>     Not necessary: the device layer sends the keep-alive
+                         each 10 seconds. For a measurement, <n> changes the
+                         interval in seconds, and 0 stops the keep-alive.
 
 OPTIONS FOR 'background':
     --file <path>        Draw this PNG or JPEG file, not the test pattern
@@ -102,9 +105,10 @@ OPTIONS FOR 'background':
     --init               Send the start commands before the background
     --hold <n>           Keep the connection for <n> seconds after the draw
 
-'test', 'listen' and 'raw' continue after a disconnection. They wait for the
-device to connect again. 'test' and 'raw --draw' draw the panels again.
-'--seconds' is the total time.
+'test', 'listen' and 'raw' send the keep-alive, so the device stays
+connected. They continue after a disconnection and wait for the device to
+connect again. 'test' and 'raw --draw' draw the panels again. '--seconds' is
+the total time.
 
 NOTE: quit VSD Craft before running — two apps driving one device will fight."
     );
@@ -225,7 +229,6 @@ fn cmd_test(rest: &[String]) -> AnyResult {
         &mut link,
         Duration::from_secs(seconds),
         None,
-        None,
         |d| draw_test_pattern(d, mode, brightness),
         |data| {
             print_event(data, verbose);
@@ -255,7 +258,6 @@ fn cmd_listen(rest: &[String]) -> AnyResult {
     run_link(
         &mut link,
         Duration::from_secs(seconds),
-        None,
         None,
         |_| Ok(0),
         |data| {
@@ -293,7 +295,12 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     };
 
     // With '--draw', the link draws the slot numbers after each connection.
+    // The link sends the keep-alive. '--keep-alive' changes its interval for
+    // a measurement, and 0 stops it.
     let mut link = Link::from_device(HidConnector, t);
+    if let Some(interval) = keep_alive {
+        link.set_keep_alive_interval(Some(interval));
+    }
     let stop = Arc::new(AtomicBool::new(false));
     if until_enter {
         watch_enter(Arc::clone(&stop));
@@ -308,7 +315,6 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
         &mut link,
         Duration::from_secs(seconds),
         Some(&stop),
-        keep_alive,
         |d| {
             if draw {
                 draw_test_pattern(d, None, 80)
@@ -521,7 +527,7 @@ fn cmd_background(rest: &[String]) -> AnyResult {
         let mut last = Instant::now();
         while Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(200));
-            if last.elapsed() >= Duration::from_secs(10) {
+            if last.elapsed() >= KEEP_ALIVE_INTERVAL {
                 t.keep_alive()?;
                 last = Instant::now();
             }
@@ -533,16 +539,14 @@ fn cmd_background(rest: &[String]) -> AnyResult {
 /// Operate the link until `duration` expires or `stop` is set.
 ///
 /// After each connection, `draw` draws all panels; it returns the number of
-/// panels that it drew. For each input report, `on_input` runs. If
-/// `keep_alive` has a value, the keep-alive command goes to the device at that
-/// interval. The function prints a line when the device disconnects and when
-/// it connects again. An error that does not stop the link is printed one
+/// panels that it drew. For each input report, `on_input` runs. The link sends
+/// the keep-alive. The function prints a line when the device disconnects and
+/// when it connects again. An error that does not stop the link is printed one
 /// time, until it changes.
 fn run_link(
     link: &mut Link<HidConnector>,
     duration: Duration,
     stop: Option<&AtomicBool>,
-    keep_alive: Option<Duration>,
     mut draw: impl FnMut(&mut Device<HidTransport>) -> opencraft_core::Result<usize>,
     mut on_input: impl FnMut(&[u8]) -> AnyResult,
 ) -> AnyResult {
@@ -551,7 +555,6 @@ fn run_link(
     let mut first = true;
     let mut lost_at: Option<Instant> = None;
     let mut last_error: Option<String> = None;
-    let mut last_keep_alive = Instant::now();
     let stamp = || format!("[{:6.1}s]", start.elapsed().as_secs_f64());
 
     while !stop.is_some_and(|s| s.load(Ordering::Relaxed)) {
@@ -559,19 +562,10 @@ fn run_link(
         if now >= deadline {
             break;
         }
-        if let Some(interval) = keep_alive {
-            if link.is_connected() && last_keep_alive.elapsed() >= interval {
-                last_keep_alive = Instant::now();
-                if let Err(e) = link.with_device(|d| d.keep_alive()) {
-                    eprintln!("  {} (keep-alive failed: {e})", stamp());
-                }
-            }
-        }
         let wait = (deadline - now).min(Duration::from_millis(100));
         match link.next_event(wait) {
             Ok(LinkEvent::Connected) => {
                 last_error = None;
-                last_keep_alive = Instant::now();
                 if let Some(lost) = lost_at.take() {
                     println!(
                         "  {} connected again, {:.1}s after the disconnection",

@@ -18,6 +18,11 @@
 //! one time each [`RETRY_INTERVAL`]. Between two tries it sleeps. It does not
 //! poll in a loop.
 //!
+//! While a device is connected, the link sends the keep-alive command each
+//! [`KEEP_ALIVE_INTERVAL`] from [`Link::next_event`]. Without it, the device
+//! stops the connection. The caller does not send the keep-alive. It calls
+//! [`Link::next_event`] in a loop, as for the input.
+//!
 //! A [`Connector`] and a [`Clock`] are interfaces, so a test can supply fakes
 //! and run with no device and no real wait (architecture rule 7).
 
@@ -33,6 +38,14 @@ pub const RETRY_INTERVAL: Duration = Duration::from_secs(1);
 /// device and opens it again. An error that is not [`Error::Disconnected`]
 /// can go away. If it does not go away, the handle is possibly broken.
 pub const ERROR_LIMIT: u32 = 10;
+
+/// The time between two keep-alive commands while a device is connected.
+///
+/// The device stops the USB connection approximately 35 seconds after the last
+/// command from the host. With the keep-alive each 10 seconds, the connection
+/// stays. The vendor SDK also uses 10 seconds. See the section "Keep-alive and
+/// stop" in `docs/kb/streamdock-protocol.md`.
+pub const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
 
 /// The pause after an error that is not a disconnection. A failed read can
 /// return at once, so this pause prevents a busy loop. With [`ERROR_LIMIT`],
@@ -118,6 +131,53 @@ pub struct Link<C: Connector, K: Clock = SystemClock> {
     next_try: Option<Instant>,
     /// Errors in sequence that are not a disconnection.
     errors: u32,
+    /// When the next keep-alive goes to the device.
+    keep_alive: KeepAlive,
+}
+
+/// The keep-alive policy. All decisions about the keep-alive are here.
+///
+/// The keep-alive goes out on a fixed interval from the last keep-alive. The
+/// policy does not skip a keep-alive because a different command went to the
+/// device: it is not measured that a different command starts the 35 seconds
+/// of the device again.
+#[derive(Debug, Clone, Copy)]
+struct KeepAlive {
+    /// The interval. `None` means "send no keep-alive".
+    interval: Option<Duration>,
+    /// The time of the next keep-alive. `None` while no device is connected.
+    next: Option<Instant>,
+}
+
+impl KeepAlive {
+    fn new() -> Self {
+        Self {
+            interval: Some(KEEP_ALIVE_INTERVAL),
+            next: None,
+        }
+    }
+
+    /// A device is connected, or a keep-alive went out, at `now`. The interval
+    /// starts again.
+    fn restart(&mut self, now: Instant) {
+        self.next = self.interval.map(|i| now + i);
+    }
+
+    /// No device is connected. Send nothing.
+    fn stop(&mut self) {
+        self.next = None;
+    }
+
+    /// True if the keep-alive must go out at `now`.
+    fn is_due(&self, now: Instant) -> bool {
+        self.next.is_some_and(|t| now >= t)
+    }
+
+    /// The longest time that a read can wait from `now`, so that the next
+    /// keep-alive is not late. `None` if no keep-alive is scheduled.
+    fn wait_limit(&self, now: Instant) -> Option<Duration> {
+        self.next.map(|t| t.saturating_duration_since(now))
+    }
 }
 
 impl<C: Connector> Link<C> {
@@ -146,6 +206,18 @@ impl<C: Connector, K: Clock> Link<C, K> {
             pending: None,
             next_try: None,
             errors: 0,
+            keep_alive: KeepAlive::new(),
+        }
+    }
+
+    /// Change the keep-alive interval. `None` or zero stops the keep-alive. The
+    /// default is [`KEEP_ALIVE_INTERVAL`]. Use a different value only for a
+    /// measurement: without the keep-alive, the device stops the connection.
+    /// If a device is connected, the new interval starts now.
+    pub fn set_keep_alive_interval(&mut self, interval: Option<Duration>) {
+        self.keep_alive.interval = interval.filter(|i| !i.is_zero());
+        if self.device.is_some() {
+            self.keep_alive.restart(self.clock.now());
         }
     }
 
@@ -202,6 +274,14 @@ impl<C: Connector, K: Clock> Link<C, K> {
     /// report. While no device is connected, it tries to connect each
     /// [`RETRY_INTERVAL`] and sleeps between the tries.
     ///
+    /// While a device is connected, the call also sends the keep-alive when
+    /// [`KEEP_ALIVE_INTERVAL`] expires. A long `timeout` does not make the
+    /// keep-alive late: the call waits for input in shorter parts, and gives
+    /// [`LinkEvent::Timeout`] only when the full `timeout` expires. Call this
+    /// function again at once after each event, so that the keep-alive is not
+    /// late. A keep-alive that fails is a write error, as in
+    /// [`Self::with_device`].
+    ///
     /// An `Err` does not stop the link. Call again. It is one of these:
     ///
     /// - An error from a read that can go away. The link paused for
@@ -216,14 +296,31 @@ impl<C: Connector, K: Clock> Link<C, K> {
         }
         let deadline = self.clock.now() + timeout;
         loop {
+            if self.device.is_some() {
+                self.send_keep_alive_if_due()?;
+                if let Some(event) = self.pending.take() {
+                    return Ok(event);
+                }
+            }
             if let Some(device) = self.device.as_mut() {
-                return match device.read(timeout) {
+                let now = self.clock.now();
+                let remaining = deadline.saturating_duration_since(now);
+                let wait = match self.keep_alive.wait_limit(now) {
+                    Some(limit) if limit < remaining => limit,
+                    _ => remaining,
+                };
+                return match device.read(wait) {
                     Ok(Some(report)) => {
                         self.errors = 0;
                         Ok(LinkEvent::Input(report))
                     }
                     Ok(None) => {
                         self.errors = 0;
+                        if wait < remaining {
+                            // The wait stopped for the keep-alive, not for
+                            // the caller.
+                            continue;
+                        }
                         Ok(LinkEvent::Timeout)
                     }
                     Err(e) => {
@@ -258,10 +355,35 @@ impl<C: Connector, K: Clock> Link<C, K> {
         }
     }
 
+    /// Send the keep-alive if it is due. A write error is handled as in
+    /// [`Self::with_device`]: [`Error::Disconnected`] drops the device, and
+    /// the pending event becomes [`LinkEvent::Disconnected`]. A different
+    /// error counts toward [`ERROR_LIMIT`]. Then the link pauses for
+    /// [`ERROR_PAUSE`], returns the error, and tries again at the next call.
+    fn send_keep_alive_if_due(&mut self) -> Result<()> {
+        let now = self.clock.now();
+        if !self.keep_alive.is_due(now) {
+            return Ok(());
+        }
+        match self.with_device(|d| d.keep_alive()) {
+            Ok(()) => {
+                self.keep_alive.restart(now);
+                Ok(())
+            }
+            // The device is gone. The pending event tells the caller.
+            Err(_) if !self.is_connected() => Ok(()),
+            Err(e) => {
+                self.clock.sleep(ERROR_PAUSE);
+                Err(e)
+            }
+        }
+    }
+
     fn set_device(&mut self, device: Device<C::Transport>) {
         self.device = Some(device);
         self.errors = 0;
         self.pending = Some(LinkEvent::Connected);
+        self.keep_alive.restart(self.clock.now());
     }
 
     /// Close the device. Try to connect again at once: if the handle broke but
@@ -272,6 +394,7 @@ impl<C: Connector, K: Clock> Link<C, K> {
         self.device = None;
         self.errors = 0;
         self.next_try = None;
+        self.keep_alive.stop();
     }
 
     /// Count one error. Return true if the link must drop the device.
@@ -288,49 +411,139 @@ impl<C: Connector, K: Clock> Link<C, K> {
 mod tests {
     use super::*;
     use crate::device::DESCRIPTORS;
+    use crate::protocol;
     use crate::transport::FakeTransport;
+    use std::cell::{Cell, RefCell};
     use std::collections::VecDeque;
+    use std::ops::{Deref, DerefMut};
+    use std::rc::Rc;
+
+    /// The fake time, and the record of all write tries to all transports.
+    /// The clock and each transport of one test share it.
+    struct World {
+        start: Instant,
+        now: Cell<Instant>,
+        /// The time from the start, and the report, of each write try.
+        writes: RefCell<Vec<(Duration, Vec<u8>)>>,
+    }
+
+    impl World {
+        fn new() -> Rc<Self> {
+            let start = Instant::now();
+            Rc::new(Self {
+                start,
+                now: Cell::new(start),
+                writes: RefCell::new(Vec::new()),
+            })
+        }
+
+        fn elapsed(&self) -> Duration {
+            self.now.get() - self.start
+        }
+
+        fn advance(&self, duration: Duration) {
+            self.now.set(self.now.get() + duration);
+        }
+
+        /// The times of the keep-alive write tries.
+        fn keep_alive_times(&self) -> Vec<Duration> {
+            let mut expected = protocol::keep_alive();
+            expected.resize(1 + DESCRIPTORS[0].packet_size, 0);
+            self.writes
+                .borrow()
+                .iter()
+                .filter(|(_, report)| *report == expected)
+                .map(|(at, _)| *at)
+                .collect()
+        }
+    }
+
+    /// A [`FakeTransport`] in the fake time. A read with no report waits for
+    /// its full time limit, as a real read does. Each write try goes to the
+    /// record of the [`World`].
+    struct Timed {
+        fake: FakeTransport,
+        world: Rc<World>,
+    }
+
+    impl Deref for Timed {
+        type Target = FakeTransport;
+        fn deref(&self) -> &FakeTransport {
+            &self.fake
+        }
+    }
+
+    impl DerefMut for Timed {
+        fn deref_mut(&mut self) -> &mut FakeTransport {
+            &mut self.fake
+        }
+    }
+
+    impl Transport for Timed {
+        fn write(&mut self, report: &[u8]) -> Result<()> {
+            self.world
+                .writes
+                .borrow_mut()
+                .push((self.world.elapsed(), report.to_vec()));
+            self.fake.write(report)
+        }
+
+        fn read(&mut self, buf: &mut [u8], timeout: Duration) -> Result<Option<usize>> {
+            let result = self.fake.read(buf, timeout);
+            if matches!(result, Ok(None)) {
+                self.world.advance(timeout);
+            }
+            result
+        }
+
+        fn get_feature_report(&mut self, buf: &mut [u8]) -> Result<usize> {
+            self.fake.get_feature_report(buf)
+        }
+    }
 
     /// A connector that gives the transports of a script, in order. `None` in
     /// the script, or an empty script, means "not present".
-    #[derive(Default)]
     struct FakeConnector {
         script: VecDeque<Option<FakeTransport>>,
         tries: u32,
+        world: Rc<World>,
     }
 
     impl FakeConnector {
-        fn new(script: impl IntoIterator<Item = Option<FakeTransport>>) -> Self {
+        fn new(world: &Rc<World>, script: impl IntoIterator<Item = Option<FakeTransport>>) -> Self {
             Self {
                 script: script.into_iter().collect(),
                 tries: 0,
+                world: Rc::clone(world),
             }
         }
     }
 
     impl Connector for FakeConnector {
-        type Transport = FakeTransport;
+        type Transport = Timed;
 
-        fn connect(&mut self) -> Result<Option<Device<FakeTransport>>> {
+        fn connect(&mut self) -> Result<Option<Device<Timed>>> {
             self.tries += 1;
-            Ok(self
-                .script
-                .pop_front()
-                .flatten()
-                .map(|t| Device::new(t, &DESCRIPTORS[0])))
+            Ok(self.script.pop_front().flatten().map(|fake| {
+                let timed = Timed {
+                    fake,
+                    world: Rc::clone(&self.world),
+                };
+                Device::new(timed, &DESCRIPTORS[0])
+            }))
         }
     }
 
     /// A clock that does not wait. A sleep moves the time forward.
     struct FakeClock {
-        now: Instant,
+        world: Rc<World>,
         sleeps: Vec<Duration>,
     }
 
     impl FakeClock {
-        fn new() -> Self {
+        fn new(world: &Rc<World>) -> Self {
             Self {
-                now: Instant::now(),
+                world: Rc::clone(world),
                 sleeps: Vec::new(),
             }
         }
@@ -342,23 +555,26 @@ mod tests {
 
     impl Clock for FakeClock {
         fn now(&self) -> Instant {
-            self.now
+            self.world.now.get()
         }
 
         fn sleep(&mut self, duration: Duration) {
             self.sleeps.push(duration);
-            self.now += duration;
+            self.world.advance(duration);
         }
     }
 
+    type TestLink = Link<FakeConnector, FakeClock>;
+
     const STEP: Duration = Duration::from_millis(100);
 
-    fn link(script: Vec<Option<FakeTransport>>) -> Link<FakeConnector, FakeClock> {
-        Link::with_clock(FakeConnector::new(script), FakeClock::new())
+    fn link(script: Vec<Option<FakeTransport>>) -> TestLink {
+        let world = World::new();
+        Link::with_clock(FakeConnector::new(&world, script), FakeClock::new(&world))
     }
 
     /// A link that is connected to a fake. The `Connected` event is taken.
-    fn connected_link(script: Vec<Option<FakeTransport>>) -> Link<FakeConnector, FakeClock> {
+    fn connected_link(script: Vec<Option<FakeTransport>>) -> TestLink {
         let mut script = script;
         script.insert(0, Some(FakeTransport::new()));
         let mut link = link(script);
@@ -366,7 +582,7 @@ mod tests {
         link
     }
 
-    fn disconnect(link: &mut Link<FakeConnector, FakeClock>) {
+    fn disconnect(link: &mut TestLink) {
         link.with_device(|d| {
             d.transport_mut().disconnect();
             Ok(())
@@ -375,8 +591,29 @@ mod tests {
     }
 
     /// Collect the events of `n` calls. Errors become `None`.
-    fn events(link: &mut Link<FakeConnector, FakeClock>, n: usize) -> Vec<Option<LinkEvent>> {
+    fn events(link: &mut TestLink, n: usize) -> Vec<Option<LinkEvent>> {
         (0..n).map(|_| link.next_event(STEP).ok()).collect()
+    }
+
+    fn world(link: &TestLink) -> &World {
+        &link.clock().world
+    }
+
+    /// Call `next_event(STEP)` until the fake time is `until` from the start.
+    /// Give each event that is not `Timeout`, with its time.
+    fn run_until(link: &mut TestLink, until: Duration) -> Vec<(Duration, Option<LinkEvent>)> {
+        let mut got = Vec::new();
+        while world(link).elapsed() < until {
+            let event = link.next_event(STEP).ok();
+            if event != Some(LinkEvent::Timeout) {
+                got.push((world(link).elapsed(), event));
+            }
+        }
+        got
+    }
+
+    fn secs(s: u64) -> Duration {
+        Duration::from_secs(s)
     }
 
     #[test]
@@ -436,7 +673,7 @@ mod tests {
     fn a_write_disconnection_during_a_draw_is_a_disconnection() {
         let mut fake = FakeTransport::new();
         fake.disconnect();
-        let mut link = Link::with_clock(FakeConnector::new([Some(fake)]), FakeClock::new());
+        let mut link = link(vec![Some(fake)]);
         assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Connected);
 
         assert!(matches!(
@@ -543,8 +780,13 @@ mod tests {
 
     #[test]
     fn from_device_gives_connected_first() {
-        let device = Device::new(FakeTransport::new(), &DESCRIPTORS[0]);
-        let mut link = Link::from_device(FakeConnector::new([]), device);
+        let world = World::new();
+        let timed = Timed {
+            fake: FakeTransport::new(),
+            world: Rc::clone(&world),
+        };
+        let device = Device::new(timed, &DESCRIPTORS[0]);
+        let mut link = Link::from_device(FakeConnector::new(&world, []), device);
         assert_eq!(
             link.next_event(Duration::ZERO).unwrap(),
             LinkEvent::Connected
@@ -581,7 +823,7 @@ mod tests {
                 }
             }
         }
-        let mut link = Link::with_clock(Failing(0), FakeClock::new());
+        let mut link = Link::with_clock(Failing(0), FakeClock::new(&World::new()));
         assert!(matches!(
             link.next_event(STEP),
             Err(Error::PermissionDenied)
@@ -596,5 +838,139 @@ mod tests {
         assert_eq!(event, LinkEvent::Connected);
         assert_eq!(link.connector().0, 2);
         assert!(link.clock().slept() <= RETRY_INTERVAL);
+    }
+
+    #[test]
+    fn the_keep_alive_goes_out_each_interval() {
+        let mut link = connected_link(vec![]);
+        assert_eq!(KEEP_ALIVE_INTERVAL, secs(10));
+
+        let got = run_until(&mut link, secs(35));
+        assert!(got.is_empty(), "no event other than Timeout: {got:?}");
+        assert_eq!(
+            world(&link).keep_alive_times(),
+            vec![secs(10), secs(20), secs(30)]
+        );
+        assert_eq!(world(&link).writes.borrow().len(), 3, "only keep-alives");
+    }
+
+    #[test]
+    fn a_long_timeout_does_not_make_the_keep_alive_late() {
+        let mut link = connected_link(vec![]);
+
+        // One call of 60 seconds gives one Timeout after the full time.
+        assert_eq!(link.next_event(secs(60)).unwrap(), LinkEvent::Timeout);
+        assert_eq!(world(&link).elapsed(), secs(60));
+        assert_eq!(
+            world(&link).keep_alive_times(),
+            vec![secs(10), secs(20), secs(30), secs(40), secs(50)]
+        );
+
+        // The keep-alive that is due at the end goes out at the next call.
+        assert_eq!(link.next_event(Duration::ZERO).unwrap(), LinkEvent::Timeout);
+        assert_eq!(world(&link).keep_alive_times().len(), 6);
+    }
+
+    #[test]
+    fn input_does_not_delay_the_keep_alive() {
+        let mut link = connected_link(vec![]);
+        run_until(&mut link, secs(9));
+        // A different command does not move the keep-alive (fixed interval).
+        link.with_device(|d| d.commit()).unwrap();
+        link.with_device(|d| {
+            d.transport_mut().push_input(vec![1]);
+            Ok(())
+        })
+        .unwrap();
+        let got = run_until(&mut link, secs(21));
+        assert_eq!(got, vec![(secs(9), Some(LinkEvent::Input(vec![1])))]);
+        assert_eq!(world(&link).keep_alive_times(), vec![secs(10), secs(20)]);
+    }
+
+    #[test]
+    fn no_keep_alive_while_disconnected() {
+        let mut link = connected_link(vec![]);
+        run_until(&mut link, secs(5));
+        disconnect(&mut link);
+
+        let got = run_until(&mut link, secs(60));
+        assert_eq!(got, vec![(secs(5), Some(LinkEvent::Disconnected))]);
+        assert!(world(&link).writes.borrow().is_empty());
+    }
+
+    #[test]
+    fn the_interval_starts_again_after_a_new_connection() {
+        // Connected at 0 s. Disconnected at 5 s. The tries at 5 s and 6 s
+        // find nothing. The try at 7 s connects.
+        let mut link = connected_link(vec![None, None, Some(FakeTransport::new())]);
+        run_until(&mut link, secs(5));
+        disconnect(&mut link);
+
+        let got = run_until(&mut link, secs(30));
+        assert_eq!(
+            got,
+            vec![
+                (secs(5), Some(LinkEvent::Disconnected)),
+                (secs(7), Some(LinkEvent::Connected)),
+            ]
+        );
+        assert_eq!(world(&link).keep_alive_times(), vec![secs(17), secs(27)]);
+    }
+
+    #[test]
+    fn a_keep_alive_that_fails_with_disconnected_gives_one_disconnected_event() {
+        let mut link = connected_link(vec![]);
+        run_until(&mut link, secs(10));
+        // The device goes away just before the keep-alive. The keep-alive is
+        // the first call that sees it.
+        disconnect(&mut link);
+
+        assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Disconnected);
+        assert_eq!(world(&link).keep_alive_times(), vec![secs(10)]);
+        assert!(!link.is_connected());
+        let later = run_until(&mut link, secs(60));
+        assert!(later.is_empty(), "one Disconnected only: {later:?}");
+        assert_eq!(world(&link).keep_alive_times(), vec![secs(10)]);
+    }
+
+    #[test]
+    fn a_keep_alive_error_that_stays_counts_toward_the_limit() {
+        let mut link = connected_link(vec![Some(FakeTransport::new())]);
+        run_until(&mut link, secs(10));
+        link.with_device(|d| {
+            d.transport_mut().fail_writes("broken handle");
+            Ok(())
+        })
+        .unwrap();
+
+        let got = events(&mut link, ERROR_LIMIT as usize + 1);
+        let errors = got.iter().filter(|e| e.is_none()).count();
+        assert_eq!(errors, ERROR_LIMIT as usize - 1);
+        assert_eq!(got[ERROR_LIMIT as usize - 1], Some(LinkEvent::Disconnected));
+        // The device is still present, so it opens again at once.
+        assert_eq!(got[ERROR_LIMIT as usize], Some(LinkEvent::Connected));
+        // Each failed try paused, so the tries did not use the processor.
+        assert_eq!(world(&link).keep_alive_times().len(), ERROR_LIMIT as usize);
+        assert!(link.clock().sleeps.iter().all(|&s| s == ERROR_PAUSE));
+    }
+
+    #[test]
+    fn the_keep_alive_interval_can_change_or_stop() {
+        let mut link = connected_link(vec![]);
+        link.set_keep_alive_interval(Some(secs(3)));
+        run_until(&mut link, secs(10));
+        assert_eq!(
+            world(&link).keep_alive_times(),
+            vec![secs(3), secs(6), secs(9)]
+        );
+
+        link.set_keep_alive_interval(None);
+        run_until(&mut link, secs(60));
+        assert_eq!(world(&link).keep_alive_times().len(), 3);
+
+        // Zero is the same as no keep-alive. It does not make a busy loop.
+        link.set_keep_alive_interval(Some(Duration::ZERO));
+        assert_eq!(link.next_event(secs(1)).unwrap(), LinkEvent::Timeout);
+        assert_eq!(world(&link).keep_alive_times().len(), 3);
     }
 }

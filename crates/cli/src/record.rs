@@ -6,14 +6,11 @@
 //! format of `opencraft_core::recording`.
 
 use crate::{draw_test_pattern, flag_str, flag_u64, AnyResult};
+use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 use opencraft_core::{events, list_devices, recording, select, Device, Event, HidTransport};
 use std::io::Write;
 use std::path::Path;
 use std::time::{Duration, Instant};
-
-/// The device stops the USB connection if the host sends no command for
-/// approximately 35 seconds. The SDK sends the keep-alive each 10 seconds.
-const KEEP_ALIVE: Duration = Duration::from_secs(10);
 
 /// The time to wait for the first report of a step.
 const FIRST_REPORT_LIMIT: Duration = Duration::from_secs(20);
@@ -146,7 +143,7 @@ struct Session {
 impl Session {
     /// Wait up to 50 ms for one report. Send the keep-alive when it is time.
     fn poll(&mut self) -> opencraft_core::Result<Option<Vec<u8>>> {
-        if self.last_command.elapsed() >= KEEP_ALIVE {
+        if self.last_command.elapsed() >= KEEP_ALIVE_INTERVAL {
             self.device.keep_alive()?;
             self.last_command = Instant::now();
         }

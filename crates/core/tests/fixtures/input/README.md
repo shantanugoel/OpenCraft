@@ -30,7 +30,7 @@ To continue after a stop, give the step number:
 You can also record by hand, with no prompts:
 
 ```sh
-opencraft-probe raw --draw --keep-alive 10 --save key.txt --note "one key: press and release" --until-enter
+opencraft-probe raw --draw --save key.txt --note "one key: press and release" --until-enter
 ```
 
 ## File format
