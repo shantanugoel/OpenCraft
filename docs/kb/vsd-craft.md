@@ -35,7 +35,9 @@ The size on disk was measured on the computer of the owner, on or before
 ## Not known
 
 - The memory use and the processor use of VSD Craft when it runs. Measure them
-  one time. They are the reference for the product targets.
+  one time. They are the reference for the product targets. The method of
+  measurement is the script
+  [measure-footprint.sh](../../scripts/README.md#measure-footprintsh).
 - The profile format. This is necessary only for an import function, which is
   not in a phase.
 - How "Touch Bar mode" draws on the touch bar. See
