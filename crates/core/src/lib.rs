@@ -9,6 +9,7 @@ pub mod error;
 pub mod events;
 pub mod image;
 pub mod protocol;
+pub mod recording;
 pub mod transport;
 
 pub use connection::Device;
