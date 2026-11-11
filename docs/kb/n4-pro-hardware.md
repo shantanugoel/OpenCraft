@@ -168,9 +168,20 @@ Keys:
 
 - A key held for 3 seconds sends one press and one release. It sends no
   repeat. (Measured)
-- In one test, 2 adjacent keys were pressed together. The device sent the
-  press and the release of one key only, 30 ms apart. One test is not
-  sufficient. (Measured: 1 time)
+- The device does not report 2 keys at the same time. (Measured: owner and
+  probe, 2026-11-11)
+  - When 2 adjacent keys go down together, the device sends the press and the
+    release of one key, 0 to 31 ms apart. It sends nothing for the other key,
+    and nothing when the keys go up. (Measured: 7 times)
+  - When one key is down and a second key goes down, the device sends the
+    release of the first key. When the second key goes up, the device sends
+    the press of the first key again. It sends no report for the second key.
+    (Measured: 1 time)
+  - Thus a key combination is not possible, and a press report can come from
+    a key that was down before.
+- The device vibrates when it sends a key press. In the test above, it
+  vibrated at the first press and when the second key went up. (Measured:
+  owner, 2026-11-11)
 
 Knobs:
 
@@ -192,9 +203,14 @@ Touch bar:
 - The touch coordinates that were seen: x from 8 to 799, y from 6 to 109.
   (Measured) Thus the touch area is possibly 800 × 112. (Inference) This is
   wider than the 4 bar panels together (704 pixels).
-- A tap gives the code of the quarter of the touch bar where it starts:
-  x = 101 gave `0x40`, 290 gave `0x41`, 510 gave `0x42`, 679 gave `0x43`.
-  (Measured) The limits between the quarters are not measured.
+- A tap gives the code of the part of the touch bar where it starts. 26
+  taps from the left end to the right end gave: `0x40` for x from 30 to 171,
+  `0x41` for x from 225 to 366, `0x42` for x from 407 to 576, and `0x43` for
+  x from 613 to 762. (Measured: owner, 2026-11-11)
+- Thus the code changes between x = 171 and 225, between 366 and 407, and
+  between 576 and 613. These ranges contain the quarters of the width (200,
+  400, 600) and the spaces between the bar panel images. The test cannot
+  tell which of the two is the rule. (Inference)
 - A tap is not one event: it is the sequence above. A finger that stays for
   3 seconds and does not move gives the same tap code when it lifts.
   (Measured)
@@ -225,6 +241,8 @@ A camera recorded these facts on 2026-11-11. The commands are in
 | Fact | Confidence | Source |
 |---|---|---|
 | After the cable is connected, and after the device stops the USB connection, the device shows a boot animation and then a logo on an animated background. The knob lights are off. | Measured | Camera, 2026-11-11 |
+| The boot animation starts less than 0.5 seconds after the cable is connected, and the logo shows approximately 1.5 seconds later | Measured: 2 times | Camera, 2026-11-11 |
+| The device is on the bus, and the probe draws on it, 6.4 to 6.8 seconds after the cable is connected | Measured: 2 times | Camera and probe, 2026-11-11 |
 | The device continues to show the logo. After 10 minutes it was the same. | Measured | Camera, 2026-11-11 |
 | The device shows a slot image that arrives in this state, on top of the animation | Measured | Camera, 2026-11-11 |
 
@@ -270,12 +288,9 @@ Measure these in Phase 1.
   user. It changes with the position of the eye. The camera gives approximate
   values for one position. The positions of the images are exact.
 - The meaning of the input code `0xB2`.
-- The x coordinates at which the tap code changes from one bar panel to the
-  next.
-- What the device sends when 2 or more keys are pressed together. One test
-  showed one key only.
+- The exact x coordinates at which the tap code changes from one bar panel
+  to the next. The ranges are in "Controls and input codes".
 - Whether the device keeps its images when the computer sleeps and wakes.
-- The time from the cable connection until the device accepts images.
 
 ## Sources
 
