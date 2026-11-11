@@ -17,7 +17,8 @@ fn cmd(op: &[u8]) -> Vec<u8> {
     v
 }
 
-/// Clear the framebuffer. Sent once at startup.
+/// Start command. The probe sends it one time before the first image.
+/// It does not remove the images that the device shows (measured).
 pub fn init() -> Vec<u8> {
     cmd(b"DIS")
 }
@@ -198,7 +199,7 @@ mod tests {
 
     #[test]
     fn init_bytes() {
-        // The table calls this "Start, clear the frame buffer".
+        // The table calls this "Start".
         assert_eq!(init(), command(b"DIS"));
     }
 

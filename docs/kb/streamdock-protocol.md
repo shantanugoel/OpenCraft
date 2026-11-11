@@ -27,12 +27,12 @@ means that the command is in the code but is not tested.
 
 | Operation | Code | Arguments | Confidence |
 |---|---|---|---|
-| Image header | `BAT` | Length (4 bytes, big-endian), slot | Measured for an image smaller than 65 536 bytes. The 4-byte length is Source. |
+| Image header | `BAT` | Length (4 bytes, big-endian), slot | Measured for an image smaller than 65 536 bytes. The 4-byte length is Source for `BAT`, and Measured for `BGPIC`. |
 | Commit the images | `STP` | None | Measured |
-| Background image header | `BGPIC` | Length (4 bytes), x (2 bytes), y (2 bytes), width (2 bytes), height (2 bytes), `0x00`, layer. All big-endian. | Source: not sent |
-| Remove the background image | `BGCLE` | Layer | Source: not sent |
+| Background image header | `BGPIC` | Length (4 bytes), x (2 bytes), y (2 bytes), width (2 bytes), height (2 bytes), `0x00`, layer. All big-endian. | Measured: owner, 2026-11-11 |
+| Remove the background image | `BGCLE` | Layer | Measured with layer `0x03`: owner, 2026-11-11 |
 | Boot logo header. **Do not send.** | `LOG` | Length (4 bytes, big-endian), `0x01` | Source: not sent |
-| Start, clear the frame buffer | `DIS` | None | Sent |
+| Start | `DIS` | None | Measured: it does not remove the images. See "Background image". |
 | Brightness | `LIG` | `0x00 0x00`, percent 0 to 100 | Sent |
 | Clear one slot, or all slots with `0xFF` | `CLE` | `0x00 0x00 0x00`, slot | Measured: owner, 2026-11-11 |
 | Knob light colours | `SETLB` | Red, green, blue for each knob | Sent |
@@ -98,6 +98,20 @@ safe to send.
 | `LOG` header: `"CRT" 0x00 0x00 "LOG"`, length (4 bytes, big-endian), `0x01`. The SDK refuses a boot logo larger than 522 240 bytes. | Source | SDK binary, `Transport::setBackgroundImgStream`; `PILHelper.py`, `encode_boot_logo` |
 | `mirajazz` and `opendeck-akp05` have no command for the background or the boot logo | Source | Their source code |
 
+The owner looked at the device on 2026-11-11, and the probe sent the commands.
+These facts are measured:
+
+| Fact | Confidence |
+|---|---|
+| `BGPIC` and then `STP` show the background on our device. The image is upright after the 180° turn. | Measured |
+| A background JPEG of 110 233 bytes shows correctly. Thus the 4-byte length is correct for `BGPIC`. | Measured |
+| After the device stops the connection and connects again, `BGPIC` alone shows nothing. After `DIS` and the brightness command, `BGPIC` shows the image. Which of the two commands is necessary is not measured. | Measured |
+| If the display is in operation, `BGPIC` shows the image with no `DIS` before it | Measured |
+| The key faces and the bar panels show on top of the background, and the background stays visible around them | Measured |
+| `BGCLE 0x03` and then `STP` remove the background. The key faces and the bar panels stay. | Measured |
+| `DIS` does not remove the background, the key faces, or the bar panels | Measured |
+| After the cable is disconnected and connected again, the background is gone, and the boot logo and the boot animation are the same as before | Measured |
+
 OpenCraft has no builder for `LOG`. A test in `protocol.rs` makes sure that
 `protocol.rs` and `connection.rs` do not contain it. The probe command
 `background` sends `BGPIC`, then `STP`. With `--clear`, it sends
@@ -146,13 +160,11 @@ Measure these in Phase 1.
 - Whether JPEG is quicker than PNG for a full repaint.
 - Whether the device accepts a `BAT` image larger than 65 535 bytes. The SDK
   writes a 4-byte length (Source).
-- Whether `BGPIC` shows the background on our device, and whether `STP` is
-  necessary after it.
+- Whether `STP` is necessary after `BGPIC`. The probe always sends it.
+- Which command starts the display after a new connection: `DIS`, the
+  brightness command, or the two together.
 - The largest JPEG that the device accepts for `BGPIC`. The SDK sets no limit.
-- Whether the key faces and the bar panels stay on top of the background.
-- Whether `DIS` or `CLE` removes the background.
-- Whether the background stays after the host process stops, and after a
-  power cycle. The SDK calls it temporary (Source).
+- Whether `CLE` for all slots removes the background.
 - What each layer value of `BGPIC` and `BGCLE` does.
 
 ## Sources

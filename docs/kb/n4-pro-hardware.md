@@ -41,14 +41,32 @@ on hardware.
 |---|---|---|---|---|---|
 | Key face | 6 to 15 | 112 × 112 | PNG | 180° | Measured: the probe paints them |
 | Bar panel | 1 to 4 | 176 × 112 | PNG | 180° | Measured: the probe paints them |
-| Background | None | 800 × 480 | JPEG | 180° | Source: SDK. Not tested. |
+| Background | None | 800 × 480 | JPEG | 180° | Measured: the probe paints it. Owner, 2026-11-11 |
+
+The device has one display of 800 × 480 pixels behind the keys and the touch
+bar. Each key and the touch bar is a window on this display. The owner
+photographed a background test pattern with a grid and coordinates on
+2026-11-11. The values below are from that photograph, so they are
+approximate. (Measured)
+
+| Window | Part of the 800 × 480 image that shows |
+|---|---|
+| Keys, top row | y from 0 to approximately 110. The left edge of the first key is near x = 0. The right edge of the fifth key is near x = 800. |
+| Keys, second row | y from approximately 165 to approximately 275 |
+| Touch bar | The full width, x from 0 to 800. y from approximately 370 to 480. |
+
+- The areas between these windows do not show.
+- A key face image and a bar panel image show on top of the background. The
+  background stays visible around them. (Measured: owner, 2026-11-11)
+- The touch bar shows 800 pixels of width. This agrees with the touch
+  coordinates. The 4 bar panels together are 704 pixels wide. (Measured)
 
 - Slot 5 is not used. The SDK image map has no entry for it. (Source)
 - The 4 bar panels are the display of the touch bar. The SDK calls them the
   "secondary screen". (Source)
 - The device has no display other than these. The SDK has no other draw
   method. (Source)
-- 800 × 480 is not the size of the touch bar. The SDK method
+- 800 × 480 is the size of the full display, not of the touch bar. The SDK method
   `set_touchscreen_image` sets the boot logo, not the background. The method
   name caused an error in the first plan. (Source)
 - The SDK method `set_frame_background` sets the background. The SDK calls it
@@ -134,11 +152,12 @@ The SDK shows these settings. None is tested. (Source)
 
 Measure these in Phase 1.
 
-- Where the 800 × 480 background shows: behind the keys only, or behind the
-  touch bar also.
-- Whether the touch bar can show one image that is wider than the 4 bar panels
-  together (4 × 176 = 704 pixels). The vendor software has a "Touch Bar mode"
-  that hides the knob icons. See [vsd-craft.md](vsd-craft.md).
+- The accurate position of each key window and of the touch bar window on the
+  800 × 480 display. The photograph gives approximate values only.
+- Where each bar panel image shows in the touch bar window, and whether a bar
+  panel image can be wider than 176 pixels. The background can put one image
+  across the full touch bar. The vendor software has a "Touch Bar mode" that
+  hides the knob icons. See [vsd-craft.md](vsd-craft.md).
 - The meaning of the input code `0xB2`.
 - The x coordinates at which the tap code changes from one bar panel to the
   next.

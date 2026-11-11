@@ -47,6 +47,8 @@ Options of `background`:
 | `--quality <1-100>` | JPEG quality. The default is 60, the value of the vendor SDK. |
 | `--with-panels` | After the background, draw the numbered key faces and bar panels |
 | `--clear` | Remove the background image |
+| `--init` | Send the start commands first. This is necessary after a new connection. |
+| `--hold <n>` | Keep the connection for `<n>` seconds, so that the image stays |
 
 `background` sends the command for the temporary background. It never sends
 the boot logo command, because the device writes the boot logo to permanent

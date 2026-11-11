@@ -98,6 +98,8 @@ OPTIONS FOR 'background':
     --quality <1-100>    JPEG quality (default: 60, the value of the vendor SDK)
     --with-panels        Then draw the numbered key faces and bar panels on top
     --clear              Remove the background image. Draw nothing.
+    --init               Send the start commands before the background
+    --hold <n>           Keep the connection for <n> seconds after the draw
 
 NOTE: quit VSD Craft before running — two apps driving one device will fight."
     );
