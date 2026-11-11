@@ -1,15 +1,20 @@
 #!/bin/sh
-# Build the GUI application and sign it with a stable identity.
+# Build the GUI application, put it in an application bundle, and sign the
+# bundle with a stable identity.
 #
 # macOS connects the Accessibility permission to the code signature. The
 # linker gives each build a new ad-hoc signature, so the permission of the
 # last build does not apply to a new build. A signature from one identity
 # stays the same for each build. See docs/kb/macos-permissions.md.
 #
+# The bundle is target/<profile>/OpenCraft.app. macOS gives a program that
+# starts from a terminal the permissions of the terminal. A bundle that
+# starts through `open`, the Finder, or the Dock has its own permissions.
+#
 # Usage: scripts/sign-dev.sh [--release] [--run]
 #
 #   --release   Build and sign the release profile. The default is debug.
-#   --run       Start the signed program after the signature.
+#   --run       Start the bundle with `open` after the signature.
 #
 # The identity is the value of OPENCRAFT_SIGN_IDENTITY: a name or a SHA-1
 # hash that `security find-identity -v -p codesigning` shows. If the variable
@@ -50,10 +55,27 @@ else
     cargo build -p opencraft-app
 fi
 
-binary="target/$profile/opencraft"
-codesign --force --sign "$identity" --identifier "$IDENTIFIER" "$binary"
-echo "Signed $binary with the identifier $IDENTIFIER."
+bundle="target/$profile/OpenCraft.app"
+rm -rf "$bundle"
+mkdir -p "$bundle/Contents/MacOS"
+cp "target/$profile/opencraft" "$bundle/Contents/MacOS/opencraft"
+cat > "$bundle/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key><string>opencraft</string>
+    <key>CFBundleIdentifier</key><string>$IDENTIFIER</string>
+    <key>CFBundleName</key><string>OpenCraft</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+PLIST
+codesign --force --sign "$identity" --identifier "$IDENTIFIER" "$bundle"
+echo "Signed $bundle with the identifier $IDENTIFIER."
 
 if [ "$run" -eq 1 ]; then
-    exec "$binary"
+    exec open "$bundle"
 fi
