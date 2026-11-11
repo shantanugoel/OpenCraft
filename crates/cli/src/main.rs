@@ -36,6 +36,7 @@ fn main() -> ExitCode {
         "listen" => cmd_listen(rest),
         "draw" => cmd_draw(rest),
         "clear" => cmd_clear(rest),
+        "background" | "bg" => cmd_background(rest),
         "raw" => cmd_raw(rest),
         "record" => record::cmd_record(rest),
         "help" | "--help" | "-h" => {
@@ -72,6 +73,7 @@ COMMANDS:
     listen               Decode input events only
     draw <slot> <rrggbb> Paint one slot a solid colour
     clear [slot]         Send the clear command for one slot, or for all slots
+    background           Draw a test pattern on the background (800x480)
     raw                  Hexdump raw input reports; can save them to a file
     record               Record each gesture to a file, one prompt at a time
                          (--out <dir>, --from <step>)
@@ -90,6 +92,14 @@ OPTIONS FOR 'raw':
                          limit; default: 10)
     --draw               Draw the slot numbers first, as 'test' does
     --keep-alive <n>     Send the keep-alive command each <n> seconds
+
+OPTIONS FOR 'background':
+    --file <path>        Draw this PNG or JPEG file, not the test pattern
+    --quality <1-100>    JPEG quality (default: 60, the value of the vendor SDK)
+    --with-panels        Then draw the numbered key faces and bar panels on top
+    --clear              Remove the background image. Draw nothing.
+    --init               Send the start commands before the background
+    --hold <n>           Keep the connection for <n> seconds after the draw
 
 NOTE: quit VSD Craft before running — two apps driving one device will fight."
     );
@@ -173,6 +183,9 @@ fn cmd_identify() -> AnyResult {
     let d = t.descriptor();
     println!("  panels : {}", d.panels.len());
     println!("  packet : {} bytes", d.packet_size);
+    if let Some(bg) = d.background {
+        println!("  background: {}x{}", bg.width, bg.height);
+    }
     match t.firmware_version() {
         Ok(v) if !v.is_empty() => println!("  firmware: {v}"),
         _ => println!("  firmware: (unavailable)"),
@@ -411,6 +424,106 @@ fn cmd_clear(rest: &[String]) -> AnyResult {
         None => {
             t.clear_all()?;
             println!("  cleared all panels");
+        }
+    }
+    Ok(())
+}
+
+/// Draw the background: the test pattern or an image file. This sends the
+/// temporary background command ("BGPIC"), never the boot logo command.
+fn cmd_background(rest: &[String]) -> AnyResult {
+    let quality = flag_u64(rest, "--quality")
+        .unwrap_or(image::BACKGROUND_JPEG_QUALITY as u64)
+        .clamp(1, 100) as u8;
+    let with_panels = rest.iter().any(|a| a == "--with-panels");
+    let clear = rest.iter().any(|a| a == "--clear");
+
+    // Read the file before the device opens, so that a bad path stops early.
+    let file = match flag_str(rest, "--file") {
+        Some(path) => Some(std::fs::read(path).map_err(|e| format!("cannot read {path}: {e}"))?),
+        None if rest.iter().any(|a| a == "--file") => {
+            return Err("usage: opencraft-probe background --file <path>".into())
+        }
+        None => None,
+    };
+
+    let mut t = open_device()?;
+    let bg = t
+        .descriptor()
+        .background
+        .ok_or("this device has no background in its descriptor")?;
+
+    if clear {
+        t.clear_background()?;
+        t.commit()?;
+        println!("  background: cleared (BGCLE 0x03, then STP)");
+        return Ok(());
+    }
+
+    let jpeg = match &file {
+        Some(data) => image::render_background_file(data, bg.width, bg.height, quality)?,
+        None => image::render_background_test(bg.width, bg.height, quality)?,
+    };
+    println!(
+        "  background: {}x{} JPEG, quality {quality}, {} bytes ({} the 2-byte length limit of 65535)",
+        bg.width,
+        bg.height,
+        jpeg.len(),
+        if jpeg.len() > 0xFFFF { "above" } else { "below" }
+    );
+
+    if rest.iter().any(|a| a == "--init") {
+        // The same start as the test command: clear, then set the brightness.
+        t.init()?;
+        std::thread::sleep(Duration::from_millis(150));
+        t.set_brightness(80)?;
+        println!("  init   : DIS, then brightness 80%");
+    }
+
+    t.send_background(&jpeg)?;
+    t.commit()?;
+    println!("  drawn  : background committed");
+
+    if with_panels {
+        // A short pause makes the two steps visible one after the other.
+        std::thread::sleep(Duration::from_secs(1));
+        for (i, panel) in t.descriptor().panels.iter().enumerate() {
+            let png = image::render_test_panel(
+                panel.width,
+                panel.height,
+                panel.slot,
+                image::test_color(i),
+            )?;
+            t.send_image(panel.slot, &png)?;
+        }
+        t.commit()?;
+        println!(
+            "  drawn  : {} panels committed on top",
+            t.descriptor().panels.len()
+        );
+    }
+
+    if file.is_none() {
+        println!(
+            "\nThe test pattern, upright: red square at the top left, green at the top right,"
+        );
+        println!("blue at the bottom left, yellow at the bottom right. A white 1-pixel line at the edge.");
+        println!("A grey line each 40 pixels. The text \"x,y\" gives the coordinates of a bright crossing.");
+    }
+
+    // The device stops the connection 35 seconds after the last command, and
+    // its displays go blank. Keep the connection, so that a person has the
+    // time to look at the result.
+    if let Some(seconds) = flag_u64(rest, "--hold") {
+        println!("\nKeeping the connection for {seconds}s.");
+        let deadline = Instant::now() + Duration::from_secs(seconds);
+        let mut last = Instant::now();
+        while Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(200));
+            if last.elapsed() >= Duration::from_secs(10) {
+                t.keep_alive()?;
+                last = Instant::now();
+            }
         }
     }
     Ok(())

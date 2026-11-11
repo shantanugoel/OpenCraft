@@ -33,10 +33,26 @@ runs; each event prints with its decoded meaning. Panels are blanked on exit
 | `listen` | Decode input only |
 | `draw <slot> <rrggbb>` | Paint one slot a solid colour |
 | `clear [slot]` | Send the clear command for one slot, or for all slots |
+| `background` | Draw a test pattern or an image file on the 800×480 background |
 | `raw` | Hexdump raw input reports. Can save the full reports to a file. |
 | `record` | Record each gesture to a file, one prompt at a time. Options: `--out <dir>`, `--from <step>`. |
 
 Options: `--seconds`, `--brightness`, `--mode <0-9>`, `--keep`, `--verbose`.
+
+Options of `background`:
+
+| Option | What it does |
+|---|---|
+| `--file <path>` | Draw this PNG or JPEG file, not the test pattern |
+| `--quality <1-100>` | JPEG quality. The default is 60, the value of the vendor SDK. |
+| `--with-panels` | After the background, draw the numbered key faces and bar panels |
+| `--clear` | Remove the background image |
+| `--init` | Send the start commands first. This is necessary after a new connection. |
+| `--hold <n>` | Keep the connection for `<n>` seconds, so that the image stays |
+
+`background` sends the command for the temporary background. It never sends
+the boot logo command, because the device writes the boot logo to permanent
+memory. See [docs/kb/streamdock-protocol.md](docs/kb/streamdock-protocol.md#background-image).
 
 Options of `raw`:
 
@@ -67,8 +83,11 @@ To record the input of every control, run `scripts/record-input.sh`. It runs
 | Protocol | StreamDock v3, 1024-byte output reports |
 
 The probe decodes input from the keys, the knobs, and the touch bar. The 4
-panels in slots 1–4 are the display of the touch bar. The probe does not draw
-the 800×480 background image at this time. The full hardware facts are in
+panels in slots 1–4 are the display of the touch bar. The `background`
+command sends the 800×480 background image. The confidence of each background
+fact is in
+[docs/kb/streamdock-protocol.md](docs/kb/streamdock-protocol.md#background-image).
+The full hardware facts are in
 [docs/kb/n4-pro-hardware.md](docs/kb/n4-pro-hardware.md).
 
 ---

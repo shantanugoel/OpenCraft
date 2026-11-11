@@ -27,9 +27,12 @@ means that the command is in the code but is not tested.
 
 | Operation | Code | Arguments | Confidence |
 |---|---|---|---|
-| Image header | `BAT` | `0x00 0x00`, length (2 bytes, big-endian), slot | Measured |
+| Image header | `BAT` | Length (4 bytes, big-endian), slot | Measured for an image smaller than 65 536 bytes. The 4-byte length is Source for `BAT`, and Measured for `BGPIC`. |
 | Commit the images | `STP` | None | Measured |
-| Start, clear the frame buffer | `DIS` | None | Sent |
+| Background image header | `BGPIC` | Length (4 bytes), x (2 bytes), y (2 bytes), width (2 bytes), height (2 bytes), `0x00`, layer. All big-endian. | Measured: owner, 2026-11-11 |
+| Remove the background image | `BGCLE` | Layer | Measured with layer `0x03`: owner, 2026-11-11 |
+| Boot logo header. **Do not send.** | `LOG` | Length (4 bytes, big-endian), `0x01` | Source: not sent |
+| Start | `DIS` | None | Measured: it does not remove the images. See "Background image". |
 | Brightness | `LIG` | `0x00 0x00`, percent 0 to 100 | Sent |
 | Clear one slot, or all slots with `0xFF` | `CLE` | `0x00 0x00 0x00`, slot | Measured: owner, 2026-11-11 |
 | Knob light colours | `SETLB` | Red, green, blue for each knob | Sent |
@@ -60,11 +63,59 @@ OpenCraft does not send it. (Source)
 | The device accepts PNG for key faces and bar panels | Measured | Probe |
 | The image must be turned 180° before it is sent | Measured | Probe |
 | `mirajazz` and `opendeck-akp05` send JPEG to the same slots | Source | Their source code |
-| The background image goes through a different command, as a JPEG | Source | SDK |
+| The length in the `BAT` header is 4 bytes, big-endian. Byte 8 of the command buffer is bits 31 to 24, and byte 11 is bits 7 to 0. The slot follows. | Source | SDK binary, `Transport::setKeyBitmap` |
+| `mirajazz` writes `0x00 0x00` and then a 2-byte length. For an image smaller than 65 536 bytes, the bytes are the same as the 4-byte form. | Source | `mirajazz`, `src/device.rs`, `send_image` |
+| The SDK puts the image data in parts of `chunkSize() - 1` bytes, with no header in a part | Source | SDK binary, `Transport::setKeyBitmap` |
+| The SDK does not send `STP` in an image transfer. A separate call (`refresh`) sends it. | Source | SDK binary, `Transport::refresh`; SDK examples |
 
-**Caution.** The code sends only the low 16 bits of the image length. An image
-larger than 65 535 bytes will have an incorrect header. The two zero bytes
-before the length are possibly the high bytes of a 4-byte length. (Inference)
+The OpenCraft code writes the 4-byte length. A test with the fake transport
+examines the header of an image of 70 000 bytes.
+
+"SDK binary" is the transport library of the SDK, `libtransport.so`. Its source
+code is not public. We read the operation codes in its constant data, and the
+order of the bytes in its machine code. The function names are in its symbol
+table. The command buffer in the SDK has no report ID: byte 0 is `C` of
+`CRT`. In OpenCraft, the report ID is in front, so each byte number is 1 more.
+
+## Background image
+
+The SDK has two different commands for a full-screen image. Only `BGPIC` is
+safe to send.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `set_frame_background` sets the background. It sends `BGPIC` through `transport_set_background_frame_stream`. | Source | SDK, `StreamDock.py`, `_set_frame_background`; SDK binary |
+| The SDK calls this image a "temporary background image". The SDK sends one `BGPIC` image for each frame of a GIF or MP4 background. | Source | SDK, `LibUSBHIDAPI.py`, `setBackgroundImgFrame`; `GifController.py` |
+| `set_touchscreen_image` sets the **boot logo**. It sends `LOG` through `transport_set_background_image_stream`. | Source | SDK, `StreamDockN4Pro.py`, `StreamDock.py`, `_set_boot_logo`; SDK binary |
+| The device writes the boot logo to ROM. Incorrect data can make the device unusable. The SDK tells users to set the boot logo only with the vendor software. | Source | SDK, `transport_c.h`, `TransportCWrapper.h`, `Python-SDK/README.md` |
+| `BGPIC` header: `"CRT" 0x00 0x00 "BGPIC"`, length (4 bytes), x (2), y (2), width (2), height (2), `0x00`, layer. All numbers are big-endian. | Source | SDK binary, `Transport::setBackgroundFrameStream` |
+| The SDK draws a full background at x 0, y 0, with the size 800 × 480, on layer `0x00` | Source | SDK, `LibUSBHIDAPI.py`, `set_background_frame_stream`; `StreamDock.py` |
+| The `BGPIC` image data goes in parts, as for `BAT`. The function sends no `STP`. | Source | SDK binary, `Transport::setBackgroundFrameStream` |
+| The SDK animation loop sends `STP` after each group of frames | Source | SDK, `GifController.py`, `_gif_work_loop` |
+| The background is a JPEG of 800 × 480, turned 180°. The SDK encodes it with quality 60. | Source | SDK, `StreamDockN4Pro.py`, `touchscreen_image_format`; `PILHelper.py`, `encode_background_frame`; `streamdock.cpp`, `setFrameBackgroundStream` |
+| A `BGPIC` image must be inside the 800 × 480 area: x + width ≤ 800, and y + height ≤ 480 | Source | SDK, `GifController.py`, `_background_frame_fits` |
+| `BGCLE` removes a background image. The argument is a layer. The SDK default is `0x03`. | Source | SDK binary, `Transport::clearBackgroundFrameStream`; `transport_c.h` |
+| `LOG` header: `"CRT" 0x00 0x00 "LOG"`, length (4 bytes, big-endian), `0x01`. The SDK refuses a boot logo larger than 522 240 bytes. | Source | SDK binary, `Transport::setBackgroundImgStream`; `PILHelper.py`, `encode_boot_logo` |
+| `mirajazz` and `opendeck-akp05` have no command for the background or the boot logo | Source | Their source code |
+
+The owner looked at the device on 2026-11-11, and the probe sent the commands.
+These facts are measured:
+
+| Fact | Confidence |
+|---|---|
+| `BGPIC` and then `STP` show the background on our device. The image is upright after the 180° turn. | Measured |
+| A background JPEG of 110 233 bytes shows correctly. Thus the 4-byte length is correct for `BGPIC`. | Measured |
+| After the device stops the connection and connects again, `BGPIC` alone shows nothing. After `DIS` and the brightness command, `BGPIC` shows the image. Which of the two commands is necessary is not measured. | Measured |
+| If the display is in operation, `BGPIC` shows the image with no `DIS` before it | Measured |
+| The key faces and the bar panels show on top of the background, and the background stays visible around them | Measured |
+| `BGCLE 0x03` and then `STP` remove the background. The key faces and the bar panels stay. | Measured |
+| `DIS` does not remove the background, the key faces, or the bar panels | Measured |
+| After the cable is disconnected and connected again, the background is gone, and the boot logo and the boot animation are the same as before | Measured |
+
+OpenCraft has no builder for `LOG`. A test in `protocol.rs` makes sure that
+`protocol.rs` and `connection.rs` do not contain it. The probe command
+`background` sends `BGPIC`, then `STP`. With `--clear`, it sends
+`BGCLE 0x03`, then `STP`.
 
 ## Input reports
 
@@ -107,11 +158,27 @@ Measure these in Phase 1.
 - Whether each command with the label "Sent" gives the correct result.
 - The time to paint all 14 panels.
 - Whether JPEG is quicker than PNG for a full repaint.
-- The correct width of the length field in the `BAT` header.
-- The command and the limits for the 800 × 480 background image.
+- Whether the device accepts a `BAT` image larger than 65 535 bytes. The SDK
+  writes a 4-byte length (Source).
+- Whether `STP` is necessary after `BGPIC`. The probe always sends it.
+- Which command starts the display after a new connection: `DIS`, the
+  brightness command, or the two together.
+- The largest JPEG that the device accepts for `BGPIC`. The SDK sets no limit.
+- Whether `CLE` for all slots removes the background.
+- What each layer value of `BGPIC` and `BGCLE` does.
 
 ## Sources
 
-- Mirabox StreamDock Device SDK (MIT): <https://github.com/MiraboxSpace/StreamDock-Device-SDK>
+- Mirabox StreamDock Device SDK (MIT): <https://github.com/MiraboxSpace/StreamDock-Device-SDK>.
+  We read commit `fc124cb` on 2026-11-11. The files are:
+  - `Python-SDK/src/StreamDock/Devices/StreamDockN4Pro.py` and `StreamDock.py`
+  - `Python-SDK/src/StreamDock/Devices/GifController.py`
+  - `Python-SDK/src/StreamDock/ImageHelpers/PILHelper.py`
+  - `Python-SDK/src/StreamDock/Transport/LibUSBHIDAPI.py`
+  - `CPP-SDK/src/Transport/TransportDLL/transport_c.h`
+  - `CPP-SDK/src/Transport/TransportCWrapper.h`
+  - `CPP-SDK/src/DeviceInfo/streamdock.cpp`
+  - The SDK binary: `CPP-SDK/src/Transport/TransportDLL/libtransport.so`
+    (x86-64). We read it with `objdump`.
 - `mirajazz` (MPL-2.0): <https://github.com/4ndv/mirajazz>
 - `opendeck-akp05`: <https://github.com/ambiso/opendeck-akp05>

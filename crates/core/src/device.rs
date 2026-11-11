@@ -21,6 +21,17 @@ pub struct Panel {
     pub kind: PanelKind,
 }
 
+/// The background: one image behind the key faces. The area where it shows
+/// is not measured.
+///
+/// The SDK sends the background as a JPEG, turned 180° as the other surfaces.
+/// See `docs/kb/n4-pro-hardware.md`, section "Surfaces".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Background {
+    pub width: u16,
+    pub height: u16,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Descriptor {
     pub name: &'static str,
@@ -29,6 +40,8 @@ pub struct Descriptor {
     /// Output report payload size. 1024 = protocol v3 (N4 Pro family).
     pub packet_size: usize,
     pub panels: &'static [Panel],
+    /// The background, if the model has one.
+    pub background: Option<Background>,
     /// Some rebrands need an explicit mode switch before they accept commands.
     pub required_mode: Option<u8>,
 }
@@ -76,6 +89,12 @@ static N4PRO_PANELS: &[Panel] = &[
     key(15),
 ];
 
+/// N4 Pro: the 800 x 480 background (Source: SDK, not measured).
+const N4PRO_BACKGROUND: Option<Background> = Some(Background {
+    width: 800,
+    height: 480,
+});
+
 pub static DESCRIPTORS: &[Descriptor] = &[
     Descriptor {
         name: "VSD StreamDock N4 Pro",
@@ -83,6 +102,7 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         pid: 0x1023,
         packet_size: 1024,
         panels: N4PRO_PANELS,
+        background: N4PRO_BACKGROUND,
         required_mode: None,
     },
     Descriptor {
@@ -91,6 +111,7 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         pid: 0x1008,
         packet_size: 1024,
         panels: N4PRO_PANELS,
+        background: N4PRO_BACKGROUND,
         required_mode: None,
     },
     Descriptor {
@@ -99,6 +120,7 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         pid: 0x1021,
         packet_size: 1024,
         panels: N4PRO_PANELS,
+        background: N4PRO_BACKGROUND,
         required_mode: None,
     },
 ];
