@@ -271,7 +271,7 @@ the USB connection. The times are in seconds after `DIS`.
 | Each 20 seconds: 20.0, 40.1, 60.1 | 64.9 | 45 to 60 | 65 |
 | Each 16 seconds, 15 times: 16.0, 32.1, and so on, the last 2 at 224.4 and 240.5 | 244.6 | 225 to 240 | 245 |
 | Each 14 seconds | Not stopped in 300 seconds | None | No stop |
-| Each 10 seconds | Not stopped. The longest test was 125 seconds. | None | No stop |
+| Each 10 seconds | Not stopped in 47 minutes | None | No stop |
 
 One rule agrees with each row:
 
@@ -295,6 +295,7 @@ no `CONNECT`.
 | Only `DIS` starts the timer. On a connection with no timer in operation, the device stayed connected for 60 seconds after each of these: no command, the brightness command, an image and `STP`, `CONNECT`, `STP`. After `DIS` alone, it stopped the connection at 35.1 seconds. | Measured | Test program |
 | A second `DIS`, a draw, and input from the user do not start the timer again and do not move its periods. A test that started 300 seconds after the first `DIS`, on the same connection, kept the periods of the first `DIS`. | Measured | Test program, probe |
 | The device sent no input report in answer to a command in these tests. No acknowledgement for a write was seen. | Measured | Test program, probe |
+| With the keep-alive of the device layer each 10 seconds, one connection stayed for 47 minutes. The images stayed, and a key press at the end arrived. | Measured | Probe (`raw --draw`), camera, and owner, 2026-11-11 |
 | The SDK and `opendeck-akp05` send `CONNECT` each 10 seconds | Source | Their source code |
 | When the device stops the connection, it starts again: it shows the boot animation and then the logo, and the knob lights go off. The images are gone. | Measured | Camera |
 | The device is on the bus again 6 to 7 seconds after the stop. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and the probe then draws again. | Measured | Test program: 20 times. Probe and owner: 2 times. |
@@ -305,7 +306,7 @@ What the user sees when the host stops:
 
 | Case | Result | Confidence |
 |---|---|---|
-| The probe stops and sends no clear command (`test --keep`) | The images and the knob lights stay. The keys and the knobs do nothing. At 35 seconds after `DIS`, the device starts again and shows the logo. | Measured: camera |
+| The probe stops 12 seconds after `DIS` and sends no clear command (`test --seconds 12 --keep`). Its last `CONNECT` was at 10 seconds. | The images and the knob lights stay. The keys and the knobs do nothing. At 35 seconds after `DIS`, the device starts again and shows the logo. | Measured: camera |
 | The probe is killed (`kill -9`) 15 seconds after `DIS` | The same. The logo showed at 36 seconds, and it was the same after 10 minutes. | Measured: camera |
 | General | The images stay until 5 seconds after the end of the first period that has no `CONNECT`. That is 20 to 35 seconds after the last `CONNECT` that was in a period and not in the 5 seconds before a stop. | Inference from the rule |
 | The host sends `CLE`, `0x00 0x00`, `"DC"` (the SDK command "disconnected") | In less than 1 second, the device shows the logo, and the knob lights go off. The device stays on the bus: it did not stop the connection in 60 seconds with no `CONNECT`. Slot images show again after that, and `DIS` starts the knob lights again. | Measured: camera, 1 time |

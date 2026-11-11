@@ -21,6 +21,15 @@ file, unless the row names a different file.
 | After a new connection of the cable, the path is different, because IOKit makes a new registry entry. | Inference | |
 | `hid_close` is safe after a disconnection on macOS 10.10 and later. | Source | Lines 1354–1400 |
 
+The owner removed the cable 2 times during `opencraft-probe raw --draw` on
+2026-11-11:
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The probe reported the disconnection less than approximately 1 second after the cable was removed | Measured: 2 times | Camera and probe |
+| The first failed read gave the disconnection at once. The probe printed no other error before it. Thus the path was already absent from the enumeration at the first failed read. | Measured: 2 times | Probe |
+| After the cable was connected again, the device layer opened the device and the probe drew all surfaces. One time the cable was removed 2.4 seconds after a draw. | Measured: 2 times | Camera and probe |
+
 Thus the text of the error is a weak signal. A stronger signal is the
 enumeration: after a disconnection, the path of the open interface is not in
 the list. `HidTransport` uses this signal (`crates/core/src/transport/hid.rs`).
@@ -48,8 +57,6 @@ a short time. Then it closes the handle and opens the device again.
 
 ## Not known
 
-- Whether the path is already absent from the enumeration at the first failed
-  read after the cable is removed, or only some milliseconds later.
 - Which error `IOHIDDeviceSetReport` gives when the cable is removed during a
   write.
 - Whether a write can block for a long time when the device does not answer.
