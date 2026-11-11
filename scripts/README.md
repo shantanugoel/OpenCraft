@@ -67,7 +67,8 @@ directory outside the repository. Do not commit them.
    ```
 
    Record both times. If you start VSD Craft in a different way, skip this
-   command.
+   command. A camera that records the device can replace the stopwatch: the
+   time of the first picture that shows the first page gives the time.
 
 3. Wait 5 minutes and touch no input. Then measure for 5 minutes with the
    window open. Do not touch the device, the keyboard, or the mouse.
