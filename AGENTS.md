@@ -33,5 +33,8 @@ Each line names a rule. The link goes to the one place that holds the rule.
 
 - Do not run an `opencraft-probe` command that opens the device, unless your
   task says so. Only `list` does not open the device.
+- The engine opens the device. Do not run the engine example `headless` or
+  the GUI application, unless your task says so. The engine tests use a fake
+  transport and do not open the device.
 - Two processes must not operate one device at the same time. See rule 1 in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#ownership).

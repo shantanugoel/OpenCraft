@@ -8,12 +8,29 @@
 //! - [`profile`]: the profile, its pages, and the content of each surface.
 //! - [`store`]: the profile directory: the profile file and the image files.
 //! - [`render`] and [`label`]: the image of a surface, made from its content.
+//! - [`layout`]: the layout of the device, as a message for a shell.
+//! - [`engine`]: the engine logic, with the commands and the events.
+//! - [`runtime`]: the engine thread.
+//!
+//! A shell uses only this crate, and not the device layer. Thus the crate
+//! gives the shell the types of the device layer that are in the messages.
 
+pub mod engine;
 pub mod error;
 pub mod label;
+pub mod layout;
 pub mod profile;
 pub mod render;
+pub mod runtime;
 pub mod store;
+
+pub use engine::{Command, Engine, Event, SurfaceState};
+/// The image type of the messages.
+pub use image::RgbImage;
+pub use layout::{ControlLayout, DeviceLayout, SurfaceLayout};
+/// The types of the device layer that are in the messages.
+pub use opencraft_core::{ControlId, ControlKind, Gesture, InputEvent, SurfaceId, SurfaceKind};
+pub use runtime::{spawn, Config, EngineHandle};
 
 pub use error::{Error, Result};
 pub use profile::{Color, Page, Profile, SurfaceContent};
