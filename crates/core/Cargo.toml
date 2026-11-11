@@ -1,0 +1,11 @@
+[package]
+name = "opencraft-core"
+description = "Device transport, protocol and panel rendering for StreamDock-class controllers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+hidapi.workspace = true
+image.workspace = true
+thiserror.workspace = true
