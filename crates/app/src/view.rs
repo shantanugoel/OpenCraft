@@ -10,13 +10,16 @@ use gpui_kit::{
     component::input::{Input, InputEvent as TextEvent, InputState},
     div, img,
     prelude::*,
-    px, rgb, AnyElement, Context, Div, Entity, PathPromptOptions, Render, RenderImage, Stateful,
-    Subscription, Task, Window,
+    px, rgb, AnyElement, Context, Div, Entity, PathPromptOptions, Render, RenderImage,
+    SharedString, Stateful, Subscription, Task, Window,
 };
 use opencraft_engine::{
     Color, Command, ControlId, ControlKind, Event, Gesture, SurfaceId, SurfaceKind,
 };
 use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Instant};
+
+mod actions;
+mod hotkey;
 
 const BACKGROUND: u32 = 0x191c22;
 const PANEL: u32 = 0x232730;
@@ -56,6 +59,7 @@ pub struct DeviceView {
     label_loaded: bool,
     _input_subscription: Subscription,
     highlight_tasks: BTreeMap<ControlId, Task<()>>,
+    form: actions::ActionForm,
 }
 
 impl DeviceView {
@@ -98,10 +102,14 @@ impl DeviceView {
             label_loaded: false,
             _input_subscription: subscription,
             highlight_tasks: BTreeMap::new(),
+            form: actions::ActionForm::default(),
         }
     }
 
     fn receive(&mut self, event: Event, window: &mut Window, cx: &mut Context<Self>) {
+        if let Event::Binding(binding) = &event {
+            self.acknowledge(binding);
+        }
         if let Event::Surface(surface) = &event {
             if let Some(old) = self
                 .images
@@ -140,6 +148,7 @@ impl DeviceView {
         if !self.label_loaded {
             self.load_label(window, cx);
         }
+        self.sync_form(window, cx);
         cx.notify();
     }
 
@@ -159,6 +168,7 @@ impl DeviceView {
     fn select(&mut self, id: SurfaceId, window: &mut Window, cx: &mut Context<Self>) {
         if self.state.select(id) {
             self.load_label(window, cx);
+            self.sync_form(window, cx);
             window.blur(cx);
             cx.notify();
         }
@@ -304,7 +314,18 @@ impl DeviceView {
                         * std::f32::consts::TAU
                         / 12.;
                     let highlight = self.state.highlights.get(&control.id);
+                    let id = control.id;
                     div()
+                        .id(format!("control-{id}"))
+                        .debug_selector(move || format!("control-{id}"))
+                        .cursor_pointer()
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            if view.state.select_control(id) {
+                                view.sync_form(window, cx);
+                                window.blur(cx);
+                                cx.notify();
+                            }
+                        }))
                         .absolute()
                         .left(px(center - diameter / 2.))
                         .top(px(12.))
@@ -312,7 +333,13 @@ impl DeviceView {
                         .rounded_full()
                         .bg(rgb(PANEL))
                         .border_2()
-                        .border_color(rgb(if highlight.is_some() { ACTIVE } else { BORDER }))
+                        .border_color(rgb(if highlight.is_some() {
+                            ACTIVE
+                        } else if self.state.selected_control == Some(id) {
+                            SELECTED
+                        } else {
+                            BORDER
+                        }))
                         .child(
                             div()
                                 .absolute()
@@ -356,6 +383,7 @@ impl DeviceView {
     fn editor(&self, cx: &mut Context<Self>) -> AnyElement {
         let mut editor = div()
             .id("editor")
+            .debug_selector(|| "editor".into())
             .w(px(272.))
             .flex_shrink_0()
             .h_full()
@@ -366,13 +394,21 @@ impl DeviceView {
             .p_4()
             .rounded_lg()
             .bg(rgb(PANEL));
+        if let Some(control) = self.state.selected_control {
+            if control.kind == ControlKind::Knob {
+                return editor
+                    .child(div().text_lg().child(format!("Knob {}", control.number)))
+                    .child(self.action_editor(cx))
+                    .into_any_element();
+            }
+        }
         let Some(id) = self.state.selected else {
             return editor
                 .child(div().text_lg().child("Surface"))
                 .child(
                     div()
                         .text_color(rgb(MUTED))
-                        .child("Select a key face or a bar panel."),
+                        .child("Select a key, a knob, or a bar panel."),
                 )
                 .into_any_element();
         };
@@ -380,6 +416,7 @@ impl DeviceView {
         let current_colour = content.and_then(|c| c.color);
         editor = editor
             .child(div().text_lg().child(surface_name(id)))
+            .child(self.action_editor(cx))
             .child(
                 div()
                     .flex()
@@ -464,10 +501,13 @@ impl DeviceView {
     }
 }
 
-fn button(id: &'static str, text: &'static str) -> Stateful<Div> {
+fn button(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    let text: SharedString = text.into();
     div()
-        .id(id)
-        .debug_selector(move || id.into())
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
         .px_3()
         .py_2()
         .rounded_md()
@@ -490,6 +530,10 @@ impl Render for DeviceView {
         };
         let height = (f32::from(size.height) - 164. - problem_height).max(200.);
         div()
+            .when_some(self.form.focus.as_ref(), |d, focus| d.track_focus(focus))
+            .capture_key_down(
+                cx.listener(|view, event, window, cx| view.record_key(event, window, cx)),
+            )
             .size_full()
             .flex()
             .flex_col()
