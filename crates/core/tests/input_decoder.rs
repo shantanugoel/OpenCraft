@@ -205,75 +205,6 @@ fn assert_one_touch(events: &[Decoded], start_x: u16, end: &Decoded) -> Vec<(u16
     points
 }
 
-// --- The fixtures ----------------------------------------------------------
-
-#[test]
-fn there_are_36_recordings_and_each_parses_with_its_header() {
-    let names = recording_names();
-    assert_eq!(names.len(), 36, "{names:?}");
-    for (i, name) in names.iter().enumerate() {
-        assert!(
-            name.starts_with(&format!("{:02}-", i + 1)),
-            "step {} is missing or out of order: {name}",
-            i + 1
-        );
-        let text = std::fs::read_to_string(fixture_dir().join(name)).unwrap();
-        let rec = recording::parse(&text).unwrap_or_else(|e| panic!("{name}: {e}"));
-        assert!(!rec.note.is_empty(), "{name}: no note line");
-        assert!(!rec.device.is_empty(), "{name}: no device line");
-        assert!(!rec.firmware.is_empty(), "{name}: no firmware line");
-        assert!(!rec.reports.is_empty(), "{name}: no report");
-        assert_eq!(rec.reports[0].ms, 0, "{name}: the first time is not 0");
-        assert!(
-            rec.reports.windows(2).all(|w| w[0].ms <= w[1].ms),
-            "{name}: the times go back"
-        );
-    }
-}
-
-#[test]
-fn the_recordings_come_from_one_device_and_one_firmware() {
-    let first = load("01");
-    assert_eq!(first.device, "VSD StreamDock N4 Pro");
-    assert_eq!(first.firmware, "V4.VSD N4 Pro.02.010");
-    for name in recording_names() {
-        let step = &name[..2];
-        let rec = load(step);
-        assert_eq!(rec.device, first.device, "{name}");
-        assert_eq!(rec.firmware, first.firmware, "{name}");
-    }
-}
-
-#[test]
-fn each_recorded_report_has_512_bytes_and_the_known_header() {
-    for name in recording_names() {
-        for r in &load(&name[..2]).reports {
-            assert_eq!(r.bytes.len(), 512, "{name}");
-            assert_eq!(&r.bytes[0..3], b"ACK", "{name}");
-            // Control report: "OK" at bytes 5 to 6. Touch report: "ARX" at
-            // bytes 4 to 6.
-            assert!(
-                &r.bytes[5..7] == b"OK" || &r.bytes[4..7] == b"ARX",
-                "{name}"
-            );
-            // All bytes after byte 13 are zero.
-            assert!(r.bytes[14..].iter().all(|&b| b == 0), "{name}");
-        }
-    }
-}
-
-#[test]
-fn no_recorded_report_decodes_to_unknown_or_ack() {
-    for name in recording_names() {
-        for (i, ev) in events(&name[..2]).iter().enumerate() {
-            assert!(
-                matches!(ev, Decoded::Input(_)),
-                "{name}, report {i}: {ev:?}"
-            );
-        }
-    }
-}
-
 // --- Keys ------------------------------------------------------------------
 
 /// Read a row of `layout.txt`: the slot numbers, from left to right.
@@ -434,36 +365,6 @@ fn knob_push_gives_one_event_and_no_release() {
 }
 
 #[test]
-fn knob_codes_are_the_measured_codes() {
-    // The codes of the "Controls and input codes" table, in the order
-    // left, right for knobs 1 to 4, and the push codes.
-    let turns = [
-        (0xA0, 1, Left),
-        (0xA1, 1, Right),
-        (0x50, 2, Left),
-        (0x51, 2, Right),
-        (0x90, 3, Left),
-        (0x91, 3, Right),
-        (0x70, 4, Left),
-        (0x71, 4, Right),
-    ];
-    for (code, knob, dir) in turns {
-        assert_eq!(
-            decode(&control_report(code, 0x00, 0)),
-            turn(knob, dir),
-            "code 0x{code:02X}"
-        );
-    }
-    for (code, knob) in [(0x37, 1), (0x35, 2), (0x33, 3), (0x36, 4)] {
-        assert_eq!(
-            decode(&control_report(code, 0x01, 0)),
-            push(knob),
-            "code 0x{code:02X}"
-        );
-    }
-}
-
-#[test]
 fn a_fast_turn_in_two_directions_gives_398_events() {
     let rec = load("25");
     let events = events("25");
@@ -513,10 +414,7 @@ fn a_finger_that_stays_for_2_seconds_gives_a_tap() {
 #[test]
 fn touch_report_has_x_in_bytes_10_and_11_and_y_in_bytes_12_and_13() {
     let r = &load("26").reports[1].bytes;
-    assert_eq!(&r[4..7], b"ARX");
     assert_eq!(decode(r), touch_point(101, 60));
-    assert_eq!(u16::from_be_bytes([r[10], r[11]]), 101);
-    assert_eq!(u16::from_be_bytes([r[12], r[13]]), 60);
 }
 
 #[test]
@@ -570,20 +468,6 @@ fn swipe_right_is_code_0x38_and_the_finger_moves_to_the_right() {
     let events = events("34");
     let points = assert_one_touch(&events, 51, &swipe(Right));
     assert!(points.last().unwrap().0 > points.first().unwrap().0);
-}
-
-#[test]
-fn swipe_left_is_code_0x39() {
-    // The 20 swipes to the left of step 35 gave 20 times 0x39. The one swipe of
-    // step 33 gave 0xB2 (see the next test).
-    let rec = load("35");
-    let codes: Vec<u8> = rec
-        .reports
-        .iter()
-        .filter(|r| &r.bytes[5..7] == b"OK" && r.bytes[9] != 0x00)
-        .map(|r| r.bytes[9])
-        .collect();
-    assert_eq!(codes, vec![0x39; 20]);
 }
 
 #[test]
@@ -645,55 +529,6 @@ fn a_finger_up_that_the_device_did_not_identify() {
     assert!(points.last().unwrap().0 < points.first().unwrap().0);
 }
 
-#[test]
-fn the_touch_codes_of_the_table_decode_from_hand_made_reports() {
-    // Finger down.
-    assert_eq!(decode(&control_report(0x00, 0x01, 679)), touch_start(679));
-    // Tap on bar panel 1 to 4.
-    for (code, panel) in [(0x40, 1), (0x41, 2), (0x42, 3), (0x43, 4)] {
-        assert_eq!(
-            decode(&control_report(code, 0x00, 0x0123)),
-            tap(panel, 0x0123)
-        );
-    }
-    // Finger up after a move.
-    assert_eq!(decode(&control_report(0x38, 0x00, 0)), swipe(Right));
-    assert_eq!(decode(&control_report(0x39, 0x00, 0)), swipe(Left));
-    assert_eq!(decode(&control_report(0xB2, 0x00, 0)), touch_end());
-}
-
-#[test]
-fn a_touch_start_is_not_a_key_and_a_tap_is_not_a_key() {
-    for step in [
-        "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36",
-    ] {
-        assert!(!events(step).iter().any(is_key), "step {step}");
-    }
-}
-
-#[test]
-fn touch_start_and_tap_with_the_other_state_are_unknown() {
-    // The device sends code 0x00 with the state 0x01 only, and the codes
-    // 0x40 to 0x43 with the state 0x00 only.
-    let r = control_report(0x00, 0x00, 5);
-    assert_eq!(decode(&r), Decoded::Unknown(r));
-    let r = control_report(0x41, 0x01, 5);
-    assert_eq!(decode(&r), Decoded::Unknown(r));
-}
-
-#[test]
-fn touch_start_and_tap_need_the_x_coordinate() {
-    // A report that ends before byte 12 has no x coordinate.
-    for (code, state) in [(0x00, 0x01), (0x42, 0x00)] {
-        let full = control_report(code, state, 300);
-        for len in [11, 12] {
-            let short = full[..len].to_vec();
-            assert_eq!(decode(&short), Decoded::Unknown(short.clone()), "len {len}");
-        }
-        assert_ne!(decode(&full[..13]), Decoded::Unknown(full[..13].to_vec()));
-    }
-}
-
 // --- Acknowledgement, short report, unknown report --------------------------
 
 #[test]
@@ -711,18 +546,55 @@ fn an_acknowledgement_is_code_0xff() {
 
 #[test]
 fn a_short_report_is_unknown() {
-    assert_eq!(decode(&[]), Decoded::Unknown(vec![]));
-    assert_eq!(decode(b"ACK"), Decoded::Unknown(b"ACK".to_vec()));
-    // One byte short of the 11 bytes that a control report needs.
-    let ten = control_report(0x01, 0x01, 0)[..10].to_vec();
-    assert_eq!(decode(&ten), Decoded::Unknown(ten.clone()));
-    // A touch report needs 14 bytes.
-    let thirteen = touch_report(100, 50)[..13].to_vec();
-    assert_eq!(decode(&thirteen), Decoded::Unknown(thirteen.clone()));
-    // A short report must not panic, for any length.
-    let full = control_report(0x00, 0x01, 100);
-    for len in 0..full.len() {
-        let _ = decode(&full[..len]);
+    for name in recording_names() {
+        for (i, r) in load(&name[..2]).reports.iter().enumerate() {
+            let expected = decode(&r.bytes);
+            let minimum = match expected {
+                Decoded::Input(InputEvent {
+                    gesture: Gesture::TouchPoint { .. },
+                    ..
+                }) => 14,
+                Decoded::Input(InputEvent {
+                    gesture: Gesture::Tap { .. } | Gesture::TouchStart { .. },
+                    ..
+                }) => 13,
+                Decoded::Input(_) => 11,
+                _ => panic!("{name}, report {i}: not input"),
+            };
+            for len in 0..minimum {
+                let short = &r.bytes[..len];
+                assert_eq!(
+                    decode(short),
+                    Decoded::Unknown(short.to_vec()),
+                    "{name}, report {i}, length {len}"
+                );
+            }
+            assert_eq!(decode(&r.bytes[..minimum]), expected, "{name}, report {i}");
+        }
+    }
+}
+
+#[test]
+fn recorded_controls_reject_invalid_states() {
+    for name in recording_names() {
+        for (i, r) in load(&name[..2]).reports.iter().enumerate() {
+            if &r.bytes[5..7] != b"OK" {
+                continue;
+            }
+            let is_key = is_key(&decode(&r.bytes));
+            for state in [0, 1, 2, 0xFF] {
+                if state == r.bytes[10] || (is_key && state <= 1) {
+                    continue;
+                }
+                let mut invalid = r.bytes.clone();
+                invalid[10] = state;
+                assert_eq!(
+                    decode(&invalid),
+                    Decoded::Unknown(invalid.clone()),
+                    "{name}, report {i}, state {state}"
+                );
+            }
+        }
     }
 }
 

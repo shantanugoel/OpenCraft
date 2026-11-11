@@ -157,40 +157,16 @@ mod tests {
     }
 
     #[test]
-    fn constants_match_the_report_format() {
-        // An output report is 1 report ID byte (0x00) and 1024 payload bytes.
-        assert_eq!(REPORT_ID, 0x00);
-        assert_eq!(PACKET_SIZE, 1024);
-    }
-
-    #[test]
-    fn every_command_starts_with_the_prefix() {
-        let all = [
-            init(),
-            commit(),
-            set_brightness(50),
-            set_led_brightness(50),
-            set_led_colors(&[[1, 2, 3]]),
-            clear_slot(1),
-            sleep(),
-            keep_alive(),
-            set_mode(0),
-            set_vibration(true),
-            image_header(1, 6),
-        ];
-        for cmd in all {
-            assert_eq!(&cmd[..6], &[0x00, b'C', b'R', b'T', 0x00, 0x00]);
-        }
-    }
-
-    #[test]
     fn image_header_bytes() {
-        // `BAT`, `0x00 0x00`, length (2 bytes, big-endian), slot.
-        // The length is small, so that this test stays correct when the length
-        // field gets more bytes.
+        // `BAT`, length (4 bytes, big-endian), slot.
         assert_eq!(image_header(0x0123, 6), command(b"BAT\x00\x00\x01\x23\x06"));
         assert_eq!(image_header(1, 15), command(b"BAT\x00\x00\x00\x01\x0F"));
         assert_eq!(image_header(2500, 7), command(b"BAT\x00\x00\x09\xC4\x07"));
+        assert_eq!(image_header(70_000, 6), command(b"BAT\x00\x01\x11\x70\x06"));
+        assert_eq!(
+            image_header(0x1234_5678, 9),
+            command(b"BAT\x12\x34\x56\x78\x09")
+        );
     }
 
     #[test]
@@ -209,13 +185,13 @@ mod tests {
         // `LIG`, `0x00 0x00`, percent 0 to 100.
         assert_eq!(set_brightness(0), command(b"LIG\x00\x00\x00"));
         assert_eq!(set_brightness(50), command(b"LIG\x00\x00\x32"));
-        assert_eq!(set_brightness(100), command(b"LIG\x00\x00\x64"));
-    }
-
-    #[test]
-    fn brightness_is_limited_to_100() {
-        assert_eq!(set_brightness(101), set_brightness(100));
-        assert_eq!(set_brightness(255), set_brightness(100));
+        for percent in [100, 101, 255] {
+            assert_eq!(
+                set_brightness(percent),
+                command(b"LIG\x00\x00\x64"),
+                "{percent}"
+            );
+        }
     }
 
     #[test]
@@ -248,7 +224,7 @@ mod tests {
         assert_eq!(set_led_brightness(0), command(b"LBLIG\x00"));
         assert_eq!(set_led_brightness(75), command(b"LBLIG\x4B"));
         assert_eq!(set_led_brightness(100), command(b"LBLIG\x64"));
-        assert_eq!(set_led_brightness(200), set_led_brightness(100));
+        assert_eq!(set_led_brightness(200), command(b"LBLIG\x64"));
     }
 
     #[test]
@@ -282,20 +258,6 @@ mod tests {
         );
     }
     #[test]
-    fn image_header_has_a_4_byte_big_endian_length() {
-        // 2500 = 0x09C4. The bytes are the same as in the 2-byte form.
-        assert_eq!(
-            image_header(2500, 7),
-            b"\x00CRT\x00\x00BAT\x00\x00\x09\xC4\x07".to_vec()
-        );
-        // 70 000 = 0x0001_1170 is larger than 65 535.
-        assert_eq!(
-            image_header(70_000, 6),
-            b"\x00CRT\x00\x00BAT\x00\x01\x11\x70\x06".to_vec()
-        );
-    }
-
-    #[test]
     fn background_header_layout() {
         // 70 000 = 0x0001_1170, 800 = 0x0320, 480 = 0x01E0.
         assert_eq!(
@@ -303,8 +265,10 @@ mod tests {
             b"\x00CRT\x00\x00BGPIC\x00\x01\x11\x70\x00\x00\x00\x00\x03\x20\x01\xE0\x00\x00"
                 .to_vec()
         );
-        let v = background_header(1, 0x0102, 0x0304, 0x0506, 0x0708, 0x09);
-        assert_eq!(&v[15..], &[1, 2, 3, 4, 5, 6, 7, 8, 0, 9]);
+        assert_eq!(
+            background_header(0x1234_5678, 0x0102, 0x0304, 0x0506, 0x0708, 0x09),
+            command(b"BGPIC\x12\x34\x56\x78\x01\x02\x03\x04\x05\x06\x07\x08\x00\x09")
+        );
     }
 
     #[test]

@@ -181,6 +181,57 @@ mod tests {
     }
 
     #[test]
+    fn feature_reports_use_the_requested_id_and_fit_the_buffer() {
+        let mut fake = FakeTransport::new();
+        fake.set_feature_report(vec![1, 10, 11, 12]);
+        fake.set_feature_report(vec![2, 20]);
+        let mut short = [1, 0, 0];
+        assert_eq!(fake.get_feature_report(&mut short).unwrap(), 3);
+        assert_eq!(short, [1, 10, 11]);
+
+        let mut full = [2, 0, 0, 0];
+        assert_eq!(fake.get_feature_report(&mut full).unwrap(), 2);
+        assert_eq!(&full[..2], &[2, 20]);
+        full[0] = 1;
+        assert_eq!(fake.get_feature_report(&mut full).unwrap(), 4);
+        assert_eq!(full, [1, 10, 11, 12]);
+        full[0] = 3;
+        assert!(matches!(
+            fake.get_feature_report(&mut full),
+            Err(Error::Transport(_))
+        ));
+        assert!(matches!(
+            fake.get_feature_report(&mut []),
+            Err(Error::Transport(_))
+        ));
+    }
+
+    #[test]
+    fn errors_preserve_queued_input_and_only_successful_writes_are_recorded() {
+        let mut fake = FakeTransport::new();
+        fake.push_input(vec![1, 2, 3, 4]);
+        fake.fail_reads("read failed");
+        fake.fail_writes("write failed");
+        let mut buf = [0; 2];
+        for _ in 0..2 {
+            assert!(matches!(
+                fake.read(&mut buf, Duration::ZERO),
+                Err(Error::Transport(_))
+            ));
+            assert!(matches!(fake.write(&[0, 9]), Err(Error::Transport(_))));
+        }
+        assert!(fake.writes().is_empty());
+        fake.clear_errors();
+        // An input longer than the buffer is cut to fit, and consumed once.
+        assert_eq!(fake.read(&mut buf, Duration::ZERO).unwrap(), Some(2));
+        assert_eq!(buf, [1, 2]);
+        assert_eq!(fake.read(&mut buf, Duration::ZERO).unwrap(), None);
+        fake.write(&[0, 7]).unwrap();
+        assert_eq!(fake.take_writes(), vec![vec![0, 7]]);
+        assert!(fake.writes().is_empty());
+    }
+
+    #[test]
     fn a_disconnection_fails_each_call_and_stays() {
         let mut fake = FakeTransport::new();
         fake.push_input(vec![1]);

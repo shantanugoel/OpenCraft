@@ -242,7 +242,6 @@ mod tests {
         assert_report(&writes[1], &image[..1024]);
         assert_report(&writes[2], &image[1024..2048]);
         assert_report(&writes[3], &image[2048..]);
-        assert_eq!(image[2048..].len(), 452);
 
         assert_report(&writes[4], b"CRT\x00\x00STP");
     }
@@ -255,89 +254,43 @@ mod tests {
     }
 
     #[test]
-    fn an_image_of_an_exact_multiple_of_the_part_size_has_no_empty_part() {
-        let image: Vec<u8> = (0..2048u32).map(|i| (i % 251) as u8 + 1).collect();
-        let writes = image_writes(&image);
-
-        assert_eq!(writes.len(), 3, "header and 2 parts only");
-        assert_report(
-            &writes[0],
-            &[
-                b'C', b'R', b'T', 0, 0, b'B', b'A', b'T', 0, 0, 0x08, 0x00, 6,
-            ],
-        );
-        assert_report(&writes[1], &image[..1024]);
-        assert_report(&writes[2], &image[1024..]);
-        // The last part is full: 1024 data bytes and no padding.
-        assert!(writes[2][1..].iter().all(|&b| b != 0));
-    }
-
-    #[test]
-    fn an_image_of_one_part_size_is_one_part() {
-        let image = vec![0xAB; 1024];
-        let writes = image_writes(&image);
-
-        assert_eq!(writes.len(), 2, "header and 1 part");
-        assert_report(&writes[1], &image);
-    }
-
-    #[test]
-    fn one_byte_over_a_part_boundary_makes_a_short_second_part() {
-        let image = vec![0xCD; 1025];
-        let writes = image_writes(&image);
-
-        assert_eq!(writes.len(), 3, "header and 2 parts");
-        assert_report(&writes[1], &image[..1024]);
-        assert_report(&writes[2], &[0xCD]);
-    }
-
-    #[test]
-    fn an_image_smaller_than_one_part_is_one_padded_part() {
-        let writes = image_writes(&[1, 2, 3]);
-
-        assert_eq!(writes.len(), 2, "header and 1 part");
-        assert_report(&writes[0], b"CRT\x00\x00BAT\x00\x00\x00\x03\x06");
-        assert_report(&writes[1], &[1, 2, 3]);
-    }
-
-    #[test]
-    fn an_empty_image_sends_the_header_and_no_part() {
-        // A header that announces zero bytes, and no data part. No caller has
-        // a reason to send this, but the transfer must not write an empty part.
-        let writes = image_writes(&[]);
-
-        assert_eq!(writes.len(), 1, "header only");
-        assert_report(&writes[0], b"CRT\x00\x00BAT\x00\x00\x00\x00\x06");
-    }
-
-    #[test]
     fn each_part_of_an_image_is_a_full_report_and_the_parts_join_to_the_image() {
-        for len in [1usize, 1023, 1024, 1025, 3000, 4096, 5121] {
-            let image: Vec<u8> = (0..len).map(|i| (i % 255) as u8 + 1).collect();
+        for (len, parts) in [
+            (0, 0),
+            (1, 1),
+            (3, 1),
+            (1023, 1),
+            (1024, 1),
+            (1025, 2),
+            (2048, 2),
+            (3000, 3),
+            (4096, 4),
+            (5121, 6),
+        ] {
+            // Include zero bytes in the data, also at the end. They must not
+            // be removed as padding.
+            let mut image: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
+            if let Some(last) = image.last_mut() {
+                *last = 0;
+            }
             let writes = image_writes(&image);
-
-            assert_eq!(writes.len(), 1 + len.div_ceil(1024), "length {len}");
+            assert_eq!(
+                writes.len(),
+                1 + parts,
+                "length {len}: header and parts only"
+            );
             let mut joined = Vec::new();
             for part in &writes[1..] {
                 assert_eq!(part.len(), REPORT_LEN, "length {len}");
                 assert_eq!(part[0], 0x00, "report ID, length {len}");
                 joined.extend_from_slice(&part[1..]);
             }
-            // The data bytes are never zero, so the padding is the zero tail.
-            let end = joined.iter().rposition(|&b| b != 0).unwrap() + 1;
-            assert_eq!(&joined[..end], &image[..], "length {len}");
+            assert_eq!(&joined[..len], &image, "length {len}");
+            assert!(
+                joined[len..].iter().all(|&b| b == 0),
+                "padding, length {len}"
+            );
         }
-    }
-
-    #[test]
-    fn the_header_has_the_slot_of_the_call() {
-        let mut dev = fake_device();
-        dev.send_image(11, &[1]).unwrap();
-        dev.send_image(1, &[1]).unwrap();
-        let writes = dev.into_transport().take_writes();
-
-        assert_eq!(writes[0][13], 11);
-        assert_eq!(writes[2][13], 1);
     }
 
     #[test]
@@ -394,7 +347,6 @@ mod tests {
         ];
         assert_report(&writes[0], &header);
         assert_parts(&writes[1..], &image);
-        assert_eq!(image.len() - 68 * 1024, 368);
     }
 
     #[test]
@@ -476,17 +428,156 @@ mod tests {
         assert!(fake.writes().is_empty());
     }
 
-    #[test]
-    fn write_error_reaches_the_caller() {
-        let mut fake = FakeTransport::new();
-        fake.fail_writes("device unplugged");
-        let mut dev = Device::new(&mut fake, &DESCRIPTORS[0]);
+    /// Fail one write after the preceding writes succeed.
+    struct FailAt {
+        fake: FakeTransport,
+        at: usize,
+        attempts: usize,
+    }
 
-        assert!(matches!(
-            dev.send_image(7, &[1, 2, 3]),
-            Err(Error::Transport(_))
-        ));
-        assert!(matches!(dev.commit(), Err(Error::Transport(_))));
-        assert!(fake.writes().is_empty());
+    impl Transport for FailAt {
+        fn write(&mut self, report: &[u8]) -> Result<()> {
+            let attempt = self.attempts;
+            self.attempts += 1;
+            if attempt == self.at {
+                Err(Error::Transport("write failed".to_string()))
+            } else {
+                self.fake.write(report)
+            }
+        }
+
+        fn read(&mut self, buf: &mut [u8], timeout: Duration) -> Result<Option<usize>> {
+            self.fake.read(buf, timeout)
+        }
+
+        fn get_feature_report(&mut self, buf: &mut [u8]) -> Result<usize> {
+            self.fake.get_feature_report(buf)
+        }
+    }
+
+    #[test]
+    fn image_transfer_stops_at_each_failed_write() {
+        for background in [false, true] {
+            // Header, three parts, commit. A failure at any step must stop
+            // the transfer, including a failure after a successful part.
+            for at in 0..5 {
+                let transport = FailAt {
+                    fake: FakeTransport::new(),
+                    at,
+                    attempts: 0,
+                };
+                let mut dev = Device::new(transport, &DESCRIPTORS[0]);
+                let data = image_data(2500);
+                let result = (|| {
+                    if background {
+                        dev.send_background(&data)?;
+                    } else {
+                        dev.send_image(6, &data)?;
+                    }
+                    dev.commit()
+                })();
+                assert!(
+                    matches!(result, Err(Error::Transport(_))),
+                    "background {background}, write {at}"
+                );
+                let transport = dev.into_transport();
+                assert_eq!(
+                    transport.attempts,
+                    at + 1,
+                    "background {background}, write {at}"
+                );
+                assert_eq!(transport.fake.writes().len(), at);
+            }
+        }
+    }
+
+    #[test]
+    fn clear_all_does_not_commit_after_a_failed_clear() {
+        let transport = FailAt {
+            fake: FakeTransport::new(),
+            at: 0,
+            attempts: 0,
+        };
+        let mut dev = Device::new(transport, &DESCRIPTORS[0]);
+        assert!(matches!(dev.clear_all(), Err(Error::Transport(_))));
+        assert_eq!(dev.transport().attempts, 1);
+        assert!(dev.transport().fake.writes().is_empty());
+    }
+
+    #[test]
+    fn transfers_use_the_descriptor_sizes_and_slots() {
+        use crate::device::{ImageFormat, Rotation, Surface, SurfaceId, SurfaceKind};
+        static SURFACES: &[Surface] = &[
+            Surface {
+                id: SurfaceId::new(SurfaceKind::KeyFace, 1),
+                slot: Some(42),
+                width: 8,
+                height: 8,
+                format: ImageFormat::Png,
+                rotation: Rotation::Deg0,
+            },
+            Surface {
+                id: SurfaceId::new(SurfaceKind::Background, 1),
+                slot: None,
+                width: 513,
+                height: 258,
+                format: ImageFormat::Jpeg,
+                rotation: Rotation::Deg0,
+            },
+        ];
+        static OTHER: Descriptor = Descriptor {
+            name: "Test model",
+            vid: 0x1234,
+            pid: 0x5678,
+            packet_size: 32,
+            surfaces: SURFACES,
+            controls: &[],
+            required_mode: None,
+        };
+        let mut dev = Device::new(FakeTransport::new(), &OTHER);
+        let data: Vec<u8> = (0..65).collect();
+        dev.send_image(42, &data).unwrap();
+        dev.send_background(&data).unwrap();
+        // Neither transfer commits before the caller asks.
+        assert_eq!(dev.transport().writes().len(), 8);
+        dev.commit().unwrap();
+        let writes = dev.transport().writes();
+        assert_eq!(writes.len(), 9);
+        let headers: [&[u8]; 2] = [
+            b"\x00CRT\x00\x00BAT\x00\x00\x00\x41\x2A",
+            b"\x00CRT\x00\x00BGPIC\x00\x00\x00\x41\x00\x00\x00\x00\x02\x01\x01\x02\x00\x00",
+        ];
+        for (first, header) in [0, 4].into_iter().zip(headers) {
+            assert_eq!(&writes[first][..header.len()], header);
+            assert!(writes[first][header.len()..].iter().all(|&b| b == 0));
+            for (part, expected) in writes[first + 1..first + 4].iter().zip(data.chunks(32)) {
+                assert_eq!(part[0], 0);
+                assert_eq!(&part[1..1 + expected.len()], expected);
+                assert!(part[1 + expected.len()..].iter().all(|&b| b == 0));
+            }
+        }
+        assert_eq!(&writes[8][..9], b"\x00CRT\x00\x00STP");
+        assert!(writes.iter().all(|w| w.len() == 33));
+    }
+
+    #[test]
+    #[ignore = "Issue #38: firmware_version keeps the feature report ID in the version text"]
+    fn firmware_version_excludes_the_report_id_and_padding() {
+        let mut dev = fake_device();
+        dev.transport_mut()
+            .set_feature_report(b"\x01V1.2\x00\x00".to_vec());
+        dev.transport_mut()
+            .set_feature_report(b"\x02Other".to_vec());
+        assert_eq!(dev.firmware_version().unwrap(), "V1.2");
+    }
+
+    #[test]
+    fn reads_do_not_return_bytes_from_the_previous_report() {
+        let mut dev = fake_device();
+        dev.transport_mut().push_input(vec![0xAB; 512]);
+        dev.transport_mut().push_input(vec![1, 0, 2]);
+        assert_eq!(dev.read(Duration::ZERO).unwrap(), Some(vec![0xAB; 512]));
+        assert_eq!(dev.read(Duration::ZERO).unwrap(), Some(vec![1, 0, 2]));
+        assert_eq!(dev.read(Duration::ZERO).unwrap(), None);
     }
 }

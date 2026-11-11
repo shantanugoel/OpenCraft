@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn formats_all_bytes_not_only_32() {
-        let bytes = vec![0xABu8; 512];
+        let bytes: Vec<u8> = (0..=255).cycle().take(512).collect();
         let line = format_report_line(7, &bytes);
         assert_eq!(line.len(), "7 ".len() + 1024);
         assert_eq!(parse_report_line(&line).unwrap().bytes, bytes);
@@ -151,29 +151,28 @@ mod tests {
     }
 
     #[test]
-    fn line_round_trips() {
-        let bytes: Vec<u8> = (0..=255).collect();
-        let r = parse_report_line(&format_report_line(99, &bytes)).unwrap();
-        assert_eq!((r.ms, r.bytes), (99, bytes));
-    }
-
-    #[test]
     fn header_keeps_each_text_on_one_line() {
-        let h = header("turn\nleft\r\tabout 5 clicks", "Model", "V1");
+        let h = header("turn\n0 00", "Model\r\n1 ff", "V1\t\n2 aa");
         assert_eq!(h.lines().count(), 5);
         assert!(h.starts_with(FORMAT_LINE));
         assert!(h.lines().all(|l| l.starts_with('#')));
-        assert!(h.contains("# note: turn left  about 5 clicks\n"));
+        assert!(!h.to_lowercase().contains("serial"));
+        let rec = parse(&h).unwrap();
+        assert_eq!(rec.note, "turn 0 00");
+        assert_eq!(rec.device, "Model  1 ff");
+        assert_eq!(rec.firmware, "V1  2 aa");
+        assert!(
+            rec.reports.is_empty(),
+            "header text must not become input reports"
+        );
     }
 
     #[test]
     fn parses_a_whole_file() {
-        let mut text = header("key 6 press and release", "Model X", "V1.2");
-        text.push_str(&format_report_line(0, &[1, 2, 3]));
-        text.push('\n');
-        text.push_str(&format_report_line(80, &[4, 5]));
-        text.push('\n');
-        let rec = parse(&text).unwrap();
+        // Use a file independent of the formatter, so matching writer and
+        // parser defects cannot hide a change to the recording format.
+        let text = "# opencraft-input-recording v1\n# note: key 6 press and release\n# device: Model X\n# firmware: V1.2\n# future field: ignored\n\n0 010203\n80 0405\n";
+        let rec = parse(text).unwrap();
         assert_eq!(rec.note, "key 6 press and release");
         assert_eq!(rec.device, "Model X");
         assert_eq!(rec.firmware, "V1.2");

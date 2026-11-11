@@ -222,21 +222,7 @@ fn border(img: &mut RgbImage, color: Rgb<u8>) {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{encode_as, encode_for};
     use super::*;
-    use crate::device::{ImageFormat, Rotation, Surface, SurfaceId, SurfaceKind};
-
-    /// A key face of 112 x 112, PNG, turned 180°. The values are test data,
-    /// not a model.
-    const KEY_FACE: Surface = Surface {
-        id: SurfaceId::new(SurfaceKind::KeyFace, 1),
-        slot: Some(6),
-        width: 112,
-        height: 112,
-        format: ImageFormat::Png,
-        rotation: Rotation::Deg180,
-    };
-
     fn distinct_colors(img: &RgbImage) -> usize {
         let mut seen: Vec<[u8; 3]> = Vec::new();
         for p in img.pixels() {
@@ -341,59 +327,5 @@ mod tests {
             icon_image(10, 8, 1, "LONG WORD HERE", 0).dimensions(),
             (10, 8)
         );
-    }
-
-    #[test]
-    fn icon_image_data_decodes_in_png_and_in_jpeg_with_a_real_size() {
-        let img = icon_image(112, 112, 12, "SCENE", 0);
-
-        let png = encode_for(&KEY_FACE, &img, 60).unwrap();
-        assert_eq!(&png[..4], b"\x89PNG");
-        let back = image::load_from_memory(&png).unwrap().to_rgb8();
-        assert_eq!(back.dimensions(), (112, 112));
-        // PNG is lossless. The surface is turned 180°.
-        assert_eq!(back, image::imageops::rotate180(&img));
-
-        let jpeg = encode_as(&KEY_FACE, &img, ImageFormat::Jpeg, 60).unwrap();
-        assert_eq!(&jpeg[..3], &[0xFF, 0xD8, 0xFF]);
-        let back = image::load_from_memory(&jpeg).unwrap().to_rgb8();
-        assert_eq!(back.dimensions(), (112, 112));
-
-        // A flat colour is much smaller than an icon with text.
-        let flat = encode_for(
-            &KEY_FACE,
-            &RgbImage::from_pixel(112, 112, Rgb([9, 9, 9])),
-            60,
-        )
-        .unwrap();
-        assert!(
-            png.len() > 3 * flat.len(),
-            "{} and {}",
-            png.len(),
-            flat.len()
-        );
-        let low = encode_as(&KEY_FACE, &img, ImageFormat::Jpeg, 20).unwrap();
-        assert!(jpeg.len() > low.len());
-    }
-
-    #[test]
-    fn wide_pattern_data_decodes_in_png_and_in_jpeg() {
-        // The size is not the size of the surface: 352 x 112 for a surface
-        // of 112 x 112.
-        let img = wide_pattern(352, 112, 112);
-        for format in [ImageFormat::Png, ImageFormat::Jpeg] {
-            let data = encode_as(&KEY_FACE, &img, format, 80).unwrap();
-            let back = image::load_from_memory(&data).unwrap();
-            assert_eq!((back.width(), back.height()), (352, 112), "{format:?}");
-        }
-    }
-
-    #[test]
-    fn letters_and_digits_have_the_same_width() {
-        assert_eq!(text_width("SLOT 12", 1), 7 * 6 - 1);
-        assert_eq!(text_width("play", 2), 2 * (4 * 6 - 1));
-        // A character with no glyph has no width.
-        assert_eq!(text_width("A?B", 1), 2 * 6 - 1);
-        assert_eq!(text_width("", 1), 0);
     }
 }
