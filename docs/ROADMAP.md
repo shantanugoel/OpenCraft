@@ -18,8 +18,8 @@ application that other persons can adopt.
 |---|---|---|
 | 0 | Hardware gate | Complete |
 | 1 | Device layer foundation | Complete |
-| 2 | First GUI: see and paint the device | Next |
-| 3 | Actions for keys and knobs | Not started |
+| 2 | First GUI: see and paint the device | Complete |
+| 3 | Actions for keys and knobs | Next |
 | 4 | Pages and the touch bar | Not started |
 | 5 | Background operation | Not started |
 | 6 | First public release | Not started |
@@ -102,7 +102,7 @@ of the checks.
 - The reference for the product targets is measured. See
   [kb/vsd-craft.md](kb/vsd-craft.md#footprint-when-it-runs).
 
-## Phase 2: First GUI: see and paint the device
+## Phase 2: First GUI: see and paint the device (complete)
 
 **Goal.** A window shows the device. The user changes how a key looks, and the
 device shows the change.
@@ -118,15 +118,34 @@ device shows the change.
 
 **Exit criteria.**
 
-- [ ] A change in the window shows on the device.
-- [ ] The device shows the saved profile after the application starts again.
-- [ ] The device shows the saved profile after a disconnection and a new connection.
-- [ ] The window stays responsive during a full repaint of the device.
-- [ ] The engine tests run with no window and no device.
+- [x] A change in the window shows on the device.
+- [x] The device shows the saved profile after the application starts again.
+- [x] The device shows the saved profile after a disconnection and a new connection.
+- [x] The window stays responsive during a full repaint of the device.
+- [x] The engine tests run with no window and no device.
 
 **Decisions that this phase forces.** Crate boundaries. Form of the GPUI
 dependency and the widget library. Profile file format. Library for text and
-icons. Thread model in the engine.
+icons. Thread model in the engine. The answers are in decisions
+[0005](decisions/0005-gpui.md), [0008](decisions/0008-crate-boundaries.md),
+[0009](decisions/0009-profile-file-format.md),
+[0010](decisions/0010-core-text-for-surface-labels.md), and
+[0011](decisions/0011-engine-thread-model.md).
+
+**Result.** All exit criteria are true on 2026-11-12, and the
+[checks for each phase](#checks-for-each-phase) are done.
+[Issue #59](https://github.com/shantanugoel/OpenCraft/issues/59) has the
+record of the checks.
+
+- The owner did the last checks on the device: the live input in the window,
+  a change from the window, and the cable disconnected and connected again
+  while the window moved.
+- The measured footprint is in [kb/footprint.md](kb/footprint.md). The
+  memory and the processor use are below their targets. The time to a ready
+  device is below its target when the files of the application are in the
+  memory of the operating system. The first start of a new build was not.
+- One product target is not measured: lost input events. Phase 3 has an exit
+  criterion for it.
 
 ## Phase 3: Actions for keys and knobs
 
