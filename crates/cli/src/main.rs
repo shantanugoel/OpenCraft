@@ -1,12 +1,14 @@
 //! opencraft-probe — hardware bring-up tool.
 //!
 //! Confirms that we can talk to a StreamDock-class device without the vendor
-//! software: enumerate it, draw on every panel, and decode every input.
+//! software: enumerate it, draw on each surface, and decode each input event.
+//! The surfaces and the controls come from the descriptor.
 
 use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 use opencraft_core::{
-    events, image, list_devices, protocol, recording, select, Device, Error, Event, Found,
-    HidConnector, HidTransport, Link, LinkEvent,
+    events, image, list_devices, protocol, recording, select, ControlKind, Decoded, Descriptor,
+    Device, Error, Found, Gesture, HidConnector, HidTransport, InputCodes, InputEvent, Link,
+    LinkEvent,
 };
 use std::io::Write;
 use std::process::ExitCode;
@@ -69,22 +71,24 @@ USAGE:
 
 COMMANDS:
     list                 Enumerate HID devices and flag known controllers
-    identify             Open the device and dump its identity + firmware
-    test                 Draw a numbered panel on every slot, then decode input
-    listen               Decode input events only
-    draw <slot> <rrggbb> Paint one slot a solid colour
+    identify             Open the device, show its identity, firmware, surfaces
+                         and controls
+    test                 Draw its slot number on each surface, then show each
+                         input event (control and gesture)
+    listen               Show input events only
+    draw <slot> <rrggbb> Paint the surface of one slot a solid colour
     clear [slot]         Send the clear command for one slot, or for all slots
-    background           Draw a test pattern on the background (800x480)
+    background           Draw a test pattern on the background
     raw                  Hexdump raw input reports; can save them to a file
     record               Record each gesture to a file, one prompt at a time
                          (--out <dir>, --from <step>)
 
 OPTIONS:
     --seconds <n>        How long to listen (default: 30 for test, 15 for listen)
-    --brightness <0-100> Panel brightness for 'test' (default: 80)
+    --brightness <0-100> Display brightness for 'test' (default: 80)
     --mode <0-9>         Send a MODE command first (some rebrands need it)
     --keep               Leave the test pattern on screen when exiting
-    --verbose            Also print acks and unrecognised packets
+    --verbose            Also print the acknowledgements
 
 OPTIONS FOR 'raw':
     --save <file>        Write each full input report to <file> (text format)
@@ -100,14 +104,14 @@ OPTIONS FOR 'raw':
 OPTIONS FOR 'background':
     --file <path>        Draw this PNG or JPEG file, not the test pattern
     --quality <1-100>    JPEG quality (default: 60, the value of the vendor SDK)
-    --with-panels        Then draw the numbered key faces and bar panels on top
+    --with-surfaces      Then draw the numbered key faces and bar panels on top
     --clear              Remove the background image. Draw nothing.
     --init               Send the start commands before the background
     --hold <n>           Keep the connection for <n> seconds after the draw
 
 'test', 'listen' and 'raw' send the keep-alive, so the device stays
 connected. They continue after a disconnection and wait for the device to
-connect again. 'test' and 'raw --draw' draw the panels again. '--seconds' is
+connect again. 'test' and 'raw --draw' draw the surfaces again. '--seconds' is
 the total time.
 
 NOTE: quit VSD Craft before running — two apps driving one device will fight."
@@ -190,23 +194,79 @@ fn cmd_list() -> AnyResult {
 fn cmd_identify() -> AnyResult {
     let mut t = open_device()?;
     let d = t.descriptor();
-    println!("  panels : {}", d.panels.len());
     println!("  packet : {} bytes", d.packet_size);
-    if let Some(bg) = d.background {
-        println!("  background: {}x{}", bg.width, bg.height);
-    }
     match t.firmware_version() {
         Ok(v) if !v.is_empty() => println!("  firmware: {v}"),
         _ => println!("  firmware: (unavailable)"),
     }
-    println!();
-    for p in d.panels {
-        println!(
-            "    slot {:>2}  {:>3}x{:<3}  {:?}",
-            p.slot, p.width, p.height, p.kind
+    print!("{}", describe_descriptor(d));
+    Ok(())
+}
+
+/// The surfaces and the controls of the descriptor, as text.
+fn describe_descriptor(d: &Descriptor) -> String {
+    let mut out = format!("\n  surfaces: {}\n", d.surfaces.len());
+    for s in d.surfaces {
+        let slot = match s.slot {
+            Some(slot) => format!("slot {slot:>2}"),
+            None => "no slot".to_string(),
+        };
+        out += &format!(
+            "    {:<14} {slot}  {:>3} x {:<3}  {:<4}  turned {}°\n",
+            s.id.to_string(),
+            s.width,
+            s.height,
+            s.format.name(),
+            s.rotation.degrees()
         );
     }
-    Ok(())
+    out += &format!("\n  controls: {}\n", d.controls.len());
+    for c in d.controls {
+        let codes: Vec<String> = gesture_codes(&c.codes)
+            .iter()
+            .map(|(gesture, code)| format!("{gesture} 0x{code:02X}"))
+            .collect();
+        let surface = match c.surface {
+            Some(id) => format!("  surface: {id}"),
+            None => String::new(),
+        };
+        out += &format!(
+            "    {:<12} row {} column {}  {}{surface}\n",
+            c.id().to_string(),
+            c.position.row,
+            c.position.column,
+            codes.join(", ")
+        );
+    }
+    out
+}
+
+/// The input codes of a control, each with the name of its gesture.
+fn gesture_codes(codes: &InputCodes) -> Vec<(&'static str, u8)> {
+    match *codes {
+        InputCodes::Key { code } => vec![("press/release", code)],
+        InputCodes::Knob {
+            turn_left,
+            turn_right,
+            push,
+        } => vec![
+            ("turn left", turn_left),
+            ("turn right", turn_right),
+            ("push", push),
+        ],
+        InputCodes::BarPanel { tap } => vec![("tap", tap)],
+        InputCodes::TouchBar {
+            touch_start,
+            swipe_right,
+            swipe_left,
+            touch_end,
+        } => vec![
+            ("touch start", touch_start),
+            ("swipe right", swipe_right),
+            ("swipe left", swipe_left),
+            ("touch end", touch_end),
+        ],
+    }
 }
 
 fn cmd_test(rest: &[String]) -> AnyResult {
@@ -216,12 +276,14 @@ fn cmd_test(rest: &[String]) -> AnyResult {
     let keep = rest.iter().any(|a| a == "--keep");
     let verbose = rest.iter().any(|a| a == "--verbose");
 
-    let mut link = Link::from_device(HidConnector, open_device()?);
+    let device = open_device()?;
+    let d = device.descriptor();
+    let mut link = Link::from_device(HidConnector, device);
     if let Some(mode) = mode {
         println!("  mode   : MODE {mode} before each draw");
     }
     println!("  light  : brightness {brightness}%\n");
-    println!("Each display shows its slot number after the draw.");
+    println!("Each key face and each bar panel shows its slot number after the draw.");
     println!("Press keys / turn knobs / swipe the touch bar for {seconds}s.");
     println!("You can disconnect and connect the cable. The probe draws again.\n");
 
@@ -231,7 +293,7 @@ fn cmd_test(rest: &[String]) -> AnyResult {
         None,
         |d| draw_test_pattern(d, mode, brightness),
         |data| {
-            print_event(data, verbose);
+            print_event(d, data, verbose);
             Ok(())
         },
     )?;
@@ -239,7 +301,7 @@ fn cmd_test(rest: &[String]) -> AnyResult {
     if keep {
         println!("\nLeaving the test pattern on screen.");
     } else if link.is_connected() {
-        println!("\nRestoring: blanking panels.");
+        println!("\nRestoring: clearing all slots.");
         link.with_device(|d| {
             d.set_brightness(60)?;
             d.clear_all()
@@ -253,7 +315,9 @@ fn cmd_test(rest: &[String]) -> AnyResult {
 fn cmd_listen(rest: &[String]) -> AnyResult {
     let seconds = flag_u64(rest, "--seconds").unwrap_or(15);
     let verbose = rest.iter().any(|a| a == "--verbose");
-    let mut link = Link::from_device(HidConnector, open_device()?);
+    let device = open_device()?;
+    let d = device.descriptor();
+    let mut link = Link::from_device(HidConnector, device);
     println!("Listening for {seconds}s. Ctrl-C to stop.\n");
     run_link(
         &mut link,
@@ -261,7 +325,7 @@ fn cmd_listen(rest: &[String]) -> AnyResult {
         None,
         |_| Ok(0),
         |data| {
-            print_event(data, verbose);
+            print_event(d, data, verbose);
             Ok(())
         },
     )
@@ -339,8 +403,9 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     Ok(())
 }
 
-/// Draw a numbered panel on every slot. The probe does this after each
-/// connection, as the engine must (architecture rule 10).
+/// Send the start commands, then draw its slot number on each surface that has
+/// a slot. The probe does this after each connection, as the engine must
+/// (architecture rule 10).
 fn draw_test_pattern(
     t: &mut Device<HidTransport>,
     mode: Option<u8>,
@@ -354,23 +419,32 @@ fn draw_test_pattern(
     t.init()?;
     std::thread::sleep(Duration::from_millis(150));
     t.set_brightness(brightness)?;
+    draw_slot_surfaces(t)
+}
 
-    let mut led_colors = Vec::new();
-    for (i, panel) in t.descriptor().panels.iter().enumerate() {
-        let png =
-            image::render_test_panel(panel.width, panel.height, panel.slot, image::test_color(i))?;
-        t.send_image(panel.slot, &png)?;
-        if panel.kind == opencraft_core::PanelKind::Knob {
-            led_colors.push(image::test_color(i));
-        }
+/// Draw its slot number on each surface that has a slot, give each knob light
+/// a test colour, and commit. Return the number of surfaces.
+///
+/// Surface `i` of the table and knob `i` get the test colour `i`.
+fn draw_slot_surfaces(t: &mut Device<HidTransport>) -> opencraft_core::Result<usize> {
+    let d = t.descriptor();
+    let mut drawn = 0;
+    for (i, surface) in d.surfaces.iter().enumerate() {
+        let Some(slot) = surface.slot else { continue };
+        let data = image::render_test_surface(surface, slot, image::test_color(i))?;
+        t.send_image(slot, &data)?;
+        drawn += 1;
     }
 
+    let led_colors: Vec<[u8; 3]> = (0..d.controls_of(ControlKind::Knob).count())
+        .map(image::test_color)
+        .collect();
     if !led_colors.is_empty() {
         t.send(protocol::set_led_colors(&led_colors))?;
     }
 
     t.commit()?;
-    Ok(t.descriptor().panels.len())
+    Ok(drawn)
 }
 
 /// Set `stop` when the user presses Enter. If standard input is closed, do
@@ -397,18 +471,18 @@ fn cmd_draw(rest: &[String]) -> AnyResult {
     let rgb = parse_hex_color(&rest[1])?;
 
     let mut t = open_device()?;
-    let panel = t
+    let surface = t
         .descriptor()
-        .panel(slot)
+        .surface_at_slot(slot)
         .ok_or_else(|| format!("slot {slot} does not exist on this device"))?;
 
     t.init()?;
-    let png = image::render_solid(panel.width, panel.height, rgb)?;
-    t.send_image(slot, &png)?;
+    let data = image::render_solid(surface, rgb)?;
+    t.send_image(slot, &data)?;
     t.commit()?;
     println!(
-        "  painted slot {slot} with #{:02X}{:02X}{:02X}",
-        rgb[0], rgb[1], rgb[2]
+        "  painted {} (slot {slot}) with #{:02X}{:02X}{:02X}",
+        surface.id, rgb[0], rgb[1], rgb[2]
     );
     Ok(())
 }
@@ -430,7 +504,7 @@ fn cmd_clear(rest: &[String]) -> AnyResult {
         }
         None => {
             t.clear_all()?;
-            println!("  cleared all panels");
+            println!("  cleared all slots");
         }
     }
     Ok(())
@@ -440,9 +514,9 @@ fn cmd_clear(rest: &[String]) -> AnyResult {
 /// temporary background command ("BGPIC"), never the boot logo command.
 fn cmd_background(rest: &[String]) -> AnyResult {
     let quality = flag_u64(rest, "--quality")
-        .unwrap_or(image::BACKGROUND_JPEG_QUALITY as u64)
+        .unwrap_or(image::DEFAULT_JPEG_QUALITY as u64)
         .clamp(1, 100) as u8;
-    let with_panels = rest.iter().any(|a| a == "--with-panels");
+    let with_surfaces = rest.iter().any(|a| a == "--with-surfaces");
     let clear = rest.iter().any(|a| a == "--clear");
 
     // Read the file before the device opens, so that a bad path stops early.
@@ -457,7 +531,7 @@ fn cmd_background(rest: &[String]) -> AnyResult {
     let mut t = open_device()?;
     let bg = t
         .descriptor()
-        .background
+        .background()
         .ok_or("this device has no background in its descriptor")?;
 
     if clear {
@@ -467,16 +541,21 @@ fn cmd_background(rest: &[String]) -> AnyResult {
         return Ok(());
     }
 
-    let jpeg = match &file {
-        Some(data) => image::render_background_file(data, bg.width, bg.height, quality)?,
-        None => image::render_background_test(bg.width, bg.height, quality)?,
+    let data = match &file {
+        Some(file) => image::render_background_file(file, bg, quality)?,
+        None => image::render_background_test(bg, quality)?,
     };
     println!(
-        "  background: {}x{} JPEG, quality {quality}, {} bytes ({} the 2-byte length limit of 65535)",
+        "  background: {}x{} {}, quality {quality}, {} bytes ({} the 2-byte length limit of 65535)",
         bg.width,
         bg.height,
-        jpeg.len(),
-        if jpeg.len() > 0xFFFF { "above" } else { "below" }
+        bg.format.name(),
+        data.len(),
+        if data.len() > 0xFFFF {
+            "above"
+        } else {
+            "below"
+        }
     );
 
     if rest.iter().any(|a| a == "--init") {
@@ -487,27 +566,15 @@ fn cmd_background(rest: &[String]) -> AnyResult {
         println!("  init   : DIS, then brightness 80%");
     }
 
-    t.send_background(&jpeg)?;
+    t.send_background(&data)?;
     t.commit()?;
     println!("  drawn  : background committed");
 
-    if with_panels {
+    if with_surfaces {
         // A short pause makes the two steps visible one after the other.
         std::thread::sleep(Duration::from_secs(1));
-        for (i, panel) in t.descriptor().panels.iter().enumerate() {
-            let png = image::render_test_panel(
-                panel.width,
-                panel.height,
-                panel.slot,
-                image::test_color(i),
-            )?;
-            t.send_image(panel.slot, &png)?;
-        }
-        t.commit()?;
-        println!(
-            "  drawn  : {} panels committed on top",
-            t.descriptor().panels.len()
-        );
+        let drawn = draw_slot_surfaces(&mut t)?;
+        println!("  drawn  : {drawn} surfaces committed on top");
     }
 
     if file.is_none() {
@@ -538,8 +605,8 @@ fn cmd_background(rest: &[String]) -> AnyResult {
 
 /// Operate the link until `duration` expires or `stop` is set.
 ///
-/// After each connection, `draw` draws all panels; it returns the number of
-/// panels that it drew. For each input report, `on_input` runs. The link sends
+/// After each connection, `draw` draws all surfaces; it returns the number of
+/// surfaces that it drew. For each input report, `on_input` runs. The link sends
 /// the keep-alive. The function prints a line when the device disconnects and
 /// when it connects again. An error that does not stop the link is printed one
 /// time, until it changes.
@@ -577,7 +644,7 @@ fn run_link(
                 match link.with_device(|d| draw(d)) {
                     Ok(0) => {}
                     Ok(n) => println!(
-                        "  {} drawn  : {n} panels committed in {} ms",
+                        "  {} drawn  : {n} surfaces committed in {} ms",
                         stamp(),
                         drawn_at.elapsed().as_millis()
                     ),
@@ -611,62 +678,44 @@ fn run_link(
 }
 
 /// Print one decoded input report.
-fn print_event(data: &[u8], verbose: bool) {
-    match events::decode(data) {
-        Event::Ack => {
+fn print_event(d: &Descriptor, data: &[u8], verbose: bool) {
+    match events::decode(d, data) {
+        Decoded::Ack => {
             if verbose {
                 println!("  ack");
             }
         }
-        Event::Unknown(raw) => {
-            if verbose {
-                println!("  ? {}", hex(&raw[..raw.len().min(24)]));
-            }
-        }
-        ev => println!("  {}", describe(&ev)),
+        // A report that the decoder does not know. Show it always: it can be
+        // a code that nobody measured yet.
+        Decoded::Unknown(raw) => println!("  ? {}", hex(&raw[..raw.len().min(24)])),
+        Decoded::Input(ev) => println!("  {}", describe(d, &ev)),
     }
 }
 
-fn describe(ev: &Event) -> String {
-    match ev {
-        Event::Key { code, pressed } => format!(
-            "{:<10} {:<5} (code 0x{code:02X})",
-            events::key_label(*code),
-            if *pressed { "DOWN" } else { "up" }
-        ),
-        Event::KnobRotate { knob, dir } => {
-            format!(
-                "knob {knob}     {}",
-                if *dir == events::Direction::Left {
-                    "<<<"
-                } else {
-                    ">>>"
-                }
-            )
-        }
-        Event::KnobPress { knob, pressed } => {
-            format!(
-                "knob {knob}     {}",
-                if *pressed { "pressed" } else { "released" }
-            )
-        }
-        Event::Swipe { dir } => {
-            format!(
-                "swipe      {}",
-                if *dir == events::Direction::Left {
-                    "<<<"
-                } else {
-                    ">>>"
-                }
-            )
-        }
-        Event::TouchStart { x } => format!("touch down x={x}"),
-        Event::Tap { panel, x } => format!("tap        bar panel {panel} (x={x})"),
-        Event::TouchEnd => "touch up   (gesture not identified)".into(),
-        Event::Touch { x, y } => format!("touch      ({x}, {y})"),
-        Event::Ack => "ack".into(),
-        Event::Unknown(_) => "unknown".into(),
-    }
+/// One input event as text: the control, the gesture, and the coordinates.
+/// For a control with a surface, the text also gives the slot, because the
+/// `test` command draws the slot number on each surface.
+fn describe(d: &Descriptor, ev: &InputEvent) -> String {
+    let detail = match ev.gesture {
+        Gesture::Tap { x } | Gesture::TouchStart { x } => format!("x={x}"),
+        Gesture::TouchPoint { x, y } => format!("({x}, {y})"),
+        _ => String::new(),
+    };
+    let slot = d
+        .control(ev.control)
+        .and_then(|c| c.surface)
+        .and_then(|id| d.surface(id))
+        .and_then(|s| s.slot)
+        .map(|slot| format!("slot {slot}"))
+        .unwrap_or_default();
+    format!(
+        "{:<12} {:<12} {:<11} {slot}",
+        ev.control.to_string(),
+        ev.gesture.name(),
+        detail
+    )
+    .trim_end()
+    .to_string()
 }
 
 fn flag_u64(args: &[String], name: &str) -> Option<u64> {
@@ -730,6 +779,60 @@ mod tests {
         let line = recording::format_report_line(5, &data);
         assert_eq!(line.len(), 2 + 200);
         assert!(line.starts_with("5 4141"));
+    }
+
+    fn n4pro() -> &'static Descriptor {
+        opencraft_core::device::find(0x5548, 0x1023).unwrap()
+    }
+
+    #[test]
+    fn describe_names_the_control_the_gesture_and_the_slot() {
+        use opencraft_core::ControlId;
+        let ev = |kind, number, gesture| InputEvent {
+            control: ControlId::new(kind, number),
+            gesture,
+        };
+        let d = n4pro();
+        assert_eq!(
+            describe(d, &ev(ControlKind::Key, 1, Gesture::Press)),
+            "key 1        press                    slot 11"
+        );
+        assert_eq!(
+            describe(d, &ev(ControlKind::Knob, 2, Gesture::TurnLeft)),
+            "knob 2       turn left"
+        );
+        assert_eq!(
+            describe(d, &ev(ControlKind::BarPanel, 3, Gesture::Tap { x: 510 })),
+            "bar panel 3  tap          x=510       slot 3"
+        );
+        assert_eq!(
+            describe(
+                d,
+                &ev(
+                    ControlKind::TouchBar,
+                    1,
+                    Gesture::TouchPoint { x: 101, y: 60 }
+                )
+            ),
+            "touch bar 1  touch point  (101, 60)"
+        );
+    }
+
+    #[test]
+    fn identify_lists_each_surface_and_each_control_of_the_descriptor() {
+        let d = n4pro();
+        let text = describe_descriptor(d);
+        assert!(text.contains("surfaces: 15"), "{text}");
+        assert!(text.contains("controls: 19"), "{text}");
+        assert!(text.contains("key face 1     slot 11  112 x 112  PNG   turned 180°"));
+        assert!(text.contains("background 1   no slot  800 x 480  JPEG  turned 180°"));
+        assert!(
+            text.contains("key 1        row 1 column 1  press/release 0x01  surface: key face 1")
+        );
+        assert!(text
+            .contains("knob 1       row 1 column 1  turn left 0xA0, turn right 0xA1, push 0x37"));
+        assert!(text.contains("touch bar 1  row 1 column 1  touch start 0x00, swipe right 0x38, swipe left 0x39, touch end 0xB2"));
+        assert!(!text.to_lowercase().contains("knob display"));
     }
 
     #[test]

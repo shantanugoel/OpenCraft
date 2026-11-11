@@ -15,7 +15,7 @@ repository:
 scripts/record-input.sh
 ```
 
-The probe draws the panels, then it shows one line for each gesture. Do the
+The probe draws the slot numbers on the key faces and the bar panels, then it shows one line for each gesture. Do the
 gesture on the device, then wait for the next line. The probe goes to the next
 line when the device sends no more reports. Do not use the keyboard. Each
 gesture goes to one file. A gesture that gives no report has no file.
@@ -62,7 +62,7 @@ To read a file in a test, use `opencraft_core::recording::parse`.
 ## Other files
 
 `layout.txt` holds the slot number at each physical position. The owner read
-the numbers from the panels. The lines are `key_row_1`, `key_row_2`, and
+the numbers from the key faces and the bar panels. The lines are `key_row_1`, `key_row_2`, and
 `bar_panels`. The numbers go from left to right.
 
 ## Files and gestures

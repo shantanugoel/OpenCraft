@@ -75,8 +75,6 @@ approximate. (Measured)
   logo command. See
   [streamdock-protocol.md](streamdock-protocol.md#background-image). (Source)
 - The SDK encodes the background as a JPEG with quality 60. (Source)
-- The code calls a bar panel a "knob display" (`PanelKind::Knob`). Phase 1
-  changes this name.
 
 ## Controls and input codes
 

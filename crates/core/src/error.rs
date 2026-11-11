@@ -33,8 +33,9 @@ pub enum Error {
     #[error("this device has no background image")]
     NoBackground,
 
-    #[error("panel {0} does not exist on this device")]
-    NoSuchPanel(u8),
+    /// The descriptor of the device has no surface with this slot.
+    #[error("slot {0} does not exist on this device")]
+    NoSuchSlot(u8),
 
     /// A known device has no vendor interface in the list. OpenCraft opens only
     /// the vendor interface (architecture rule 6).

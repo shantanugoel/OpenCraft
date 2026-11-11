@@ -50,7 +50,7 @@ Measure these from Phase 2. They are exit criteria for Phase 6.
 **Goal.** Show that OpenCraft can operate the N4 Pro without the vendor software.
 
 **Result.** The probe finds the device, reads the firmware version, paints all
-14 panels, and decodes knob input. The facts are in
+14 key faces and bar panels, and decodes knob input. The facts are in
 [kb/n4-pro-hardware.md](kb/n4-pro-hardware.md).
 
 ## Phase 1: Device layer foundation
@@ -64,8 +64,7 @@ This phase has no GUI. It is small, and it makes the GUI phases reliable.
 - Give each control and each surface an identity in the descriptor. Connect
   each key control to its key surface.
 - Change the names in the code to the terms in
-  [ARCHITECTURE.md](ARCHITECTURE.md#3-terms). The code calls a bar panel a
-  "knob display" at this time.
+  [ARCHITECTURE.md](ARCHITECTURE.md#3-terms).
 - Put the transport behind an interface, and add a fake transport (rule 7).
 - Add tests for the commands and for the input decoder. Use recorded reports.
 - Draw the 800 × 480 background image.
