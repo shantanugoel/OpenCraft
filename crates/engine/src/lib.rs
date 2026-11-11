@@ -7,9 +7,12 @@
 //!
 //! - [`profile`]: the profile, its pages, and the content of each surface.
 //! - [`store`]: the profile directory: the profile file and the image files.
+//! - [`render`] and [`label`]: the image of a surface, made from its content.
 
 pub mod error;
+pub mod label;
 pub mod profile;
+pub mod render;
 pub mod store;
 
 pub use error::{Error, Result};

@@ -135,15 +135,30 @@ label module, not results of this test.
 | 512 × 512 | 112 × 112 | 2.637 | 1.682 | 0.901 | Measured | Earlier resize test in T |
 | 1024 × 1024 | 112 × 112 | 9.175 | 5.872 | 3.093 | Measured | Earlier resize test in T |
 
+## The label module of the engine
+
+The module `crates/engine/src/label.rs` uses Core Text. The tests of the
+engine make these images on macOS, on 2026-11-11.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The module uses the system font in the weight for emphasis (`kCTFontEmphasizedSystemFontType`). It tries the sizes 20, 18, 16, 14, 12, and 10 pixels, and uses the first size at which the text fits. | Measured | The code and its tests |
+| A text that does not fit at 10 pixels is cut, and gets `…` at the end. The label stays in its area. | Measured | Test with a text of 880 characters |
+| One word of 60 letters with no space goes to more lines and stays in the area | Measured | Test |
+| Devanagari, CJK, Arabic, and an emoji each give a label on a key face | Measured | Test. An agent looked at one image with Devanagari, CJK, and an emoji. |
+| A label of 1 line with an image has a band of 16 to 30 pixels on a key face. The band is at most 40 % of the height of the surface. | Measured | Test |
+| An agent looked at 8 key faces and 8 bar panels, with and without an image of the user. Each label was at the centre of its area, and no label was outside its surface. | Measured | A test program, not in the repository |
+
 ## Not known
 
 - The physical footprint of the full application with GPUI and the label
   implementation. RSS from this test cannot answer that question.
 - The full application cold start with an empty OS font cache.
 - Label quality on the device. This test used no device.
-- Output on a 176 × 112 bar panel and on a real user image.
 - Mixed-direction text, other scripts, long unbroken words, and emoji sequences.
-- Shrink, ellipsis, very long labels, and `band_height` in the final label module.
+- Whether a cut label can show an incorrect sign. The label module cuts
+  between two characters, and not between two groups of characters that make
+  one sign.
 - The effect of other installed fonts and another macOS version.
 - Performance and output on Linux and Windows. Core Text needs a replacement
   there. The other candidates were tested only on macOS.

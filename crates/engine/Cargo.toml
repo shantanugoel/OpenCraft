@@ -12,5 +12,10 @@ thiserror.workspace = true
 serde.workspace = true
 toml.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+core-text.workspace = true
+core-graphics.workspace = true
+core-foundation.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
