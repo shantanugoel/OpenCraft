@@ -285,33 +285,40 @@ fn the_decoder_source_has_no_input_code_of_the_n4_pro() {
 /// The device shows no slot image that is too large, and it gives no error.
 /// The largest slot image that our device showed had 58 187 bytes, and an
 /// image of 60 969 bytes did not show (`docs/kb/streamdock-protocol.md`,
-/// "Image transfer"). Noise is the worst case for a JPEG. With the quality of
-/// decision 0007, noise on each key face and each bar panel must stay below
-/// that size. If this test fails, a quality or a surface size changed, and a
-/// user image can then show nothing on the device.
+/// "Image transfer"). Decision 0007 uses a JPEG quality that keeps hard images
+/// below that size. The test encodes the two hardest images that we found for
+/// each key face and each bar panel: noise, and noise of saturated colours. It
+/// is not a proof for all images. It fails if the quality goes to 100.
 #[test]
-fn the_largest_slot_image_is_below_the_limit_of_the_device() {
+fn hard_slot_images_stay_below_the_largest_size_that_the_device_showed() {
     const LARGEST_SHOWN: usize = 58_187;
     let d = device::find(0x5548, 0x1023).unwrap();
     for s in d.slot_surfaces() {
-        // Noise from a fixed linear congruential generator.
-        let mut state = 0x2545_F491u32;
-        let mut img = image::RgbImage::new(s.width as u32, s.height as u32);
-        for p in img.pixels_mut() {
-            for c in p.0.iter_mut() {
-                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
-                *c = (state >> 24) as u8;
+        for saturated in [false, true] {
+            // Noise from a fixed linear congruential generator.
+            let mut state = 0x2545_F491u32;
+            let mut img = image::RgbImage::new(s.width as u32, s.height as u32);
+            for p in img.pixels_mut() {
+                for c in p.0.iter_mut() {
+                    state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    let value = (state >> 24) as u8;
+                    *c = match saturated {
+                        true if value >= 128 => 255,
+                        true => 0,
+                        false => value,
+                    };
+                }
             }
+            let quality = opencraft_core::image::jpeg_quality_for(s);
+            let data = opencraft_core::image::encode_for(s, &img, quality).unwrap();
+            assert!(
+                data.len() < LARGEST_SHOWN,
+                "{}: {} bytes at quality {quality} (saturated: {saturated})",
+                s.id,
+                data.len()
+            );
+            // The check has a meaning only if the image is a hard one.
+            assert!(data.len() > 20_000, "{}: {} bytes", s.id, data.len());
         }
-        let quality = opencraft_core::image::jpeg_quality_for(s);
-        let data = opencraft_core::image::encode_for(s, &img, quality).unwrap();
-        assert!(
-            data.len() < LARGEST_SHOWN,
-            "{}: noise is {} bytes at quality {quality}",
-            s.id,
-            data.len()
-        );
-        // The check has a meaning only if noise is a large image.
-        assert!(data.len() > 10_000, "{}: {} bytes", s.id, data.len());
     }
 }

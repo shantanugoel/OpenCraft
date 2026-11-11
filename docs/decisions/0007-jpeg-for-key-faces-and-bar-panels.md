@@ -12,19 +12,25 @@ in [kb/n4-pro-hardware.md](../kb/n4-pro-hardware.md#surfaces).
 
 The measurements gave no difference in speed that a user can see:
 
-- The device shows PNG and JPEG after the same time.
-- A full repaint of 14 images is written in 24 to 45 ms in each format.
-- The encoder needs less than 0.2 ms for one image in each format.
+- The host writes a full repaint of 14 test icons in approximately 26 ms as
+  PNG and 42 ms as JPEG with quality 90. The time follows the number of
+  bytes, and the test icons are smaller as PNG.
+- From the end of the commit to the image on the display, a camera measured
+  the same time for PNG and for JPEG.
+- The encoder needs less than 0.2 ms for one key face in each format.
 
-Thus the decision depends on the quality of the image and on the faults that
-each format can cause.
+All these times are much shorter than a time that a user can see. Thus the
+decision depends on the quality of the image and on the faults that each
+format can cause.
 
 - The owner compared PNG and JPEG with quality 90 on the device, with small
   text of 9 to 13 pixels. The owner saw no difference.
-- The device shows no slot image that is larger than approximately 58 000
-  bytes, and it gives no error. A PNG of a bar panel can be larger than that:
-  59 316 bytes for noise. A JPEG with quality 90 cannot: 37 460 bytes for
-  noise.
+- The device shows no slot image that is too large, and it gives no error.
+  The largest image that it showed had 58 187 bytes. The exact limit is not
+  known. A PNG of a bar panel can be larger than that size: 59 316 bytes for
+  noise. The largest JPEG with quality 90 that we made for a bar panel has
+  45 832 bytes (noise of saturated colours). With quality 95 the same image
+  has 57 755 bytes, which is too near to the limit.
 - For real icons, a JPEG with quality 90 has approximately half of the bytes
   of the PNG. For key faces with text on a flat colour, the two formats have
   the same size.
@@ -43,8 +49,9 @@ decision does not change it.
 
 ## Results
 
-- No image that the user supplies can be too large for the device. A test
-  makes sure that noise at this quality stays below the measured limit.
+- The hardest images that we found stay 12 000 bytes below the largest slot
+  image that the device showed. A test encodes two such images for each
+  surface. This is not a proof for all images, and the test says so.
 - One encoder serves all surfaces.
 - The image on the device is not exactly the image in the GUI (rule 11): JPEG
   changes pixels a little. The owner saw no difference at quality 90.

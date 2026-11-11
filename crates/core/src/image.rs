@@ -19,8 +19,8 @@ pub use patterns::{bar_edge_pattern, icon_image, wide_pattern, EDGE_COLOR};
 pub const BACKGROUND_JPEG_QUALITY: u8 = 60;
 
 /// The JPEG quality for a key face and a bar panel. At this quality, the owner
-/// saw no difference from PNG on the device, and the largest possible image is
-/// smaller than the limit of the device for a slot image. See
+/// saw no difference from PNG on the device, and the hardest images that we
+/// found stay below the largest slot image that the device showed. See
 /// `docs/decisions/0007-jpeg-for-key-faces-and-bar-panels.md`.
 pub const SLOT_JPEG_QUALITY: u8 = 90;
 
