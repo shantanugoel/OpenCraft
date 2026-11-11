@@ -193,9 +193,6 @@ until the device shows the images. No person looked at the device.
   report of 1025 bytes. (Measured)
 - The device sent no acknowledgement and no other input report during the
   repaints. (Measured)
-- The probe commands `test` and `raw --draw` print a longer time for a draw
-  (approximately 175 ms). That time includes a pause of 150 ms that the probe
-  makes after the start command. (Measured)
 - These times do not decide the image format. See
   [decision 0007](../decisions/0007-jpeg-for-key-faces-and-bar-panels.md).
 
@@ -243,14 +240,19 @@ and connects again.
 | `CLE` has an effect only after `STP` | Measured: 1 time |
 
 Thus the safe sequence after each connection is: `DIS`, the brightness
-command, `CLE 0xFF`, the images, `STP`. Do not send `STP` before `DIS`. The
-probe function `start_display` in `crates/cli/src/main.rs` sends `DIS`, the
-brightness command, `CLE 0xFF`, and `STP`. The probe commands `test`,
-`raw --draw`, `bars`, `wide`, `repaint`, and `send --draw` use it. The
-command `background` uses it only with `--init`. The command `draw` sends
-only `DIS`. The probe command `clear` sends `CLE` and `STP`
-with no `DIS`. On a new connection, that causes the fault for a program that
-does not send `CLE 0xFF` after `DIS`.
+command, `CLE 0xFF`, `STP`, the images, `STP`. Do not send `STP` before
+`DIS`. The device layer function `Device::start` in
+`crates/core/src/connection.rs` sends `DIS`, the brightness command,
+`CLE 0xFF`, and `STP`. The probe commands `test`, `raw --draw`, `bars`,
+`wide`, `repaint`, and `send --draw` use it. The command `background` uses it
+only with `--init`. The command `draw` sends only `DIS`. The probe command
+`clear` sends `CLE` and `STP` with no `DIS`. On a new connection, that causes
+the fault for a program that does not send `CLE 0xFF` after `DIS`.
+
+No pause is necessary in the sequence. Until 2026-11-11, the probe made a
+pause of 150 ms after `DIS`. A test program then sent the sequence and 14
+images with no pause, on 5 new connections. The writes took 30 to 49 ms, and
+a camera saw all 14 images each time. (Measured: camera, 2026-11-11)
 
 ## Keep-alive and stop
 

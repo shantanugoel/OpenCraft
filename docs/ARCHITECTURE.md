@@ -83,8 +83,12 @@ at the same time.
 |---|---|---|
 | Device layer | `crates/core` | Exists |
 | Probe | `crates/cli` | Exists |
-| Engine | Not made yet | Starts in Phase 2 |
-| GUI application | Not made yet | Starts in Phase 2 |
+| Engine | `crates/engine` | Exists |
+| GUI application | `crates/app` | Starts in Phase 2 |
+
+The reason for these crates is in
+[decision 0008](decisions/0008-crate-boundaries.md). The GUI application does
+not depend on `crates/core`.
 
 ## 5. Rules
 
@@ -105,7 +109,8 @@ These rules stay true in all phases.
    controls, the input codes, and the capabilities of a device model. Code
    outside the descriptor table does not contain a check for a specific model.
 5. **Device I/O does not block the user interface.** Device reads and writes
-   occur on threads that are not the user interface thread.
+   occur on threads that are not the user interface thread. The threads of
+   the engine are in [decision 0011](decisions/0011-engine-thread-model.md).
 6. **Do not open the keyboard interface.** The device has a keyboard-emulation
    interface. OpenCraft opens only the vendor interface. See
    [kb/macos-permissions.md](kb/macos-permissions.md).
@@ -129,7 +134,8 @@ These rules stay true in all phases.
      after a gesture.
 9. **The profile file is the source of truth.** The shell changes the profile
    through engine commands. The engine writes the file. The file has a schema
-   version.
+   version. The format is in
+   [decision 0009](decisions/0009-profile-file-format.md).
 10. **The engine holds the necessary state of each surface.** The engine can
     draw all surfaces again at any time. It does this after a connection, a
     page change, and a wake from sleep.
@@ -160,10 +166,6 @@ you make one, write a decision record and remove the row.
 
 | Decision | Phase | Note |
 |---|---|---|
-| Crate boundaries for the engine and the shell | 2 | The layers in section 4 are the limit. |
-| Profile file format | 2 | The GUI is the editor. The file stays readable. |
-| Library for text and icons on surfaces | 2 | |
-| Thread model in the engine | 2 | Rule 5 is the limit. |
 | Engine in the GUI process, or in a different process | 5 | Rules 2 and 3 keep the two options open. |
 | Menu bar item | 5 | GPUI has no API for this. |
 | How an action describes its settings to the GUI | 3 | The answer must also be correct for a plug-in. |

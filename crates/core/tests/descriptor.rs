@@ -151,6 +151,79 @@ fn each_slot_is_used_one_time_and_only_the_background_has_no_slot() {
 }
 
 #[test]
+fn each_surface_is_on_the_display_and_no_two_slot_surfaces_overlap() {
+    for d in DESCRIPTORS {
+        let (width, height) = d.display_size();
+        if let Some(bg) = d.background() {
+            assert_eq!((bg.x, bg.y), (0, 0), "{}", d.name);
+            assert_eq!((bg.width, bg.height), (width, height), "{}", d.name);
+        }
+        let slots: Vec<_> = d.slot_surfaces().collect();
+        for (i, a) in slots.iter().enumerate() {
+            assert!(
+                a.x + a.width <= width && a.y + a.height <= height,
+                "{}: {} is not on the display",
+                d.name,
+                a.id
+            );
+            for b in &slots[i + 1..] {
+                let apart = a.x + a.width <= b.x
+                    || b.x + b.width <= a.x
+                    || a.y + a.height <= b.y
+                    || b.y + b.height <= a.y;
+                assert!(apart, "{}: {} and {} overlap", d.name, a.id, b.id);
+            }
+        }
+    }
+}
+
+#[test]
+fn the_position_of_a_surface_agrees_with_the_position_of_its_control() {
+    // A control more to the right has a surface more to the right. A control
+    // in a lower row has a surface that is lower.
+    for d in DESCRIPTORS {
+        let with_surface: Vec<_> = d
+            .controls
+            .iter()
+            .filter_map(|c| Some((c, d.surface(c.surface?).unwrap())))
+            .collect();
+        for (a, sa) in &with_surface {
+            for (b, sb) in &with_surface {
+                if a.kind() != b.kind() {
+                    continue;
+                }
+                if a.position.row == b.position.row && a.position.column < b.position.column {
+                    assert!(sa.x < sb.x, "{}: {} and {}", d.name, a.id(), b.id());
+                    assert_eq!(sa.y, sb.y, "{}: {} and {}", d.name, a.id(), b.id());
+                }
+                if a.position.row < b.position.row {
+                    assert!(sa.y < sb.y, "{}: {} and {}", d.name, a.id(), b.id());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn the_n4_pro_surfaces_are_at_the_measured_positions() {
+    // "Positions on the display" in docs/kb/n4-pro-hardware.md.
+    let d = n4pro();
+    assert_eq!(d.display_size(), (800, 480));
+    let at = |slot: u8| {
+        let s = d.surface_at_slot(slot).unwrap();
+        (s.x, s.y)
+    };
+    let key_x = [6, 176, 346, 514, 682];
+    for (i, x) in key_x.into_iter().enumerate() {
+        assert_eq!(at(11 + i as u8), (x, 8), "top row");
+        assert_eq!(at(6 + i as u8), (x, 178), "second row");
+    }
+    for (i, x) in [0, 203, 406, 609].into_iter().enumerate() {
+        assert_eq!(at(1 + i as u8), (x, 358), "bar panel");
+    }
+}
+
+#[test]
 fn no_two_controls_of_one_kind_have_the_same_position() {
     for d in DESCRIPTORS {
         let mut positions = HashSet::new();

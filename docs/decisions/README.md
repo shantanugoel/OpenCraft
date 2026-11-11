@@ -23,6 +23,10 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0005](0005-gpui.md) | Use GPUI for the GUI | Accepted, with a Phase 5 open item |
 | [0006](0006-action-kinds-and-handler-interface.md) | Action kinds have a namespace, and all actions use one handler interface | Accepted |
 | [0007](0007-jpeg-for-key-faces-and-bar-panels.md) | Send JPEG to key faces and bar panels | Accepted |
+| [0008](0008-crate-boundaries.md) | One crate for the engine and one crate for the GUI application | Accepted |
+| [0009](0009-profile-file-format.md) | The profile is a directory with a TOML file and its images | Accepted |
+| [0010](0010-core-text-for-surface-labels.md) | Use Core Text for surface labels on macOS | Accepted |
+| [0011](0011-engine-thread-model.md) | The engine has one thread, and the shell uses messages | Accepted |
 
 ## Template
 

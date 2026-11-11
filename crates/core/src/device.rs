@@ -106,6 +106,11 @@ pub struct Surface {
     /// The slot number that the firmware uses for the surface. A background
     /// has no slot: it has a different command.
     pub slot: Option<u8>,
+    /// The position of the top left corner of the image, in pixels of the
+    /// upright display. The background is at 0, 0. See
+    /// [`Descriptor::display_size`].
+    pub x: u16,
+    pub y: u16,
     /// The size of the image, in pixels.
     pub width: u16,
     pub height: u16,
@@ -250,7 +255,8 @@ impl InputCodes {
 /// top row. Column 1 is the left column.
 ///
 /// The descriptor holds only the places that are measured with certainty.
-/// The place of one kind of control relative to a different kind, and the
+/// A control that has a surface is at the position of that surface: see
+/// [`Surface::x`]. The place of a knob relative to the display, and the
 /// pixel area of each display window, are not in the descriptor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
@@ -318,6 +324,15 @@ impl Descriptor {
             .find(|s| s.kind() == SurfaceKind::Background)
     }
 
+    /// The size of the display on which the surfaces have their positions,
+    /// in pixels: the smallest area from 0, 0 that contains each surface.
+    /// For a model with a background, it is the size of the background.
+    pub fn display_size(&self) -> (u16, u16) {
+        let width = self.surfaces.iter().map(|s| s.x + s.width).max();
+        let height = self.surfaces.iter().map(|s| s.y + s.height).max();
+        (width.unwrap_or(0), height.unwrap_or(0))
+    }
+
     pub fn control(&self, id: ControlId) -> Option<&'static Control> {
         self.controls.iter().find(|c| c.id() == id)
     }
@@ -330,10 +345,12 @@ impl Descriptor {
 
 // --- The table ---------------------------------------------------------------
 
-const fn key_face(number: u8, slot: u8) -> Surface {
+const fn key_face(number: u8, slot: u8, x: u16, y: u16) -> Surface {
     Surface {
         id: SurfaceId::new(SurfaceKind::KeyFace, number),
         slot: Some(slot),
+        x,
+        y,
         width: 112,
         height: 112,
         format: ImageFormat::Jpeg,
@@ -341,10 +358,12 @@ const fn key_face(number: u8, slot: u8) -> Surface {
     }
 }
 
-const fn bar_panel_surface(number: u8) -> Surface {
+const fn bar_panel_surface(number: u8, x: u16) -> Surface {
     Surface {
         id: SurfaceId::new(SurfaceKind::BarPanel, number),
         slot: Some(number),
+        x,
+        y: 358,
         width: 176,
         height: 112,
         format: ImageFormat::Jpeg,
@@ -354,25 +373,28 @@ const fn bar_panel_surface(number: u8) -> Surface {
 
 /// N4 Pro: 4 bar panels (slots 1 to 4, from left to right), 10 key faces
 /// (slots 11 to 15 in the top row and 6 to 10 in the second row, from left to
-/// right), and the 800 × 480 background. Slot 5 is not used.
+/// right), and the 800 × 480 background. Slot 5 is not used. The positions are
+/// measured: see "Positions on the display" in `docs/kb/n4-pro-hardware.md`.
 static N4PRO_SURFACES: &[Surface] = &[
-    bar_panel_surface(1),
-    bar_panel_surface(2),
-    bar_panel_surface(3),
-    bar_panel_surface(4),
-    key_face(1, 11),
-    key_face(2, 12),
-    key_face(3, 13),
-    key_face(4, 14),
-    key_face(5, 15),
-    key_face(6, 6),
-    key_face(7, 7),
-    key_face(8, 8),
-    key_face(9, 9),
-    key_face(10, 10),
+    bar_panel_surface(1, 0),
+    bar_panel_surface(2, 203),
+    bar_panel_surface(3, 406),
+    bar_panel_surface(4, 609),
+    key_face(1, 11, 6, 8),
+    key_face(2, 12, 176, 8),
+    key_face(3, 13, 346, 8),
+    key_face(4, 14, 514, 8),
+    key_face(5, 15, 682, 8),
+    key_face(6, 6, 6, 178),
+    key_face(7, 7, 176, 178),
+    key_face(8, 8, 346, 178),
+    key_face(9, 9, 514, 178),
+    key_face(10, 10, 682, 178),
     Surface {
         id: SurfaceId::new(SurfaceKind::Background, 1),
         slot: None,
+        x: 0,
+        y: 0,
         width: 800,
         height: 480,
         format: ImageFormat::Jpeg,

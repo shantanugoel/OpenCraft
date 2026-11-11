@@ -19,7 +19,7 @@
 //! The code that writes to the device works with any transport, so the tests
 //! run it on a fake transport.
 
-use crate::{hex, open_device, parse_hex_color, start_display, AnyResult};
+use crate::{hex, open_device, parse_hex_color, AnyResult};
 use opencraft_core::image::{self, SLOT_JPEG_QUALITY};
 use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 use opencraft_core::{
@@ -355,7 +355,7 @@ fn begin<T: Transport>(device: &mut Device<T>, args: &Args) -> Res<()> {
         println!("  start  : none (--no-init)");
     } else {
         let brightness = args.brightness()?;
-        start_display(device, brightness)?;
+        device.start(brightness)?;
         println!(
             "  start  : DIS, brightness {brightness}%, the clear command for all slots, the commit"
         );

@@ -471,6 +471,8 @@ mod tests {
     const BACKGROUND: Surface = Surface {
         id: SurfaceId::new(SurfaceKind::Background, 1),
         slot: None,
+        x: 0,
+        y: 0,
         width: 800,
         height: 480,
         format: ImageFormat::Jpeg,
@@ -481,6 +483,8 @@ mod tests {
     const KEY_FACE: Surface = Surface {
         id: SurfaceId::new(SurfaceKind::KeyFace, 1),
         slot: Some(6),
+        x: 0,
+        y: 0,
         width: 112,
         height: 112,
         format: ImageFormat::Png,

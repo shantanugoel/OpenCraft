@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/cli"]
+members = ["crates/core", "crates/cli", "crates/engine"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,10 +10,18 @@ repository = "https://github.com/shantanugoel/OpenCraft"
 
 [workspace.dependencies]
 opencraft-core = { path = "crates/core" }
+opencraft-engine = { path = "crates/engine" }
 hidapi = "2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 thiserror = "2"
 libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+tempfile = "3"
+# Core Text for the labels on surfaces, on macOS only (decision 0010).
+core-text = { version = "22", default-features = false, features = ["link", "mountainlion"] }
+core-graphics = { version = "0.25", default-features = false, features = ["link"] }
+core-foundation = { version = "0.10", default-features = false, features = ["link"] }
 
 [profile.release]
 lto = "thin"
