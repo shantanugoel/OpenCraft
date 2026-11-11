@@ -83,7 +83,7 @@ at the same time.
 |---|---|---|
 | Device layer | `crates/core` | Exists |
 | Probe | `crates/cli` | Exists |
-| Engine | `crates/engine` | Starts in Phase 2 |
+| Engine | `crates/engine` | Exists |
 | GUI application | `crates/app` | Starts in Phase 2 |
 
 The reason for these crates is in
