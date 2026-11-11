@@ -39,7 +39,7 @@ to our device. How the camera measurements were made is in
 | Knob light colours | `SETLB` | Red, green, blue for each knob | Measured: camera, 2026-11-11. See [n4-pro-hardware.md](n4-pro-hardware.md#knob-lights). |
 | Knob light brightness | `LBLIG` | Percent 0 to 100 | Measured: camera, 2026-11-11 |
 | Reset the knob lights | `DELED` | None | Source: SDK binary, `Transport::resetLedColor`. Sent 1 time: the camera saw no change. OpenCraft has no builder for it. |
-| Sleep | `HAN` | None | Source: not sent |
+| Sleep | `HAN` | None | Measured: camera, 2026-11-11. The displays and the knob lights go off. |
 | Keep-alive | `CONNECT` | None | Measured. See "Keep-alive and stop". |
 | Set the firmware mode | `MOD` | `0x00 0x00`, ASCII digit | Source: not sent |
 | Haptic feedback | `QUCMD` | `0x1F 0x11 0x00`, `0x11` on or `0xFF` off, `0x00 0x11` | Source: not sent |
@@ -228,6 +228,8 @@ Measure these in Phase 1.
   and PNG is smaller for it.
 - Whether the device accepts a `BAT` image larger than 65 535 bytes. The SDK
   writes a 4-byte length (Source).
+- The largest JPEG that the device accepts for `BGPIC`. The device showed a
+  file of 1 191 260 bytes. See "Background image".
 - Which command starts the display after a new connection: `DIS`, the
   brightness command, or the two together.
 

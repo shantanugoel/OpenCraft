@@ -79,9 +79,11 @@ The position is the top left corner of the image, in pixels of the upright
   shows around each image. (Measured)
 
 The camera was in front of the device and below its centre. From that
-position, each window showed these parts of the display. The values change
-with the position of the eye, because the display is below the key caps.
-(Measured, approximate)
+position, each window showed these parts of the display. The values are
+approximate, and they change with the position of the eye, because the
+display is below the key caps. From that position, the camera did not see the
+left edge of the key faces in columns 4 and 5, or the bottom edge of the key
+faces. (Measured)
 
 | Window | Part of the display that showed |
 |---|---|
@@ -90,9 +92,10 @@ with the position of the eye, because the display is below the key caps.
 | Keys, second row | y from 166 to 290 |
 | Touch bar | x from 0 to 798, y from 340 to 476 |
 
-- The areas between these windows do not show.
-- The touch bar shows 800 pixels of width. This agrees with the touch
-  coordinates. (Measured)
+- The areas between these windows do not show. (Measured: owner, 2026-11-11)
+- The touch bar window shows the full width of the display. 798 was the last
+  position in the camera test. The touch coordinates go to 799. See
+  [Controls and input codes](#controls-and-input-codes). (Measured)
 
 ### An image that is larger than its surface
 
@@ -258,6 +261,9 @@ The SDK shows these settings. None is tested. (Source)
 
 Measure these in Phase 1.
 
+- The exact part of the display that each window shows to the eye of the
+  user. It changes with the position of the eye. The camera gives approximate
+  values for one position. The positions of the images are exact.
 - The meaning of the input code `0xB2`.
 - The x coordinates at which the tap code changes from one bar panel to the
   next.
