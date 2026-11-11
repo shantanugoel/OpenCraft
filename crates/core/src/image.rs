@@ -14,9 +14,23 @@ mod patterns;
 
 pub use patterns::{bar_edge_pattern, icon_image, wide_pattern, EDGE_COLOR};
 
-/// The JPEG quality to use when the caller gives none. The SDK uses this
-/// value for the background (`encode_background_frame`).
-pub const DEFAULT_JPEG_QUALITY: u8 = 60;
+/// The JPEG quality for the background. The SDK uses this value
+/// (`encode_background_frame`).
+pub const BACKGROUND_JPEG_QUALITY: u8 = 60;
+
+/// The JPEG quality for a key face and a bar panel. At this quality, the owner
+/// saw no difference from PNG on the device, and the hardest images that we
+/// found stay below the largest slot image that the device showed. See
+/// `docs/decisions/0007-jpeg-for-key-faces-and-bar-panels.md`.
+pub const SLOT_JPEG_QUALITY: u8 = 90;
+
+/// The JPEG quality that OpenCraft uses for `surface`.
+pub fn jpeg_quality_for(surface: &Surface) -> u8 {
+    match surface.slot {
+        Some(_) => SLOT_JPEG_QUALITY,
+        None => BACKGROUND_JPEG_QUALITY,
+    }
+}
 
 /// 5x7 bitmap glyphs for 0-9, one byte per row (5 significant bits).
 const GLYPHS: [[u8; 7]; 10] = [
@@ -229,13 +243,13 @@ pub fn render_test_surface(surface: &Surface, number: u8, bg: [u8; 3]) -> Result
     let scale = (h / 14).max(2);
     draw_number(&mut img, number, scale, Rgb([255, 255, 255]));
 
-    encode_for(surface, &img, DEFAULT_JPEG_QUALITY)
+    encode_for(surface, &img, jpeg_quality_for(surface))
 }
 
 /// Fill `surface` with one colour, and return the image ready to send.
 pub fn render_solid(surface: &Surface, bg: [u8; 3]) -> Result<Vec<u8>> {
     let img = RgbImage::from_pixel(surface.width as u32, surface.height as u32, Rgb(bg));
-    encode_for(surface, &img, DEFAULT_JPEG_QUALITY)
+    encode_for(surface, &img, jpeg_quality_for(surface))
 }
 
 fn draw_number(img: &mut RgbImage, number: u8, scale: u32, color: Rgb<u8>) {
@@ -504,7 +518,7 @@ mod tests {
 
     #[test]
     fn background_test_is_a_jpeg_turned_180_degrees() {
-        let jpeg = render_background_test(&BACKGROUND, DEFAULT_JPEG_QUALITY).unwrap();
+        let jpeg = render_background_test(&BACKGROUND, BACKGROUND_JPEG_QUALITY).unwrap();
         assert_eq!(&jpeg[..3], &[0xFF, 0xD8, 0xFF], "JPEG start marker");
 
         let img = image::load_from_memory(&jpeg).unwrap().to_rgb8();

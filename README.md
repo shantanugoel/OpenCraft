@@ -128,7 +128,7 @@ width and its x coordinates as text.
 |---|---|
 | `--size <w>x<h>` | The size of the image, for example `352x112` or `800x112`. It is necessary. |
 | `--format png\|jpeg` | The image format. The default is the format of the surface. |
-| `--quality <1-100>` | JPEG quality. The default is 60. |
+| `--quality <1-100>` | JPEG quality. The default is 90, the value for key faces and bar panels. |
 | `--with-bars` | Draw the edge pattern on the other bar panels also |
 
 Example: `opencraft-probe wide 2 --size 352x112 --with-bars --hold 30`
@@ -147,7 +147,7 @@ the display changes each time.
 |---|---|
 | `--count <n>` | The number of repaints. The default is 20. |
 | `--format png\|jpeg` | The image format. The default is the format of each surface in the descriptor. |
-| `--quality <1-100>` | JPEG quality. The default is 60. |
+| `--quality <1-100>` | JPEG quality. The default is 90, the value for key faces and bar panels. |
 | `--one <slot>` | Draw the surface of this slot only |
 | `--pause <ms>` | Wait between two repaints. The default is 0. |
 | `--wait-key` | Wait for a key press on the device before the first repaint |

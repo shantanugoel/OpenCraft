@@ -20,7 +20,7 @@
 //! run it on a fake transport.
 
 use crate::{hex, open_device, parse_hex_color, start_display, AnyResult};
-use opencraft_core::image::{self, DEFAULT_JPEG_QUALITY};
+use opencraft_core::image::{self, SLOT_JPEG_QUALITY};
 use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 use opencraft_core::{
     events, protocol, ControlKind, Decoded, Descriptor, Device, Gesture, ImageFormat, InputEvent,
@@ -601,7 +601,10 @@ fn bar_edge_images(panels: &[&Surface]) -> Res<Vec<(u8, Vec<u8>)>> {
         .map(|s| {
             let slot = s.slot.ok_or("a bar panel has no slot")?;
             let img = image::bar_edge_pattern(s.width, s.height, slot);
-            Ok((slot, image::encode_for(s, &img, DEFAULT_JPEG_QUALITY)?))
+            Ok((
+                slot,
+                image::encode_for(s, &img, image::jpeg_quality_for(s))?,
+            ))
         })
         .collect()
 }
@@ -666,7 +669,7 @@ pub fn cmd_wide(rest: &[String]) -> AnyResult {
     let format = args.text("--format").map(parse_format).transpose()?;
     let quality = args
         .number("--quality", 1, 100)?
-        .unwrap_or(DEFAULT_JPEG_QUALITY as u64) as u8;
+        .unwrap_or(SLOT_JPEG_QUALITY as u64) as u8;
     let hold_seconds = args.hold()?;
     args.brightness()?;
     let keep_alive = args.keep_alive()?;
@@ -886,7 +889,7 @@ pub fn cmd_repaint(rest: &[String]) -> AnyResult {
     let format = args.text("--format").map(parse_format).transpose()?;
     let quality = args
         .number("--quality", 1, 100)?
-        .unwrap_or(DEFAULT_JPEG_QUALITY as u64) as u8;
+        .unwrap_or(SLOT_JPEG_QUALITY as u64) as u8;
     let only = args.number("--one", 0, 255)?.map(|s| s as u8);
     let pause = Duration::from_millis(args.number("--pause", 0, 60_000)?.unwrap_or(0));
     let hold_seconds = args.hold()?;
@@ -1333,8 +1336,9 @@ mod tests {
         let images = bar_edge_images(&panels).unwrap();
         let slots: Vec<u8> = images.iter().map(|(s, _)| *s).collect();
         assert_eq!(slots, [1, 2, 3, 4]);
+        // The format of the descriptor: JPEG.
         for (_, data) in &images {
-            assert_eq!(&data[..4], b"\x89PNG");
+            assert_eq!(&data[..3], &[0xFF, 0xD8, 0xFF]);
         }
         assert_ne!(images[0].1, images[1].1);
     }
@@ -1382,16 +1386,17 @@ mod tests {
     #[test]
     fn build_sets_uses_the_format_of_the_descriptor_or_the_override() {
         let d = n4pro();
-        let [png, _] = build_sets(d, None, None, 60).unwrap();
-        assert!(png.iter().all(|(_, data)| data.starts_with(b"\x89PNG")));
-
-        let [jpeg, _] = build_sets(d, None, Some(ImageFormat::Jpeg), 60).unwrap();
-        assert!(jpeg
+        // The descriptor has JPEG for each key face and each bar panel.
+        let [default, _] = build_sets(d, None, None, 60).unwrap();
+        assert!(default
             .iter()
             .all(|(_, data)| data.starts_with(&[0xFF, 0xD8, 0xFF])));
 
-        let [back, _] = build_sets(d, None, Some(ImageFormat::Png), 60).unwrap();
-        assert_eq!(back, png);
+        let [png, _] = build_sets(d, None, Some(ImageFormat::Png), 60).unwrap();
+        assert!(png.iter().all(|(_, data)| data.starts_with(b"\x89PNG")));
+
+        let [jpeg, _] = build_sets(d, None, Some(ImageFormat::Jpeg), 60).unwrap();
+        assert_eq!(jpeg, default);
     }
 
     #[test]

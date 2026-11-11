@@ -39,9 +39,14 @@ on hardware.
 
 | Surface | Slots | Size | Format | Rotation | Confidence |
 |---|---|---|---|---|---|
-| Key face | 6 to 15 | 112 × 112 | PNG | 180° | Measured: the probe paints them |
-| Bar panel | 1 to 4 | 176 × 112 | PNG | 180° | Measured: the probe paints them |
+| Key face | 6 to 15 | 112 × 112 | JPEG | 180° | Measured: the probe paints them |
+| Bar panel | 1 to 4 | 176 × 112 | JPEG | 180° | Measured: the probe paints them |
 | Background | None | 800 × 480 | JPEG | 180° | Measured: the probe paints it. Owner, 2026-11-11 |
+
+The format is the format that OpenCraft sends. See
+[decision 0007](../decisions/0007-jpeg-for-key-faces-and-bar-panels.md). The
+device also shows PNG on key faces and bar panels. See
+[streamdock-protocol.md](streamdock-protocol.md#image-transfer).
 
 The device has one display of 800 × 480 pixels behind the keys and the touch
 bar. Each key and the touch bar is a window on this display. (Measured: owner

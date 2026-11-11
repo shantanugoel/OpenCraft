@@ -152,14 +152,14 @@ OPTIONS FOR 'wide':
     --size <w>x<h>       The size of the image, for example 352x112 or 800x112.
                          It does not come from the descriptor.
     --format png|jpeg    The image format (default: the format of the surface)
-    --quality <1-100>    JPEG quality (default: 60)
+    --quality <1-100>    JPEG quality (default: 90)
     --with-bars          Draw the edge pattern on the other bar panels also
 
 OPTIONS FOR 'repaint':
     --count <n>          The number of repaints (default: 20)
     --format png|jpeg    The image format (default: the format of each surface
                          in the descriptor)
-    --quality <1-100>    JPEG quality (default: 60)
+    --quality <1-100>    JPEG quality (default: 90)
     --one <slot>         Draw the surface of this slot only
     --pause <ms>         Wait between two repaints (default: 0)
     --wait-key           Wait for a key press on the device before the first
@@ -593,7 +593,7 @@ fn cmd_clear(rest: &[String]) -> AnyResult {
 /// temporary background command ("BGPIC"), never the boot logo command.
 fn cmd_background(rest: &[String]) -> AnyResult {
     let quality = flag_u64(rest, "--quality")
-        .unwrap_or(image::DEFAULT_JPEG_QUALITY as u64)
+        .unwrap_or(image::BACKGROUND_JPEG_QUALITY as u64)
         .clamp(1, 100) as u8;
     let with_surfaces = rest.iter().any(|a| a == "--with-surfaces");
     let clear = rest.iter().any(|a| a == "--clear");

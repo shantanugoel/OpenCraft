@@ -65,7 +65,16 @@ the SDK sends it when it closes a device. (Source) Its effect is in
 
 | Fact | Confidence | Source |
 |---|---|---|
-| The device accepts PNG for key faces and bar panels | Measured | Probe |
+| The device shows PNG and JPEG on key faces and on bar panels, upright and with the correct colours | Measured | Probe and camera, 2026-11-11: `repaint` with PNG, with JPEG quality 90, and with JPEG quality 60 |
+| The owner saw no difference between PNG and JPEG with quality 90, for key faces and bar panels with text of 9 to 13 pixels. The surfaces changed between the two formats each 3 seconds, and the owner did not see the change. | Measured | Owner, 2026-11-11 |
+| The device shows no slot image that is too large, and it gives no error. A JPEG of 58 187 bytes showed. A JPEG of 60 969 bytes, and each larger one to 133 313 bytes, did not show. The next image showed correctly. | Measured | Camera, 2026-11-11: 12 sizes from 39 485 to 133 313 bytes |
+| Thus the test with a `BAT` length above 65 535 has no result: the device refuses such an image for its size | Inference | The row above |
+| A bar panel image of noise has 59 316 bytes as PNG and 37 460 bytes as JPEG with quality 90. For a key face, it has 37 812 and 24 096 bytes. | Measured | The encoder of the device layer |
+| The largest JPEG that we made is noise of saturated colours. With quality 90, it has 45 832 bytes for a bar panel and 29 400 bytes for a key face. With quality 95, it has 57 755 bytes for a bar panel. | Measured | The encoder of the device layer |
+| For 95 application icons of macOS at 112 × 112, the median size is 8 924 bytes as PNG and 4 776 bytes as JPEG with quality 90. For 313 icons of the vendor plug-ins, it is 5 587 and 2 937 bytes. | Measured | The encoder of the device layer |
+| For 10 key faces with small text on a flat colour, the mean size is 4 929 bytes as PNG and 4 346 bytes as JPEG with quality 90 | Measured | The encoder of the device layer |
+| The encoder of the device layer needs approximately 0.05 ms for a PNG key face and 0.12 ms for a JPEG key face. It writes JPEG with no chroma subsampling (4:4:4). | Measured | The encoder, release build, the computer of the owner |
+| The SDK sends a PNG only for a key image that has transparency, with a limit of 29 000 bytes. It sends a JPEG for each other key image. It starts with quality 100 and decreases the quality until the image is 9 000 bytes or smaller. | Source | SDK, `PILHelper.py`, `encode_key_image` |
 | The image must be turned 180° before it is sent | Measured | Probe |
 | `mirajazz` and `opendeck-akp05` send JPEG to the same slots | Source | Their source code |
 | The length in the `BAT` header is 4 bytes, big-endian. Byte 8 of the command buffer is bits 31 to 24, and byte 11 is bits 7 to 0. The slot follows. | Source | SDK binary, `Transport::setKeyBitmap` |
@@ -75,6 +84,9 @@ the SDK sends it when it closes a device. (Source) Its effect is in
 
 The OpenCraft code writes the 4-byte length. A test with the fake transport
 examines the header of an image of 70 000 bytes.
+
+The device layer sends JPEG with quality 90 to key faces and bar panels. See
+[decision 0007](../decisions/0007-jpeg-for-key-faces-and-bar-panels.md).
 
 "SDK binary" is the transport library of the SDK, `libtransport.so`. Its source
 code is not public. We read the operation codes in its constant data, and the
@@ -184,8 +196,29 @@ until the device shows the images. No person looked at the device.
 - The probe commands `test` and `raw --draw` print a longer time for a draw
   (approximately 175 ms). That time includes a pause of 150 ms that the probe
   makes after the start command. (Measured)
-- These times do not decide the image format. Issue #19 decides it after a
-  person looks at the device.
+- These times do not decide the image format. See
+  [decision 0007](../decisions/0007-jpeg-for-key-faces-and-bar-panels.md).
+
+A camera of 30 pictures each second measured the time until the device shows
+a repaint, on 2026-11-11. A test program sent 14 images and the commit, 16
+times for each format. The time is from the end of the commit write to the
+first picture that shows the new image. It includes the delay of the camera,
+which is not measured.
+
+| Format | First image of the repaint, median | Last image of the repaint, median | Confidence |
+|---|---|---|---|
+| PNG | 71 ms and 73 ms | 118 ms and 116 ms | Measured: 2 runs |
+| JPEG, quality 90 | 72 ms and 83 ms | 117 ms and 120 ms | Measured: 2 runs |
+| JPEG, quality 60 | 76 ms | 122 ms | Measured: 1 run |
+
+- The device shows PNG and JPEG after the same time. (Measured)
+- The device shows the images one after the other, in the order of the
+  transfer. An image can show before the commit. (Measured)
+- A full repaint shows less than 0.2 seconds after its first write: the
+  writes are less than 50 ms, and the last image shows less than 130 ms after
+  the commit, with the delay of the camera. (Measured)
+- After `BGPIC` and `STP` for a full background, the camera showed the new
+  background 110 to 180 ms after the commit. (Measured: 6 times)
 
 ## Start sequence
 
@@ -310,15 +343,11 @@ Thus the commands to wake the device are the brightness command and `DIS`.
 
 Measure these in Phase 1.
 
-- The time until the device shows a full draw. Only the time to send it is
-  measured. See "Repaint time".
-- Whether the device shows a JPEG key face correctly, and whether small text is
-  clear in a JPEG. The device accepted JPEG data with no error, but no person
-  looked at the device.
-- Which format is smaller for real icons. The test icon is a smooth gradient,
-  and PNG is smaller for it.
-- Whether the device accepts a `BAT` image larger than 65 535 bytes. The SDK
-  writes a 4-byte length (Source).
+- The exact limit for the size of a slot image. It is between 58 187 and
+  60 969 bytes.
+- The delay of the camera in the times of "Repaint time". Thus the exact time
+  until the device shows an image is not known. It is less than the times in
+  the table.
 - The largest JPEG that the device accepts for `BGPIC`. The device showed a
   file of 1 191 260 bytes. See "Background image".
 

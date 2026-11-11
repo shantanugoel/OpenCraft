@@ -65,7 +65,8 @@ impl fmt::Display for SurfaceId {
     }
 }
 
-/// The image format that the device accepts for a surface.
+/// The image format that the device layer sends to a surface. See
+/// `docs/decisions/0007-jpeg-for-key-faces-and-bar-panels.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ImageFormat {
     Png,
@@ -335,7 +336,7 @@ const fn key_face(number: u8, slot: u8) -> Surface {
         slot: Some(slot),
         width: 112,
         height: 112,
-        format: ImageFormat::Png,
+        format: ImageFormat::Jpeg,
         rotation: Rotation::Deg180,
     }
 }
@@ -346,7 +347,7 @@ const fn bar_panel_surface(number: u8) -> Surface {
         slot: Some(number),
         width: 176,
         height: 112,
-        format: ImageFormat::Png,
+        format: ImageFormat::Jpeg,
         rotation: Rotation::Deg180,
     }
 }
