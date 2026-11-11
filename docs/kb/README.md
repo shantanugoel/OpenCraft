@@ -28,6 +28,7 @@ measurement. The other documents link to these facts and do not repeat them.
 | [streamdock-protocol.md](streamdock-protocol.md) | The StreamDock USB protocol, version 3 |
 | [prior-art.md](prior-art.md) | Other software for this device family |
 | [gpui.md](gpui.md) | The GPUI toolkit and its crates |
+| [text-rendering.md](text-rendering.md) | Text libraries, label samples, and image resize cost |
 | [vsd-craft.md](vsd-craft.md) | The vendor software: footprint and behaviour |
 | [macos-permissions.md](macos-permissions.md) | macOS privacy permissions that apply to OpenCraft |
 | [hidapi-macos.md](hidapi-macos.md) | What `hidapi` on macOS does at a disconnection, and after an error |
