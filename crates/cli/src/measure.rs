@@ -554,7 +554,11 @@ pub fn cmd_send(rest: &[String]) -> AnyResult {
     let usage = "usage: opencraft-probe send <name> [args] [--hold <s>] [--keep-alive <n>]\n\
                  names: brightness <0-100>..., knob-colors <rrggbb>..., knob-brightness <0-100>..., \
                  sleep, keep-alive, start, commit, haptic on|off";
-    let args = Args::parse(rest, &value_options(&["--each"]), &["--draw", "--wait-key"])?;
+    let args = Args::parse(
+        rest,
+        &value_options(&["--each", "--brightness"]),
+        &["--draw", "--wait-key"],
+    )?;
     let Some((name, values)) = args.positional.split_first() else {
         return Err(usage.into());
     };

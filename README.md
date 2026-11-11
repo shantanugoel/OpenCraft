@@ -16,10 +16,10 @@ VSD / Mirabox StreamDock controllers. Rust, no Electron, no embedded Chromium.
 cargo build --release
 ./target/release/opencraft-probe list        # what is on the USB bus
 ./target/release/opencraft-probe identify    # open it, show identity, firmware, surfaces, controls
-./target/release/opencraft-probe test        # draw on each surface, then decode input
+./target/release/opencraft-probe test        # draw on each key face and bar panel, then decode input
 ```
 
-`test` numbers every display with its slot number, so you can map physical
+`test` draws its slot number on each key face and each bar panel, so you can map physical
 keys to protocol slots. Press keys, turn knobs and swipe the touch bar while it
 runs. The probe prints each input event: the control and the gesture. On exit,
 the probe clears all slots (add `--keep` to leave the pattern up).
@@ -226,7 +226,7 @@ On Linux, install `libudev-dev` and `pkg-config` first.
 
 ## Notes
 
-- **Quit VSD Craft first.** Two applications driving one device will fight.
+- **Quit VSD Craft first.** Two applications must not operate one device at the same time.
 - The vendor control interface does **not** need Input Monitoring. Only the
   keyboard-emulation interface does, and we never open it.
 - Protocol details were derived from Mirabox's MIT-licensed

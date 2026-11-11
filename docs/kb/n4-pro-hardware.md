@@ -288,7 +288,10 @@ Phase 1 did not answer these questions. Each question has a reason.
 |---|---|
 | The exact part of the display that each window shows to the eye of the user | It changes with the position of the eye. The camera gives approximate values for one position. The positions of the images are exact, and the GUI needs only those. |
 | The meaning of the input code `0xB2` | The decoder gives it as the end of a touch with no gesture, and no action uses it. Phase 4 adds the touch bar gestures. Examine the code then, if a gesture needs it. |
-| The exact x coordinates at which the tap code changes from one bar panel to the next | The ranges are known: see "Controls and input codes". A tap on a bar panel image gives the code of that bar panel. Phase 4 adds the tap gesture. Measure the exact values then, if the design needs them. |
+| The exact x coordinates at which the tap code changes from one bar panel to the next | The ranges are known: see "Controls and input codes". Each measured tap gave the code of the bar panel below the finger. Phase 4 adds the tap gesture. Measure the exact values then, if the design needs them. |
+| What the device sends for other sequences of 2 or more keys: 3 keys, keys that are not adjacent, a key and a knob | The measured cases show that the device does not report 2 keys at the same time. Thus OpenCraft has no key combination, and a binding uses one key. Phase 3 adds the bindings. Measure more cases then, if a binding needs them. |
+| Whether the descriptors for `0x5548:0x1008` and `0x5548:0x1021` are correct | The owner does not have these models. More device models are not in a phase. |
+| What the command `DELED` does, and what each device setting in "Device settings" does | No surface or control needs them. Phase 5 has the device settings in its scope: brightness, haptic feedback, and knob lights. |
 | Whether the device keeps its images when the computer sleeps and wakes | The owner deferred this check on 2026-11-11. It is issue [#43](https://github.com/shantanugoel/OpenCraft/issues/43), in Phase 5. Rule 10 of the architecture makes the engine draw all surfaces again after a wake, so no earlier phase depends on the answer. |
 
 ## Sources

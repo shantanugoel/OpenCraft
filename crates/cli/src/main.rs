@@ -2,6 +2,8 @@
 //!
 //! Confirms that we can talk to a StreamDock-class device without the vendor
 //! software: enumerate it, draw on each surface, and decode each input event.
+//! `test` draws on each key face and each bar panel. `background` draws on the
+//! background.
 //! The surfaces and the controls come from the descriptor.
 
 use opencraft_core::link::KEEP_ALIVE_INTERVAL;
@@ -78,8 +80,9 @@ COMMANDS:
     list                 Enumerate HID devices and flag known controllers
     identify             Open the device, show its identity, firmware, surfaces
                          and controls
-    test                 Draw its slot number on each surface, then show each
-                         input event (control and gesture)
+    test                 Draw its slot number on each key face and each bar
+                         panel, then show each input event (control and
+                         gesture)
     listen               Show input events only
     draw <slot> <rrggbb> Paint the surface of one slot a solid colour
     clear [slot]         Send the clear command for one slot, or for all slots
@@ -138,13 +141,14 @@ OPTIONS FOR 'send', 'bars', 'wide' AND 'repaint':
                          before they draw: DIS, the brightness command, the
                          clear command for all slots, and the commit. It
                          removes all slot images. This option skips it.
-    --brightness <0-100> The brightness of the start commands (default: 80)
+    --brightness <0-100> The brightness of the start sequence (default: 80).
+                         For 'send', it applies with --draw.
 
 OPTIONS FOR 'send':
     --each <n>           Seconds between two values of 'brightness' or
                          'knob-brightness' (default: 5)
     --wait-key           Wait for a key press on the device before each value
-    --draw               First send the start commands and draw the numbered
+    --draw               First send the start sequence and draw the numbered
                          key faces and bar panels, so that you can see the
                          effect of the command
 
@@ -170,7 +174,8 @@ connected. They continue after a disconnection and wait for the device to
 connect again. 'test' and 'raw --draw' draw the surfaces again. '--seconds' is
 the total time.
 
-NOTE: quit VSD Craft before running — two apps driving one device will fight."
+NOTE: quit VSD Craft first. Two applications must not operate one device at
+the same time."
     );
 }
 
