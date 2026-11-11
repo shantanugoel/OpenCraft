@@ -39,7 +39,7 @@ on hardware.
 
 | Fact | Confidence | Source |
 |---|---|---|
-| Knob N uses bar panel N as its feedback surface in the descriptor. | Inference | Knob 1 and bar panel 1 are both the left ones. Both sets count from left to right. The camera check is a later step. |
+| Knob N is below bar panel N. The descriptor gives bar panel N as the feedback surface of knob N. | Measured | Camera, 2026-11-12: bar panel 1 was green and the light of knob 1 was green, and they were the left panel and the left knob. The light of knob 4 was blue, and it was the right knob. |
 
 ## Surfaces
 

@@ -5006,6 +5006,7 @@ dependencies = [
  "core-foundation 0.10.1",
  "core-graphics 0.25.0",
  "objc2 0.6.5",
+ "opencraft-engine",
  "thiserror 2.0.21",
 ]
 
@@ -5016,6 +5017,7 @@ dependencies = [
  "async-channel",
  "gpui-kit",
  "image",
+ "opencraft-actions",
  "opencraft-engine",
 ]
 

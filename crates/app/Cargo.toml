@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 opencraft-engine.workspace = true
+opencraft-actions.workspace = true
 gpui-kit.workspace = true
 async-channel.workspace = true
 image.workspace = true
