@@ -62,7 +62,7 @@ The size on disk was measured on the computer of the owner, on or before
 | The application contains Qt 6 with QtQuick and QtMultimedia | Measured |
 | The application contains QCefView, which is an embedded Chromium | Measured |
 | The plug-ins run in Node.js processes that connect through a WebSocket. 3 Node.js processes ran for 29 plug-ins. | Inference (the WebSocket), Measured (the 3 processes) |
-| Most of the memory is in the Chromium processes: 460 of 699 MiB | Measured |
+| Most of the memory is in the Chromium processes. The sum of their medians is 460.2 MiB. The median of the total footprint is 698.8 MiB. | Measured |
 
 ## Behaviour
 
