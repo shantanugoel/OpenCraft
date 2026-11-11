@@ -19,7 +19,7 @@ application that other persons can adopt.
 | 0 | Hardware gate | Complete |
 | 1 | Device layer foundation | Complete |
 | 2 | First GUI: see and paint the device | Complete |
-| 3 | Actions for keys and knobs | Next |
+| 3 | Actions for keys and knobs | In work |
 | 4 | Pages and the touch bar | Not started |
 | 5 | Background operation | Not started |
 | 6 | First public release | Not started |
@@ -175,7 +175,10 @@ place of the vendor software.
 **Decisions that this phase forces.** Interface of an action handler. How an
 action changes a surface. How an action describes its settings to the GUI. Make
 each decision so that it is also correct for a plug-in. See
-[decision 0006](decisions/0006-action-kinds-and-handler-interface.md).
+[decision 0006](decisions/0006-action-kinds-and-handler-interface.md). The
+answers are in decisions [0012](decisions/0012-action-handler-interface.md),
+[0013](decisions/0013-action-feedback-on-a-surface.md), and
+[0014](decisions/0014-action-settings-description.md).
 
 ## Phase 4: Pages and the touch bar
 
