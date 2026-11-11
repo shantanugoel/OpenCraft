@@ -21,24 +21,25 @@ model from the descriptor in `device.rs`. `transport/hid.rs` contains the
 
 ## Commands
 
-"Measured" means that the probe sent the command to our device and the record
-of the bring-up confirms the result. "Sent" means that the probe sends the
-command in its test, but the record does not confirm the result. "Not sent"
-means that the command is in the code but is not tested.
+"Measured" means that a program sent the command to our device, and a person
+or a camera saw the result. "Not sent" means that no program sent the command
+to our device. How the camera measurements were made is in
+[n4-pro-hardware.md](n4-pro-hardware.md#how-the-camera-measurements-were-made).
 
 | Operation | Code | Arguments | Confidence |
 |---|---|---|---|
 | Image header | `BAT` | Length (4 bytes, big-endian), slot | Measured for an image smaller than 65 536 bytes. The 4-byte length is Source for `BAT`, and Measured for `BGPIC`. |
 | Commit the images | `STP` | None | Measured |
-| Background image header | `BGPIC` | Length (4 bytes), x (2 bytes), y (2 bytes), width (2 bytes), height (2 bytes), `0x00`, layer. All big-endian. | Measured: owner, 2026-11-11 |
-| Remove the background image | `BGCLE` | Layer | Measured with layer `0x03`: owner, 2026-11-11 |
+| Background image header | `BGPIC` | Length (4 bytes), x (2 bytes), y (2 bytes), width (2 bytes), height (2 bytes), `0x00`, layer. All big-endian. | Measured: owner and camera, 2026-11-11. See "Background image". |
+| Remove the background image | `BGCLE` | Area: `0x01` the key area, `0x02` the touch bar area, `0x03` the two areas | Measured: camera, 2026-11-11 |
 | Boot logo header. **Do not send.** | `LOG` | Length (4 bytes, big-endian), `0x01` | Source: not sent |
 | Start | `DIS` | None | Measured: it does not remove the images. See "Background image". |
-| Brightness | `LIG` | `0x00 0x00`, percent 0 to 100 | Sent |
+| Brightness | `LIG` | `0x00 0x00`, percent 0 to 100 | Measured: camera, 2026-11-11. See "Brightness". |
 | Clear one slot, or all slots with `0xFF` | `CLE` | `0x00 0x00 0x00`, slot | Measured: owner, 2026-11-11 |
-| Knob light colours | `SETLB` | Red, green, blue for each knob | Sent |
-| Knob light brightness | `LBLIG` | Percent 0 to 100 | Source: not sent |
-| Sleep | `HAN` | None | Source: not sent |
+| Knob light colours | `SETLB` | Red, green, blue for each knob | Measured: camera, 2026-11-11. See [n4-pro-hardware.md](n4-pro-hardware.md#knob-lights). |
+| Knob light brightness | `LBLIG` | Percent 0 to 100 | Measured: camera, 2026-11-11 |
+| Reset the knob lights | `DELED` | None | Source: SDK binary, `Transport::resetLedColor`. Sent 1 time: the camera saw no change. OpenCraft has no builder for it. |
+| Sleep | `HAN` | None | Measured: camera, 2026-11-11. The displays and the knob lights go off. |
 | Keep-alive | `CONNECT` | None | Measured. See "Keep-alive and stop". |
 | Set the firmware mode | `MOD` | `0x00 0x00`, ASCII digit | Source: not sent |
 | Haptic feedback | `QUCMD` | `0x1F 0x11 0x00`, `0x11` on or `0xFF` off, `0x00 0x11` | Source: not sent |
@@ -95,7 +96,7 @@ safe to send.
 | The SDK animation loop sends `STP` after each group of frames | Source | SDK, `GifController.py`, `_gif_work_loop` |
 | The background is a JPEG of 800 × 480, turned 180°. The SDK encodes it with quality 60. | Source | SDK, `StreamDockN4Pro.py`, `touchscreen_image_format`; `PILHelper.py`, `encode_background_frame`; `streamdock.cpp`, `setFrameBackgroundStream` |
 | A `BGPIC` image must be inside the 800 × 480 area: x + width ≤ 800, and y + height ≤ 480 | Source | SDK, `GifController.py`, `_background_frame_fits` |
-| `BGCLE` removes a background image. The argument is a layer. The SDK default is `0x03`. | Source | SDK binary, `Transport::clearBackgroundFrameStream`; `transport_c.h` |
+| `BGCLE` removes a background image. The SDK calls the argument a layer, and its default is `0x03`. The measured meaning of the argument is in the next table. | Source | SDK binary, `Transport::clearBackgroundFrameStream`; `transport_c.h` |
 | `LOG` header: `"CRT" 0x00 0x00 "LOG"`, length (4 bytes, big-endian), `0x01`. The SDK refuses a boot logo larger than 522 240 bytes. | Source | SDK binary, `Transport::setBackgroundImgStream`; `PILHelper.py`, `encode_boot_logo` |
 | `mirajazz` and `opendeck-akp05` have no command for the background or the boot logo | Source | Their source code |
 
@@ -113,10 +114,34 @@ These facts are measured:
 | `DIS` does not remove the background, the key faces, or the bar panels | Measured |
 | After the cable is disconnected and connected again, the background is gone, and the boot logo and the boot animation are the same as before | Measured |
 
+A camera recorded these facts on 2026-11-11:
+
+| Fact | Confidence |
+|---|---|
+| `BGPIC` shows the image with no `STP` after it | Measured: 1 time |
+| The clear command for all slots (`CLE 0xFF`) does not remove the background | Measured |
+| The argument of `BGCLE` is an area, not a layer. `0x01` removes the background behind the keys. `0x02` removes it behind the touch bar. `0x03` removes all of it. `0x00` removes nothing. | Measured: 2 times |
+| The layer argument of `BGPIC` made no difference that the camera saw. A full image with layer 0, 1, 2, or 3 replaced the image before it. After `BGCLE`, no image from a different layer showed. | Measured |
+| `BGPIC` can draw a part of the background. A JPEG of 300 × 100 with x 100, y 50, and a JPEG of 800 × 122 with y 0 and with y 358, changed only that rectangle. The other parts of the background stayed. | Measured |
+| x and y of `BGPIC` are in the turned display, as the image data is. For an upright rectangle with the top left corner at (ux, uy), send x = 800 − ux − width, and y = 480 − uy − height. | Measured |
+| Thus one image of 800 × 122 with x 0, y 0 draws the touch bar area only (upright y from 358 to 479) | Measured |
+| The device showed background JPEG files of 286 904, 460 967, 704 568, and 1 191 260 bytes. The limit is not found. The write time of the largest file was 527 ms. | Measured |
+
 OpenCraft has no builder for `LOG`. A test in `protocol.rs` makes sure that
 `protocol.rs` and `connection.rs` do not contain it. The probe command
 `background` sends `BGPIC`, then `STP`. With `--clear`, it sends
 `BGCLE 0x03`, then `STP`.
+
+## Brightness
+
+A camera recorded these facts on 2026-11-11. The camera adjusts its exposure,
+so the values are a comparison, not a measurement of light.
+
+| Fact | Confidence |
+|---|---|
+| `LIG` with 50 gives a darker display than with 80 or 100 | Measured |
+| `LIG` with 0 does not switch off the display. The camera saw no difference between 0 and 10. | Measured |
+| `LIG` does not change the knob lights. `LBLIG` does. | Measured |
 
 ## Input reports
 
@@ -194,7 +219,6 @@ Measure these in Phase 1.
 - Which commands start the timer of 35 seconds. A draw with the start commands
   starts it. The clear command does not.
 - What the device shows after the host process is killed.
-- Whether each command with the label "Sent" gives the correct result.
 - The time until the device shows a full draw. Only the time to send it is
   measured. See "Repaint time".
 - Whether the device shows a JPEG key face correctly, and whether small text is
@@ -204,12 +228,10 @@ Measure these in Phase 1.
   and PNG is smaller for it.
 - Whether the device accepts a `BAT` image larger than 65 535 bytes. The SDK
   writes a 4-byte length (Source).
-- Whether `STP` is necessary after `BGPIC`. The probe always sends it.
+- The largest JPEG that the device accepts for `BGPIC`. The device showed a
+  file of 1 191 260 bytes. See "Background image".
 - Which command starts the display after a new connection: `DIS`, the
   brightness command, or the two together.
-- The largest JPEG that the device accepts for `BGPIC`. The SDK sets no limit.
-- Whether `CLE` for all slots removes the background.
-- What each layer value of `BGPIC` and `BGCLE` does.
 
 ## Sources
 

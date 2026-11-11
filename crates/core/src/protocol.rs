@@ -104,11 +104,16 @@ pub fn image_header(payload_len: u32, slot: u8) -> Vec<u8> {
 /// Header of a background image transfer. The JPEG data follows in parts of
 /// 1024 bytes, as for [`image_header`].
 ///
-/// The device puts the image at `x`, `y` with the size `width` × `height`, on
-/// the frame buffer layer `layer`. The SDK calls this a "frame background"
+/// The device puts the image at `x`, `y` with the size `width` × `height`.
+/// The SDK calls this a "frame background"
 /// (`Transport::setBackgroundFrameStream`). It is the temporary background,
 /// not the boot logo. All numbers are big-endian. The layout is:
 /// length (4 bytes), x (2), y (2), width (2), height (2), `0x00`, layer.
+///
+/// `x` and `y` are in the turned display, as the image data is. An image that
+/// is smaller than the display changes only its rectangle. The value of
+/// `layer` made no difference on our device (measured). See
+/// `docs/kb/streamdock-protocol.md`.
 ///
 /// The boot logo has a different command. OpenCraft does not make that
 /// command, because the device writes the boot logo to permanent memory. See
@@ -131,11 +136,13 @@ pub fn background_header(
     v
 }
 
-/// Remove the background image from the frame buffer layer `layer`. The SDK
+/// Remove the background image from an area of the display. `area` is `0x01`
+/// for the area behind the keys, `0x02` for the area behind the touch bar, and
+/// `0x03` for the two areas (measured). The SDK calls the argument a layer, and
 /// uses `0x03` as the default (`Transport::clearBackgroundFrameStream`).
-pub fn clear_background(layer: u8) -> Vec<u8> {
+pub fn clear_background(area: u8) -> Vec<u8> {
     let mut v = cmd(b"BGCLE");
-    v.push(layer);
+    v.push(area);
     v
 }
 
