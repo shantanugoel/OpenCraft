@@ -20,7 +20,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0002](0002-hidapi-transport.md) | Use `hidapi` directly for the transport | Accepted |
 | [0003](0003-blocking-device-layer.md) | The device layer blocks and has no async runtime | Accepted |
 | [0004](0004-gui-from-first-feature-phase.md) | The GUI is in each feature phase | Accepted |
-| [0005](0005-gpui.md) | Use GPUI for the GUI | Accepted, with open items |
+| [0005](0005-gpui.md) | Use GPUI for the GUI | Accepted, with a Phase 5 open item |
 | [0006](0006-action-kinds-and-handler-interface.md) | Action kinds have a namespace, and all actions use one handler interface | Accepted |
 | [0007](0007-jpeg-for-key-faces-and-bar-panels.md) | Send JPEG to key faces and bar panels | Accepted |
 | [0008](0008-crate-boundaries.md) | One crate for the engine and one crate for the GUI application | Accepted |

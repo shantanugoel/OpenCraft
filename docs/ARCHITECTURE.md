@@ -166,7 +166,6 @@ you make one, write a decision record and remove the row.
 
 | Decision | Phase | Note |
 |---|---|---|
-| Form of the GPUI dependency, and the widget library | 2 | See [kb/gpui.md](kb/gpui.md). |
 | Engine in the GUI process, or in a different process | 5 | Rules 2 and 3 keep the two options open. |
 | Menu bar item | 5 | GPUI has no API for this. |
 | How an action describes its settings to the GUI | 3 | The answer must also be correct for a plug-in. |
