@@ -132,8 +132,8 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
 | The snapshot has separate platform crates. Bare desktop code needs the platform crate and `gpui_platform::application()`, not just the core crate. On macOS, enable `font-kit` for text. The kit sets the platform features, including `runtime_shaders`. | Source; Measured (build) | Published platform and kit manifests; test program |
 | The kit supports Linux builds. Its CI builds and tests on Ubuntu. Compile-only CI does not need a window or a device. | Source | [kit CI]; [Linux setup] |
 | The upstream Ubuntu 24.04 setup installs `gcc g++ clang libfontconfig-dev libwayland-dev libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev libasound2-dev vulkan-validationlayers libvulkan1`. This is a conservative package list for the full upstream workspace, not a tested minimum for this program. | Source | [Linux setup] |
-| Keep `pkg-config` and `libudev-dev` for the existing workspace. The chosen kit does not need a WebView; its normal dependency tree has no WebKit crate. A smaller Linux package list can omit WebKit after a CI build confirms it. | Source; Inference (smaller list) | OpenCraft `.github/workflows/ci.yml`; test program, `linux-tree.txt` |
-| Ubuntu can keep the full-workspace build and clippy commands after the GUI is added, with the native packages installed. There is no source reason to exclude the GUI. macOS still needs a build and native-window check. No Linux build was run in this macOS test. | Inference | Platform manifests; [kit CI]; successful macOS build |
+| The application CI install list is `libudev-dev pkg-config clang libfontconfig-dev libwayland-dev libxkbcommon-x11-dev libx11-xcb-dev libvulkan1`. It adds no WebKit, OpenSSL, Zstd, ALSA, or Vulkan validation package. The GitHub Ubuntu 26.04 image already has the usual C and C++ build tools. This is a working CI list, not a package list for a clean Linux desktop. | Measured | `.github/workflows/ci.yml`; [application CI run](https://github.com/shantanugoel/OpenCraft/actions/runs/43079214508), package and build logs |
+| All four full-workspace checks pass on Ubuntu with that list. The eight application tests include three GPUI window tests with no display or device. A native Linux window was not tested. | Measured | [Application CI run](https://github.com/shantanugoel/OpenCraft/actions/runs/43079214508), fmt, clippy, build, and test logs |
 
 ## Licences and update cost
 
@@ -158,8 +158,6 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   not predict the next API change.
 - Whether a menu bar item operates correctly with the GPUI event loop. This
   stays for Phase 5; no menu bar item was made here.
-- The minimum Linux system package list and a local Linux build. The source
-  and upstream CI support Linux, but this test ran only on macOS.
 - Full input-method and accessibility behaviour. The test covers simple text
   entry, not every input method or assistive tool.
 
