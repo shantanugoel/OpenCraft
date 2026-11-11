@@ -346,7 +346,7 @@ Phase 1 did not answer these questions. Each question has a reason.
 
 | Question | Reason that it stays |
 |---|---|
-| The exact limit for the size of a slot image. It is between 58 187 and 60 969 bytes. | The largest image that the device layer can make is 37 460 bytes. See [decision 0007](../decisions/0007-jpeg-for-key-faces-and-bar-panels.md). A test makes sure of it. |
+| The exact limit for the size of a slot image. It is between 58 187 and 60 969 bytes. | The largest image that we made with the encoder of the device layer has 45 832 bytes. That is 12 000 bytes below the smaller value. See [decision 0007](../decisions/0007-jpeg-for-key-faces-and-bar-panels.md). |
 | The exact time until the device shows an image. The times in "Repaint time" include the delay of the camera, which is not measured. | The times are an upper limit, and they are short: less than 0.2 seconds for a full repaint. Phase 4 measures the time of a page change that the owner accepts. |
 | The largest JPEG that the device accepts for `BGPIC` | The device showed a file of 1 191 260 bytes. A background of 800 × 480 at a useful quality is much smaller. |
 | Which commands VSD Craft sends when it quits | The device goes dark, and that is not the state that OpenCraft wants at its stop. The SDK command "disconnected" is measured. Phase 5 defines the state at the stop. |
