@@ -30,7 +30,10 @@ on hardware.
 | Bottom: 4 knobs. The user can turn and push each knob. | Measured | Owner, 2026-11-11 |
 | The touch bar is one 2.8 inch touch panel | Source | Mirabox specification |
 | Each knob has a ring light with a colour that software can set | Source | VSDinside product text |
-| The 10 keys are in 2 rows of 5 | Inference | The key codes are in two groups of 5 |
+| The 10 keys are in 2 rows of 5 | Measured | Owner, 2026-11-11 |
+| Top row, from left to right: key slots 11, 12, 13, 14, 15 | Measured | Owner, 2026-11-11: `opencraft-probe test` shows the slot numbers |
+| Second row, from left to right: key slots 6, 7, 8, 9, 10 | Measured | Owner, 2026-11-11 |
+| Touch bar, from left to right: bar panels 1, 2, 3, 4 | Measured | Owner, 2026-11-11 |
 
 ## Surfaces
 
@@ -53,24 +56,65 @@ on hardware.
 
 ## Controls and input codes
 
-| Control | Gesture | Codes | Confidence |
-|---|---|---|---|
-| Knob 1 to 4 | Turn left / turn right | `0xA0/0xA1`, `0x50/0x51`, `0x90/0x91`, `0x70/0x71` | Measured |
-| Knob 1 to 4 | Push | `0x37`, `0x35`, `0x33`, `0x36` | Measured |
-| Key slots 11 to 15 | Press, release | `0x01` to `0x05` | Source: SDK |
-| Key slots 6 to 10 | Press, release | `0x06` to `0x0A` | Source: SDK |
-| Bar panel 1 to 4 | Tap | `0x40` to `0x43` | Source: SDK |
-| Touch bar | Swipe left / swipe right | `0x38` / `0x39` | Source: SDK |
-| Touch bar | Touch point | Packet `ACK` … `ARX`, x and y at bytes 10 to 13, big-endian | Source: SDK |
+All rows are measured on 2026-11-11. The recorded reports are in
+`crates/core/tests/fixtures/input/`. The report format is in
+[streamdock-protocol.md](streamdock-protocol.md#input-reports).
 
-- The record of the bring-up names knob input only. The other codes agree with
-  the SDK, but no record shows a test on our hardware.
-- A tap on a bar panel sends one event only. It does not send a press and then
-  a release. (Source: SDK)
+| Control | Gesture | Codes | State byte | Confidence |
+|---|---|---|---|---|
+| Key, top row, from left to right (slots 11 to 15) | Press, release | `0x01` to `0x05` | `0x01` press, `0x00` release | Measured |
+| Key, second row, from left to right (slots 6 to 10) | Press, release | `0x06` to `0x0A` | `0x01` press, `0x00` release | Measured |
+| Knob 1 to 4, from left to right | Turn left / turn right | `0xA0/0xA1`, `0x50/0x51`, `0x90/0x91`, `0x70/0x71` | `0x00` | Measured |
+| Knob 1 to 4, from left to right | Push | `0x37`, `0x35`, `0x33`, `0x36` | `0x01` | Measured |
+| Touch bar | Finger down | `0x00` | `0x01` | Measured |
+| Touch bar | Finger position, while the finger is down | Touch report (`ARX`), one each 35 ms | None | Measured |
+| Bar panel 1 to 4, from left to right | Finger up with no move (tap) | `0x40` to `0x43` | `0x00` | Measured |
+| Touch bar | Finger up after a move to the right | `0x38` | `0x00` | Measured |
+| Touch bar | Finger up after a move to the left | `0x39` | `0x00` | Measured |
+| Touch bar | Finger up, gesture not identified | `0xB2` | `0x00` | Measured: 2 times |
+
+Keys:
+
+- A key held for 3 seconds sends one press and one release. It sends no
+  repeat. (Measured)
+- In one test, 2 adjacent keys were pressed together. The device sent the
+  press and the release of one key only, 30 ms apart. One test is not
+  sufficient. (Measured: 1 time)
+
+Knobs:
+
+- One click of a knob sends one report. A turn has no release report.
+  (Measured)
+- A knob push sends one report with the state `0x01`. The device sends no
+  report for the release. (Measured: 4 knobs)
+- During a fast turn in the two directions, the device sent 398 reports in
+  9.5 seconds. The largest rate was 59 reports in 1 second and 21 reports in
+  200 ms. The smallest time between two reports was less than 1 ms.
+  (Measured)
+
+Touch bar:
+
+- Each touch sends this sequence: one "finger down" report, then touch reports
+  while the finger is down, then one "finger up" report. (Measured)
+- The "finger down" report and the tap report contain the x coordinate of the
+  start of the touch. (Measured)
+- The touch coordinates that were seen: x from 8 to 799, y from 6 to 109.
+  (Measured) Thus the touch area is possibly 800 × 112. (Inference) This is
+  wider than the 4 bar panels together (704 pixels).
+- A tap gives the code of the quarter of the touch bar where it starts:
+  x = 101 gave `0x40`, 290 gave `0x41`, 510 gave `0x42`, 679 gave `0x43`.
+  (Measured) The limits between the quarters are not measured.
+- A tap is not one event: it is the sequence above. A finger that stays for
+  3 seconds and does not move gives the same tap code when it lifts.
+  (Measured)
+- Swipe is reliable on this firmware: 20 swipes to the left gave 20 times
+  `0x39`, and 20 swipes to the right gave 20 times `0x38`. (Measured)
+- The names in the code are reversed: `events.rs` calls `0x38` "left" and
+  `0x39` "right". Correct this with the decoder tests.
+- `0xB2` came after a move from the top edge to the bottom edge, and after one
+  quick move to the left. Its meaning is not known.
 - `0x40` to `0x43` are not keys adjacent to the knobs. The first plan was
   incorrect.
-- The `opendeck-akp05` plug-in has swipe disabled. Its author found that swipe
-  was not reliable. (Source)
 
 ## Device settings
 
@@ -86,18 +130,18 @@ The SDK shows these settings. None is tested. (Source)
 
 Measure these in Phase 1.
 
-- Which key slot is at which physical position.
 - Where the 800 × 480 background shows: behind the keys only, or behind the
   touch bar also.
 - Whether the touch bar can show one image that is wider than the 4 bar panels
   together (4 × 176 = 704 pixels). The vendor software has a "Touch Bar mode"
   that hides the knob icons. See [vsd-craft.md](vsd-craft.md).
-- The range of the touch point coordinates, and when the device sends a touch
-  point.
-- Whether swipe is reliable on this firmware.
+- The meaning of the input code `0xB2`.
+- The x coordinates at which the tap code changes from one bar panel to the
+  next.
+- What the device sends when 2 or more keys are pressed together. One test
+  showed one key only.
 - Whether the knob lights obey the colour command. The probe sends it, but the
   result is not recorded.
-- The largest rate of knob events during a fast turn.
 
 ## Sources
 

@@ -59,13 +59,19 @@ before the length are possibly the high bytes of a 4-byte length. (Inference)
 
 ## Input reports
 
+All rows are measured on 2026-11-11, from 999 recorded reports. The input
+codes of the N4 Pro are in
+[n4-pro-hardware.md](n4-pro-hardware.md#controls-and-input-codes).
+
 | Fact | Confidence | Source |
 |---|---|---|
-| A control report has `"ACK"` at bytes 0 to 2 and `"OK"` at bytes 5 to 6 | Measured | Probe |
-| Byte 9 is the input code. Byte 10 is the state: `0x01` is pressed. | Measured | Probe |
+| Each input report is 512 bytes. All bytes after byte 13 were zero. | Measured | Recordings |
+| A control report has `"ACK"` at bytes 0 to 2 and `"OK"` at bytes 5 to 6 | Measured | Recordings |
+| Byte 9 is the input code. Byte 10 is the state: `0x01` or `0x00`. | Measured | Recordings |
+| For a touch bar code, bytes 11 and 12 are the x coordinate of the start of the touch, big-endian. For a swipe code they are zero. | Measured | Recordings |
+| A touch report has `"ACK"` at bytes 0 to 2, `"ARX"` at bytes 4 to 6, x at bytes 10 and 11, and y at bytes 12 and 13, big-endian | Measured | Recordings |
+| The device sends a touch report each 35 ms while a finger is on the touch bar | Measured | Recordings |
 | Input code `0xFF` is an acknowledgement, not user input | Source | SDK |
-| A touch report has `"ARX"` at bytes 4 to 6, and x and y at bytes 10 to 13, big-endian | Source | SDK |
-| A swipe event has state `0` | Source | SDK |
 
 ## Keep-alive and stop
 
