@@ -73,6 +73,22 @@ today and from a worker thread behind GPUI later.
 
 ---
 
+## Checks
+
+CI runs four checks on each pull request. Run the same checks on your
+computer before you push. No device is necessary.
+
+```sh
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo build --workspace
+cargo test --workspace
+```
+
+On Linux, install `libudev-dev` and `pkg-config` first.
+
+---
+
 ## Notes
 
 - **Quit VSD Craft first.** Two applications driving one device will fight.
