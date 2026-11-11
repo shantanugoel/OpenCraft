@@ -6,7 +6,10 @@ use gpui_kit::{
     component::{Theme, ThemeMode},
     size, Focusable, Keystroke, Modifiers, TestAppContext, VisualTestContext,
 };
-use opencraft_engine::{RgbImage, SurfaceContent, SurfaceState};
+use opencraft_engine::{
+    Action, BindingId, BindingState, ChoiceOption, Field, GestureKind, InputType, KindDescription,
+    PathKind, RgbImage, Settings, Status, SurfaceContent, SurfaceState, Value,
+};
 use std::cell::RefCell;
 
 type Commands = Rc<RefCell<Vec<Command>>>;
@@ -171,3 +174,5 @@ fn label_replies_do_not_overwrite_typing_and_empty_text_removes_label(cx: &mut T
         })
     );
 }
+
+mod actions;

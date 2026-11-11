@@ -1,8 +1,8 @@
 //! Window-independent state of the shell. No device or file work occurs here.
 
 use opencraft_engine::{
-    ControlId, ControlKind, DeviceLayout, Event, Gesture, InputEvent, SurfaceId, SurfaceKind,
-    SurfaceState,
+    BindingId, BindingState, ControlId, ControlKind, DeviceLayout, Event, Gesture, GestureKind,
+    InputEvent, KindDescription, Status, SurfaceId, SurfaceKind, SurfaceState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -26,6 +26,11 @@ pub struct ViewState {
     pub surfaces: BTreeMap<SurfaceId, SurfaceState>,
     pub connected: bool,
     pub selected: Option<SurfaceId>,
+    pub selected_control: Option<ControlId>,
+    pub gesture: Option<GestureKind>,
+    pub kinds: Vec<KindDescription>,
+    pub bindings: BTreeMap<BindingId, BindingState>,
+    pub statuses: BTreeMap<String, Status>,
     pub pressed: BTreeSet<ControlId>,
     /// One step is one twelfth of a turn. This is a display mark, not device state.
     pub knob_steps: BTreeMap<ControlId, i32>,
@@ -44,6 +49,13 @@ impl ViewState {
                 if self.selected.is_some_and(|id| layout.surface(id).is_none()) {
                     self.selected = None;
                 }
+                if self
+                    .selected_control
+                    .is_some_and(|id| !layout.controls.iter().any(|c| c.id == id))
+                {
+                    self.selected_control = None;
+                    self.gesture = None;
+                }
                 self.clear_input();
                 self.knob_steps.clear();
                 self.layout = Some(layout);
@@ -58,7 +70,18 @@ impl ViewState {
             }
             Event::Problem(text) => self.problems.push(text),
             Event::Input(input) => return self.input(input, now),
-            Event::Kinds(_) | Event::Binding(_) | Event::Status { .. } | Event::Counters(_) => {}
+            Event::Kinds(kinds) => self.kinds = kinds,
+            Event::Binding(binding) => {
+                if binding.action.is_some() {
+                    self.bindings.insert(binding.binding, binding);
+                } else {
+                    self.bindings.remove(&binding.binding);
+                }
+            }
+            Event::Status { kind, status } => {
+                self.statuses.insert(kind, status);
+            }
+            Event::Counters(_) => {}
         }
         None
     }
@@ -130,7 +153,39 @@ impl ViewState {
             return false;
         }
         self.selected = Some(id);
+        self.selected_control = self.layout.as_ref().and_then(|l| {
+            l.controls
+                .iter()
+                .find(|c| c.surface == Some(id))
+                .map(|c| c.id)
+        });
+        self.gesture = self.selected_control.and_then(|c| default_gesture(c.kind));
         true
+    }
+
+    pub fn select_control(&mut self, id: ControlId) -> bool {
+        if self.selected_control == Some(id) {
+            return false;
+        }
+        let Some(control) = self
+            .layout
+            .as_ref()
+            .and_then(|l| l.controls.iter().find(|c| c.id == id))
+        else {
+            return false;
+        };
+        self.selected_control = Some(id);
+        self.selected = control.surface;
+        self.gesture = default_gesture(id.kind);
+        true
+    }
+
+    pub fn binding_id(&self) -> Option<BindingId> {
+        Some(BindingId {
+            page: 0,
+            control: self.selected_control?,
+            gesture: self.gesture?,
+        })
     }
 
     /// The control associated with a surface comes from the layout only.
@@ -159,6 +214,14 @@ impl ViewState {
             f32::from(x.min(layout.display_width.saturating_sub(1))),
             f32::from(panel.y) + f32::from(y.min(panel.height.saturating_sub(1))),
         ))
+    }
+}
+
+fn default_gesture(kind: ControlKind) -> Option<GestureKind> {
+    match kind {
+        ControlKind::Key => Some(GestureKind::Press),
+        ControlKind::Knob => Some(GestureKind::TurnRight),
+        _ => None,
     }
 }
 
@@ -262,6 +325,91 @@ pub(crate) mod tests {
         assert!(s.select(key()));
         assert!(!s.select(key()));
         assert!(s.select(bar()));
+    }
+
+    #[test]
+    fn action_events_are_the_source_of_truth() {
+        use opencraft_engine::{Action, Settings};
+        let now = Instant::now();
+        let mut s = ViewState::default();
+        let kind = KindDescription {
+            kind: "test.kind".into(),
+            name: "Test action".into(),
+            fields: vec![],
+        };
+        s.apply(Event::Kinds(vec![kind.clone()]), now);
+        assert_eq!(s.kinds, vec![kind]);
+        s.apply(layout(), now);
+        assert!(s.select(key()));
+        let id = s.binding_id().unwrap();
+        assert_eq!(id.gesture, GestureKind::Press);
+        let binding = BindingState {
+            binding: id,
+            action: Some(Action {
+                kind: "test.kind".into(),
+                settings: Settings::new(),
+            }),
+            available: false,
+        };
+        s.apply(Event::Binding(binding.clone()), now);
+        assert_eq!(s.bindings.get(&id), Some(&binding));
+        let status = Status::NeedsUser {
+            text: "Do a step.".into(),
+            button: "Continue".into(),
+        };
+        s.apply(
+            Event::Status {
+                kind: "test.kind".into(),
+                status: status.clone(),
+            },
+            now,
+        );
+        assert_eq!(s.statuses.get("test.kind"), Some(&status));
+        s.apply(
+            Event::Status {
+                kind: "test.kind".into(),
+                status: Status::Ready,
+            },
+            now,
+        );
+        assert_eq!(s.statuses.get("test.kind"), Some(&Status::Ready));
+        s.apply(Event::Disconnected, now);
+        assert!(s.bindings.contains_key(&id));
+        s.apply(
+            Event::Binding(BindingState {
+                binding: id,
+                action: None,
+                available: false,
+            }),
+            now,
+        );
+        assert!(!s.bindings.contains_key(&id));
+        s.apply(Event::Kinds(vec![]), now);
+        assert!(s.kinds.is_empty());
+    }
+
+    #[test]
+    fn control_selection_uses_layout_and_defaults() {
+        let now = Instant::now();
+        let mut s = ViewState::default();
+        s.apply(layout(), now);
+        assert!(s.select_control(control(ControlKind::Knob)));
+        assert_eq!(s.selected, None);
+        assert_eq!(s.binding_id().unwrap().gesture, GestureKind::TurnRight);
+        assert!(s.select(key()));
+        assert_eq!(s.selected_control, Some(control(ControlKind::Key)));
+        assert_eq!(s.binding_id().unwrap().gesture, GestureKind::Press);
+        assert!(s.select(bar()));
+        assert_eq!(s.binding_id(), None);
+        assert!(!s.select_control(ControlId::new(ControlKind::Key, 99)));
+        assert!(s.select_control(control(ControlKind::Knob)));
+        let Event::Layout(mut empty) = layout() else {
+            panic!()
+        };
+        Arc::make_mut(&mut empty).controls.clear();
+        s.apply(Event::Layout(empty), now);
+        assert_eq!(s.selected_control, None);
+        assert_eq!(s.binding_id(), None);
     }
 
     #[test]
