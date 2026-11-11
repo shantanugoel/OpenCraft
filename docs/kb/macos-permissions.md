@@ -1,6 +1,6 @@
 # macOS privacy permissions
 
-Last update: 2026-11-11
+Last update: 2026-11-12
 
 ## Device access
 
@@ -27,8 +27,26 @@ The first plan put the permission work after the action work. That order is
 incorrect. The hotkey action needs the Accessibility permission on the first
 day.
 
+## Code signature of a development build
+
+Date: 2026-11-12. Tool: `codesign -d -r-`, on the program `opencraft`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The linker gives each build an ad-hoc signature. The designated requirement of such a build is its code hash (`cdhash`). | Measured | 2 builds |
+| A new build with a changed source file has a different code hash. Thus its designated requirement is different. | Measured | 2 builds |
+| A build that `codesign` signs with an identity of the keychain and a fixed identifier has a designated requirement of the identifier and the certificate. It contains no code hash. | Measured | `scripts/sign-dev.sh` |
+| That designated requirement is the same after a new build with a changed source file | Measured | 2 builds |
+| `codesign` signs with an identity of the login keychain and shows no prompt | Measured | 3 signatures |
+| macOS identifies a program for a privacy permission by its designated requirement. Thus the permission stays for builds from `scripts/sign-dev.sh`, and it does not stay for builds with the ad-hoc signature. | Inference | The facts above |
+
+`scripts/sign-dev.sh` makes the build with the stable signature. See
+[scripts/README.md](../../scripts/README.md#sign-devsh).
+
 ## Not known
 
 - Whether a development build with a stable signature keeps the Accessibility
-  permission after each build.
+  permission after each build. The designated requirement stays the same:
+  see "Code signature of a development build". The test with the permission
+  itself needs the owner, who gives the permission one time.
 - Which permission the media key action and the sound volume action need.
