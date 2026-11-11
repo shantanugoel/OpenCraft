@@ -282,15 +282,14 @@ The SDK shows these settings. None is tested. (Source)
 
 ## Not known
 
-Measure these in Phase 1.
+Phase 1 did not answer these questions. Each question has a reason.
 
-- The exact part of the display that each window shows to the eye of the
-  user. It changes with the position of the eye. The camera gives approximate
-  values for one position. The positions of the images are exact.
-- The meaning of the input code `0xB2`.
-- The exact x coordinates at which the tap code changes from one bar panel
-  to the next. The ranges are in "Controls and input codes".
-- Whether the device keeps its images when the computer sleeps and wakes.
+| Question | Reason that it stays |
+|---|---|
+| The exact part of the display that each window shows to the eye of the user | It changes with the position of the eye. The camera gives approximate values for one position. The positions of the images are exact, and the GUI needs only those. |
+| The meaning of the input code `0xB2` | The decoder gives it as the end of a touch with no gesture, and no action uses it. Phase 4 adds the touch bar gestures. Examine the code then, if a gesture needs it. |
+| The exact x coordinates at which the tap code changes from one bar panel to the next | The ranges are known: see "Controls and input codes". A tap on a bar panel image gives the code of that bar panel. Phase 4 adds the tap gesture. Measure the exact values then, if the design needs them. |
+| Whether the device keeps its images when the computer sleeps and wakes | The owner deferred this check on 2026-11-11. It is issue [#43](https://github.com/shantanugoel/OpenCraft/issues/43), in Phase 5. Rule 10 of the architecture makes the engine draw all surfaces again after a wake, so no earlier phase depends on the answer. |
 
 ## Sources
 
