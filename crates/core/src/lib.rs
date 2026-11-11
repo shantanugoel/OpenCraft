@@ -15,4 +15,4 @@ pub use connection::Device;
 pub use device::{Descriptor, Panel, PanelKind};
 pub use error::{Error, Result};
 pub use events::{decode, Direction, Event};
-pub use transport::{list_devices, scan, FakeTransport, Found, HidTransport, Transport};
+pub use transport::{list_devices, scan, select, FakeTransport, Found, HidTransport, Transport};

@@ -3,7 +3,9 @@
 //! Confirms that we can talk to a StreamDock-class device without the vendor
 //! software: enumerate it, draw on every panel, and decode every input.
 
-use opencraft_core::{events, image, list_devices, protocol, Device, Event, Found, HidTransport};
+use opencraft_core::{
+    events, image, list_devices, protocol, select, Device, Error, Event, Found, HidTransport,
+};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
@@ -79,13 +81,10 @@ NOTE: quit VSD Craft before running — two apps driving one device will fight."
 fn open_device() -> Result<Device<HidTransport>, Box<dyn std::error::Error>> {
     let found: Vec<Found> = list_devices()?;
 
-    let candidate = found
-        .iter()
-        .find(|f| f.known.is_some() && f.is_vendor_interface())
-        .or_else(|| found.iter().find(|f| f.known.is_some()));
-
-    match candidate {
-        Some(f) => {
+    // The device layer chooses the interface. It chooses only a vendor
+    // interface of a known device.
+    match select(&found) {
+        Ok(f) => {
             println!("  device : {} (0x{:04X}:0x{:04X})", f.label(), f.vid, f.pid);
             if let Some(serial) = &f.serial {
                 println!("  serial : {serial}");
@@ -96,7 +95,22 @@ fn open_device() -> Result<Device<HidTransport>, Box<dyn std::error::Error>> {
             );
             Ok(Device::open(f)?)
         }
-        None => {
+        Err(Error::NoVendorInterface) => {
+            eprintln!("A known StreamDock device is connected, but it has no vendor interface.\n");
+            eprintln!("Interfaces of the known device:");
+            for f in found.iter().filter(|f| f.known.is_some()) {
+                eprintln!(
+                    "  - interface {} / usage page 0x{:04X}",
+                    f.interface, f.usage_page
+                );
+            }
+            eprintln!("\nOpenCraft opens only the vendor interface. It does not open the");
+            eprintln!("keyboard interface, and it does not need Input Monitoring.");
+            eprintln!("Connect the device again. If the error stays, run");
+            eprintln!("'opencraft-probe list' and look at the interfaces.");
+            Err(Error::NoVendorInterface.into())
+        }
+        Err(Error::DeviceNotFound) => {
             eprintln!("No known StreamDock device found.\n");
             eprintln!("Checklist:");
             eprintln!("  - is the device plugged in?");
@@ -104,6 +118,7 @@ fn open_device() -> Result<Device<HidTransport>, Box<dyn std::error::Error>> {
             eprintln!("  - run 'opencraft-probe list' to see what is on the bus");
             Err("device not found".into())
         }
+        Err(e) => Err(e.into()),
     }
 }
 

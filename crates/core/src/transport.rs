@@ -6,14 +6,15 @@
 //! test with no hardware (architecture rule 7).
 //!
 //! - [`HidTransport`] is the real implementation. It is the only code that uses
-//!   `hidapi` for I/O.
+//!   `hidapi` for I/O. It opens only the vendor interface of a known device
+//!   (architecture rule 6). [`select`] chooses that interface from a list.
 //! - [`FakeTransport`] is an in-memory implementation for tests.
 
 mod fake;
 mod hid;
 
 pub use fake::FakeTransport;
-pub use hid::{list_devices, scan, Found, HidTransport};
+pub use hid::{list_devices, scan, select, Found, HidTransport};
 
 use crate::error::Result;
 use std::time::Duration;
