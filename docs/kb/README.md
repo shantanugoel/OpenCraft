@@ -11,7 +11,6 @@ measurement. The other documents link to these facts and do not repeat them.
 - If a fact is not known, write it in a "Not known" list. An item leaves the
   list when a measurement gives the answer.
 - If a fact becomes incorrect, correct it. Do not keep the incorrect text.
-- Do not write a device serial number.
 
 ## Confidence labels
 

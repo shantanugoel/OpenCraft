@@ -2,6 +2,8 @@
 
 The work is in phases. A phase has a goal, a scope, and exit criteria. A phase
 has no calendar date. A phase is complete when all its exit criteria are true.
+The [roadmap issue](https://github.com/shantanugoel/OpenCraft/issues/1) links to
+the issues of each phase.
 
 Each phase from Phase 2 adds a small feature through all layers: device layer,
 engine, and GUI. The GUI is the only editor of the profile. See
