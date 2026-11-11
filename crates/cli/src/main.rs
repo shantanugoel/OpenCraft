@@ -470,6 +470,14 @@ fn cmd_background(rest: &[String]) -> AnyResult {
         if jpeg.len() > 0xFFFF { "above" } else { "below" }
     );
 
+    if rest.iter().any(|a| a == "--init") {
+        // The same start as the test command: clear, then set the brightness.
+        t.init()?;
+        std::thread::sleep(Duration::from_millis(150));
+        t.set_brightness(80)?;
+        println!("  init   : DIS, then brightness 80%");
+    }
+
     t.send_background(&jpeg)?;
     t.commit()?;
     println!("  drawn  : background committed");
@@ -499,6 +507,22 @@ fn cmd_background(rest: &[String]) -> AnyResult {
         );
         println!("blue at the bottom left, yellow at the bottom right. A white 1-pixel line at the edge.");
         println!("A grey line each 40 pixels. The text \"x,y\" gives the coordinates of a bright crossing.");
+    }
+
+    // The device stops the connection 35 seconds after the last command, and
+    // its displays go blank. Keep the connection, so that a person has the
+    // time to look at the result.
+    if let Some(seconds) = flag_u64(rest, "--hold") {
+        println!("\nKeeping the connection for {seconds}s.");
+        let deadline = Instant::now() + Duration::from_secs(seconds);
+        let mut last = Instant::now();
+        while Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(200));
+            if last.elapsed() >= Duration::from_secs(10) {
+                t.keep_alive()?;
+                last = Instant::now();
+            }
+        }
     }
     Ok(())
 }
