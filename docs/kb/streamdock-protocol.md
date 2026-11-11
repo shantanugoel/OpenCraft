@@ -18,6 +18,7 @@ model from the descriptor in `device.rs`. `transport/hid.rs` contains the
 | A report size of 512 in and 1024 out identifies protocol version 3 | Source | `mirajazz` |
 | A command is `0x00`, `"CRT"`, `0x00 0x00`, an ASCII operation code, then the arguments. Zero bytes fill the remaining space. | Measured | Probe |
 | Feature report `0x01` gives the firmware version as text | Measured | Probe |
+| The firmware text starts at the first byte that `hidapi` returns for the feature report. No report ID byte is in front of it. | Measured | The header of each recording |
 
 ## Commands
 
@@ -29,17 +30,17 @@ to our device. How the camera measurements were made is in
 | Operation | Code | Arguments | Confidence |
 |---|---|---|---|
 | Image header | `BAT` | Length (4 bytes, big-endian), slot | Measured for an image smaller than 65 536 bytes. The 4-byte length is Source for `BAT`, and Measured for `BGPIC`. |
-| Commit the images | `STP` | None | Measured |
+| Commit | `STP` | None | Measured. See "Start sequence". |
 | Background image header | `BGPIC` | Length (4 bytes), x (2 bytes), y (2 bytes), width (2 bytes), height (2 bytes), `0x00`, layer. All big-endian. | Measured: owner and camera, 2026-11-11. See "Background image". |
 | Remove the background image | `BGCLE` | Area: `0x01` the key area, `0x02` the touch bar area, `0x03` the two areas | Measured: camera, 2026-11-11 |
 | Boot logo header. **Do not send.** | `LOG` | Length (4 bytes, big-endian), `0x01` | Source: not sent |
-| Start | `DIS` | None | Measured: it does not remove the images. See "Background image". |
+| Start | `DIS` | None | Measured. See "Start sequence". |
 | Brightness | `LIG` | `0x00 0x00`, percent 0 to 100 | Measured: camera, 2026-11-11. See "Brightness". |
 | Clear one slot, or all slots with `0xFF` | `CLE` | `0x00 0x00 0x00`, slot | Measured: owner, 2026-11-11 |
 | Knob light colours | `SETLB` | Red, green, blue for each knob | Measured: camera, 2026-11-11. See [n4-pro-hardware.md](n4-pro-hardware.md#knob-lights). |
 | Knob light brightness | `LBLIG` | Percent 0 to 100 | Measured: camera, 2026-11-11 |
 | Reset the knob lights | `DELED` | None | Source: SDK binary, `Transport::resetLedColor`. Sent 1 time: the camera saw no change. OpenCraft has no builder for it. |
-| Sleep | `HAN` | None | Measured: camera, 2026-11-11. The displays and the knob lights go off. |
+| Sleep | `HAN` | None | Measured: camera, 2026-11-11. See "Sleep". |
 | Keep-alive | `CONNECT` | None | Measured. See "Keep-alive and stop". |
 | Set the firmware mode | `MOD` | `0x00 0x00`, ASCII digit | Source: not sent |
 | Haptic feedback | `QUCMD` | `0x1F 0x11 0x00`, `0x11` on or `0xFF` off, `0x00 0x11` | Source: not sent |
@@ -50,15 +51,17 @@ transport library (`Transport::clearKey`, `Transport::clearAllKeys`) shows the
 correct position. (Measured, and Source)
 
 The SDK transport library has one more command that starts with `CLE`:
-`CLE`, `0x00 0x00`, `"DC"`. The SDK function is `Transport::disconnected`.
-OpenCraft does not send it. (Source)
+`CLE`, `0x00 0x00`, `"DC"`. The SDK function is `Transport::disconnected`, and
+the SDK sends it when it closes a device. (Source) Its effect is in
+"Keep-alive and stop". (Measured) The device layer has no builder for it.
 
 ## Image transfer
 
 1. Send the `BAT` header with the length of the image data and the slot.
 2. Send the image data in parts of 1024 bytes. Each part has the report ID byte
    in front.
-3. Send `STP` after all images. The device then shows them.
+3. Send `STP` after all images. In one test, the images showed with no
+   `STP`. The clear command needs `STP`. See "Start sequence".
 
 | Fact | Confidence | Source |
 |---|---|---|
@@ -107,11 +110,11 @@ These facts are measured:
 |---|---|
 | `BGPIC` and then `STP` show the background on our device. The image is upright after the 180° turn. | Measured |
 | A background JPEG of 110 233 bytes shows correctly. Thus the 4-byte length is correct for `BGPIC`. | Measured |
-| After the device stops the connection and connects again, `BGPIC` alone shows nothing. After `DIS` and the brightness command, `BGPIC` shows the image. Which of the two commands is necessary is not measured. | Measured |
+| After the device stops the connection and connects again, `BGPIC` alone shows nothing. After `DIS` and the brightness command, `BGPIC` shows the image. | Measured |
 | If the display is in operation, `BGPIC` shows the image with no `DIS` before it | Measured |
 | The key faces and the bar panels show on top of the background, and the background stays visible around them | Measured |
 | `BGCLE 0x03` and then `STP` remove the background. The key faces and the bar panels stay. | Measured |
-| `DIS` does not remove the background, the key faces, or the bar panels | Measured |
+| `DIS` does not remove the background, the key faces, or the bar panels, if it is not the first `DIS` of the connection | Measured |
 | After the cable is disconnected and connected again, the background is gone, and the boot logo and the boot animation are the same as before | Measured |
 
 A camera recorded these facts on 2026-11-11:
@@ -184,41 +187,129 @@ until the device shows the images. No person looked at the device.
 - These times do not decide the image format. Issue #19 decides it after a
   person looks at the device.
 
+## Start sequence
+
+A camera recorded these facts on 2026-11-11. A "new connection" is the state
+after the cable is connected, or after the device stops the USB connection
+and connects again.
+
+| Fact | Confidence |
+|---|---|
+| After a new connection, the device shows its logo on an animated background. See [n4-pro-hardware.md](n4-pro-hardware.md#the-device-with-no-host). | Measured |
+| The first `DIS` of a connection removes the logo, the animation, and each slot image. The displays are black. The knob lights come on with the default effect. The timer of the keep-alive starts. | Measured |
+| The SDK name for `DIS` is "wake up the screen" (`Transport::wakeupScreen`) | Source: SDK binary |
+| A second `DIS` does not remove the images and does not start the timer again | Measured |
+| After `DIS`, slot images show with no brightness command | Measured: 1 time |
+| A slot image that goes out before `DIS` shows on top of the logo animation. `DIS` then removes it. | Measured |
+| The brightness command before `DIS` changes nothing that the camera saw | Measured: 1 time |
+| `BGPIC` before `DIS` shows nothing | Measured: owner, 1 time |
+| **If `STP` goes out before the first `DIS` of a connection, slot images that go out after `DIS` do not show.** This occurred with `STP` alone, with `CLE 0xFF` and `STP`, and with images and `STP`, before `DIS`. | Measured: 5 times |
+| In that state, `CLE 0xFF` after `DIS` corrects the fault: slot images show again. A second `STP`, a second `DIS`, and a time of 3 seconds do not correct it. | Measured |
+| `CLE 0xFF` with no `STP` before `DIS`, and images with no `STP` before `DIS`, do not cause the fault | Measured: 1 time each |
+| A slot image shows with no `STP` after it | Measured: 1 time |
+| `CLE` has an effect only after `STP` | Measured: 1 time |
+
+Thus the safe sequence after each connection is: `DIS`, the brightness
+command, `CLE 0xFF`, the images, `STP`. Do not send `STP` before `DIS`. The
+probe function `start_display` in `crates/cli/src/main.rs` sends `DIS`, the
+brightness command, `CLE 0xFF`, and `STP`. The probe commands `test`,
+`raw --draw`, `bars`, `wide`, `repaint`, and `send --draw` use it. The
+command `background` uses it only with `--init`. The command `draw` sends
+only `DIS`. The probe command `clear` sends `CLE` and `STP`
+with no `DIS`. On a new connection, that causes the fault for a program that
+does not send `CLE 0xFF` after `DIS`.
+
 ## Keep-alive and stop
+
+All rows are measured on 2026-11-11, with no person at the device. A test
+program sent the commands and recorded the time at which the device stopped
+the USB connection. The times are in seconds after `DIS`.
+
+| `CONNECT` sent at | The device stopped the connection at | First period with no `CONNECT`, after the period 0 to 15 | Stop that the rule gives |
+|---|---|---|---|
+| Not sent | 35.0, 35.1, 35.4 | 15 to 30 | 35 |
+| 10.0 | 34.9 | 15 to 30 | 35 |
+| 14.0 | 34.9 | 15 to 30 | 35 |
+| 16.0 | 49.9 | 30 to 45 | 50 |
+| 20.0 | 49.9 | 30 to 45 | 50 |
+| 29.0 | 49.9 | 30 to 45 | 50 |
+| 30, and in a second test 33 | 34.9 | 15 to 30 | 35 |
+| 16.0 and 44.1 | 64.9 | 45 to 60 | 65 |
+| Each 20 seconds: 20.0, 40.1, 60.1 | 64.9 | 45 to 60 | 65 |
+| Each 16 seconds, 15 times: 16.0, 32.1, and so on, the last 2 at 224.4 and 240.5 | 244.6 | 225 to 240 | 245 |
+| Each 14 seconds | Not stopped in 300 seconds | None | No stop |
+| Each 10 seconds | Not stopped. The longest test was 125 seconds. | None | No stop |
+
+One rule agrees with each row:
+
+- `DIS` starts a timer. The timer has periods of 15 seconds: 0 to 15, 15 to
+  30, 30 to 45, and so on.
+- The device must get one `CONNECT` or more in each period, but not in the
+  first period (0 to 15 seconds). A `CONNECT` in the first period does not
+  count for a later period.
+- If a period ends with no `CONNECT`, the device stops the USB connection
+  5 seconds after the end of that period. A `CONNECT` in these 5 seconds does
+  not prevent the stop.
+
+The rule is an inference from the rows. It gave the correct time for the test
+with 16 seconds before that test ran: the period from 225 to 240 seconds had
+no `CONNECT`.
 
 | Fact | Confidence | Source |
 |---|---|---|
+| The keep-alive is necessary | Measured | The table above |
+| An interval that is less than 15 seconds puts a `CONNECT` in each period. An interval of exactly 15 seconds is not tested. | Inference | The rule |
+| Only `DIS` starts the timer. On a connection with no timer in operation, the device stayed connected for 60 seconds after each of these: no command, the brightness command, an image and `STP`, `CONNECT`, `STP`. After `DIS` alone, it stopped the connection at 35.1 seconds. | Measured | Test program |
+| A second `DIS`, a draw, and input from the user do not start the timer again and do not move its periods. A test that started 300 seconds after the first `DIS`, on the same connection, kept the periods of the first `DIS`. | Measured | Test program, probe |
+| The device sent no input report in answer to a command in these tests. No acknowledgement for a write was seen. | Measured | Test program, probe |
 | The SDK and `opendeck-akp05` send `CONNECT` each 10 seconds | Source | Their source code |
-| The keep-alive is necessary. After the start commands and a draw, with no keep-alive, the device stops the USB connection approximately 35 seconds later. Input from the user does not change this time. | Measured | Probe, 2026-11-11: 35.1 s, 35.4 s, and 35.0 s after the draw |
-| With `CONNECT` each 10 seconds, the connection stays. The longest test was 125 seconds with `opencraft-probe test`. | Measured | Probe, 2026-11-11 |
-| With one `CONNECT` 30 seconds after a draw, the device stopped the connection 34.9 seconds after the draw. With one `CONNECT` 33 seconds after a draw, the result was the same. Thus the rule of the device is not "35 seconds after the last `CONNECT`". | Measured: 1 time for each interval | Probe, 2026-11-11: `bars --hold 120 --keep-alive 30`, and the same with 33 |
-| A draw does not start the 35 seconds again. In one test, the device stopped the connection 28.3 seconds after a full draw. The last `CONNECT` was some seconds before that draw. | Measured: 1 time | Probe, 2026-11-11 |
-| The clear command and the commit, sent to a device that has no timer in operation, do not start the timer. The device stayed on the bus for 75 seconds. | Measured: 1 time | Probe, 2026-11-11 |
-| After the device stops the connection, its displays are blank. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and it then draws the key faces and the bar panels again. | Measured: 2 times | Probe and owner, 2026-11-11 |
-| The bring-up in Phase 0 passed with no `CONNECT`, because its test was 30 seconds | Inference | The rows above |
+| When the device stops the connection, it starts again: it shows the boot animation and then the logo, and the knob lights go off. The images are gone. | Measured | Camera |
+| The device is on the bus again 6 to 7 seconds after the stop. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and the probe then draws again. | Measured | Test program: 20 times. Probe and owner: 2 times. |
 | `opendeck-akp05` sends a clear command and then `HAN` when it stops | Source | Its source code |
-| After the probe draws the key faces and the bar panels and stops with no clear command, they go blank after a short time. The cause is possibly the same 35 seconds. | Measured (the blank surfaces), Inference (the cause) | Owner, 2026-11-11 |
-| The device sent no input report in answer to the draw commands or to `CONNECT` during 100 seconds | Measured | Probe, 2026-11-11 |
 | The SDK README refers to `ACK` and `OK` in input reports for newer protocol versions | Source | SDK README |
+
+What the user sees when the host stops:
+
+| Case | Result | Confidence |
+|---|---|---|
+| The probe stops and sends no clear command (`test --keep`) | The images and the knob lights stay. The keys and the knobs do nothing. At 35 seconds after `DIS`, the device starts again and shows the logo. | Measured: camera |
+| The probe is killed (`kill -9`) 15 seconds after `DIS` | The same. The logo showed at 36 seconds, and it was the same after 10 minutes. | Measured: camera |
+| General | The images stay until 5 seconds after the end of the first period that has no `CONNECT`. That is 20 to 35 seconds after the last `CONNECT` that was in a period and not in the 5 seconds before a stop. | Inference from the rule |
+| The host sends `CLE`, `0x00 0x00`, `"DC"` (the SDK command "disconnected") | In less than 1 second, the device shows the logo, and the knob lights go off. The device stays on the bus: it did not stop the connection in 60 seconds with no `CONNECT`. Slot images show again after that, and `DIS` starts the knob lights again. | Measured: camera, 1 time |
+| VSD Craft quits | The displays and the knob lights go off, and the device does not show the logo. It was the same 50 seconds later. The next `DIS` and brightness command showed the last background of VSD Craft again. Which commands VSD Craft sends is not known. | Measured: camera, 1 time |
+
+Thus a host that stops can send the SDK command "disconnected". The device
+then goes to its logo at once, and it does not stop and start the USB
+connection. A defined state at the stop is in the scope of Phase 5. See the
+[roadmap](../ROADMAP.md#phase-5-background-operation).
 
 The device layer sends `CONNECT` each 10 seconds while a device is connected:
 `Link::next_event` in `crates/core/src/link.rs` sends it, and the constant
 `KEEP_ALIVE_INTERVAL` holds the interval. It sends the keep-alive also when
-other commands went to the device, because a draw does not start the 35
-seconds again.
+other commands went to the device, because a draw does not start the timer
+again. With 10 seconds, the time between two keep-alive commands stays less
+than 15 seconds if one keep-alive is less than 5 seconds late. (Inference
+from the rule)
+
+## Sleep
+
+A camera recorded these facts on 2026-11-11.
+
+| Fact | Confidence |
+|---|---|
+| `HAN` switches off the displays and the knob lights | Measured |
+| The device keeps the background and the slot images during the sleep | Measured |
+| `CONNECT` does not wake the device. A slot image and `STP` do not wake it. | Measured |
+| The brightness command switches the displays on again, with the same images. The knob lights stay off. | Measured |
+| `DIS` switches the knob lights on again, with the colours that they had | Measured |
+| `HAN` does not stop the timer of the keep-alive. With no `CONNECT` after `HAN`, the device stopped the connection at the time that the rule gives. | Measured: 1 time |
+
+Thus the commands to wake the device are the brightness command and `DIS`.
 
 ## Not known
 
 Measure these in Phase 1.
 
-- The longest interval between two keep-alive commands that keeps the
-  connection. 10 seconds keeps it. 30 seconds does not. No value between
-  them is tested.
-- The rule that the device uses for the keep-alive. One `CONNECT` at 30
-  seconds did not prevent the stop at 35 seconds.
-- Which commands start the timer of 35 seconds. A draw with the start commands
-  starts it. The clear command does not.
-- What the device shows after the host process is killed.
 - The time until the device shows a full draw. Only the time to send it is
   measured. See "Repaint time".
 - Whether the device shows a JPEG key face correctly, and whether small text is
@@ -230,8 +321,6 @@ Measure these in Phase 1.
   writes a 4-byte length (Source).
 - The largest JPEG that the device accepts for `BGPIC`. The device showed a
   file of 1 191 260 bytes. See "Background image".
-- Which command starts the display after a new connection: `DIS`, the
-  brightness command, or the two together.
 
 ## Sources
 

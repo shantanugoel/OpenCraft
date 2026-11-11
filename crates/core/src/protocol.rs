@@ -17,8 +17,10 @@ fn cmd(op: &[u8]) -> Vec<u8> {
     v
 }
 
-/// Start command. The probe sends it one time before the first image.
-/// It does not remove the images that the device shows (measured).
+/// Start command. The first one of a connection removes the logo and each
+/// slot image, switches the knob lights on, and starts the timer of the
+/// keep-alive. A later one changes nothing (measured). See the section "Start
+/// sequence" in `docs/kb/streamdock-protocol.md`.
 pub fn init() -> Vec<u8> {
     cmd(b"DIS")
 }

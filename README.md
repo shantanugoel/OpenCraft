@@ -63,7 +63,7 @@ Options of `background`:
 | `--quality <1-100>` | JPEG quality. The default is 60, the value of the vendor SDK. |
 | `--with-surfaces` | After the background, draw the numbered key faces and bar panels |
 | `--clear` | Remove the background image |
-| `--init` | Send the start commands first. This is necessary after a new connection. |
+| `--init` | Send the start sequence first. This is necessary after a new connection. It clears all slots. |
 | `--hold <n>` | Keep the connection for `<n>` seconds, so that the image stays |
 
 `background` sends the command for the temporary background. It never sends
@@ -76,18 +76,19 @@ These commands help a person with the device to measure. The
 [issues](https://github.com/shantanugoel/OpenCraft/issues) for the
 measurements give the procedures.
 
-The device stops the USB connection approximately 35 seconds after a draw, if
-it gets no keep-alive command. Its displays then go blank. Thus each command
+The device stops the USB connection 35 seconds after the start command, if it
+gets no keep-alive command. It then shows its logo again. Thus each command
 below has `--hold <n>`. It keeps the connection for `<n>` seconds after the
 command and sends the keep-alive. `--keep-alive <n>` changes the interval, and
 `0` sends no keep-alive. If the connection fails during the hold, the command
 prints the time of the failure.
 
-`bars`, `wide`, and `repaint` send the start commands (`DIS`, then the
-brightness command) before they draw. The displays show nothing after a new
-connection without them. `--no-init` skips the start commands.
-`--brightness <0-100>` sets the brightness of the start commands. The default
-is 80.
+`bars`, `wide`, and `repaint` send the start sequence before they draw:
+`DIS`, the brightness command, then the clear command for all slots. The
+reason for this sequence is in
+[docs/kb/streamdock-protocol.md](docs/kb/streamdock-protocol.md#start-sequence).
+`--no-init` skips the start sequence. `--brightness <0-100>` sets the
+brightness of the start sequence. The default is 80.
 
 `send` sends one command and nothing else. The names are:
 
@@ -109,7 +110,7 @@ permanent memory.
 |---|---|
 | `--each <n>` | Wait `<n>` seconds between two values of `brightness` or `knob-brightness`. The default is 5. |
 | `--wait-key` | Wait for a key press on the device before each value, not for a time |
-| `--draw` | First send the start commands and draw the numbered key faces and bar panels, so that you can see the effect |
+| `--draw` | First send the start sequence and draw the numbered key faces and bar panels, so that you can see the effect |
 
 Example: `opencraft-probe send brightness 0 50 100 --draw --each 4 --hold 10`
 

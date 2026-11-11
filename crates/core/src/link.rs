@@ -41,10 +41,11 @@ pub const ERROR_LIMIT: u32 = 10;
 
 /// The time between two keep-alive commands while a device is connected.
 ///
-/// The device stops the USB connection approximately 35 seconds after the last
-/// command from the host. With the keep-alive each 10 seconds, the connection
-/// stays. The vendor SDK also uses 10 seconds. See the section "Keep-alive and
-/// stop" in `docs/kb/streamdock-protocol.md`.
+/// After the start command, the device counts periods of 15 seconds. If a
+/// period has no keep-alive, the device stops the USB connection. Thus the
+/// interval must be less than 15 seconds. The vendor SDK also uses 10
+/// seconds. See the section "Keep-alive and stop" in
+/// `docs/kb/streamdock-protocol.md`.
 pub const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
 
 /// The pause after an error that is not a disconnection. A failed read can
@@ -139,8 +140,7 @@ pub struct Link<C: Connector, K: Clock = SystemClock> {
 ///
 /// The keep-alive goes out on a fixed interval from the last keep-alive. The
 /// policy does not skip a keep-alive because a different command went to the
-/// device: it is not measured that a different command starts the 35 seconds
-/// of the device again.
+/// device: a draw does not count as a keep-alive for the device (measured).
 #[derive(Debug, Clone, Copy)]
 struct KeepAlive {
     /// The interval. `None` means "send no keep-alive".
