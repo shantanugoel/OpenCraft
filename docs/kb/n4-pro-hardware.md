@@ -65,6 +65,8 @@ The position is the top left corner of the image, in pixels of the upright
 | Key face, second row | 6, 7, 8, 9, 10 | 6, 176, 346, 514, 682 | 178 | 112 × 112 | Measured |
 | Bar panel | 1, 2, 3, 4 | 0, 203, 406, 609 | 358 | 176 × 112 | Measured |
 
+- The descriptor of the N4 Pro in `crates/core/src/device.rs` holds these
+  positions.
 - The positions are accurate to 1 pixel. A background line of 1 pixel showed
   when it was adjacent to an image, and it did not show when it was 1 pixel
   inside the image. (Measured)

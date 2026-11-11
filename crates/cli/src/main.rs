@@ -10,7 +10,7 @@ use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 use opencraft_core::{
     events, image, list_devices, protocol, recording, select, ControlKind, Decoded, Descriptor,
     Device, Error, Found, Gesture, HidConnector, HidTransport, InputCodes, InputEvent, Link,
-    LinkEvent, Transport,
+    LinkEvent,
 };
 use std::io::Write;
 use std::process::ExitCode;
@@ -33,7 +33,7 @@ fn main() -> ExitCode {
 
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("help");
-    let rest = &args[1..];
+    let rest = args.get(1..).unwrap_or_default();
 
     let result = match cmd {
         "list" | "ls" => cmd_list(),
@@ -273,10 +273,12 @@ fn describe_descriptor(d: &Descriptor) -> String {
             None => "no slot".to_string(),
         };
         out += &format!(
-            "    {:<14} {slot}  {:>3} x {:<3}  {:<4}  turned {}°\n",
+            "    {:<14} {slot}  {:>3} x {:<3}  at {:>3}, {:<3}  {:<4}  turned {}°\n",
             s.id.to_string(),
             s.width,
             s.height,
+            s.x,
+            s.y,
             s.format.name(),
             s.rotation.degrees()
         );
@@ -488,22 +490,8 @@ fn draw_test_pattern(
         std::thread::sleep(Duration::from_millis(300));
     }
 
-    start_display(t, brightness)?;
+    t.start(brightness)?;
     draw_slot_surfaces(t)
-}
-
-/// Send the start sequence: `DIS`, the brightness command, then the clear
-/// command for all slots and the commit.
-///
-/// The clear is necessary. If a commit went to the device before the first
-/// `DIS` of the connection, the device does not show the slot images that
-/// arrive after `DIS`, until it gets the clear command for all slots
-/// (measured). See `docs/kb/streamdock-protocol.md`, "Start sequence".
-fn start_display<T: Transport>(t: &mut Device<T>, brightness: u8) -> opencraft_core::Result<()> {
-    t.init()?;
-    std::thread::sleep(Duration::from_millis(150));
-    t.set_brightness(brightness)?;
-    t.clear_all()
 }
 
 /// Draw its slot number on each surface that has a slot, give each knob light
@@ -644,7 +632,7 @@ fn cmd_background(rest: &[String]) -> AnyResult {
 
     if rest.iter().any(|a| a == "--init") {
         // The same start as the test command.
-        start_display(&mut t, 80)?;
+        t.start(80)?;
         println!("  init   : DIS, brightness 80%, the clear command for all slots, the commit");
     }
 
@@ -843,36 +831,5 @@ mod tests {
         assert_eq!(flag_str(&a, "--note"), Some("key 6 press"));
         assert_eq!(flag_str(&a, "--seconds"), None);
         assert_eq!(flag_str(&args(&["--save"]), "--save"), None);
-    }
-
-    fn n4pro() -> &'static Descriptor {
-        opencraft_core::device::find(0x5548, 0x1023).unwrap()
-    }
-
-    #[test]
-    fn start_display_clears_all_slots_after_the_start_command() {
-        // The clear command for all slots must follow `DIS`. Without it, the
-        // device can show no slot image (kb: "Start sequence").
-        let mut device = Device::new(opencraft_core::FakeTransport::new(), n4pro());
-        start_display(&mut device, 80).unwrap();
-        let sent: Vec<Vec<u8>> = device
-            .transport()
-            .writes()
-            .iter()
-            .map(|w| w[..13].to_vec())
-            .collect();
-        let want: Vec<Vec<u8>> = [
-            protocol::init(),
-            protocol::set_brightness(80),
-            protocol::clear_slot(0xFF),
-            protocol::commit(),
-        ]
-        .into_iter()
-        .map(|mut c| {
-            c.resize(13, 0);
-            c
-        })
-        .collect();
-        assert_eq!(sent, want);
     }
 }
