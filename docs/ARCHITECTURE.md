@@ -83,8 +83,12 @@ at the same time.
 |---|---|---|
 | Device layer | `crates/core` | Exists |
 | Probe | `crates/cli` | Exists |
-| Engine | Not made yet | Starts in Phase 2 |
-| GUI application | Not made yet | Starts in Phase 2 |
+| Engine | `crates/engine` | Starts in Phase 2 |
+| GUI application | `crates/app` | Starts in Phase 2 |
+
+The reason for these crates is in
+[decision 0008](decisions/0008-crate-boundaries.md). The GUI application does
+not depend on `crates/core`.
 
 ## 5. Rules
 
@@ -160,7 +164,6 @@ you make one, write a decision record and remove the row.
 
 | Decision | Phase | Note |
 |---|---|---|
-| Crate boundaries for the engine and the shell | 2 | The layers in section 4 are the limit. |
 | Form of the GPUI dependency, and the widget library | 2 | See [kb/gpui.md](kb/gpui.md). |
 | Profile file format | 2 | The GUI is the editor. The file stays readable. |
 | Library for text and icons on surfaces | 2 | |
