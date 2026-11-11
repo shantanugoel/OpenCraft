@@ -81,8 +81,11 @@ The size on disk was measured on the computer of the owner, on or before
 - The time until the device responds to a key after the start of VSD Craft.
 - The profile format. This is necessary only for an import function, which is
   not in a phase.
-- How "Touch Bar mode" draws on the touch bar. See
-  [n4-pro-hardware.md](n4-pro-hardware.md#not-known).
+- How "Touch Bar mode" draws on the touch bar. Two methods can draw one
+  image across the touch bar: an image that is larger than its surface, and
+  the background. See
+  [n4-pro-hardware.md](n4-pro-hardware.md#an-image-that-is-larger-than-its-surface).
+  Which method VSD Craft uses is not examined.
 
 ## Sources
 

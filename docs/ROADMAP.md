@@ -17,8 +17,8 @@ application that other persons can adopt.
 | Phase | Name | State |
 |---|---|---|
 | 0 | Hardware gate | Complete |
-| 1 | Device layer foundation | Next |
-| 2 | First GUI: see and paint the device | Not started |
+| 1 | Device layer foundation | Complete |
+| 2 | First GUI: see and paint the device | Next |
 | 3 | Actions for keys and knobs | Not started |
 | 4 | Pages and the touch bar | Not started |
 | 5 | Background operation | Not started |
@@ -53,7 +53,7 @@ Measure these from Phase 2. They are exit criteria for Phase 6.
 14 key faces and bar panels, and decodes knob input. The facts are in
 [kb/n4-pro-hardware.md](kb/n4-pro-hardware.md).
 
-## Phase 1: Device layer foundation
+## Phase 1: Device layer foundation (complete)
 
 **Goal.** The device layer is complete, correct, and testable for the N4 Pro.
 This phase has no GUI. It is small, and it makes the GUI phases reliable.
@@ -75,13 +75,30 @@ This phase has no GUI. It is small, and it makes the GUI phases reliable.
 
 **Exit criteria.**
 
-- [ ] The probe draws on each surface and shows each gesture of each control.
-- [ ] The device layer has no check for a specific model outside the descriptor table.
-- [ ] The tests run with the fake transport.
-- [ ] The probe continues to operate after the device is disconnected and connected again.
-- [ ] The "Not known" lists for the device and the protocol are empty, or each remaining item has a reason.
+- [x] The probe draws on each surface and shows each gesture of each control.
+- [x] The device layer has no check for a specific model outside the descriptor table.
+- [x] The tests run with the fake transport.
+- [x] The probe continues to operate after the device is disconnected and connected again.
+- [x] The "Not known" lists for the device and the protocol are empty, or each remaining item has a reason.
 
 **Decisions that this phase forces.** Image format for surfaces (PNG or JPEG).
+The answer is JPEG. See
+[decision 0007](decisions/0007-jpeg-for-key-faces-and-bar-panels.md).
+
+**Result.** All exit criteria are true on 2026-11-11, and the
+[checks for each phase](#checks-for-each-phase) are done.
+[Issue #2](https://github.com/shantanugoel/OpenCraft/issues/2) has the record
+of the checks.
+
+- The measured facts are in [kb/n4-pro-hardware.md](kb/n4-pro-hardware.md)
+  and [kb/streamdock-protocol.md](kb/streamdock-protocol.md). Each question
+  that stays has a reason in the "Not known" list of its entry.
+- One check of the phase is deferred: the device after the computer sleeps
+  and wakes. It is issue
+  [#43](https://github.com/shantanugoel/OpenCraft/issues/43) in Phase 5, which
+  has the recovery after sleep in its scope.
+- The reference for the product targets is measured. See
+  [kb/vsd-craft.md](kb/vsd-craft.md#footprint-when-it-runs).
 
 ## Phase 2: First GUI: see and paint the device
 

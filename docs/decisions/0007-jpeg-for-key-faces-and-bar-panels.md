@@ -49,9 +49,9 @@ decision does not change it.
 
 ## Results
 
-- The hardest images that we found stay 12 000 bytes below the largest slot
-  image that the device showed. A test encodes two such images for each
-  surface. This is not a proof for all images, and the test says so.
+- The hardest images that we found stay more than 12 000 bytes below the
+  largest slot image that the device showed. A test encodes two such images
+  for each surface. This is not a proof for all images, and the test says so.
 - One encoder serves all surfaces.
 - The image on the device is not exactly the image in the GUI (rule 11): JPEG
   changes pixels a little. The owner saw no difference at quality 90.
