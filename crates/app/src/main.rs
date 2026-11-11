@@ -26,7 +26,8 @@ fn start_engine() -> (EngineHandle, async_channel::Receiver<Event>) {
 
 fn main() {
     let (engine, events) = start_engine();
-    // Keep ownership outside GPUI. Joining occurs after its event loop ends.
+    // Keep ownership outside the view. Close and quit hooks stop the engine;
+    // code after the run loop is a fallback on platforms where it returns.
     let engine = Rc::new(RefCell::new(Some(engine)));
     let commands = engine.clone();
     let shutdown = engine.clone();
