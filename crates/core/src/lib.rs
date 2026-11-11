@@ -1,4 +1,5 @@
-//! Core device layer for OpenCraft: transport, protocol and panel rendering.
+//! Core device layer for OpenCraft: descriptors, transport, protocol, input
+//! decoding, and images for surfaces.
 //!
 //! Deliberately GUI-free and blocking, so it can be driven from a CLI today and
 //! from a worker thread behind GPUI later.
@@ -14,8 +15,11 @@ pub mod recording;
 pub mod transport;
 
 pub use connection::Device;
-pub use device::{Background, Descriptor, Panel, PanelKind};
+pub use device::{
+    Control, ControlId, ControlKind, Descriptor, ImageFormat, InputCodes, Position, Rotation,
+    Surface, SurfaceId, SurfaceKind,
+};
 pub use error::{Error, Result};
-pub use events::{decode, Direction, Event};
+pub use events::{decode, Decoded, Gesture, InputEvent};
 pub use link::{Clock, Connector, HidConnector, Link, LinkEvent, SystemClock};
 pub use transport::{list_devices, scan, select, FakeTransport, Found, HidTransport, Transport};

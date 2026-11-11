@@ -7,7 +7,9 @@
 
 use crate::{draw_test_pattern, flag_str, flag_u64, AnyResult};
 use opencraft_core::link::KEEP_ALIVE_INTERVAL;
-use opencraft_core::{events, list_devices, recording, select, Device, Event, HidTransport};
+use opencraft_core::{
+    events, list_devices, recording, select, Decoded, Device, Gesture, HidTransport, InputEvent,
+};
 use std::io::Write;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -220,12 +222,19 @@ fn run_step(session: &mut Session, end: End) -> opencraft_core::Result<Vec<(u64,
         let report = session.poll()?;
         let now = Instant::now();
         if let Some(bytes) = report {
+            let decoded = events::decode(session.device.descriptor(), &bytes);
             // An acknowledgement is not a gesture.
-            if matches!(events::decode(&bytes), Event::Ack) {
+            if decoded == Decoded::Ack {
                 continue;
             }
             if matches!(end, End::KnobPush)
-                && matches!(events::decode(&bytes), Event::KnobPress { .. })
+                && matches!(
+                    decoded,
+                    Decoded::Input(InputEvent {
+                        gesture: Gesture::Push,
+                        ..
+                    })
+                )
             {
                 // The push ends the step, also when no swipe gave a report.
                 return Ok(reports);

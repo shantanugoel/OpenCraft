@@ -1,19 +1,18 @@
-//! Panel rendering.
+//! Images for surfaces.
 //!
-//! The firmware expects images already rotated 180 degrees (per the vendor
-//! SDK's `key_image_format`), encoded as PNG at the panel's exact size.
-//!
-//! The background is a JPEG, also turned 180° (per the SDK's
-//! `touchscreen_image_format`).
+//! The descriptor gives the size, the image format, and the rotation of each
+//! surface. The functions here make an upright image, turn it as the surface
+//! needs, and encode it in the format of the surface. See [`encode_for`].
 
+use crate::device::{ImageFormat, Rotation, Surface};
 use crate::error::Result;
 use image::codecs::jpeg::JpegEncoder;
-use image::{imageops::FilterType, ImageFormat, Rgb, RgbImage};
+use image::{imageops::FilterType, Rgb, RgbImage};
 use std::io::Cursor;
 
-/// The JPEG quality that the SDK uses for the background
-/// (`encode_background_frame`).
-pub const BACKGROUND_JPEG_QUALITY: u8 = 60;
+/// The JPEG quality to use when the caller gives none. The SDK uses this
+/// value for the background (`encode_background_frame`).
+pub const DEFAULT_JPEG_QUALITY: u8 = 60;
 
 /// 5x7 bitmap glyphs for 0-9, one byte per row (5 significant bits).
 const GLYPHS: [[u8; 7]; 10] = [
@@ -54,13 +53,39 @@ const COMMA: [u8; 7] = [
     0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b00100, 0b01000,
 ];
 
-/// Render a numbered test panel and return PNG bytes ready to send.
-pub fn render_test_panel(width: u16, height: u16, number: u8, bg: [u8; 3]) -> Result<Vec<u8>> {
-    let (w, h) = (width as u32, height as u32);
-    let mut img = RgbImage::from_pixel(w, h, image::Rgb(bg));
+/// Turn the upright image `img` as `surface` needs, and encode it in the
+/// format of `surface`. The result is ready to send.
+///
+/// `img` must have the size of the surface. `jpeg_quality` (1 to 100) applies
+/// only to a JPEG surface.
+pub fn encode_for(surface: &Surface, img: &RgbImage, jpeg_quality: u8) -> Result<Vec<u8>> {
+    let turned;
+    let img = match surface.rotation {
+        Rotation::Deg0 => img,
+        Rotation::Deg180 => {
+            turned = image::imageops::rotate180(img);
+            &turned
+        }
+    };
+    match surface.format {
+        ImageFormat::Png => {
+            let mut out = Cursor::new(Vec::new());
+            img.write_to(&mut out, image::ImageFormat::Png)?;
+            Ok(out.into_inner())
+        }
+        ImageFormat::Jpeg => encode_jpeg(img, jpeg_quality),
+    }
+}
 
-    // Corner markers make orientation obvious on the physical device.
-    let mark = image::Rgb([255, 255, 255]);
+/// Draw `number` on a test image for `surface`, and return the image ready to
+/// send.
+pub fn render_test_surface(surface: &Surface, number: u8, bg: [u8; 3]) -> Result<Vec<u8>> {
+    let (w, h) = (surface.width as u32, surface.height as u32);
+    let mut img = RgbImage::from_pixel(w, h, Rgb(bg));
+
+    // A marker in the top left and in the bottom right corner shows the
+    // orientation on the device.
+    let mark = Rgb([255, 255, 255]);
     let m = (h / 16).max(3);
     for y in 0..m {
         for x in 0..m {
@@ -69,26 +94,20 @@ pub fn render_test_panel(width: u16, height: u16, number: u8, bg: [u8; 3]) -> Re
         }
     }
 
-    // Big centred slot number.
+    // The number, large, at the centre.
     let scale = (h / 14).max(2);
-    draw_number(&mut img, number, scale, image::Rgb([255, 255, 255]));
+    draw_number(&mut img, number, scale, Rgb([255, 255, 255]));
 
-    let img = image::imageops::rotate180(&img);
-    let mut out = Cursor::new(Vec::new());
-    img.write_to(&mut out, ImageFormat::Png)?;
-    Ok(out.into_inner())
+    encode_for(surface, &img, DEFAULT_JPEG_QUALITY)
 }
 
-/// Render a flat colour panel.
-pub fn render_solid(width: u16, height: u16, bg: [u8; 3]) -> Result<Vec<u8>> {
-    let img = RgbImage::from_pixel(width as u32, height as u32, image::Rgb(bg));
-    let img = image::imageops::rotate180(&img);
-    let mut out = Cursor::new(Vec::new());
-    img.write_to(&mut out, ImageFormat::Png)?;
-    Ok(out.into_inner())
+/// Fill `surface` with one colour, and return the image ready to send.
+pub fn render_solid(surface: &Surface, bg: [u8; 3]) -> Result<Vec<u8>> {
+    let img = RgbImage::from_pixel(surface.width as u32, surface.height as u32, Rgb(bg));
+    encode_for(surface, &img, DEFAULT_JPEG_QUALITY)
 }
 
-fn draw_number(img: &mut RgbImage, number: u8, scale: u32, color: image::Rgb<u8>) {
+fn draw_number(img: &mut RgbImage, number: u8, scale: u32, color: Rgb<u8>) {
     let digits: Vec<u8> = number
         .to_string()
         .bytes()
@@ -198,34 +217,34 @@ pub fn background_test_pattern(width: u16, height: u16) -> RgbImage {
     img
 }
 
-/// Render the background test pattern and return JPEG bytes ready to send.
-pub fn render_background_test(width: u16, height: u16, quality: u8) -> Result<Vec<u8>> {
-    let img = background_test_pattern(width, height);
-    encode_jpeg(&image::imageops::rotate180(&img), quality)
+/// Draw the background test pattern for `surface`, and return the image ready
+/// to send. `quality` applies if the surface format is JPEG.
+pub fn render_background_test(surface: &Surface, quality: u8) -> Result<Vec<u8>> {
+    let img = background_test_pattern(surface.width, surface.height);
+    encode_for(surface, &img, quality)
 }
 
-/// Make a background from an image file (PNG or JPEG) and return JPEG bytes
+/// Make an image for `surface` from an image file (PNG or JPEG), and return it
 /// ready to send.
 ///
-/// The function changes the image to `width` x `height` (the aspect ratio can
-/// change, as in the SDK). It puts transparent pixels on black, turns the
-/// image 180°, and encodes it as a JPEG.
-pub fn render_background_file(
-    data: &[u8],
-    width: u16,
-    height: u16,
-    quality: u8,
-) -> Result<Vec<u8>> {
+/// The function changes the image to the size of the surface (the aspect
+/// ratio can change, as in the SDK). It puts transparent pixels on black.
+/// Then it turns and encodes the image as the surface needs.
+pub fn render_background_file(data: &[u8], surface: &Surface, quality: u8) -> Result<Vec<u8>> {
     let src = image::load_from_memory(data)?;
     let src = src
-        .resize_exact(width as u32, height as u32, FilterType::Triangle)
+        .resize_exact(
+            surface.width as u32,
+            surface.height as u32,
+            FilterType::Triangle,
+        )
         .to_rgba8();
     let img = RgbImage::from_fn(src.width(), src.height(), |x, y| {
         let [r, g, b, a] = src.get_pixel(x, y).0;
         let over_black = |c: u8| ((c as u16 * a as u16 + 127) / 255) as u8;
         Rgb([over_black(r), over_black(g), over_black(b)])
     });
-    encode_jpeg(&image::imageops::rotate180(&img), quality)
+    encode_for(surface, &img, quality)
 }
 
 fn fill(img: &mut RgbImage, x0: u32, y0: u32, w: u32, h: u32, color: Rgb<u8>) {
@@ -268,7 +287,7 @@ fn draw_glyph(img: &mut RgbImage, x: u32, y: u32, glyph: &[u8; 7], scale: u32, c
     }
 }
 
-/// Distinct, readable colours for numbered test panels.
+/// Distinct, readable colours for numbered test images.
 pub fn test_color(i: usize) -> [u8; 3] {
     let hue = (i as f32 * 0.6180339) % 1.0;
     hsv_to_rgb(hue, 0.75, 0.55)
@@ -298,6 +317,28 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> [u8; 3] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::device::{SurfaceId, SurfaceKind};
+
+    /// A background of 800 x 480, JPEG, turned 180°. The values are test
+    /// data, not a model.
+    const BACKGROUND: Surface = Surface {
+        id: SurfaceId::new(SurfaceKind::Background, 1),
+        slot: None,
+        width: 800,
+        height: 480,
+        format: ImageFormat::Jpeg,
+        rotation: Rotation::Deg180,
+    };
+
+    /// A key face of 112 x 112, PNG, turned 180°.
+    const KEY_FACE: Surface = Surface {
+        id: SurfaceId::new(SurfaceKind::KeyFace, 1),
+        slot: Some(6),
+        width: 112,
+        height: 112,
+        format: ImageFormat::Png,
+        rotation: Rotation::Deg180,
+    };
 
     /// The colour at `x`, `y` is near `want`. JPEG changes colours a little.
     fn assert_near(img: &RgbImage, x: u32, y: u32, want: [u8; 3]) {
@@ -330,7 +371,7 @@ mod tests {
 
     #[test]
     fn background_test_is_a_jpeg_turned_180_degrees() {
-        let jpeg = render_background_test(800, 480, BACKGROUND_JPEG_QUALITY).unwrap();
+        let jpeg = render_background_test(&BACKGROUND, DEFAULT_JPEG_QUALITY).unwrap();
         assert_eq!(&jpeg[..3], &[0xFF, 0xD8, 0xFF], "JPEG start marker");
 
         let img = image::load_from_memory(&jpeg).unwrap().to_rgb8();
@@ -345,8 +386,8 @@ mod tests {
 
     #[test]
     fn higher_quality_gives_more_bytes() {
-        let low = render_background_test(800, 480, 30).unwrap();
-        let high = render_background_test(800, 480, 95).unwrap();
+        let low = render_background_test(&BACKGROUND, 30).unwrap();
+        let high = render_background_test(&BACKGROUND, 95).unwrap();
         assert!(high.len() > low.len());
     }
 
@@ -361,9 +402,9 @@ mod tests {
             }
         });
         let mut png = Cursor::new(Vec::new());
-        src.write_to(&mut png, ImageFormat::Png).unwrap();
+        src.write_to(&mut png, image::ImageFormat::Png).unwrap();
 
-        let jpeg = render_background_file(png.get_ref(), 800, 480, 90).unwrap();
+        let jpeg = render_background_file(png.get_ref(), &BACKGROUND, 90).unwrap();
         let img = image::load_from_memory(&jpeg).unwrap().to_rgb8();
         assert_eq!(img.dimensions(), (800, 480));
         // Turned 180°: red is now on the right, and black on the left.
@@ -375,13 +416,67 @@ mod tests {
     fn background_file_accepts_a_jpeg() {
         let src = RgbImage::from_pixel(80, 48, Rgb([0, 0, 255]));
         let jpeg_in = encode_jpeg(&src, 90).unwrap();
-        let jpeg = render_background_file(&jpeg_in, 800, 480, 90).unwrap();
+        let jpeg = render_background_file(&jpeg_in, &BACKGROUND, 90).unwrap();
         let img = image::load_from_memory(&jpeg).unwrap().to_rgb8();
         assert_near(&img, 400, 240, [0, 0, 255]);
     }
 
     #[test]
     fn background_file_refuses_data_that_is_not_an_image() {
-        assert!(render_background_file(b"not an image", 800, 480, 60).is_err());
+        assert!(render_background_file(b"not an image", &BACKGROUND, 60).is_err());
+    }
+
+    /// An upright image of the size of `surface`: red in the top left
+    /// quarter, blue in the other parts.
+    fn quarter_image(surface: &Surface) -> RgbImage {
+        let (w, h) = (surface.width as u32, surface.height as u32);
+        RgbImage::from_fn(w, h, |x, y| {
+            if x < w / 2 && y < h / 2 {
+                Rgb([255, 0, 0])
+            } else {
+                Rgb([0, 0, 255])
+            }
+        })
+    }
+
+    #[test]
+    fn encode_for_uses_the_format_and_the_rotation_of_the_surface() {
+        // PNG, turned 180°: the red quarter is now at the bottom right.
+        let png = encode_for(&KEY_FACE, &quarter_image(&KEY_FACE), 60).unwrap();
+        assert_eq!(&png[..4], b"\x89PNG");
+        let img = image::load_from_memory(&png).unwrap().to_rgb8();
+        assert_eq!(img.dimensions(), (112, 112));
+        assert_eq!(img.get_pixel(100, 100).0, [255, 0, 0]);
+        assert_eq!(img.get_pixel(10, 10).0, [0, 0, 255]);
+
+        // JPEG, not turned: the red quarter stays at the top left.
+        let upright = Surface {
+            format: ImageFormat::Jpeg,
+            rotation: Rotation::Deg0,
+            ..KEY_FACE
+        };
+        let jpeg = encode_for(&upright, &quarter_image(&upright), 90).unwrap();
+        assert_eq!(&jpeg[..3], &[0xFF, 0xD8, 0xFF], "JPEG start marker");
+        let img = image::load_from_memory(&jpeg).unwrap().to_rgb8();
+        assert_near(&img, 10, 10, [255, 0, 0]);
+        assert_near(&img, 100, 100, [0, 0, 255]);
+    }
+
+    #[test]
+    fn test_surface_and_solid_have_the_size_of_the_surface() {
+        let bar_panel = Surface {
+            id: SurfaceId::new(SurfaceKind::BarPanel, 1),
+            width: 176,
+            ..KEY_FACE
+        };
+        for surface in [KEY_FACE, bar_panel] {
+            for data in [
+                render_test_surface(&surface, 12, [10, 20, 30]).unwrap(),
+                render_solid(&surface, [10, 20, 30]).unwrap(),
+            ] {
+                let img = image::load_from_memory(&data).unwrap().to_rgb8();
+                assert_eq!(img.dimensions(), (surface.width as u32, 112));
+            }
+        }
     }
 }

@@ -64,38 +64,45 @@ impl<T: Transport> Device<T> {
         self.transport.write(&payload)
     }
 
-    /// Send an image to a slot: header packet, then payload chunks.
-    pub fn send_image(&mut self, slot: u8, png: &[u8]) -> Result<()> {
-        self.send(protocol::image_header(image_len(png)?, slot))?;
-        self.send_parts(png)
+    /// Send an image to the surface with the slot `slot`: the header, then
+    /// the data in parts. Send [`Self::commit`] after the images.
+    ///
+    /// The image must be ready for the surface: see
+    /// [`crate::image::encode_for`]. A slot that is not in the descriptor
+    /// gives [`Error::NoSuchSlot`], and the method sends nothing.
+    pub fn send_image(&mut self, slot: u8, image: &[u8]) -> Result<()> {
+        if self.descriptor.surface_at_slot(slot).is_none() {
+            return Err(Error::NoSuchSlot(slot));
+        }
+        self.send(protocol::image_header(image_len(image)?, slot))?;
+        self.send_parts(image)
     }
 
-    /// Send a JPEG to the background of the device. Send [`Self::commit`]
+    /// Send an image to the background of the device. Send [`Self::commit`]
     /// after it, as for the key faces.
     ///
-    /// The image must have the background size of the descriptor, and it must
-    /// be turned 180° (see [`crate::image::render_background_test`]). The
-    /// method puts the image at 0, 0 on frame buffer layer 0, as the SDK does
-    /// for a full background. The SDK calls this image a temporary
-    /// background, and sends one for each frame of an animation. This is not
-    /// the boot logo.
-    pub fn send_background(&mut self, jpeg: &[u8]) -> Result<()> {
-        let bg = self.descriptor.background.ok_or(Error::NoBackground)?;
+    /// The image must be ready for the background surface of the descriptor
+    /// (see [`crate::image::render_background_test`]). The method puts the
+    /// image at 0, 0 on frame buffer layer 0, as the SDK does for a full
+    /// background. The SDK calls this image a temporary background, and sends
+    /// one for each frame of an animation. This is not the boot logo.
+    pub fn send_background(&mut self, image: &[u8]) -> Result<()> {
+        let bg = self.descriptor.background().ok_or(Error::NoBackground)?;
         self.send(protocol::background_header(
-            image_len(jpeg)?,
+            image_len(image)?,
             0,
             0,
             bg.width,
             bg.height,
             0,
         ))?;
-        self.send_parts(jpeg)
+        self.send_parts(image)
     }
 
     /// Remove the background image. The SDK uses layer `0x03` for this. Send
     /// [`Self::commit`] after it.
     pub fn clear_background(&mut self) -> Result<()> {
-        if self.descriptor.background.is_none() {
+        if self.descriptor.background().is_none() {
             return Err(Error::NoBackground);
         }
         self.send(protocol::clear_background(0x03))
@@ -416,7 +423,7 @@ mod tests {
     #[test]
     fn background_needs_a_background_in_the_descriptor() {
         static NO_BACKGROUND: Descriptor = Descriptor {
-            background: None,
+            surfaces: &[],
             ..DESCRIPTORS[0]
         };
         let mut fake = FakeTransport::new();
@@ -453,6 +460,20 @@ mod tests {
             Err(Error::Transport(message)) => assert_eq!(message, "device unplugged"),
             other => panic!("expected a transport error, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn send_image_refuses_a_slot_that_is_not_in_the_descriptor() {
+        let mut fake = FakeTransport::new();
+        let mut dev = Device::new(&mut fake, &DESCRIPTORS[0]);
+        // The N4 Pro does not use slot 5.
+        for slot in [0, 5, 16, 0xFF] {
+            assert!(
+                matches!(dev.send_image(slot, &[1, 2, 3]), Err(Error::NoSuchSlot(s)) if s == slot),
+                "slot {slot}"
+            );
+        }
+        assert!(fake.writes().is_empty());
     }
 
     #[test]

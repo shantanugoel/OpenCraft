@@ -62,7 +62,7 @@ pub fn clear_slot(slot: u8) -> Vec<u8> {
     v
 }
 
-/// Put the panel to sleep.
+/// Put the device to sleep.
 pub fn sleep() -> Vec<u8> {
     cmd(b"HAN")
 }
@@ -79,7 +79,8 @@ pub fn set_mode(mode: u8) -> Vec<u8> {
     v
 }
 
-/// Haptic feedback (N4 Pro family only).
+/// Haptic feedback. The SDK has this command for the N4 Pro. The descriptor
+/// does not say which models have haptic feedback.
 pub fn set_vibration(enabled: bool) -> Vec<u8> {
     let vib = if enabled { 0x11 } else { 0xFF };
     let mut v = cmd(b"QUCMD");

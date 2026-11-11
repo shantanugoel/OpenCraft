@@ -5,7 +5,8 @@ VSD / Mirabox StreamDock controllers. Rust, no Electron, no embedded Chromium.
 
 > **Status: bring-up verified on real hardware.**
 > `opencraft-probe` enumerates a VSD StreamDock N4 Pro, reads its firmware,
-> paints all 14 panels, and decodes live input — without the vendor software.
+> draws on all 14 key faces and bar panels and on the background, and decodes
+> live input — without the vendor software.
 
 ---
 
@@ -14,21 +15,21 @@ VSD / Mirabox StreamDock controllers. Rust, no Electron, no embedded Chromium.
 ```sh
 cargo build --release
 ./target/release/opencraft-probe list        # what is on the USB bus
-./target/release/opencraft-probe identify    # open it, dump identity + firmware
-./target/release/opencraft-probe test        # paint every panel, then decode input
+./target/release/opencraft-probe identify    # open it, show identity, firmware, surfaces, controls
+./target/release/opencraft-probe test        # draw on each surface, then decode input
 ```
 
 `test` numbers every display with its slot number, so you can map physical
 keys to protocol slots. Press keys, turn knobs and swipe the touch bar while it
-runs; each event prints with its decoded meaning. Panels are blanked on exit
-(add `--keep` to leave the pattern up).
+runs. The probe prints each input event: the control and the gesture. On exit,
+the probe clears all slots (add `--keep` to leave the pattern up).
 
 ### Probe commands
 
 | Command | What it does |
 |---|---|
 | `list` | Enumerate HID devices, flag supported controllers |
-| `identify` | Open the device, print firmware + panel geometry |
+| `identify` | Open the device. Print the firmware version, and the surfaces and the controls of the descriptor. |
 | `test` | Paint all slots, then decode input for `--seconds` |
 | `listen` | Decode input only |
 | `draw <slot> <rrggbb>` | Paint one slot a solid colour |
@@ -50,7 +51,7 @@ Options of `background`:
 |---|---|
 | `--file <path>` | Draw this PNG or JPEG file, not the test pattern |
 | `--quality <1-100>` | JPEG quality. The default is 60, the value of the vendor SDK. |
-| `--with-panels` | After the background, draw the numbered key faces and bar panels |
+| `--with-surfaces` | After the background, draw the numbered key faces and bar panels |
 | `--clear` | Remove the background image |
 | `--init` | Send the start commands first. This is necessary after a new connection. |
 | `--hold <n>` | Keep the connection for `<n>` seconds, so that the image stays |
@@ -84,11 +85,11 @@ To record the input of every control, run `scripts/record-input.sh`. It runs
 | Firmware | `V4.VSD N4 Pro.02.010` |
 | Control interface | interface 0, usage page `0xFFA0`, 512 B in / 1024 B out |
 | Keyboard interface | interface 1, usage page `0x0001` — **do not open** (triggers TCC) |
-| Panels | 10 × 112×112 keys (slots 6–15) + 4 × 176×112 touch-bar panels (slots 1–4) |
+| Surfaces | 10 key faces of 112 × 112 (slots 6 to 15), 4 bar panels of 176 × 112 (slots 1 to 4), 1 background of 800 × 480 |
 | Protocol | StreamDock v3, 1024-byte output reports |
 
 The probe decodes input from the keys, the knobs, and the touch bar. The 4
-panels in slots 1–4 are the display of the touch bar. The `background`
+bar panels in slots 1 to 4 are the display of the touch bar. The `background`
 command sends the 800×480 background image. The confidence of each background
 fact is in
 [docs/kb/streamdock-protocol.md](docs/kb/streamdock-protocol.md#background-image).
@@ -100,7 +101,7 @@ The full hardware facts are in
 ## Layout
 
 ```
-crates/core/     device descriptors, transport (HID and fake), protocol, panel rendering
+crates/core/     device descriptors, transport (HID and fake), protocol, input decoding, surface images
 crates/cli/      opencraft-probe — hardware bring-up tool
 scripts/         record-input.sh — guided recording of input reports
 docs/            architecture, roadmap, decision records, knowledge base

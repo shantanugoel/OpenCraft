@@ -1,126 +1,490 @@
-//! Device descriptors.
+//! Device descriptors: the static data that describes one device model.
 //!
-//! One table entry per VID:PID. Everything above this layer works in terms of
-//! *slots* (addressable displays) and *codes* (raw input bytes from the device).
+//! The descriptor table is the only place in the device layer that knows a
+//! specific model (architecture rule 4). A new model is a new table entry.
+//!
+//! A descriptor lists:
+//!
+//! - the **surfaces**: the areas on which the application can draw (key face,
+//!   bar panel, background), with the slot, the size, the image format, and
+//!   the rotation of each;
+//! - the **controls**: the parts that the user operates (key, knob, bar panel,
+//!   touch bar), with the input code of each gesture, the place of the control,
+//!   and the surface of the control, if it has one.
+//!
+//! The format of a report is the protocol, not the model. It is in
+//! [`crate::events`]. Only the codes are model data.
+//!
+//! The facts of the N4 Pro are in `docs/kb/n4-pro-hardware.md`.
 
-/// What a display slot physically is.
+use crate::protocol;
+use std::fmt;
+
+// --- Surfaces ----------------------------------------------------------------
+
+/// The kind of a surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SurfaceKind {
+    /// The display of a key.
+    KeyFace,
+    /// One part of the display of the touch bar.
+    BarPanel,
+    /// The full display behind the key faces and the bar panels.
+    Background,
+}
+
+impl SurfaceKind {
+    /// The name of the kind, in the terms of the architecture.
+    pub fn name(self) -> &'static str {
+        match self {
+            SurfaceKind::KeyFace => "key face",
+            SurfaceKind::BarPanel => "bar panel",
+            SurfaceKind::Background => "background",
+        }
+    }
+}
+
+/// The identity of a surface: its kind and its number. The numbers of each
+/// kind start at 1. The identity does not change when the table order
+/// changes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SurfaceId {
+    pub kind: SurfaceKind,
+    pub number: u8,
+}
+
+impl SurfaceId {
+    pub const fn new(kind: SurfaceKind, number: u8) -> Self {
+        Self { kind, number }
+    }
+}
+
+impl fmt::Display for SurfaceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.kind.name(), self.number)
+    }
+}
+
+/// The image format that the device accepts for a surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ImageFormat {
+    Png,
+    Jpeg,
+}
+
+impl ImageFormat {
+    pub fn name(self) -> &'static str {
+        match self {
+            ImageFormat::Png => "PNG",
+            ImageFormat::Jpeg => "JPEG",
+        }
+    }
+}
+
+/// The turn that the device needs: the device layer turns an upright image by
+/// this angle before it sends the image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Rotation {
+    Deg0,
+    Deg180,
+}
+
+impl Rotation {
+    pub fn degrees(self) -> u16 {
+        match self {
+            Rotation::Deg0 => 0,
+            Rotation::Deg180 => 180,
+        }
+    }
+}
+
+/// An area of the device on which the application can draw.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PanelKind {
-    /// A key face (112x112 on the N4 Pro family).
+pub struct Surface {
+    pub id: SurfaceId,
+    /// The slot number that the firmware uses for the surface. A background
+    /// has no slot: it has a different command.
+    pub slot: Option<u8>,
+    /// The size of the image, in pixels.
+    pub width: u16,
+    pub height: u16,
+    pub format: ImageFormat,
+    pub rotation: Rotation,
+}
+
+impl Surface {
+    pub fn kind(&self) -> SurfaceKind {
+        self.id.kind
+    }
+}
+
+// --- Controls ----------------------------------------------------------------
+
+/// The kind of a control.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ControlKind {
     Key,
-    /// The small display beside a knob (176x112 on the N4 Pro family).
     Knob,
+    /// The part of the touch bar that a tap identifies. A bar panel control
+    /// has a bar panel surface.
+    BarPanel,
+    TouchBar,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Panel {
-    /// Slot number as understood by the firmware (1-based, sent as-is).
-    pub slot: u8,
-    pub width: u16,
-    pub height: u16,
-    pub kind: PanelKind,
+impl ControlKind {
+    /// The name of the kind, in the terms of the architecture.
+    pub fn name(self) -> &'static str {
+        match self {
+            ControlKind::Key => "key",
+            ControlKind::Knob => "knob",
+            ControlKind::BarPanel => "bar panel",
+            ControlKind::TouchBar => "touch bar",
+        }
+    }
 }
 
-/// The background: one image behind the key faces. The area where it shows
-/// is not measured.
+/// The identity of a control: its kind and its number. The numbers of each
+/// kind start at 1.
 ///
-/// The SDK sends the background as a JPEG, turned 180° as the other surfaces.
-/// See `docs/kb/n4-pro-hardware.md`, section "Surfaces".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Background {
-    pub width: u16,
-    pub height: u16,
+/// The engine finds a binding by the control identity and the gesture. The
+/// identity is 2 bytes, so it is cheap to copy, to compare, and to use as a
+/// key in a map.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ControlId {
+    pub kind: ControlKind,
+    pub number: u8,
 }
 
+impl ControlId {
+    pub const fn new(kind: ControlKind, number: u8) -> Self {
+        Self { kind, number }
+    }
+}
+
+impl fmt::Display for ControlId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.kind.name(), self.number)
+    }
+}
+
+/// The input codes of a control: one code for each gesture. The device sends
+/// the code at byte 9 of a control report. The meaning of the state byte is
+/// the protocol. See [`crate::events`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputCodes {
+    /// One code for the press and the release.
+    Key { code: u8 },
+    /// One code for each direction of a turn, and one code for a push.
+    Knob {
+        turn_left: u8,
+        turn_right: u8,
+        push: u8,
+    },
+    /// The code of a tap on the bar panel.
+    BarPanel { tap: u8 },
+    /// The codes of the touch bar. The touch reports have no code: they belong
+    /// to the touch bar of the descriptor.
+    TouchBar {
+        /// A finger touches the touch bar.
+        touch_start: u8,
+        /// The finger lifts after a move to the right.
+        swipe_right: u8,
+        /// The finger lifts after a move to the left.
+        swipe_left: u8,
+        /// The finger lifts, and the device did not identify the gesture.
+        touch_end: u8,
+    },
+}
+
+impl InputCodes {
+    pub fn kind(&self) -> ControlKind {
+        match self {
+            InputCodes::Key { .. } => ControlKind::Key,
+            InputCodes::Knob { .. } => ControlKind::Knob,
+            InputCodes::BarPanel { .. } => ControlKind::BarPanel,
+            InputCodes::TouchBar { .. } => ControlKind::TouchBar,
+        }
+    }
+
+    /// True if `code` is one of the codes of the control.
+    pub fn has(&self, code: u8) -> bool {
+        match *self {
+            InputCodes::Key { code: c } => c == code,
+            InputCodes::Knob {
+                turn_left,
+                turn_right,
+                push,
+            } => code == turn_left || code == turn_right || code == push,
+            InputCodes::BarPanel { tap } => code == tap,
+            InputCodes::TouchBar {
+                touch_start,
+                swipe_right,
+                swipe_left,
+                touch_end,
+            } => [touch_start, swipe_right, swipe_left, touch_end].contains(&code),
+        }
+    }
+
+    /// All codes of the control.
+    pub fn all(&self) -> Vec<u8> {
+        match *self {
+            InputCodes::Key { code } => vec![code],
+            InputCodes::Knob {
+                turn_left,
+                turn_right,
+                push,
+            } => vec![turn_left, turn_right, push],
+            InputCodes::BarPanel { tap } => vec![tap],
+            InputCodes::TouchBar {
+                touch_start,
+                swipe_right,
+                swipe_left,
+                touch_end,
+            } => vec![touch_start, swipe_right, swipe_left, touch_end],
+        }
+    }
+}
+
+/// The place of a control among the controls of the same kind. Row 1 is the
+/// top row. Column 1 is the left column.
+///
+/// The descriptor holds only the places that are measured with certainty.
+/// The place of one kind of control relative to a different kind, and the
+/// pixel area of each display window, are not in the descriptor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Position {
+    pub row: u8,
+    pub column: u8,
+}
+
+/// A part of the device that the user operates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Control {
+    /// The number of the control among the controls of its kind. The kind
+    /// comes from the codes. See [`Control::id`].
+    pub number: u8,
+    pub codes: InputCodes,
+    pub position: Position,
+    /// The surface of the control, if the control has a display.
+    pub surface: Option<SurfaceId>,
+}
+
+impl Control {
+    pub fn id(&self) -> ControlId {
+        ControlId::new(self.kind(), self.number)
+    }
+
+    pub fn kind(&self) -> ControlKind {
+        self.codes.kind()
+    }
+}
+
+// --- Descriptor --------------------------------------------------------------
+
+/// The static data that describes one device model.
 #[derive(Debug, Clone, Copy)]
 pub struct Descriptor {
     pub name: &'static str,
     pub vid: u16,
     pub pid: u16,
-    /// Output report payload size. 1024 = protocol v3 (N4 Pro family).
+    /// Output report payload size.
     pub packet_size: usize,
-    pub panels: &'static [Panel],
-    /// The background, if the model has one.
-    pub background: Option<Background>,
+    pub surfaces: &'static [Surface],
+    pub controls: &'static [Control],
     /// Some rebrands need an explicit mode switch before they accept commands.
     pub required_mode: Option<u8>,
 }
 
 impl Descriptor {
-    pub fn panel(&self, slot: u8) -> Option<&'static Panel> {
-        self.panels.iter().find(|p| p.slot == slot)
+    pub fn surface(&self, id: SurfaceId) -> Option<&'static Surface> {
+        self.surfaces.iter().find(|s| s.id == id)
+    }
+
+    /// The surface that has the slot `slot`.
+    pub fn surface_at_slot(&self, slot: u8) -> Option<&'static Surface> {
+        self.surfaces.iter().find(|s| s.slot == Some(slot))
+    }
+
+    /// The surfaces that have a slot, in table order.
+    pub fn slot_surfaces(&self) -> impl Iterator<Item = &'static Surface> {
+        self.surfaces.iter().filter(|s| s.slot.is_some())
+    }
+
+    /// The background, if the model has one.
+    pub fn background(&self) -> Option<&'static Surface> {
+        self.surfaces
+            .iter()
+            .find(|s| s.kind() == SurfaceKind::Background)
+    }
+
+    pub fn control(&self, id: ControlId) -> Option<&'static Control> {
+        self.controls.iter().find(|c| c.id() == id)
+    }
+
+    /// The controls of one kind, in table order.
+    pub fn controls_of(&self, kind: ControlKind) -> impl Iterator<Item = &'static Control> {
+        self.controls.iter().filter(move |c| c.kind() == kind)
     }
 }
 
-const fn key(slot: u8) -> Panel {
-    Panel {
-        slot,
+// --- The table ---------------------------------------------------------------
+
+const fn key_face(number: u8, slot: u8) -> Surface {
+    Surface {
+        id: SurfaceId::new(SurfaceKind::KeyFace, number),
+        slot: Some(slot),
         width: 112,
         height: 112,
-        kind: PanelKind::Key,
+        format: ImageFormat::Png,
+        rotation: Rotation::Deg180,
     }
 }
 
-const fn knob(slot: u8) -> Panel {
-    Panel {
-        slot,
+const fn bar_panel_surface(number: u8) -> Surface {
+    Surface {
+        id: SurfaceId::new(SurfaceKind::BarPanel, number),
+        slot: Some(number),
         width: 176,
         height: 112,
-        kind: PanelKind::Knob,
+        format: ImageFormat::Png,
+        rotation: Rotation::Deg180,
     }
 }
 
-/// N4 Pro: 10 keys (slots 6..=15) + 4 knob displays (slots 1..=4).
-/// Slot 5 is deliberately unused by the vendor firmware.
-static N4PRO_PANELS: &[Panel] = &[
-    knob(1),
-    knob(2),
-    knob(3),
-    knob(4),
-    key(6),
-    key(7),
-    key(8),
-    key(9),
-    key(10),
-    key(11),
-    key(12),
-    key(13),
-    key(14),
-    key(15),
+/// N4 Pro: 4 bar panels (slots 1 to 4, from left to right), 10 key faces
+/// (slots 11 to 15 in the top row and 6 to 10 in the second row, from left to
+/// right), and the 800 × 480 background. Slot 5 is not used.
+static N4PRO_SURFACES: &[Surface] = &[
+    bar_panel_surface(1),
+    bar_panel_surface(2),
+    bar_panel_surface(3),
+    bar_panel_surface(4),
+    key_face(1, 11),
+    key_face(2, 12),
+    key_face(3, 13),
+    key_face(4, 14),
+    key_face(5, 15),
+    key_face(6, 6),
+    key_face(7, 7),
+    key_face(8, 8),
+    key_face(9, 9),
+    key_face(10, 10),
+    Surface {
+        id: SurfaceId::new(SurfaceKind::Background, 1),
+        slot: None,
+        width: 800,
+        height: 480,
+        format: ImageFormat::Jpeg,
+        rotation: Rotation::Deg180,
+    },
 ];
 
-/// N4 Pro: the 800 x 480 background (Source: SDK, not measured).
-const N4PRO_BACKGROUND: Option<Background> = Some(Background {
-    width: 800,
-    height: 480,
-});
+/// Key `number` in a grid of 5 columns, with the key face of the same
+/// number.
+const fn n4pro_key(number: u8, code: u8) -> Control {
+    Control {
+        number,
+        codes: InputCodes::Key { code },
+        position: Position {
+            row: (number - 1) / 5 + 1,
+            column: (number - 1) % 5 + 1,
+        },
+        surface: Some(SurfaceId::new(SurfaceKind::KeyFace, number)),
+    }
+}
+
+const fn knob(number: u8, turn_left: u8, turn_right: u8, push: u8) -> Control {
+    Control {
+        number,
+        codes: InputCodes::Knob {
+            turn_left,
+            turn_right,
+            push,
+        },
+        position: Position {
+            row: 1,
+            column: number,
+        },
+        surface: None,
+    }
+}
+
+const fn bar_panel(number: u8, tap: u8) -> Control {
+    Control {
+        number,
+        codes: InputCodes::BarPanel { tap },
+        position: Position {
+            row: 1,
+            column: number,
+        },
+        surface: Some(SurfaceId::new(SurfaceKind::BarPanel, number)),
+    }
+}
+
+/// N4 Pro: the controls and the input codes. All codes are measured. Keys 1 to
+/// 5 are the top row and keys 6 to 10 are the second row, from left to right.
+/// Knobs 1 to 4 and bar panels 1 to 4 are from left to right.
+static N4PRO_CONTROLS: &[Control] = &[
+    n4pro_key(1, 0x01),
+    n4pro_key(2, 0x02),
+    n4pro_key(3, 0x03),
+    n4pro_key(4, 0x04),
+    n4pro_key(5, 0x05),
+    n4pro_key(6, 0x06),
+    n4pro_key(7, 0x07),
+    n4pro_key(8, 0x08),
+    n4pro_key(9, 0x09),
+    n4pro_key(10, 0x0A),
+    knob(1, 0xA0, 0xA1, 0x37),
+    knob(2, 0x50, 0x51, 0x35),
+    knob(3, 0x90, 0x91, 0x33),
+    knob(4, 0x70, 0x71, 0x36),
+    bar_panel(1, 0x40),
+    bar_panel(2, 0x41),
+    bar_panel(3, 0x42),
+    bar_panel(4, 0x43),
+    Control {
+        number: 1,
+        codes: InputCodes::TouchBar {
+            touch_start: 0x00,
+            swipe_right: 0x38,
+            swipe_left: 0x39,
+            touch_end: 0xB2,
+        },
+        position: Position { row: 1, column: 1 },
+        // The bar panels are the display of the touch bar.
+        surface: None,
+    },
+];
 
 pub static DESCRIPTORS: &[Descriptor] = &[
     Descriptor {
         name: "VSD StreamDock N4 Pro",
         vid: 0x5548,
         pid: 0x1023,
-        packet_size: 1024,
-        panels: N4PRO_PANELS,
-        background: N4PRO_BACKGROUND,
+        packet_size: protocol::PACKET_SIZE,
+        surfaces: N4PRO_SURFACES,
+        controls: N4PRO_CONTROLS,
         required_mode: None,
     },
+    // Not tested on hardware. The same data as 0x1023.
     Descriptor {
         name: "StreamDock N4 Pro (0x1008)",
         vid: 0x5548,
         pid: 0x1008,
-        packet_size: 1024,
-        panels: N4PRO_PANELS,
-        background: N4PRO_BACKGROUND,
+        packet_size: protocol::PACKET_SIZE,
+        surfaces: N4PRO_SURFACES,
+        controls: N4PRO_CONTROLS,
         required_mode: None,
     },
+    // Not tested on hardware. The same data as 0x1023.
     Descriptor {
         name: "StreamDock N4 Pro (0x1021)",
         vid: 0x5548,
         pid: 0x1021,
-        packet_size: 1024,
-        panels: N4PRO_PANELS,
-        background: N4PRO_BACKGROUND,
+        packet_size: protocol::PACKET_SIZE,
+        surfaces: N4PRO_SURFACES,
+        controls: N4PRO_CONTROLS,
         required_mode: None,
     },
 ];

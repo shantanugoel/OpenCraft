@@ -5,7 +5,8 @@ Last update: 2026-11-11
 This entry gives the protocol that the N4 Pro family uses. The device facts are
 in [n4-pro-hardware.md](n4-pro-hardware.md). The code is in `crates/core/src/`.
 `protocol.rs` makes the commands. `connection.rs` sends the commands and the
-images. `events.rs` decodes the input reports. `transport/hid.rs` contains the
+images. `events.rs` decodes the input reports. It gets the input codes of the
+model from the descriptor in `device.rs`. `transport/hid.rs` contains the
 `hidapi` I/O.
 
 ## Reports
@@ -145,7 +146,7 @@ codes of the N4 Pro are in
 | After the device stops the connection, its displays are blank. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and a draw of the 14 key faces and bar panels then takes approximately 175 ms. | Measured: 2 times | Probe and owner, 2026-11-11 |
 | The bring-up in Phase 0 passed with no `CONNECT`, because its test was 30 seconds | Inference | The rows above |
 | `opendeck-akp05` sends a clear command and then `HAN` when it stops | Source | Its source code |
-| After the probe draws the panels and stops with no clear command, the panels go blank after a short time. The cause is possibly the same 35 seconds. | Measured (the blank panels), Inference (the cause) | Owner, 2026-11-11 |
+| After the probe draws the key faces and the bar panels and stops with no clear command, they go blank after a short time. The cause is possibly the same 35 seconds. | Measured (the blank surfaces), Inference (the cause) | Owner, 2026-11-11 |
 | The device sent no input report in answer to the draw commands or to `CONNECT` during 100 seconds | Measured | Probe, 2026-11-11 |
 | The SDK README refers to `ACK` and `OK` in input reports for newer protocol versions | Source | SDK README |
 
