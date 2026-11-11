@@ -228,12 +228,12 @@ fn the_n4_pro_has_the_measured_controls_and_surfaces() {
     assert_eq!(count(ControlKind::TouchBar), 1);
     assert_eq!(d.controls.len(), 19);
 
-    // Key face: 112 x 112, PNG. Bar panel: 176 x 112, PNG. Background:
-    // 800 x 480, JPEG. All are turned 180°.
+    // Key face: 112 x 112. Bar panel: 176 x 112. Background: 800 x 480. All
+    // are JPEG (decision 0007), and all are turned 180°.
     let surfaces = |kind| d.surfaces.iter().filter(move |s| s.kind() == kind);
     for (kind, n, size, format) in [
-        (SurfaceKind::KeyFace, 10, (112, 112), ImageFormat::Png),
-        (SurfaceKind::BarPanel, 4, (176, 112), ImageFormat::Png),
+        (SurfaceKind::KeyFace, 10, (112, 112), ImageFormat::Jpeg),
+        (SurfaceKind::BarPanel, 4, (176, 112), ImageFormat::Jpeg),
         (SurfaceKind::Background, 1, (800, 480), ImageFormat::Jpeg),
     ] {
         assert_eq!(surfaces(kind).count(), n, "{kind:?}");
@@ -279,5 +279,39 @@ fn the_decoder_source_has_no_input_code_of_the_n4_pro() {
                 c.id()
             );
         }
+    }
+}
+
+/// The device shows no slot image that is too large, and it gives no error.
+/// The largest slot image that our device showed had 58 187 bytes, and an
+/// image of 60 969 bytes did not show (`docs/kb/streamdock-protocol.md`,
+/// "Image transfer"). Noise is the worst case for a JPEG. With the quality of
+/// decision 0007, noise on each key face and each bar panel must stay below
+/// that size. If this test fails, a quality or a surface size changed, and a
+/// user image can then show nothing on the device.
+#[test]
+fn the_largest_slot_image_is_below_the_limit_of_the_device() {
+    const LARGEST_SHOWN: usize = 58_187;
+    let d = device::find(0x5548, 0x1023).unwrap();
+    for s in d.slot_surfaces() {
+        // Noise from a fixed linear congruential generator.
+        let mut state = 0x2545_F491u32;
+        let mut img = image::RgbImage::new(s.width as u32, s.height as u32);
+        for p in img.pixels_mut() {
+            for c in p.0.iter_mut() {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                *c = (state >> 24) as u8;
+            }
+        }
+        let quality = opencraft_core::image::jpeg_quality_for(s);
+        let data = opencraft_core::image::encode_for(s, &img, quality).unwrap();
+        assert!(
+            data.len() < LARGEST_SHOWN,
+            "{}: noise is {} bytes at quality {quality}",
+            s.id,
+            data.len()
+        );
+        // The check has a meaning only if noise is a large image.
+        assert!(data.len() > 10_000, "{}: {} bytes", s.id, data.len());
     }
 }
