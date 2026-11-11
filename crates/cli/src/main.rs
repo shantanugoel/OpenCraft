@@ -123,7 +123,8 @@ OPTIONS FOR 'background':
     --quality <1-100>    JPEG quality (default: 60, the value of the vendor SDK)
     --with-surfaces      Then draw the numbered key faces and bar panels on top
     --clear              Remove the background image. Draw nothing.
-    --init               Send the start commands before the background
+    --init               Send the start sequence before the background (it
+                         clears all slots)
     --hold <n>           Keep the connection for <n> seconds after the draw
 
 OPTIONS FOR 'send', 'bars', 'wide' AND 'repaint':
@@ -133,9 +134,10 @@ OPTIONS FOR 'send', 'bars', 'wide' AND 'repaint':
                          its displays go blank.
     --keep-alive <n>     The keep-alive interval in seconds for --hold
                          (default: 10). 0 sends no keep-alive.
-    --no-init            'bars', 'wide' and 'repaint' send the start commands
-                         (DIS, then the brightness command) before they draw.
-                         This option skips them.
+    --no-init            'bars', 'wide' and 'repaint' send the start sequence
+                         (DIS, the brightness command, then the clear command
+                         for all slots) before they draw. This option skips
+                         it.
     --brightness <0-100> The brightness of the start commands (default: 80)
 
 OPTIONS FOR 'send':
@@ -485,12 +487,18 @@ fn draw_test_pattern(
     draw_slot_surfaces(t)
 }
 
-/// Send the start commands: `DIS`, then the brightness command. After a new
-/// connection, the displays show nothing until these commands go out.
+/// Send the start sequence: `DIS`, the brightness command, then the clear
+/// command for all slots and the commit.
+///
+/// The clear is necessary. If a commit went to the device before the first
+/// `DIS` of the connection, the device does not show the slot images that
+/// arrive after `DIS`, until it gets the clear command for all slots
+/// (measured). See `docs/kb/streamdock-protocol.md`, "Start sequence".
 fn start_display<T: Transport>(t: &mut Device<T>, brightness: u8) -> opencraft_core::Result<()> {
     t.init()?;
     std::thread::sleep(Duration::from_millis(150));
-    t.set_brightness(brightness)
+    t.set_brightness(brightness)?;
+    t.clear_all()
 }
 
 /// Draw its slot number on each surface that has a slot, give each knob light
@@ -632,7 +640,7 @@ fn cmd_background(rest: &[String]) -> AnyResult {
     if rest.iter().any(|a| a == "--init") {
         // The same start as the test command.
         start_display(&mut t, 80)?;
-        println!("  init   : DIS, then brightness 80%");
+        println!("  init   : DIS, brightness 80%, then the clear command for all slots");
     }
 
     t.send_background(&data)?;
@@ -830,5 +838,36 @@ mod tests {
         assert_eq!(flag_str(&a, "--note"), Some("key 6 press"));
         assert_eq!(flag_str(&a, "--seconds"), None);
         assert_eq!(flag_str(&args(&["--save"]), "--save"), None);
+    }
+
+    fn n4pro() -> &'static Descriptor {
+        opencraft_core::device::find(0x5548, 0x1023).unwrap()
+    }
+
+    #[test]
+    fn start_display_clears_all_slots_after_the_start_command() {
+        // The clear command for all slots must follow `DIS`. Without it, the
+        // device can show no slot image (kb: "Start sequence").
+        let mut device = Device::new(opencraft_core::FakeTransport::new(), n4pro());
+        start_display(&mut device, 80).unwrap();
+        let sent: Vec<Vec<u8>> = device
+            .transport()
+            .writes()
+            .iter()
+            .map(|w| w[..12].to_vec())
+            .collect();
+        let want: Vec<Vec<u8>> = [
+            protocol::init(),
+            protocol::set_brightness(80),
+            protocol::clear_slot(0xFF),
+            protocol::commit(),
+        ]
+        .into_iter()
+        .map(|mut c| {
+            c.resize(12, 0);
+            c
+        })
+        .collect();
+        assert_eq!(sent, want);
     }
 }

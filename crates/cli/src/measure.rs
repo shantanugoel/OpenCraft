@@ -12,9 +12,8 @@
 //! blank. `--keep-alive <n>` changes the interval, and `0` stops the
 //! keep-alive.
 //!
-//! A command that draws sends the start commands first (`DIS`, then the
-//! brightness command), because the displays show nothing after a new
-//! connection without them. `--no-init` skips them.
+//! A command that draws sends the start sequence first (`DIS`, the brightness
+//! command, then the clear command for all slots). `--no-init` skips it.
 //!
 //! The code that writes to the device works with any transport, so the tests
 //! run it on a fake transport.
@@ -356,7 +355,7 @@ fn begin<T: Transport>(device: &mut Device<T>, args: &Args) -> Res<()> {
     } else {
         let brightness = args.brightness()?;
         start_display(device, brightness)?;
-        println!("  start  : DIS, then brightness {brightness}%");
+        println!("  start  : DIS, brightness {brightness}%, then the clear command for all slots");
     }
     Ok(())
 }

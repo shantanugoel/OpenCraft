@@ -111,8 +111,8 @@ recorded the result. No image caused an error or a restart of the device.
 
 A wide image did not show when it was the first draw after
 `opencraft-probe clear` on a new connection. The size of the image was not
-the cause. Issue #18 records the cause in
-[streamdock-protocol.md](streamdock-protocol.md).
+the cause. The cause was the commit before the start command. See
+[streamdock-protocol.md](streamdock-protocol.md#start-sequence).
 
 ### Transparency
 
