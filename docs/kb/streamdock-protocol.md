@@ -134,6 +134,31 @@ codes of the N4 Pro are in
 | The device sends a touch report each 35 ms while a finger is on the touch bar | Measured | Recordings |
 | Input code `0xFF` is an acknowledgement, not user input | Source | SDK |
 
+## Repaint time
+
+The probe command `repaint` measured these times on 2026-11-11, with 20
+repaints for each row. A repaint is all 14 key faces and bar panels, then one
+commit. The time is the time of the writes on the host. It is not the time
+until the device shows the images. No person looked at the device.
+
+| Images | Format | Bytes written for one repaint | Time: minimum, median, maximum | Confidence |
+|---|---|---|---|---|
+| 14 | PNG | Approximately 61 000 | 22.3 ms, 26.2 ms, 28.6 ms | Measured |
+| 14 | JPEG, quality 60 | Approximately 66 000 | 28.5 ms, 32.3 ms, 42.7 ms | Measured |
+| 14 | JPEG, quality 90 | Approximately 108 000 | 39.8 ms, 42.2 ms, 50.0 ms | Measured |
+| 1 key face | PNG | 5 125 | 1.9 ms, 2.3 ms, 11.1 ms | Measured |
+| 1 key face | JPEG, quality 60 | 5 125 to 6 150 | 1.8 ms, 2.2 ms, 3.8 ms | Measured |
+
+- The time increases with the number of bytes: approximately 0.4 ms for each
+  report of 1025 bytes. (Measured)
+- The device sent no acknowledgement and no other input report during the
+  repaints. (Measured)
+- The probe commands `test` and `raw --draw` print a longer time for a draw
+  (approximately 175 ms). That time includes a pause of 150 ms that the probe
+  makes after the start command. (Measured)
+- These times do not decide the image format. Issue #19 decides it after a
+  person looks at the device.
+
 ## Keep-alive and stop
 
 | Fact | Confidence | Source |
@@ -141,9 +166,10 @@ codes of the N4 Pro are in
 | The SDK and `opendeck-akp05` send `CONNECT` each 10 seconds | Source | Their source code |
 | The keep-alive is necessary. After the start commands and a draw, with no keep-alive, the device stops the USB connection approximately 35 seconds later. Input from the user does not change this time. | Measured | Probe, 2026-11-11: 35.1 s, 35.4 s, and 35.0 s after the draw |
 | With `CONNECT` each 10 seconds, the connection stays. The longest test was 125 seconds with `opencraft-probe test`. | Measured | Probe, 2026-11-11 |
+| With one `CONNECT` 30 seconds after a draw, the device stopped the connection 34.9 seconds after the draw. With one `CONNECT` 33 seconds after a draw, the result was the same. Thus the rule of the device is not "35 seconds after the last `CONNECT`". | Measured: 1 time for each interval | Probe, 2026-11-11: `bars --hold 120 --keep-alive 30`, and the same with 33 |
 | A draw does not start the 35 seconds again. In one test, the device stopped the connection 28.3 seconds after a full draw. The last `CONNECT` was some seconds before that draw. | Measured: 1 time | Probe, 2026-11-11 |
 | The clear command and the commit, sent to a device that has no timer in operation, do not start the timer. The device stayed on the bus for 75 seconds. | Measured: 1 time | Probe, 2026-11-11 |
-| After the device stops the connection, its displays are blank. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and a draw of the 14 key faces and bar panels then takes approximately 175 ms. | Measured: 2 times | Probe and owner, 2026-11-11 |
+| After the device stops the connection, its displays are blank. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and it then draws the key faces and the bar panels again. | Measured: 2 times | Probe and owner, 2026-11-11 |
 | The bring-up in Phase 0 passed with no `CONNECT`, because its test was 30 seconds | Inference | The rows above |
 | `opendeck-akp05` sends a clear command and then `HAN` when it stops | Source | Its source code |
 | After the probe draws the key faces and the bar panels and stops with no clear command, they go blank after a short time. The cause is possibly the same 35 seconds. | Measured (the blank surfaces), Inference (the cause) | Owner, 2026-11-11 |
@@ -161,14 +187,21 @@ seconds again.
 Measure these in Phase 1.
 
 - The longest interval between two keep-alive commands that keeps the
-  connection. Only 10 seconds is tested.
+  connection. 10 seconds keeps it. 30 seconds does not. No value between
+  them is tested.
+- The rule that the device uses for the keep-alive. One `CONNECT` at 30
+  seconds did not prevent the stop at 35 seconds.
 - Which commands start the timer of 35 seconds. A draw with the start commands
   starts it. The clear command does not.
 - What the device shows after the host process is killed.
 - Whether each command with the label "Sent" gives the correct result.
-- The time until the device shows a full draw. The time to send it is
-  approximately 175 ms.
-- Whether JPEG is quicker than PNG for a full repaint.
+- The time until the device shows a full draw. Only the time to send it is
+  measured. See "Repaint time".
+- Whether the device shows a JPEG key face correctly, and whether small text is
+  clear in a JPEG. The device accepted JPEG data with no error, but no person
+  looked at the device.
+- Which format is smaller for real icons. The test icon is a smooth gradient,
+  and PNG is smaller for it.
 - Whether the device accepts a `BAT` image larger than 65 535 bytes. The SDK
   writes a 4-byte length (Source).
 - Whether `STP` is necessary after `BGPIC`. The probe always sends it.
