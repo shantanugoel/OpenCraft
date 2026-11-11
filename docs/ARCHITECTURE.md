@@ -161,7 +161,6 @@ you make one, write a decision record and remove the row.
 | Decision | Phase | Note |
 |---|---|---|
 | Crate boundaries for the engine and the shell | 2 | The layers in section 4 are the limit. |
-| Form of the GPUI dependency, and the widget library | 2 | See [kb/gpui.md](kb/gpui.md). |
 | Profile file format | 2 | The GUI is the editor. The file stays readable. |
 | Library for text and icons on surfaces | 2 | |
 | Thread model in the engine | 2 | Rule 5 is the limit. |
