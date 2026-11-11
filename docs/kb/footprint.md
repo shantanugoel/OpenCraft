@@ -68,6 +68,16 @@ application 6 times. Each time is from that moment.
 - The profile had 2 surfaces with an image of the user. The engine decodes
   each image at the start.
 
+### Checks by the owner
+
+The owner used the application and the device on 2026-11-12.
+
+| Fact | Confidence |
+|---|---|
+| The window showed each key press, each knob turn and push, and each tap and swipe on the touch bar | Measured: owner |
+| A label and a colour from the window showed on the device at once, and the small text was good to read | Measured: owner |
+| The cable was disconnected for 3 seconds and connected again, while the owner moved the window. The window stayed responsive, and the device showed the profile again after approximately 7 seconds. | Measured: owner |
+
 ## Not known
 
 - The start time after a start of the computer, when the files of the
