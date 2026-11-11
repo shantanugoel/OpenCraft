@@ -479,6 +479,9 @@ fn describe(ev: &Event) -> String {
                 }
             )
         }
+        Event::TouchStart { x } => format!("touch down x={x}"),
+        Event::Tap { panel, x } => format!("tap        bar panel {panel} (x={x})"),
+        Event::TouchEnd => "touch up   (gesture not identified)".into(),
         Event::Touch { x, y } => format!("touch      ({x}, {y})"),
         Event::Ack => "ack".into(),
         Event::Unknown(_) => "unknown".into(),
