@@ -25,6 +25,10 @@ use std::time::Duration;
 /// (decision 0003). The trait is object-safe, so `Box<dyn Transport + Send>`
 /// is a transport too. A `&mut` reference to a transport is also a transport:
 /// a test can lend a [`FakeTransport`] to a device and examine it after.
+///
+/// When the device is gone, a call gives [`crate::Error::Disconnected`], and
+/// all later calls fail. Any other error can go away. [`crate::link::Link`]
+/// uses this difference to connect again.
 pub trait Transport {
     /// Write one output report. `report[0]` is the report ID.
     fn write(&mut self, report: &[u8]) -> Result<()>;

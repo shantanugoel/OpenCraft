@@ -5,7 +5,8 @@
 use super::Transport;
 use crate::device::{Descriptor, VENDOR_USAGE_PAGES};
 use crate::error::{Error, Result};
-use hidapi::{DeviceInfo, HidApi, HidDevice};
+use hidapi::{DeviceInfo, HidApi, HidDevice, HidError};
+use std::ffi::{CStr, CString};
 use std::time::Duration;
 
 /// A device we found on the bus.
@@ -104,10 +105,18 @@ pub fn list_devices() -> Result<Vec<Found>> {
 /// One open HID interface.
 ///
 /// The `hidapi` library state is process-global and is never released, so this
-/// type holds only the device handle. It is `Send`: the engine can move it to
-/// an I/O thread (architecture rule 5).
+/// type holds only the device handle and its path. It is `Send`: the engine can
+/// move it to an I/O thread (architecture rule 5).
+///
+/// # Disconnection
+///
+/// When a call fails, the transport enumerates the devices again. If the path
+/// of this interface is not in the list, the call gives
+/// [`Error::Disconnected`]. Otherwise it gives [`Error::Hid`]. The error text
+/// of `hidapi` is not the signal. See `docs/kb/hidapi-macos.md`.
 pub struct HidTransport {
     dev: HidDevice,
+    path: CString,
 }
 
 impl HidTransport {
@@ -125,26 +134,51 @@ impl HidTransport {
             }
             Error::Hid(e)
         })?;
-        Ok(Self { dev })
+        Ok(Self {
+            dev,
+            path: found.path.clone(),
+        })
+    }
+
+    /// Turn a failed `hidapi` call into an error. This enumerates the devices
+    /// one time (a few milliseconds), and only after a failure.
+    fn classify(&self, error: HidError) -> Error {
+        classify(error, &self.path, list_devices())
+    }
+}
+
+/// Give [`Error::Disconnected`] if the enumeration worked and `path` is not in
+/// it. Give [`Error::Hid`] in all other cases: the device is still there, so
+/// the error can go away.
+fn classify(error: HidError, path: &CStr, found: Result<Vec<Found>>) -> Error {
+    match found {
+        Ok(found) if !found.iter().any(|f| f.path.as_c_str() == path) => Error::Disconnected,
+        _ => Error::Hid(error),
     }
 }
 
 impl Transport for HidTransport {
     fn write(&mut self, report: &[u8]) -> Result<()> {
-        self.dev.write(report)?;
+        self.dev.write(report).map_err(|e| self.classify(e))?;
         Ok(())
     }
 
     fn read(&mut self, buf: &mut [u8], timeout: Duration) -> Result<Option<usize>> {
         // Ok(0) means the timeout elapsed with no report available.
-        match self.dev.read_timeout(buf, timeout.as_millis() as i32)? {
+        match self
+            .dev
+            .read_timeout(buf, timeout.as_millis() as i32)
+            .map_err(|e| self.classify(e))?
+        {
             0 => Ok(None),
             n => Ok(Some(n)),
         }
     }
 
     fn get_feature_report(&mut self, buf: &mut [u8]) -> Result<usize> {
-        Ok(self.dev.get_feature_report(buf)?)
+        self.dev
+            .get_feature_report(buf)
+            .map_err(|e| self.classify(e))
     }
 }
 
@@ -158,7 +192,6 @@ const _: () = {
 mod tests {
     use super::*;
     use crate::device::DESCRIPTORS;
-    use std::ffi::CString;
 
     /// A made-up entry. The path does not exist.
     fn entry(known: bool, usage_page: u16, interface: i32) -> Found {
@@ -241,5 +274,33 @@ mod tests {
             HidTransport::open(&found),
             Err(Error::DeviceNotFound)
         ));
+    }
+
+    fn hid_error() -> HidError {
+        HidError::HidApiError {
+            message: "hid_read_timeout: device disconnected".to_string(),
+        }
+    }
+
+    #[test]
+    fn a_failure_is_a_disconnection_when_the_path_is_gone() {
+        let open = entry(true, 0xFFA0, 0);
+        let other = entry(true, 0x0001, 1);
+        let error = classify(hid_error(), &open.path, Ok(vec![other]));
+        assert!(matches!(error, Error::Disconnected));
+    }
+
+    #[test]
+    fn a_failure_is_not_a_disconnection_when_the_path_is_still_there() {
+        let open = entry(true, 0xFFA0, 0);
+        let error = classify(hid_error(), &open.path, Ok(vec![open.clone()]));
+        assert!(matches!(error, Error::Hid(_)));
+    }
+
+    #[test]
+    fn a_failure_is_not_a_disconnection_when_the_enumeration_fails() {
+        let open = entry(true, 0xFFA0, 0);
+        let error = classify(hid_error(), &open.path, Err(Error::DeviceNotFound));
+        assert!(matches!(error, Error::Hid(_)));
     }
 }

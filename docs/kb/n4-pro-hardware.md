@@ -165,6 +165,8 @@ Measure these in Phase 1.
   showed one key only.
 - Whether the knob lights obey the colour command. The probe sends it, but the
   result is not recorded.
+- Whether the device keeps its images when the computer sleeps and wakes.
+- The time from the cable connection until the device accepts images.
 
 ## Sources
 

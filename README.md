@@ -39,6 +39,10 @@ runs; each event prints with its decoded meaning. Panels are blanked on exit
 
 Options: `--seconds`, `--brightness`, `--mode <0-9>`, `--keep`, `--verbose`.
 
+`test`, `listen`, and `raw` continue after a disconnection. They wait for the
+device to connect again. Then `test` draws the panels again. `--seconds` is
+the total time.
+
 Options of `background`:
 
 | Option | What it does |
@@ -61,7 +65,7 @@ Options of `raw`:
 | `--save <file>` | Write each full input report to the file. See [the format](crates/core/tests/fixtures/input/README.md). |
 | `--note <text>` | Write a text in the file that says which gesture it holds |
 | `--until-enter` | Stop when you press Enter. `--seconds` is the time limit. |
-| `--draw` | Draw the slot numbers first, as `test` does |
+| `--draw` | Draw the slot numbers after each connection, as `test` does |
 | `--keep-alive <n>` | Send the keep-alive command each `<n>` seconds |
 
 To record the input of every control, run `scripts/record-input.sh`. It runs

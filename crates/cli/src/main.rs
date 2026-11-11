@@ -5,7 +5,7 @@
 
 use opencraft_core::{
     events, image, list_devices, protocol, recording, select, Device, Error, Event, Found,
-    HidTransport,
+    HidConnector, HidTransport, Link, LinkEvent,
 };
 use std::io::Write;
 use std::process::ExitCode;
@@ -90,7 +90,8 @@ OPTIONS FOR 'raw':
     --note <text>        Say in the file which gesture it holds
     --until-enter        Stop when you press Enter ('--seconds' is the time
                          limit; default: 10)
-    --draw               Draw the slot numbers first, as 'test' does
+    --draw               Draw the slot numbers after each connection, as
+                         'test' does
     --keep-alive <n>     Send the keep-alive command each <n> seconds
 
 OPTIONS FOR 'background':
@@ -100,6 +101,10 @@ OPTIONS FOR 'background':
     --clear              Remove the background image. Draw nothing.
     --init               Send the start commands before the background
     --hold <n>           Keep the connection for <n> seconds after the draw
+
+'test', 'listen' and 'raw' continue after a disconnection. They wait for the
+device to connect again. 'test' and 'raw --draw' draw the panels again.
+'--seconds' is the total time.
 
 NOTE: quit VSD Craft before running — two apps driving one device will fight."
     );
@@ -203,54 +208,41 @@ fn cmd_identify() -> AnyResult {
 fn cmd_test(rest: &[String]) -> AnyResult {
     let seconds = flag_u64(rest, "--seconds").unwrap_or(30);
     let brightness = flag_u64(rest, "--brightness").unwrap_or(80) as u8;
+    let mode = flag_u64(rest, "--mode").map(|m| m as u8);
     let keep = rest.iter().any(|a| a == "--keep");
     let verbose = rest.iter().any(|a| a == "--verbose");
 
-    let mut t = open_device()?;
-
-    if let Some(mode) = flag_u64(rest, "--mode") {
-        println!("  mode   : sending MODE {mode}");
-        t.send(protocol::set_mode(mode as u8))?;
-        std::thread::sleep(Duration::from_millis(300));
+    let mut link = Link::from_device(HidConnector, open_device()?);
+    if let Some(mode) = mode {
+        println!("  mode   : MODE {mode} before each draw");
     }
+    println!("  light  : brightness {brightness}%\n");
+    println!("Each display shows its slot number after the draw.");
+    println!("Press keys / turn knobs / swipe the touch bar for {seconds}s.");
+    println!("You can disconnect and connect the cable. The probe draws again.\n");
 
-    println!("  init   : clearing framebuffer");
-    t.init()?;
-    std::thread::sleep(Duration::from_millis(150));
-
-    println!("  light  : brightness {brightness}%");
-    t.set_brightness(brightness)?;
-
-    let mut led_colors = Vec::new();
-    for (i, panel) in t.descriptor().panels.iter().enumerate() {
-        let png =
-            image::render_test_panel(panel.width, panel.height, panel.slot, image::test_color(i))?;
-        t.send_image(panel.slot, &png)?;
-        if panel.kind == opencraft_core::PanelKind::Knob {
-            led_colors.push(image::test_color(i));
-        }
-    }
-
-    if !led_colors.is_empty() {
-        t.send(protocol::set_led_colors(&led_colors))?;
-    }
-
-    t.commit()?;
-    println!(
-        "  drawn  : {} panels committed\n",
-        t.descriptor().panels.len()
-    );
-    println!("Each display now shows its slot number.");
-    println!("Press keys / turn knobs / swipe the touch bar for {seconds}s.\n");
-
-    pump(&mut t, Duration::from_secs(seconds), verbose)?;
+    run_link(
+        &mut link,
+        Duration::from_secs(seconds),
+        None,
+        None,
+        |d| draw_test_pattern(d, mode, brightness),
+        |data| {
+            print_event(data, verbose);
+            Ok(())
+        },
+    )?;
 
     if keep {
         println!("\nLeaving the test pattern on screen.");
-    } else {
+    } else if link.is_connected() {
         println!("\nRestoring: blanking panels.");
-        t.set_brightness(60)?;
-        t.clear_all()?;
+        link.with_device(|d| {
+            d.set_brightness(60)?;
+            d.clear_all()
+        })?;
+    } else {
+        println!("\nThe device is not connected. Nothing to restore.");
     }
     Ok(())
 }
@@ -258,9 +250,19 @@ fn cmd_test(rest: &[String]) -> AnyResult {
 fn cmd_listen(rest: &[String]) -> AnyResult {
     let seconds = flag_u64(rest, "--seconds").unwrap_or(15);
     let verbose = rest.iter().any(|a| a == "--verbose");
-    let mut t = open_device()?;
+    let mut link = Link::from_device(HidConnector, open_device()?);
     println!("Listening for {seconds}s. Ctrl-C to stop.\n");
-    pump(&mut t, Duration::from_secs(seconds), verbose)
+    run_link(
+        &mut link,
+        Duration::from_secs(seconds),
+        None,
+        None,
+        |_| Ok(0),
+        |data| {
+            print_event(data, verbose);
+            Ok(())
+        },
+    )
 }
 
 fn cmd_raw(rest: &[String]) -> AnyResult {
@@ -290,10 +292,8 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
         None => None,
     };
 
-    if draw {
-        draw_test_pattern(&mut t, None, 80)?;
-    }
-
+    // With '--draw', the link draws the slot numbers after each connection.
+    let mut link = Link::from_device(HidConnector, t);
     let stop = Arc::new(AtomicBool::new(false));
     if until_enter {
         watch_enter(Arc::clone(&stop));
@@ -303,37 +303,38 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     }
 
     let start = Instant::now();
-    let deadline = start + Duration::from_secs(seconds);
-    let mut errors = 0u32;
     let mut saved = 0u64;
-    let mut last_keep_alive = Instant::now();
-    while Instant::now() < deadline && !stop.load(Ordering::Relaxed) {
-        if errors >= 10 {
-            return Err("too many consecutive read errors".into());
-        }
-        if let Some(interval) = keep_alive {
-            if last_keep_alive.elapsed() >= interval {
-                t.keep_alive()?;
-                last_keep_alive = Instant::now();
+    run_link(
+        &mut link,
+        Duration::from_secs(seconds),
+        Some(&stop),
+        keep_alive,
+        |d| {
+            if draw {
+                draw_test_pattern(d, None, 80)
+            } else {
+                Ok(0)
             }
-        }
-        if let Some(data) = read_tolerant(&mut t, &mut errors) {
+        },
+        |data| {
             let ms = start.elapsed().as_millis() as u64;
             println!("[{}] {}", data.len(), hex(&data[..data.len().min(32)]));
             if let Some(f) = file.as_mut() {
-                let line = recording::format_report_line(ms, &data) + "\n";
+                let line = recording::format_report_line(ms, data) + "\n";
                 f.write_all(line.as_bytes())?;
                 saved += 1;
             }
-        }
-    }
+            Ok(())
+        },
+    )?;
     if let Some(path) = save {
         println!("\nSaved {saved} report(s) to {path}");
     }
     Ok(())
 }
 
-/// Draw a numbered panel on every slot.
+/// Draw a numbered panel on every slot. The probe does this after each
+/// connection, as the engine must (architecture rule 10).
 fn draw_test_pattern(
     t: &mut Device<HidTransport>,
     mode: Option<u8>,
@@ -529,50 +530,107 @@ fn cmd_background(rest: &[String]) -> AnyResult {
     Ok(())
 }
 
-/// Read one report, tolerating the occasional transient IOKit hiccup.
-/// Returns None on timeout or a non-fatal error.
-fn read_tolerant(t: &mut Device<HidTransport>, consecutive_errors: &mut u32) -> Option<Vec<u8>> {
-    match t.read(Duration::from_millis(100)) {
-        Ok(report) => {
-            *consecutive_errors = 0;
-            report
-        }
-        Err(e) => {
-            *consecutive_errors += 1;
-            if *consecutive_errors == 1 {
-                eprintln!("  (transient read error, continuing: {e})");
-            }
-            None
-        }
-    }
-}
+/// Operate the link until `duration` expires or `stop` is set.
+///
+/// After each connection, `draw` draws all panels; it returns the number of
+/// panels that it drew. For each input report, `on_input` runs. If
+/// `keep_alive` has a value, the keep-alive command goes to the device at that
+/// interval. The function prints a line when the device disconnects and when
+/// it connects again. An error that does not stop the link is printed one
+/// time, until it changes.
+fn run_link(
+    link: &mut Link<HidConnector>,
+    duration: Duration,
+    stop: Option<&AtomicBool>,
+    keep_alive: Option<Duration>,
+    mut draw: impl FnMut(&mut Device<HidTransport>) -> opencraft_core::Result<usize>,
+    mut on_input: impl FnMut(&[u8]) -> AnyResult,
+) -> AnyResult {
+    let start = Instant::now();
+    let deadline = start + duration;
+    let mut first = true;
+    let mut lost_at: Option<Instant> = None;
+    let mut last_error: Option<String> = None;
+    let mut last_keep_alive = Instant::now();
+    let stamp = || format!("[{:6.1}s]", start.elapsed().as_secs_f64());
 
-/// Read and decode events until the deadline.
-fn pump(t: &mut Device<HidTransport>, duration: Duration, verbose: bool) -> AnyResult {
-    let deadline = Instant::now() + duration;
-    let mut errors = 0u32;
-    while Instant::now() < deadline {
-        if errors >= 10 {
-            return Err("too many consecutive read errors".into());
+    while !stop.is_some_and(|s| s.load(Ordering::Relaxed)) {
+        let now = Instant::now();
+        if now >= deadline {
+            break;
         }
-        let Some(data) = read_tolerant(t, &mut errors) else {
-            continue;
-        };
-        match events::decode(&data) {
-            Event::Ack => {
-                if verbose {
-                    println!("  ack");
+        if let Some(interval) = keep_alive {
+            if link.is_connected() && last_keep_alive.elapsed() >= interval {
+                last_keep_alive = Instant::now();
+                if let Err(e) = link.with_device(|d| d.keep_alive()) {
+                    eprintln!("  {} (keep-alive failed: {e})", stamp());
                 }
             }
-            Event::Unknown(raw) => {
-                if verbose {
-                    println!("  ? {}", hex(&raw[..raw.len().min(24)]));
+        }
+        let wait = (deadline - now).min(Duration::from_millis(100));
+        match link.next_event(wait) {
+            Ok(LinkEvent::Connected) => {
+                last_error = None;
+                last_keep_alive = Instant::now();
+                if let Some(lost) = lost_at.take() {
+                    println!(
+                        "  {} connected again, {:.1}s after the disconnection",
+                        stamp(),
+                        lost.elapsed().as_secs_f64()
+                    );
+                }
+                let drawn_at = Instant::now();
+                match link.with_device(|d| draw(d)) {
+                    Ok(0) => {}
+                    Ok(n) => println!(
+                        "  {} drawn  : {n} panels committed in {} ms",
+                        stamp(),
+                        drawn_at.elapsed().as_millis()
+                    ),
+                    Err(e) => eprintln!("  {} (draw failed: {e})", stamp()),
+                }
+                if first {
+                    println!();
+                }
+                first = false;
+            }
+            Ok(LinkEvent::Disconnected) => {
+                lost_at = Some(Instant::now());
+                last_error = None;
+                println!(
+                    "  {} disconnected. Waiting for the device to connect again.",
+                    stamp()
+                );
+            }
+            Ok(LinkEvent::Input(data)) => on_input(&data)?,
+            Ok(LinkEvent::Timeout) => {}
+            Err(e) => {
+                let message = e.to_string();
+                if last_error.as_deref() != Some(message.as_str()) {
+                    eprintln!("  {} (error, continuing: {message})", stamp());
+                    last_error = Some(message);
                 }
             }
-            ev => println!("  {}", describe(&ev)),
         }
     }
     Ok(())
+}
+
+/// Print one decoded input report.
+fn print_event(data: &[u8], verbose: bool) {
+    match events::decode(data) {
+        Event::Ack => {
+            if verbose {
+                println!("  ack");
+            }
+        }
+        Event::Unknown(raw) => {
+            if verbose {
+                println!("  ? {}", hex(&raw[..raw.len().min(24)]));
+            }
+        }
+        ev => println!("  {}", describe(&ev)),
+    }
 }
 
 fn describe(ev: &Event) -> String {
