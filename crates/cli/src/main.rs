@@ -13,6 +13,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+mod record;
+
 type AnyResult = Result<(), Box<dyn std::error::Error>>;
 
 fn main() -> ExitCode {
@@ -35,6 +37,7 @@ fn main() -> ExitCode {
         "draw" => cmd_draw(rest),
         "clear" => cmd_clear(),
         "raw" => cmd_raw(rest),
+        "record" => record::cmd_record(rest),
         "help" | "--help" | "-h" => {
             usage();
             Ok(())
@@ -70,6 +73,8 @@ COMMANDS:
     draw <slot> <rrggbb> Paint one slot a solid colour
     clear                Blank every panel
     raw                  Hexdump raw input reports; can save them to a file
+    record               Record each gesture to a file, one prompt at a time
+                         (--out <dir>, --from <step>)
 
 OPTIONS:
     --seconds <n>        How long to listen (default: 30 for test, 15 for listen)
@@ -83,6 +88,8 @@ OPTIONS FOR 'raw':
     --note <text>        Say in the file which gesture it holds
     --until-enter        Stop when you press Enter ('--seconds' is the time
                          limit; default: 10)
+    --draw               Draw the slot numbers first, as 'test' does
+    --keep-alive <n>     Send the keep-alive command each <n> seconds
 
 NOTE: quit VSD Craft before running — two apps driving one device will fight."
     );
@@ -248,6 +255,8 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     let save = flag_str(rest, "--save");
     let note = flag_str(rest, "--note").unwrap_or("");
     let until_enter = rest.iter().any(|a| a == "--until-enter");
+    let draw = rest.iter().any(|a| a == "--draw");
+    let keep_alive = flag_u64(rest, "--keep-alive").map(Duration::from_secs);
     let mut t = open_device()?;
 
     // The file never gets the serial number: the header has the model name
@@ -268,6 +277,10 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
         None => None,
     };
 
+    if draw {
+        draw_test_pattern(&mut t, None, 80)?;
+    }
+
     let stop = Arc::new(AtomicBool::new(false));
     if until_enter {
         watch_enter(Arc::clone(&stop));
@@ -280,9 +293,16 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     let deadline = start + Duration::from_secs(seconds);
     let mut errors = 0u32;
     let mut saved = 0u64;
+    let mut last_keep_alive = Instant::now();
     while Instant::now() < deadline && !stop.load(Ordering::Relaxed) {
         if errors >= 10 {
             return Err("too many consecutive read errors".into());
+        }
+        if let Some(interval) = keep_alive {
+            if last_keep_alive.elapsed() >= interval {
+                t.keep_alive()?;
+                last_keep_alive = Instant::now();
+            }
         }
         if let Some(data) = read_tolerant(&mut t, &mut errors) {
             let ms = start.elapsed().as_millis() as u64;
@@ -298,6 +318,39 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
         println!("\nSaved {saved} report(s) to {path}");
     }
     Ok(())
+}
+
+/// Draw a numbered panel on every slot.
+fn draw_test_pattern(
+    t: &mut Device<HidTransport>,
+    mode: Option<u8>,
+    brightness: u8,
+) -> opencraft_core::Result<usize> {
+    if let Some(mode) = mode {
+        t.send(protocol::set_mode(mode))?;
+        std::thread::sleep(Duration::from_millis(300));
+    }
+
+    t.init()?;
+    std::thread::sleep(Duration::from_millis(150));
+    t.set_brightness(brightness)?;
+
+    let mut led_colors = Vec::new();
+    for (i, panel) in t.descriptor().panels.iter().enumerate() {
+        let png =
+            image::render_test_panel(panel.width, panel.height, panel.slot, image::test_color(i))?;
+        t.send_image(panel.slot, &png)?;
+        if panel.kind == opencraft_core::PanelKind::Knob {
+            led_colors.push(image::test_color(i));
+        }
+    }
+
+    if !led_colors.is_empty() {
+        t.send(protocol::set_led_colors(&led_colors))?;
+    }
+
+    t.commit()?;
+    Ok(t.descriptor().panels.len())
 }
 
 /// Set `stop` when the user presses Enter. If standard input is closed, do
