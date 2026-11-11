@@ -18,7 +18,9 @@ scripts/record-input.sh
 
 The script builds the probe, shows the slot number on each panel, and asks for
 the slot numbers. Then it gives 40 steps, one gesture for each step. The script
-shows the instruction for each step. To continue after a stop, add
+shows the instruction for each step, and the physical position of the control.
+The slot numbers do not stay on the panels, thus the position is necessary. If
+`layout.txt` exists, the script can use it again. To continue after a stop, add
 `--from <step number>`. To write the files in a different directory, give the
 directory as the first argument. To print the table below, add `--list`.
 

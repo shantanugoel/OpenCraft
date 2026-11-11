@@ -74,6 +74,7 @@ before the length are possibly the high bytes of a 4-byte length. (Inference)
 | The SDK and `opendeck-akp05` send `CONNECT` each 10 seconds | Source | Their source code |
 | The probe does not send `CONNECT`, and the bring-up passed | Measured | Probe |
 | `opendeck-akp05` sends a clear command and then `HAN` when it stops | Source | Its source code |
+| After the probe draws the panels and stops with no clear command, the panels go blank after a short time. The time is not measured. | Measured | Owner, 2026-11-11 |
 | The probe saw no acknowledgement for a write | Measured | Probe |
 | The SDK README refers to `ACK` and `OK` in input reports for newer protocol versions | Source | SDK README |
 
