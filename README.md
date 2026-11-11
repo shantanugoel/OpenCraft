@@ -24,6 +24,23 @@ keys to protocol slots. Press keys, turn knobs and swipe the touch bar while it
 runs. The probe prints each input event: the control and the gesture. On exit,
 the probe clears all slots (add `--keep` to leave the pattern up).
 
+### GUI application
+
+On macOS, quit the vendor software and the probe first. Then build and run
+the application:
+
+```sh
+cargo build -p opencraft-app --release
+cargo run -p opencraft-app --release
+```
+
+Select a key face or a bar panel. Set its label, colour, or image in the
+editor. The engine saves each change. You can edit with no device.
+Close the window to stop the engine and quit.
+
+The engine uses its default profile directory. Set `OPENCRAFT_PROFILE_DIR`
+to use a different directory for a test.
+
 ### Probe commands
 
 | Command | What it does |
@@ -197,14 +214,16 @@ The full hardware facts are in
 ```
 crates/core/     device descriptors, transport (HID and fake), protocol, input decoding, surface images
 crates/cli/      opencraft-probe — hardware bring-up tool
+crates/engine/   profile, surface images, device owner, commands and events
+crates/app/      opencraft — native GUI shell
 scripts/         record-input.sh — guided recording of input reports
 docs/            architecture, roadmap, decision records, knowledge base
 ```
 
 Start with [docs/README.md](docs/README.md).
 
-`core` is deliberately GUI-free and blocking, so it can be driven from a CLI
-today and from a worker thread behind GPUI later.
+`core` is GUI-free and blocking. The engine operates it on its own thread.
+The GUI shell uses only the engine messages.
 
 ---
 
@@ -220,7 +239,8 @@ cargo build --workspace
 cargo test --workspace
 ```
 
-On Linux, install `libudev-dev` and `pkg-config` first.
+On Linux, install the system packages in
+[the CI workflow](.github/workflows/ci.yml) first.
 
 ---
 

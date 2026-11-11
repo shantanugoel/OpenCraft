@@ -45,6 +45,17 @@ at `gpui_kit::*`.
 | Both forms selected a PNG through the native dialog, decoded it on `background_executor`, and displayed it. The logs contain `DIALOG_LOADED`. | Measured | Test program, `bare-run.log`, `widgets-run.log`; native dialog test |
 | In the combined test manifest, GPUI macros find the optional `gpui-kit` dependency even with its feature off. The bare form needs a crate alias for that test arrangement. A separate bare manifest need not have this arrangement. | Source; Measured (alias) | Published `gpui-pre-macros` 0.3.12 `src/gpui_pre_facade_paths.rs`; test program, `src/main.rs` |
 
+## Application checks (2026-11-11)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The application uses `gpui-kit` 0.9.1. Its unbounded `async_channel` receiver wakes a `Context::spawn_in` task. The engine sink uses `try_send`, so it does not wait for the window. Events sent before window creation stay in the queue. | Measured | `crates/app/src/main.rs`, `view.rs`; window tests |
+| `InputState::set_value` does not emit `InputEvent::Change`. It resets selection and undo state. The application calls it when a surface is selected, not on each engine reply. A reply during typing does not change the field or send a new command. | Source; Measured | `gpui-base` 0.9.1 `input/base/state.rs`; application window tests |
+| A Kit glob import with `test-support` also imports its `test` macro. This can make generated `#[test]` attributes expand again. Explicit imports prevent this. `debug_bounds` needs a static selector registered with `debug_selector`, not only an element ID. | Measured | Application test build and `crates/app/src/view/tests.rs` |
+| A native file dialog selected a transparent PNG. The engine read and copied it. A key face showed its label, colour, and image in the window and on the device. A bar panel also showed its label, colour, and image in both places. Removing all three parts cleared the bar panel in both places. The arrow stayed upright, with red on the left and blue on the right. | Measured | Release application; native window screenshots and USB camera pictures, kept outside the repository |
+| The native window fits at 900 × 640 content pixels. A restart shows the saved profile. Normal window close ends the process and writes the last label change. | Measured | Release application; native screenshots, process check, and test profile file, kept outside the repository |
+| The macOS platform quits with `NSApplication::terminate`; code after the run loop is not a sufficient stop hook. GPUI awaits `on_app_quit` tasks for at most 200 ms. The application also delays normal window close until a background task has stopped the engine, with no time limit on that path. | Source | `gpui-pre-macos` 0.3.12 `platform.rs`; `gpui-pre` 0.3.12 `app.rs`; `crates/app/src/main.rs` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
@@ -121,8 +132,8 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
 | The snapshot has separate platform crates. Bare desktop code needs the platform crate and `gpui_platform::application()`, not just the core crate. On macOS, enable `font-kit` for text. The kit sets the platform features, including `runtime_shaders`. | Source; Measured (build) | Published platform and kit manifests; test program |
 | The kit supports Linux builds. Its CI builds and tests on Ubuntu. Compile-only CI does not need a window or a device. | Source | [kit CI]; [Linux setup] |
 | The upstream Ubuntu 24.04 setup installs `gcc g++ clang libfontconfig-dev libwayland-dev libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev libasound2-dev vulkan-validationlayers libvulkan1`. This is a conservative package list for the full upstream workspace, not a tested minimum for this program. | Source | [Linux setup] |
-| Keep `pkg-config` and `libudev-dev` for the existing workspace. The chosen kit does not need a WebView; its normal dependency tree has no WebKit crate. A smaller Linux package list can omit WebKit after a CI build confirms it. | Source; Inference (smaller list) | OpenCraft `.github/workflows/ci.yml`; test program, `linux-tree.txt` |
-| Ubuntu can keep the full-workspace build and clippy commands after the GUI is added, with the native packages installed. There is no source reason to exclude the GUI. macOS still needs a build and native-window check. No Linux build was run in this macOS test. | Inference | Platform manifests; [kit CI]; successful macOS build |
+| The application CI install list is `libudev-dev pkg-config clang libfontconfig-dev libwayland-dev libxkbcommon-x11-dev libx11-xcb-dev libvulkan1`. It adds no WebKit, OpenSSL, Zstd, ALSA, or Vulkan validation package. The GitHub Ubuntu 26.04 image already has the usual C and C++ build tools. This is a working CI list, not a package list for a clean Linux desktop. | Measured | `.github/workflows/ci.yml`; [application CI run](https://github.com/shantanugoel/OpenCraft/actions/runs/43079214508), package and build logs |
+| All four full-workspace checks pass on Ubuntu with that list. The eight application tests include three GPUI window tests with no display or device. A native Linux window was not tested. | Measured | [Application CI run](https://github.com/shantanugoel/OpenCraft/actions/runs/43079214508), fmt, clippy, build, and test logs |
 
 ## Licences and update cost
 
@@ -147,8 +158,6 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   not predict the next API change.
 - Whether a menu bar item operates correctly with the GPUI event loop. This
   stays for Phase 5; no menu bar item was made here.
-- The minimum Linux system package list and a local Linux build. The source
-  and upstream CI support Linux, but this test ran only on macOS.
 - Full input-method and accessibility behaviour. The test covers simple text
   entry, not every input method or assistive tool.
 

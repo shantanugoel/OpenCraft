@@ -80,8 +80,8 @@ pub enum Event {
     /// The state of a surface: at the start for each surface, and after each
     /// change.
     Surface(SurfaceState),
-    /// A device is connected, and the engine draws all surfaces. Before this
-    /// event, no device is connected.
+    /// A device is connected, and the engine sent the image of each surface
+    /// to it. Before this event, no device is connected.
     Connected,
     /// The device is gone. The engine looks for it again.
     Disconnected,
@@ -290,8 +290,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     self.descriptor = model;
                     self.show_model();
                 }
-                (self.sink)(Event::Connected);
+                // The event comes after the draw: a shell can use it as "the
+                // device is ready".
                 self.draw_all();
+                (self.sink)(Event::Connected);
             }
             Ok(LinkEvent::Disconnected) => {
                 self.needs_draw = false;
