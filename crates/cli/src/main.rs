@@ -111,8 +111,8 @@ fn cmd_list() -> AnyResult {
     let found = list_devices()?;
 
     println!(
-        "{:<22} {:<10} {:<6} {:<7} {}",
-        "PRODUCT", "VID:PID", "IFACE", "USAGE", "STATE"
+        "{:<22} {:<10} {:<6} {:<7} STATE",
+        "PRODUCT", "VID:PID", "IFACE", "USAGE"
     );
     println!("{}", "-".repeat(78));
     for f in &found {
