@@ -133,7 +133,8 @@ These rules stay true in all phases.
      after a gesture.
 9. **The profile file is the source of truth.** The shell changes the profile
    through engine commands. The engine writes the file. The file has a schema
-   version.
+   version. The format is in
+   [decision 0009](decisions/0009-profile-file-format.md).
 10. **The engine holds the necessary state of each surface.** The engine can
     draw all surfaces again at any time. It does this after a connection, a
     page change, and a wake from sleep.
@@ -165,7 +166,6 @@ you make one, write a decision record and remove the row.
 | Decision | Phase | Note |
 |---|---|---|
 | Form of the GPUI dependency, and the widget library | 2 | See [kb/gpui.md](kb/gpui.md). |
-| Profile file format | 2 | The GUI is the editor. The file stays readable. |
 | Library for text and icons on surfaces | 2 | |
 | Thread model in the engine | 2 | Rule 5 is the limit. |
 | Engine in the GUI process, or in a different process | 5 | Rules 2 and 3 keep the two options open. |

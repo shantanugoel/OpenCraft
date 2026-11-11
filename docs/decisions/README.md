@@ -24,6 +24,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0006](0006-action-kinds-and-handler-interface.md) | Action kinds have a namespace, and all actions use one handler interface | Accepted |
 | [0007](0007-jpeg-for-key-faces-and-bar-panels.md) | Send JPEG to key faces and bar panels | Accepted |
 | [0008](0008-crate-boundaries.md) | One crate for the engine and one crate for the GUI application | Accepted |
+| [0009](0009-profile-file-format.md) | The profile is a directory with a TOML file and its images | Accepted |
 
 ## Template
 
