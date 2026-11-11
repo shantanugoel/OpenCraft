@@ -40,7 +40,10 @@ Date: 2026-11-12. Tool: `codesign -d -r-`, on the program `opencraft`.
 | `codesign` signs with an identity of the login keychain and shows no prompt | Measured | 3 signatures |
 | macOS identifies a program for a privacy permission by its designated requirement. Thus the permission stays for builds from `scripts/sign-dev.sh`, and it does not stay for builds with the ad-hoc signature. | Inference | The facts above |
 
-`scripts/sign-dev.sh` makes the build with the stable signature. See
+| A program that starts from a terminal has the Accessibility permission of the terminal application: `AXIsProcessTrusted` gave true in a test program with no permission of its own | Measured | A test program, not in the repository |
+| The same test program in an application bundle, started with `open`, has its own permission state: `AXIsProcessTrusted` gave false | Measured | The same test program |
+
+`scripts/sign-dev.sh` makes a bundle with the stable signature. See
 [scripts/README.md](../../scripts/README.md#sign-devsh).
 
 ## Not known

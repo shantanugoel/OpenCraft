@@ -5,7 +5,7 @@ This directory holds the scripts for work on the computer of a developer.
 | Script | Job |
 |---|---|
 | `measure-footprint.sh` | Measures the memory and the processor use of all processes of one application |
-| `sign-dev.sh` | Builds the GUI application and signs it with a stable identity, so that macOS keeps the Accessibility permission |
+| `sign-dev.sh` | Builds the GUI application as a bundle and signs it with a stable identity, so that macOS keeps the Accessibility permission |
 | `record-input.sh` | Records the input reports of each control of the N4 Pro. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
 
 ## measure-footprint.sh
@@ -124,7 +124,10 @@ macOS connects the Accessibility permission to the code signature of a
 program. The facts are in
 [kb/macos-permissions.md](../docs/kb/macos-permissions.md#code-signature-of-a-development-build).
 Use this script in place of `cargo build` when you want the permission to
-stay after a new build.
+stay after a new build. The script makes the bundle
+`target/<profile>/OpenCraft.app`. Start the bundle with `--run`, with `open`,
+or from the Finder. Do not start the program in the bundle from a terminal:
+then it has the permissions of the terminal.
 
 ```sh
 scripts/sign-dev.sh --run            # debug build, sign, start
