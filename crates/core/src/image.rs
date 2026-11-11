@@ -10,6 +10,10 @@ use image::codecs::jpeg::JpegEncoder;
 use image::{imageops::FilterType, Rgb, RgbImage};
 use std::io::Cursor;
 
+mod patterns;
+
+pub use patterns::{bar_edge_pattern, icon_image, wide_pattern, EDGE_COLOR};
+
 /// The JPEG quality to use when the caller gives none. The SDK uses this
 /// value for the background (`encode_background_frame`).
 pub const DEFAULT_JPEG_QUALITY: u8 = 60;
@@ -53,12 +57,139 @@ const COMMA: [u8; 7] = [
     0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b00100, 0b01000,
 ];
 
+/// 5x7 bitmap glyphs for A-Z.
+const LETTERS: [[u8; 7]; 26] = [
+    [
+        0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001,
+    ], // A
+    [
+        0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110,
+    ], // B
+    [
+        0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110,
+    ], // C
+    [
+        0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110,
+    ], // D
+    [
+        0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111,
+    ], // E
+    [
+        0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000,
+    ], // F
+    [
+        0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01111,
+    ], // G
+    [
+        0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001,
+    ], // H
+    [
+        0b01110, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110,
+    ], // I
+    [
+        0b00111, 0b00010, 0b00010, 0b00010, 0b00010, 0b10010, 0b01100,
+    ], // J
+    [
+        0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001,
+    ], // K
+    [
+        0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111,
+    ], // L
+    [
+        0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001,
+    ], // M
+    [
+        0b10001, 0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001,
+    ], // N
+    [
+        0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110,
+    ], // O
+    [
+        0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000,
+    ], // P
+    [
+        0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101,
+    ], // Q
+    [
+        0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001,
+    ], // R
+    [
+        0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110,
+    ], // S
+    [
+        0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100,
+    ], // T
+    [
+        0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110,
+    ], // U
+    [
+        0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100,
+    ], // V
+    [
+        0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001,
+    ], // W
+    [
+        0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001,
+    ], // X
+    [
+        0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100,
+    ], // Y
+    [
+        0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111,
+    ], // Z
+];
+
+/// 5x7 bitmap glyph for ' ' (a space).
+const SPACE: [u8; 7] = [0; 7];
+
+/// 5x7 bitmap glyph for '-'.
+const DASH: [u8; 7] = [
+    0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000,
+];
+
+/// 5x7 bitmap glyph for '.'.
+const DOT: [u8; 7] = [
+    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b01100,
+];
+
+/// The glyph of `c`, or `None` if the font has no glyph for it. The font has
+/// the digits, the letters (a lower case letter has the glyph of its upper
+/// case letter), and ' ', ',', '-', '.'.
+fn glyph(c: char) -> Option<&'static [u8; 7]> {
+    match c {
+        '0'..='9' => Some(&GLYPHS[c as usize - '0' as usize]),
+        'A'..='Z' => Some(&LETTERS[c as usize - 'A' as usize]),
+        'a'..='z' => Some(&LETTERS[c as usize - 'a' as usize]),
+        ' ' => Some(&SPACE),
+        ',' => Some(&COMMA),
+        '-' => Some(&DASH),
+        '.' => Some(&DOT),
+        _ => None,
+    }
+}
+
 /// Turn the upright image `img` as `surface` needs, and encode it in the
 /// format of `surface`. The result is ready to send.
 ///
 /// `img` must have the size of the surface. `jpeg_quality` (1 to 100) applies
 /// only to a JPEG surface.
 pub fn encode_for(surface: &Surface, img: &RgbImage, jpeg_quality: u8) -> Result<Vec<u8>> {
+    encode_as(surface, img, surface.format, jpeg_quality)
+}
+
+/// Turn the upright image `img` as `surface` needs, and encode it in `format`.
+/// The format of the descriptor does not apply. The descriptor does not
+/// change.
+///
+/// This is for a measurement, for example to send JPEG to a surface that has
+/// PNG in the descriptor. The size of `img` can be different from the size of
+/// the surface. `jpeg_quality` (1 to 100) applies only to JPEG.
+pub fn encode_as(
+    surface: &Surface,
+    img: &RgbImage,
+    format: ImageFormat,
+    jpeg_quality: u8,
+) -> Result<Vec<u8>> {
     let turned;
     let img = match surface.rotation {
         Rotation::Deg0 => img,
@@ -67,7 +198,7 @@ pub fn encode_for(surface: &Surface, img: &RgbImage, jpeg_quality: u8) -> Result
             &turned
         }
     };
-    match surface.format {
+    match format {
         ImageFormat::Png => {
             let mut out = Cursor::new(Vec::new());
             img.write_to(&mut out, image::ImageFormat::Png)?;
@@ -255,19 +386,21 @@ fn fill(img: &mut RgbImage, x0: u32, y0: u32, w: u32, h: u32, color: Rgb<u8>) {
     }
 }
 
-/// Draw `text` with its top left corner at `x`, `y`. Only the digits and ','
-/// have a glyph. The function skips each other character.
+/// Draw `text` with its top left corner at `x`, `y`. See [`glyph`] for the
+/// characters that have a glyph. The function skips each other character.
 fn draw_text(img: &mut RgbImage, x: u32, y: u32, text: &str, scale: u32, color: Rgb<u8>) {
     let mut gx = x;
     for c in text.chars() {
-        let glyph = match c {
-            '0'..='9' => &GLYPHS[c as usize - '0' as usize],
-            ',' => &COMMA,
-            _ => continue,
-        };
+        let Some(glyph) = glyph(c) else { continue };
         draw_glyph(img, gx, y, glyph, scale, color);
         gx += 6 * scale;
     }
+}
+
+/// The width in pixels of `text` as [`draw_text`] draws it.
+fn text_width(text: &str, scale: u32) -> u32 {
+    let n = text.chars().filter(|&c| glyph(c).is_some()).count() as u32;
+    (n * 6).saturating_sub(1) * scale
 }
 
 fn draw_glyph(img: &mut RgbImage, x: u32, y: u32, glyph: &[u8; 7], scale: u32, color: Rgb<u8>) {
@@ -460,6 +593,58 @@ mod tests {
         let img = image::load_from_memory(&jpeg).unwrap().to_rgb8();
         assert_near(&img, 10, 10, [255, 0, 0]);
         assert_near(&img, 100, 100, [0, 0, 255]);
+    }
+
+    #[test]
+    fn encode_as_overrides_the_format_and_keeps_the_rotation() {
+        // KEY_FACE has PNG in the descriptor. Ask for JPEG: the data is a
+        // JPEG, and it is turned 180° as the surface needs.
+        let jpeg = encode_as(&KEY_FACE, &quarter_image(&KEY_FACE), ImageFormat::Jpeg, 90).unwrap();
+        assert_eq!(&jpeg[..3], &[0xFF, 0xD8, 0xFF], "JPEG start marker");
+        let img = image::load_from_memory(&jpeg).unwrap().to_rgb8();
+        assert_near(&img, 100, 100, [255, 0, 0]);
+        assert_near(&img, 10, 10, [0, 0, 255]);
+
+        // The same call with the format of the surface is encode_for.
+        let upright = quarter_image(&KEY_FACE);
+        assert_eq!(
+            encode_as(&KEY_FACE, &upright, KEY_FACE.format, 60).unwrap(),
+            encode_for(&KEY_FACE, &upright, 60).unwrap()
+        );
+
+        // A descriptor with JPEG gives PNG on request.
+        let png = encode_as(
+            &BACKGROUND,
+            &quarter_image(&BACKGROUND),
+            ImageFormat::Png,
+            60,
+        );
+        assert_eq!(&png.unwrap()[..4], b"\x89PNG");
+    }
+
+    #[test]
+    fn encode_as_accepts_an_image_that_is_not_the_size_of_the_surface() {
+        let wide = RgbImage::from_pixel(352, 112, Rgb([1, 2, 3]));
+        let png = encode_as(&KEY_FACE, &wide, ImageFormat::Png, 60).unwrap();
+        let img = image::load_from_memory(&png).unwrap();
+        assert_eq!((img.width(), img.height()), (352, 112));
+    }
+
+    #[test]
+    fn font_has_digits_letters_and_a_few_signs() {
+        for c in "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcxyz ,-.".chars() {
+            assert!(glyph(c).is_some(), "no glyph for {c:?}");
+        }
+        assert!(glyph('?').is_none());
+        // A lower case letter has the glyph of the upper case letter.
+        assert_eq!(glyph('q'), glyph('Q'));
+        // Each letter is different from each other letter, and has pixels.
+        for (i, a) in LETTERS.iter().enumerate() {
+            assert!(a.iter().any(|&row| row != 0), "empty glyph {i}");
+            for b in &LETTERS[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
     }
 
     #[test]
