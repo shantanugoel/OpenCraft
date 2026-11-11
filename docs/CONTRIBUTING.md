@@ -34,8 +34,8 @@ issues are organized. The roadmap issue is
 4. **One issue, one pull request.** Do the work on a branch. Write `Closes #N`
    in the pull request.
 5. **Obey the architecture rules.** See [ARCHITECTURE.md](ARCHITECTURE.md#5-rules).
-   If the work needs a change to a rule, get approval from the owner before you
-   write the decision record.
+   If the work needs a change to a rule, write a decision record first and get
+   approval from the owner.
 6. **Record facts and keep the documents correct.** Do this in the same pull
    request as the code. The rules are in [README.md](README.md#rules) and in
    [kb/README.md](kb/README.md#rules).
