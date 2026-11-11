@@ -1,7 +1,7 @@
 //! An open device: the command logic above the transport.
 
 use crate::device::Descriptor;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::protocol;
 use crate::transport::{Found, HidTransport, Transport};
 use std::time::Duration;
@@ -19,9 +19,15 @@ pub struct Device<T> {
 
 impl Device<HidTransport> {
     /// Open a device that the enumeration found.
+    ///
+    /// This opens only the vendor interface of a known device (architecture
+    /// rule 6). For any other entry, the function returns an error before it
+    /// opens anything: [`Error::NoVendorInterface`] for a known device, and
+    /// [`Error::DeviceNotFound`] for an unknown device. To choose the entry,
+    /// use [`crate::transport::select`].
     pub fn open(found: &Found) -> Result<Self> {
-        let descriptor = found.known.ok_or(Error::DeviceNotFound)?;
-        let transport = HidTransport::open(&found.path)?;
+        let descriptor = found.openable()?;
+        let transport = HidTransport::open(found)?;
         Ok(Self::new(transport, descriptor))
     }
 }
@@ -114,7 +120,9 @@ impl<T: Transport> Device<T> {
 mod tests {
     use super::*;
     use crate::device::DESCRIPTORS;
+    use crate::error::Error;
     use crate::transport::FakeTransport;
+    use std::ffi::CString;
 
     const REPORT_LEN: usize = 1025;
 
@@ -132,6 +140,38 @@ mod tests {
             report[1 + start.len()..].iter().all(|&b| b == 0),
             "padding is not zero"
         );
+    }
+
+    fn entry(usage_page: u16, interface: i32) -> Found {
+        Found {
+            vid: DESCRIPTORS[0].vid,
+            pid: DESCRIPTORS[0].pid,
+            product: "Test device".to_string(),
+            serial: None,
+            usage_page,
+            interface,
+            known: Some(&DESCRIPTORS[0]),
+            // This path does not exist. A call to `hidapi` would fail with a
+            // different error.
+            path: CString::new("opencraft-test-path-that-does-not-exist").unwrap(),
+        }
+    }
+
+    #[test]
+    fn open_refuses_a_keyboard_interface_before_it_opens_anything() {
+        for page in [0x0001, 0x000C] {
+            assert!(matches!(
+                Device::open(&entry(page, 1)),
+                Err(Error::NoVendorInterface)
+            ));
+        }
+    }
+
+    #[test]
+    fn open_refuses_an_unknown_device() {
+        let mut found = entry(0xFFA0, 0);
+        found.known = None;
+        assert!(matches!(Device::open(&found), Err(Error::DeviceNotFound)));
     }
 
     #[test]

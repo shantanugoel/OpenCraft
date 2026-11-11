@@ -6,7 +6,6 @@ use super::Transport;
 use crate::device::{Descriptor, VENDOR_USAGE_PAGES};
 use crate::error::{Error, Result};
 use hidapi::{DeviceInfo, HidApi, HidDevice};
-use std::ffi::CStr;
 use std::time::Duration;
 
 /// A device we found on the bus.
@@ -23,8 +22,28 @@ pub struct Found {
 }
 
 impl Found {
+    /// True if the usage page of this interface is a vendor usage page.
     pub fn is_vendor_interface(&self) -> bool {
         VENDOR_USAGE_PAGES.contains(&self.usage_page)
+    }
+
+    /// Check that this entry is an interface that OpenCraft can open, and
+    /// return the descriptor of its model.
+    ///
+    /// OpenCraft opens only the vendor interface of a known device
+    /// (architecture rule 6). This is the one check for that rule. Every code
+    /// path that opens an interface calls it first.
+    ///
+    /// - An unknown device gives [`Error::DeviceNotFound`].
+    /// - A known device with an interface that is not a vendor interface gives
+    ///   [`Error::NoVendorInterface`].
+    pub fn openable(&self) -> Result<&'static Descriptor> {
+        let descriptor = self.known.ok_or(Error::DeviceNotFound)?;
+        if self.is_vendor_interface() {
+            Ok(descriptor)
+        } else {
+            Err(Error::NoVendorInterface)
+        }
     }
 
     pub fn label(&self) -> String {
@@ -32,6 +51,26 @@ impl Found {
             Some(d) => d.name.to_string(),
             None => self.product.clone(),
         }
+    }
+}
+
+/// Select the interface to open from a list that [`scan`] or [`list_devices`]
+/// gave.
+///
+/// The function returns the first entry that is a known device AND has a
+/// vendor usage page. It uses no `hidapi` call and opens nothing.
+///
+/// - No known device in the list: [`Error::DeviceNotFound`].
+/// - A known device in the list, but none of its interfaces is a vendor
+///   interface: [`Error::NoVendorInterface`].
+pub fn select(found: &[Found]) -> Result<&Found> {
+    if let Some(f) = found.iter().find(|f| f.openable().is_ok()) {
+        return Ok(f);
+    }
+    if found.iter().any(|f| f.known.is_some()) {
+        Err(Error::NoVendorInterface)
+    } else {
+        Err(Error::DeviceNotFound)
     }
 }
 
@@ -72,10 +111,14 @@ pub struct HidTransport {
 }
 
 impl HidTransport {
-    /// Open the HID interface at `path`.
-    pub fn open(path: &CStr) -> Result<Self> {
+    /// Open the HID interface of `found`.
+    ///
+    /// This function is private to the crate. It refuses an entry that is not
+    /// the vendor interface of a known device, before any `hidapi` call.
+    pub(crate) fn open(found: &Found) -> Result<Self> {
+        found.openable()?;
         let api = HidApi::new()?;
-        let dev = api.open_path(path).map_err(|e| {
+        let dev = api.open_path(&found.path).map_err(|e| {
             let msg = e.to_string();
             if msg.contains("not permitted") || msg.contains("0xE00002E2") {
                 return Error::PermissionDenied;
@@ -110,3 +153,93 @@ const _: () = {
     const fn assert_send<T: Send>() {}
     assert_send::<HidTransport>();
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::device::DESCRIPTORS;
+    use std::ffi::CString;
+
+    /// A made-up entry. The path does not exist.
+    fn entry(known: bool, usage_page: u16, interface: i32) -> Found {
+        let d = &DESCRIPTORS[0];
+        Found {
+            vid: if known { d.vid } else { 0x1234 },
+            pid: if known { d.pid } else { 0x5678 },
+            product: "Test device".to_string(),
+            serial: None,
+            usage_page,
+            interface,
+            known: if known { Some(d) } else { None },
+            path: CString::new(format!("test-path-{interface}-{usage_page:04x}")).unwrap(),
+        }
+    }
+
+    #[test]
+    fn selects_the_vendor_interface_in_any_order() {
+        let vendor = entry(true, 0xFFA0, 0);
+        let keyboard = entry(true, 0x0001, 1);
+
+        for list in [
+            vec![vendor.clone(), keyboard.clone()],
+            vec![keyboard.clone(), vendor.clone()],
+        ] {
+            let chosen = select(&list).unwrap();
+            assert_eq!(chosen.usage_page, 0xFFA0);
+            assert_eq!(chosen.path, vendor.path);
+        }
+    }
+
+    #[test]
+    fn selects_every_vendor_usage_page() {
+        for &page in VENDOR_USAGE_PAGES {
+            let list = [entry(true, page, 0)];
+            assert_eq!(select(&list).unwrap().usage_page, page);
+        }
+    }
+
+    #[test]
+    fn known_device_without_vendor_interface_is_a_specific_error() {
+        let list = [entry(true, 0x0001, 1), entry(true, 0x000C, 1)];
+        assert!(matches!(select(&list), Err(Error::NoVendorInterface)));
+    }
+
+    #[test]
+    fn unknown_device_with_vendor_page_is_not_selected() {
+        let list = [entry(false, 0xFFA0, 0)];
+        assert!(matches!(select(&list), Err(Error::DeviceNotFound)));
+    }
+
+    #[test]
+    fn unknown_device_does_not_hide_a_known_device_without_vendor_interface() {
+        let list = [entry(false, 0xFFA0, 0), entry(true, 0x0001, 1)];
+        assert!(matches!(select(&list), Err(Error::NoVendorInterface)));
+    }
+
+    #[test]
+    fn empty_list_is_not_found() {
+        assert!(matches!(select(&[]), Err(Error::DeviceNotFound)));
+    }
+
+    #[test]
+    fn open_refuses_an_interface_that_is_not_a_vendor_interface() {
+        // The path does not exist. If the check did not run first, the error
+        // would come from `hidapi`, and it would not be this variant.
+        for page in [0x0001, 0x000C] {
+            let found = entry(true, page, 1);
+            assert!(matches!(
+                HidTransport::open(&found),
+                Err(Error::NoVendorInterface)
+            ));
+        }
+    }
+
+    #[test]
+    fn open_refuses_an_unknown_device() {
+        let found = entry(false, 0xFFA0, 0);
+        assert!(matches!(
+            HidTransport::open(&found),
+            Err(Error::DeviceNotFound)
+        ));
+    }
+}

@@ -13,10 +13,6 @@ Thus OpenCraft does not open the keyboard-emulation interface. This is rule 6
 of the [architecture](../ARCHITECTURE.md#5-rules). OpenCraft does not need the
 Input Monitoring permission.
 
-The error text in `crates/core/src/error.rs` tells the user to enable Input
-Monitoring. That text is correct only if the code opens the incorrect
-interface. Correct the text in Phase 1.
-
 ## Actions
 
 These facts are not tested in this project. Test them in Phase 3.
