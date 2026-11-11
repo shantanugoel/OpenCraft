@@ -58,6 +58,7 @@ impl ViewState {
             }
             Event::Problem(text) => self.problems.push(text),
             Event::Input(input) => return self.input(input, now),
+            Event::Kinds(_) | Event::Binding(_) | Event::Status { .. } | Event::Counters(_) => {}
         }
         None
     }
@@ -193,24 +194,28 @@ pub(crate) mod tests {
                     row: 1,
                     column: 1,
                     surface: Some(key()),
+                    feedback_surface: Some(key()),
                 },
                 ControlLayout {
                     id: control(ControlKind::Knob),
                     row: 1,
                     column: 1,
                     surface: None,
+                    feedback_surface: Some(bar()),
                 },
                 ControlLayout {
                     id: control(ControlKind::BarPanel),
                     row: 1,
                     column: 1,
                     surface: Some(bar()),
+                    feedback_surface: Some(bar()),
                 },
                 ControlLayout {
                     id: control(ControlKind::TouchBar),
                     row: 1,
                     column: 1,
                     surface: None,
+                    feedback_surface: None,
                 },
             ],
         }))

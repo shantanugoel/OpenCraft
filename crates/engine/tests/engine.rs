@@ -12,7 +12,11 @@ use opencraft_core::{
 use opencraft_engine::engine::SAVE_DELAY;
 use opencraft_engine::runtime::{self, POLL_INTERVAL};
 use opencraft_engine::store::{PROFILE_FILE, SCHEMA_VERSION};
-use opencraft_engine::{Color, Command, Engine, Event, Profile, ProfileStore, SurfaceState};
+use opencraft_engine::{
+    Action, BindingId, BindingState, Color, Command, Counters, Engine, Event, Feedback,
+    GestureKind, Handler, HandlerPort, KindDescription, Message, MessageSender, Profile,
+    ProfileStore, Request, Settings, Status, SurfaceState, Value,
+};
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::fs;
@@ -22,12 +26,58 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
+#[path = "engine/actions.rs"]
+mod actions;
+
 const KEY_3: SurfaceId = SurfaceId::new(SurfaceKind::KeyFace, 3);
 const BAR_2: SurfaceId = SurfaceId::new(SurfaceKind::BarPanel, 2);
 /// The slot of key face 3 on the N4 Pro.
 const KEY_3_SLOT: u8 = 13;
 const RED: Color = Color::rgb(200, 30, 30);
 const BLUE: Color = Color::rgb(20, 40, 220);
+
+// --- The fake handlers ---------------------------------------------------------
+
+fn description(kind: &str) -> KindDescription {
+    KindDescription {
+        kind: kind.into(),
+        name: "Test action".into(),
+        fields: Vec::new(),
+    }
+}
+
+fn port(kind: &str) -> (HandlerPort, mpsc::Receiver<Request>) {
+    let (sender, receiver) = mpsc::channel();
+    (
+        HandlerPort {
+            kinds: vec![description(kind)],
+            sender,
+        },
+        receiver,
+    )
+}
+
+fn action(kind: &str) -> Action {
+    Action {
+        kind: kind.into(),
+        settings: Settings::from([
+            ("text".into(), Value::Text("a setting".into())),
+            ("number".into(), Value::Integer(42)),
+        ]),
+    }
+}
+
+fn binding(control: ControlKind, number: u8, gesture: GestureKind) -> BindingId {
+    BindingId {
+        page: 0,
+        control: ControlId::new(control, number),
+        gesture,
+    }
+}
+
+fn set_binding(rig: &mut Rig, binding: BindingId, action: Option<Action>) {
+    rig.engine.command(Command::SetBinding { binding, action });
+}
 
 // --- The fake device -----------------------------------------------------------
 
@@ -114,6 +164,10 @@ impl Rig {
 
     /// An engine on the profile directory `dir`, with no device present.
     fn in_dir(dir: TempDir) -> Self {
+        Self::with_ports(dir, Vec::new())
+    }
+
+    fn with_ports(dir: TempDir, ports: Vec<opencraft_engine::HandlerPort>) -> Self {
         let world = Rc::new(World {
             now: Cell::new(Instant::now()),
         });
@@ -129,7 +183,8 @@ impl Rig {
         );
         let sink_events = Rc::clone(&events);
         let sink: Sink = Box::new(move |event| sink_events.borrow_mut().push(event));
-        let engine = Engine::new(link, store_in(dir.path()), &DESCRIPTORS[0], sink);
+        let engine =
+            Engine::with_handlers(link, store_in(dir.path()), &DESCRIPTORS[0], ports, sink);
         Self {
             engine,
             events,
@@ -355,7 +410,8 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
     // image of the size of the surface.
     let states = surfaces(&events);
     assert_eq!(states.len(), 14);
-    assert_eq!(events.len(), 15, "no other event: {events:?}");
+    assert_eq!(events.len(), 16);
+    assert_eq!(events[1], Event::Kinds(Vec::new()));
     for state in states {
         let surface = DESCRIPTORS[0].surface(state.id).unwrap();
         assert!(state.content.is_empty());
@@ -596,6 +652,14 @@ fn input_from_the_device_goes_to_the_shell() {
             input(key, Gesture::Release),
             input(knob, Gesture::TurnRight),
         ]
+    );
+    assert_eq!(
+        rig.engine.counters(),
+        Counters {
+            reports_received: 5,
+            input_events: 3,
+            invokes_sent: 0
+        }
     );
 }
 

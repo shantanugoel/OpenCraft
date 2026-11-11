@@ -6,6 +6,7 @@
 //! events in the function that it gave to [`spawn`]. The reasons are in
 //! `docs/decisions/0011-engine-thread-model.md`.
 
+use crate::action::{Handler, HandlerPort, Message};
 use crate::engine::{Command, Engine, Event};
 use crate::store::ProfileStore;
 use opencraft_core::device::DESCRIPTORS;
@@ -20,6 +21,9 @@ use std::time::Duration;
 /// The engine thread waits for input from the device for this time, then it
 /// looks for commands. Input from the device does not wait.
 pub const POLL_INTERVAL: Duration = Duration::from_millis(20);
+
+// A sender that stays busy must not stop device polls or the other queue.
+const MESSAGES_PER_POLL: usize = 64;
 
 /// What the engine needs to start.
 #[derive(Debug, Clone)]
@@ -66,21 +70,27 @@ impl Drop for EngineHandle {
 ///
 /// The engine thread calls `sink` for each event. `sink` must return
 /// quickly: it puts the event in a queue of the shell and wakes the user
-/// interface thread. The first events are the layout and the state of each
-/// surface.
-pub fn spawn(config: Config, sink: impl FnMut(Event) + Send + 'static) -> io::Result<EngineHandle> {
+/// interface thread. The first events are the layout, the kind descriptions,
+/// and the state of each surface and binding.
+pub fn spawn(
+    config: Config,
+    handlers: Vec<Box<dyn Handler>>,
+    sink: impl FnMut(Event) + Send + 'static,
+) -> io::Result<EngineHandle> {
+    let (ports, messages) = start_handlers(handlers)?;
     let (commands, receiver) = mpsc::channel();
     let thread = thread::Builder::new()
         .name("opencraft-engine".to_string())
         .spawn(move || {
-            let mut engine = Engine::new(
+            let mut engine = Engine::with_handlers(
                 Link::new(HidConnector),
                 ProfileStore::new(config.profile_dir),
                 // The layout until a device connects.
                 &DESCRIPTORS[0],
+                ports,
                 sink,
             );
-            run(&mut engine, &receiver);
+            run_with_handlers(&mut engine, &receiver, &messages);
         })?;
     Ok(EngineHandle {
         commands,
@@ -88,7 +98,7 @@ pub fn spawn(config: Config, sink: impl FnMut(Event) + Send + 'static) -> io::Re
     })
 }
 
-/// The loop of the engine thread: obey each command that waits, then wait
+/// The loop of the engine thread: obey commands, then wait
 /// for the device for [`POLL_INTERVAL`]. The loop ends at the stop command,
 /// or when each sender of `commands` is gone. Then the engine writes the
 /// profile if it changed.
@@ -96,8 +106,59 @@ pub fn run<C: Connector, S: FnMut(Event), K: Clock>(
     engine: &mut Engine<C, S, K>,
     commands: &Receiver<Command>,
 ) {
+    let (_sender, messages) = mpsc::channel();
+    run_with_handlers(engine, commands, &messages);
+}
+
+/// Connect each handler to an unbounded request queue and the shared message queue.
+/// Descriptions are read here, before the engine thread starts.
+/// Handler threads stop when their request sender goes away. The engine never joins them.
+pub fn start_handlers(
+    handlers: Vec<Box<dyn Handler>>,
+) -> io::Result<(Vec<HandlerPort>, Receiver<Message>)> {
+    let (sender, messages) = mpsc::channel();
+    let mut ports = Vec::new();
+    let mut kinds = std::collections::BTreeSet::new();
+    let mut prepared = Vec::new();
+    for handler in handlers {
+        let descriptions = handler.kinds();
+        for description in &descriptions {
+            if !kinds.insert(description.kind.clone()) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "two handlers have the same kind",
+                ));
+            }
+        }
+        prepared.push((handler, descriptions));
+    }
+    for (mut handler, descriptions) in prepared {
+        let (requests, receiver) = mpsc::channel();
+        let sender = sender.clone();
+        thread::Builder::new()
+            .name("opencraft-handler".into())
+            .spawn(move || {
+                handler.start(sender);
+                while let Ok(request) = receiver.recv() {
+                    handler.handle(request);
+                }
+            })?;
+        ports.push(HandlerPort {
+            kinds: descriptions,
+            sender: requests,
+        });
+    }
+    Ok((ports, messages))
+}
+
+/// Read commands and handler messages before each device poll.
+pub fn run_with_handlers<C: Connector, S: FnMut(Event), K: Clock>(
+    engine: &mut Engine<C, S, K>,
+    commands: &Receiver<Command>,
+    messages: &Receiver<Message>,
+) {
     'run: loop {
-        loop {
+        for _ in 0..MESSAGES_PER_POLL {
             match commands.try_recv() {
                 Ok(command) => {
                     if !engine.command(command) {
@@ -107,6 +168,9 @@ pub fn run<C: Connector, S: FnMut(Event), K: Clock>(
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => break 'run,
             }
+        }
+        for message in messages.try_iter().take(MESSAGES_PER_POLL) {
+            engine.handler_message(message);
         }
         engine.poll(POLL_INTERVAL);
     }

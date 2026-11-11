@@ -13,6 +13,10 @@
 //! directly, with a fake transport and a fake clock (rule 7). The reasons
 //! are in `docs/decisions/0011-engine-thread-model.md`.
 
+use crate::action::{
+    Action, BindingId, BindingState, Feedback, GestureKind, HandlerPort, KindDescription, Message,
+    Request, Status,
+};
 use crate::layout::DeviceLayout;
 use crate::profile::{Color, Profile, SurfaceContent};
 use crate::render::{self, Size};
@@ -56,6 +60,15 @@ pub enum Command {
         surface: SurfaceId,
         path: Option<PathBuf>,
     },
+    /// Set or remove a binding. Page numbers start at 0.
+    SetBinding {
+        binding: BindingId,
+        action: Option<Action>,
+    },
+    /// Ask the handler to correct the status of this kind.
+    Resolve { kind: String },
+    /// Send the current counters in an event.
+    ReadCounters,
     /// Write the profile if it changed, and stop the engine.
     Stop,
 }
@@ -70,6 +83,14 @@ pub struct SurfaceState {
     pub image: Arc<RgbImage>,
 }
 
+/// Counts since this engine starts. Reports include acknowledgements and unknown reports.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Counters {
+    pub reports_received: u64,
+    pub input_events: u64,
+    pub invokes_sent: u64,
+}
+
 /// An event from the engine to a shell.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
@@ -77,6 +98,14 @@ pub enum Event {
     /// if a device of a different model connects. Before the first
     /// connection, it is the layout of the default model.
     Layout(Arc<DeviceLayout>),
+    /// All kind descriptions, after the layout.
+    Kinds(Vec<KindDescription>),
+    /// A binding at the start, or after a change. An unavailable kind stays.
+    Binding(BindingState),
+    /// The latest status that a handler sends for a kind.
+    Status { kind: String, status: Status },
+    /// The response to `Command::ReadCounters`.
+    Counters(Counters),
     /// The state of a surface: at the start for each surface, and after each
     /// change.
     Surface(SurfaceState),
@@ -117,6 +146,10 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// only about a problem that stays.
     link_problem: Option<String>,
     brightness: u8,
+    ports: Vec<HandlerPort>,
+    feedback: BTreeMap<BindingId, (u64, Feedback)>,
+    feedback_order: u64,
+    counters: Counters,
     sink: S,
 }
 
@@ -133,6 +166,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         default_model: &'static Descriptor,
         sink: S,
     ) -> Self {
+        Self::with_handlers(link, store, default_model, Vec::new(), sink)
+    }
+
+    /// Make the logic with non-blocking handler ports. No handler code runs here.
+    pub fn with_handlers(
+        link: Link<C, K>,
+        store: ProfileStore,
+        default_model: &'static Descriptor,
+        ports: Vec<HandlerPort>,
+        sink: S,
+    ) -> Self {
         let mut engine = Self {
             link,
             store,
@@ -145,10 +189,39 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             save_failed: false,
             link_problem: None,
             brightness: DEFAULT_BRIGHTNESS,
+            ports,
+            feedback: BTreeMap::new(),
+            feedback_order: 0,
+            counters: Counters::default(),
             sink,
         };
         engine.load_profile();
         engine.show_model();
+        let bindings: Vec<_> = engine
+            .profile
+            .pages()
+            .iter()
+            .enumerate()
+            .flat_map(|(page, data)| {
+                data.bindings().map(move |((control, gesture), action)| {
+                    (
+                        BindingId {
+                            page,
+                            control,
+                            gesture,
+                        },
+                        action.clone(),
+                    )
+                })
+            })
+            .collect();
+        for (binding, action) in bindings {
+            engine.binding_event(binding, Some(action.clone()));
+            if binding.page == 0 {
+                let kind = action.kind.clone();
+                engine.request(&kind, Request::Appear { binding, action });
+            }
+        }
         engine
     }
 
@@ -160,6 +233,131 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// The link to the device.
     pub fn link(&self) -> &Link<C, K> {
         &self.link
+    }
+
+    /// The input counts since this engine starts.
+    pub fn counters(&self) -> Counters {
+        self.counters
+    }
+
+    fn available(&self, kind: &str) -> bool {
+        self.ports
+            .iter()
+            .any(|p| p.kinds.iter().any(|k| k.kind == kind))
+    }
+
+    fn request(&self, kind: &str, request: Request) -> bool {
+        self.ports
+            .iter()
+            .find(|p| p.kinds.iter().any(|k| k.kind == kind))
+            .is_some_and(|p| p.sender.send(request).is_ok())
+    }
+
+    fn binding_event(&mut self, binding: BindingId, action: Option<Action>) {
+        let available = action.as_ref().is_some_and(|a| self.available(&a.kind));
+        (self.sink)(Event::Binding(BindingState {
+            binding,
+            action,
+            available,
+        }));
+    }
+
+    fn set_binding(&mut self, binding: BindingId, action: Option<Action>) {
+        let Some(page) = self.profile.page_mut(binding.page) else {
+            self.problem(format!("The profile has no page {}.", binding.page));
+            return;
+        };
+        let before = page.binding(binding.control, binding.gesture).cloned();
+        if !page.set_binding(binding.control, binding.gesture, action.clone()) {
+            return;
+        }
+        if binding.page == 0 {
+            if let Some(before) = before {
+                self.request(&before.kind, Request::Disappear { binding });
+            }
+        }
+        let had_feedback = self.feedback.remove(&binding).is_some();
+        self.changed_at = Some(self.now());
+        self.binding_event(binding, action.clone());
+        if binding.page == 0 {
+            if let Some(action) = action {
+                let kind = action.kind.clone();
+                self.request(&kind, Request::Appear { binding, action });
+            }
+        }
+        if had_feedback {
+            self.refresh_feedback_surface(binding.control);
+        }
+    }
+
+    fn invoke(&mut self, event: InputEvent) {
+        let Some(gesture) = GestureKind::from_gesture(event.gesture) else {
+            return;
+        };
+        let Some(action) = self
+            .profile
+            .active_page()
+            .binding(event.control, gesture)
+            .cloned()
+        else {
+            return;
+        };
+        let binding = BindingId {
+            page: 0,
+            control: event.control,
+            gesture,
+        };
+        let kind = action.kind.clone();
+        if self.request(&kind, Request::Invoke { binding, action }) {
+            self.counters.invokes_sent += 1;
+        }
+    }
+
+    fn feedback_surface(&self, control: opencraft_core::ControlId) -> Option<SurfaceId> {
+        self.descriptor.control(control)?.feedback_surface()
+    }
+
+    fn refresh_feedback_surface(&mut self, control: opencraft_core::ControlId) {
+        let Some(surface) = self
+            .feedback_surface(control)
+            .and_then(|id| self.descriptor.surface(id))
+            .filter(|s| s.slot.is_some())
+        else {
+            return;
+        };
+        self.render(surface);
+        if self.link.is_connected() && !self.needs_draw {
+            self.draw_one(surface);
+        }
+    }
+
+    /// Accept one message from the shared handler queue.
+    pub fn handler_message(&mut self, message: Message) {
+        match message {
+            Message::Feedback { binding, feedback } => {
+                if binding.page != 0
+                    || self
+                        .profile
+                        .active_page()
+                        .binding(binding.control, binding.gesture)
+                        .is_none()
+                    || self.feedback_surface(binding.control).is_none()
+                {
+                    return;
+                }
+                if let Some(mut feedback) = feedback {
+                    feedback.level = feedback.level.map(|v| v.min(100));
+                    self.feedback_order += 1;
+                    self.feedback
+                        .insert(binding, (self.feedback_order, feedback));
+                } else {
+                    self.feedback.remove(&binding);
+                }
+                self.refresh_feedback_surface(binding.control);
+            }
+            Message::Status { kind, status } => (self.sink)(Event::Status { kind, status }),
+            Message::Problem(text) => self.problem(text),
+        }
     }
 
     fn load_profile(&mut self) {
@@ -196,6 +394,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// send the state of each surface.
     fn show_model(&mut self) {
         (self.sink)(Event::Layout(Arc::new(DeviceLayout::from(self.descriptor))));
+        (self.sink)(Event::Kinds(
+            self.ports.iter().flat_map(|p| p.kinds.clone()).collect(),
+        ));
         self.images.clear();
         for surface in self.descriptor.slot_surfaces() {
             self.render(surface);
@@ -223,7 +424,18 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             width: u32::from(surface.width),
             height: u32::from(surface.height),
         };
-        let image = Arc::new(render::surface_image(size, &content, source.as_ref()));
+        let feedback = self
+            .feedback
+            .iter()
+            .filter(|(binding, _)| self.feedback_surface(binding.control) == Some(surface.id))
+            .max_by_key(|(_, (order, _))| *order)
+            .map(|(_, (_, feedback))| feedback);
+        let image = Arc::new(render::surface_image_with_feedback(
+            size,
+            &content,
+            source.as_ref(),
+            feedback,
+        ));
         self.images.insert(surface.id, Arc::clone(&image));
         (self.sink)(Event::Surface(SurfaceState {
             id: surface.id,
@@ -250,6 +462,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 };
                 self.change(surface, |c| c.image = image);
             }
+            Command::SetBinding { binding, action } => self.set_binding(binding, action),
+            Command::Resolve { kind } => {
+                self.request(&kind, Request::Resolve { kind: kind.clone() });
+            }
+            Command::ReadCounters => (self.sink)(Event::Counters(self.counters)),
             Command::Stop => return false,
         }
         true
@@ -300,8 +517,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 (self.sink)(Event::Disconnected);
             }
             Ok(LinkEvent::Input(report)) => {
+                self.counters.reports_received += 1;
                 if let Decoded::Input(event) = decode(self.descriptor, &report) {
+                    self.counters.input_events += 1;
                     (self.sink)(Event::Input(event));
+                    self.invoke(event);
                 }
             }
             Ok(LinkEvent::Timeout) => {}

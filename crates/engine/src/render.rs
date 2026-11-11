@@ -14,6 +14,7 @@
 //! - With a label and an image, the label is in a band at the bottom, and
 //!   the image has the area above the band.
 
+use crate::action::Feedback;
 use crate::label::{self, Area};
 use crate::profile::{Color, SurfaceContent};
 use image::imageops::{self, FilterType};
@@ -72,6 +73,54 @@ pub fn surface_image(
 
     if let Some(image) = image {
         draw_image(&mut canvas, image, size.width, image_height);
+    }
+    canvas
+}
+
+/// Make the surface image with the newest feedback. The bar has a dark
+/// track and a white fill. Its area is separate from the label and image.
+pub fn surface_image_with_feedback(
+    size: Size,
+    content: &SurfaceContent,
+    image: Option<&DynamicImage>,
+    feedback: Option<&Feedback>,
+) -> RgbImage {
+    let Some(feedback) = feedback else {
+        return surface_image(size, content, image);
+    };
+    let mut content = content.clone();
+    if let Some(label) = &feedback.label {
+        content.label = Some(label.clone());
+    }
+    if feedback.level.is_none() || size.width < 16 || size.height < 20 {
+        return surface_image(size, &content, image);
+    }
+    let area = Size {
+        width: size.width,
+        height: size.height - 16,
+    };
+    let top = surface_image(area, &content, image);
+    let mut canvas = RgbImage::from_pixel(
+        size.width,
+        size.height,
+        Rgb(content.color.unwrap_or(DEFAULT_COLOR).0),
+    );
+    imageops::replace(&mut canvas, &top, 0, 0);
+    let width = size.width - 12;
+    let fill = width * u32::from(feedback.level.unwrap_or(0).min(100)) / 100;
+    for y in size.height - 12..size.height - 4 {
+        for x in 4..size.width - 4 {
+            let border =
+                x < 6 || x >= size.width - 6 || y == size.height - 12 || y == size.height - 5;
+            let color = if border {
+                [0, 0, 0]
+            } else if x - 6 < fill {
+                [255, 255, 255]
+            } else {
+                [64, 64, 64]
+            };
+            canvas.put_pixel(x, y, Rgb(color));
+        }
     }
     canvas
 }
@@ -248,6 +297,65 @@ mod tests {
         assert!(has_color(&image, 80, 112, white));
         assert!(!has_color(&image, 86, 112, GREEN));
         assert_eq!(image.get_pixel(1, 110), &Rgb(RED.0));
+    }
+
+    #[test]
+    fn feedback_keeps_the_label_above_a_clear_level_track() {
+        for size in [KEY, BAR] {
+            let content = content(Some("Original"), Some(RED));
+            let feedback = Feedback {
+                label: Some("Feedback".into()),
+                level: Some(50),
+            };
+            let image = surface_image_with_feedback(size, &content, None, Some(&feedback));
+            assert_eq!(image.dimensions(), (size.width, size.height));
+            assert_eq!(image.get_pixel(8, size.height - 8), &Rgb([255, 255, 255]));
+            assert_eq!(
+                image.get_pixel(size.width - 8, size.height - 8),
+                &Rgb([64, 64, 64])
+            );
+            let top = imageops::crop_imm(&image, 0, 0, size.width, size.height - 16).to_image();
+            let expected = surface_image(
+                Size {
+                    width: size.width,
+                    height: size.height - 16,
+                },
+                &SurfaceContent {
+                    label: Some("Feedback".into()),
+                    ..content.clone()
+                },
+                None,
+            );
+            assert_eq!(top, expected);
+            for level in [0, 100, 255] {
+                let feedback = Feedback {
+                    label: None,
+                    level: Some(level),
+                };
+                let image = surface_image_with_feedback(size, &content, None, Some(&feedback));
+                let want = if level == 0 {
+                    [64, 64, 64]
+                } else {
+                    [255, 255, 255]
+                };
+                assert_eq!(image.get_pixel(size.width - 8, size.height - 8), &Rgb(want));
+            }
+            let feedback = Feedback {
+                label: Some("Replacement".into()),
+                level: None,
+            };
+            assert_eq!(
+                surface_image_with_feedback(size, &content, None, Some(&feedback)),
+                surface_image(
+                    size,
+                    &SurfaceContent {
+                        label: Some("Replacement".into()),
+                        ..content
+                    },
+                    None
+                )
+            );
+        }
     }
 
     #[test]

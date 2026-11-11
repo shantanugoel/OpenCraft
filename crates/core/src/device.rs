@@ -10,7 +10,7 @@
 //!   the rotation of each;
 //! - the **controls**: the parts that the user operates (key, knob, bar panel,
 //!   touch bar), with the input code of each gesture, the place of the control,
-//!   and the surface of the control, if it has one.
+//!   the surface of the control, and its feedback surface.
 //!
 //! The format of a report is the protocol, not the model. It is in
 //! [`crate::events`]. Only the codes are model data.
@@ -274,9 +274,16 @@ pub struct Control {
     pub position: Position,
     /// The surface of the control, if the control has a display.
     pub surface: Option<SurfaceId>,
+    /// The feedback surface when the control has no display.
+    pub feedback_surface: Option<SurfaceId>,
 }
 
 impl Control {
+    /// The surface that shows feedback for this control.
+    pub fn feedback_surface(&self) -> Option<SurfaceId> {
+        self.surface.or(self.feedback_surface)
+    }
+
     pub fn id(&self) -> ControlId {
         ControlId::new(self.kind(), self.number)
     }
@@ -413,10 +420,11 @@ const fn n4pro_key(number: u8, code: u8) -> Control {
             column: (number - 1) % 5 + 1,
         },
         surface: Some(SurfaceId::new(SurfaceKind::KeyFace, number)),
+        feedback_surface: None,
     }
 }
 
-const fn knob(number: u8, turn_left: u8, turn_right: u8, push: u8) -> Control {
+const fn n4pro_knob(number: u8, turn_left: u8, turn_right: u8, push: u8) -> Control {
     Control {
         number,
         codes: InputCodes::Knob {
@@ -429,6 +437,7 @@ const fn knob(number: u8, turn_left: u8, turn_right: u8, push: u8) -> Control {
             column: number,
         },
         surface: None,
+        feedback_surface: Some(SurfaceId::new(SurfaceKind::BarPanel, number)),
     }
 }
 
@@ -441,6 +450,7 @@ const fn bar_panel(number: u8, tap: u8) -> Control {
             column: number,
         },
         surface: Some(SurfaceId::new(SurfaceKind::BarPanel, number)),
+        feedback_surface: None,
     }
 }
 
@@ -458,10 +468,10 @@ static N4PRO_CONTROLS: &[Control] = &[
     n4pro_key(8, 0x08),
     n4pro_key(9, 0x09),
     n4pro_key(10, 0x0A),
-    knob(1, 0xA0, 0xA1, 0x37),
-    knob(2, 0x50, 0x51, 0x35),
-    knob(3, 0x90, 0x91, 0x33),
-    knob(4, 0x70, 0x71, 0x36),
+    n4pro_knob(1, 0xA0, 0xA1, 0x37),
+    n4pro_knob(2, 0x50, 0x51, 0x35),
+    n4pro_knob(3, 0x90, 0x91, 0x33),
+    n4pro_knob(4, 0x70, 0x71, 0x36),
     bar_panel(1, 0x40),
     bar_panel(2, 0x41),
     bar_panel(3, 0x42),
@@ -477,6 +487,7 @@ static N4PRO_CONTROLS: &[Control] = &[
         position: Position { row: 1, column: 1 },
         // The bar panels are the display of the touch bar.
         surface: None,
+        feedback_surface: None,
     },
 ];
 

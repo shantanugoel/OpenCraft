@@ -1,6 +1,6 @@
 # VSD N4 Pro hardware
 
-Last update: 2026-11-11
+Last update: 2026-11-12
 
 The VSD N4 Pro is a Mirabox StreamDock N4 Pro with a different brand name.
 VSDinside is the retail brand. The protocol is in
@@ -34,6 +34,12 @@ on hardware.
 | Top row, from left to right: key slots 11, 12, 13, 14, 15 | Measured | Owner, 2026-11-11: `opencraft-probe test` shows the slot numbers |
 | Second row, from left to right: key slots 6, 7, 8, 9, 10 | Measured | Owner, 2026-11-11 |
 | Touch bar, from left to right: bar panels 1, 2, 3, 4 | Measured | Owner, 2026-11-11 |
+
+### Feedback surface (2026-11-12)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| Knob N uses bar panel N as its feedback surface in the descriptor. | Inference | Knob 1 and bar panel 1 are both the left ones. Both sets count from left to right. The camera check is a later step. |
 
 ## Surfaces
 

@@ -13,7 +13,29 @@
 //! - An image of the user becomes a PNG copy in `images`. The profile does
 //!   not refer to the original file.
 
+//! ## Schema version 2
+//!
+//! Version 2 adds bindings. Version 1 loads with no bindings. The next
+//! change writes version 2. Surface content keeps the same form.
+//!
+//! ```toml
+//! schema_version = 2
+//! name = "Default"
+//! [[pages]]
+//! name = "Page 1"
+//! [pages.bindings.key-3.press]
+//! kind = "opencraft.hotkey"
+//! [pages.bindings.key-3.press.settings]
+//! hotkey = "cmd+shift+4"
+//! ```
+//!
+//! Control keys are `key-N`, `knob-N`, `bar-panel-N`, and `touch-bar-N`.
+//! Gesture keys are `press`, `release`, `turn-left`, `turn-right`, and `push`.
+//! Settings keep text, integer, boolean, list, and table values.
+
+use crate::action::{Action, GestureKind};
 use crate::error::{Error, Result};
+use crate::profile::{control_key, parse_control_key};
 use crate::profile::{parse_surface_key, surface_key, Color, Page, Profile, SurfaceContent};
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, ImageReader};
@@ -24,7 +46,7 @@ use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
 
 /// The schema version that this engine writes.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// The name of the profile file in the profile directory.
 pub const PROFILE_FILE: &str = "profile.toml";
@@ -316,22 +338,24 @@ struct Header {
     schema_version: u32,
 }
 
-/// Schema version 1.
+/// The shared fields of schema versions 1 and 2.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct FileV1 {
+struct FileData {
     schema_version: u32,
     name: String,
     #[serde(default)]
-    pages: Vec<PageV1>,
+    pages: Vec<PageData>,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct PageV1 {
+struct PageData {
     name: String,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     surfaces: BTreeMap<String, SurfaceV1>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    bindings: BTreeMap<String, BTreeMap<GestureKind, Action>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -350,12 +374,11 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     let invalid = |message: String| BackupReason::Invalid(message);
     let header: Header = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
     match header.schema_version {
-        // A later schema version converts the older versions here.
-        SCHEMA_VERSION => {}
+        1 | SCHEMA_VERSION => {}
         0 => return Err(invalid("schema version 0 does not exist".to_string())),
         found => return Err(BackupReason::NewerSchema { found }),
     }
-    let file: FileV1 = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
+    let file: FileData = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
 
     let mut pages = Vec::new();
     for page_file in file.pages {
@@ -385,6 +408,16 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
                 };
             });
         }
+        if header.schema_version == 1 && !page_file.bindings.is_empty() {
+            return Err(invalid("version 1 has no bindings".into()));
+        }
+        for (key, bindings) in page_file.bindings {
+            let control = parse_control_key(&key)
+                .ok_or_else(|| invalid(format!("'{key}' is not a control")))?;
+            for (gesture, action) in bindings {
+                page.set_binding(control, gesture, Some(action));
+            }
+        }
         pages.push(page);
     }
     Ok(Profile::new(file.name, pages))
@@ -392,14 +425,25 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
 
 /// The text of the profile file for `profile`.
 fn to_text(profile: &Profile) -> Result<String> {
-    let file = FileV1 {
+    let file = FileData {
         schema_version: SCHEMA_VERSION,
         name: profile.name.clone(),
         pages: profile
             .pages()
             .iter()
-            .map(|page| PageV1 {
+            .map(|page| PageData {
                 name: page.name.clone(),
+                bindings: {
+                    let mut bindings: BTreeMap<String, BTreeMap<GestureKind, Action>> =
+                        BTreeMap::new();
+                    for ((control, gesture), action) in page.bindings() {
+                        bindings
+                            .entry(control_key(control))
+                            .or_default()
+                            .insert(gesture, action.clone());
+                    }
+                    bindings
+                },
                 surfaces: page
                     .surfaces()
                     .map(|(id, content)| {
@@ -497,7 +541,7 @@ mod tests {
         let (_dir, store) = store();
         store.save(&sample()).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        let want = r##"schema_version = 1
+        let want = r##"schema_version = 2
 name = "Default"
 
 [[pages]]
@@ -543,12 +587,12 @@ image = "images/4f1c2a9be07d3356.png"
     #[test]
     fn a_file_with_a_newer_schema_version_is_kept_as_a_backup() {
         let (_dir, store) = store();
-        let text = "schema_version = 2\nname = \"Later\"\nnew_field = true\n";
+        let text = "schema_version = 3\nname = \"Later\"\nnew_field = true\n";
         let loaded = load_text(&store, text.as_bytes());
 
         assert_eq!(loaded.profile, Profile::default());
         let backup = loaded.backup.unwrap();
-        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 2 });
+        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 3 });
         assert_eq!(backup.path, store.dir().join("profile.backup-1.toml"));
         // The content of the file did not change, and no profile file is
         // there until the next save.
