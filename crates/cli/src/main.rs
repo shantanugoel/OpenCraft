@@ -35,7 +35,7 @@ fn main() -> ExitCode {
         "test" => cmd_test(rest),
         "listen" => cmd_listen(rest),
         "draw" => cmd_draw(rest),
-        "clear" => cmd_clear(),
+        "clear" => cmd_clear(rest),
         "raw" => cmd_raw(rest),
         "record" => record::cmd_record(rest),
         "help" | "--help" | "-h" => {
@@ -71,7 +71,7 @@ COMMANDS:
     test                 Draw a numbered panel on every slot, then decode input
     listen               Decode input events only
     draw <slot> <rrggbb> Paint one slot a solid colour
-    clear                Blank every panel
+    clear [slot]         Send the clear command for one slot, or for all slots
     raw                  Hexdump raw input reports; can save them to a file
     record               Record each gesture to a file, one prompt at a time
                          (--out <dir>, --from <step>)
@@ -393,10 +393,26 @@ fn cmd_draw(rest: &[String]) -> AnyResult {
     Ok(())
 }
 
-fn cmd_clear() -> AnyResult {
+fn cmd_clear(rest: &[String]) -> AnyResult {
+    let slot: Option<u8> = match rest.first() {
+        Some(text) => Some(
+            text.parse()
+                .map_err(|_| "usage: opencraft-probe clear [slot]")?,
+        ),
+        None => None,
+    };
     let mut t = open_device()?;
-    t.clear_all()?;
-    println!("  cleared all panels");
+    match slot {
+        Some(slot) => {
+            t.send(protocol::clear_slot(slot))?;
+            t.commit()?;
+            println!("  cleared slot {slot}");
+        }
+        None => {
+            t.clear_all()?;
+            println!("  cleared all panels");
+        }
+    }
     Ok(())
 }
 

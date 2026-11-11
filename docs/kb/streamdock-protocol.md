@@ -31,13 +31,22 @@ means that the command is in the code but is not tested.
 | Commit the images | `STP` | None | Measured |
 | Start, clear the frame buffer | `DIS` | None | Sent |
 | Brightness | `LIG` | `0x00 0x00`, percent 0 to 100 | Sent |
-| Clear one slot, or all slots with `0xFF` | `CLE` | `0x00 0x00`, slot | Sent |
+| Clear one slot, or all slots with `0xFF` | `CLE` | `0x00 0x00 0x00`, slot | Measured: owner, 2026-11-11 |
 | Knob light colours | `SETLB` | Red, green, blue for each knob | Sent |
 | Knob light brightness | `LBLIG` | Percent 0 to 100 | Source: not sent |
 | Sleep | `HAN` | None | Source: not sent |
 | Keep-alive | `CONNECT` | None | Source: not sent |
 | Set the firmware mode | `MOD` | `0x00 0x00`, ASCII digit | Source: not sent |
 | Haptic feedback | `QUCMD` | `0x1F 0x11 0x00`, `0x11` on or `0xFF` off, `0x00 0x11` | Source: not sent |
+
+The clear command needs 3 zero bytes before the slot. With 2 zero bytes, the
+device does nothing. The code had 2 zero bytes until 2026-11-11. The SDK
+transport library (`Transport::clearKey`, `Transport::clearAllKeys`) shows the
+correct position. (Measured, and Source)
+
+The SDK transport library has one more command that starts with `CLE`:
+`CLE`, `0x00 0x00`, `"DC"`. The SDK function is `Transport::disconnected`.
+OpenCraft does not send it. (Source)
 
 ## Image transfer
 

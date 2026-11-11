@@ -300,7 +300,7 @@ mod tests {
         let writes = dev.into_transport().take_writes();
 
         assert_eq!(writes.len(), 2);
-        assert_report(&writes[0], b"CRT\x00\x00CLE\x00\x00\xFF");
+        assert_report(&writes[0], b"CRT\x00\x00CLE\x00\x00\x00\xFF");
         assert_report(&writes[1], b"CRT\x00\x00STP");
     }
 

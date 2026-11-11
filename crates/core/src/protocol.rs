@@ -51,9 +51,13 @@ pub fn set_led_colors(colors: &[[u8; 3]]) -> Vec<u8> {
 }
 
 /// Clear one slot, or every slot when `slot == 0xFF`.
+///
+/// The slot comes after 3 zero bytes. The Mirabox SDK transport
+/// (`Transport::clearKey`, `Transport::clearAllKeys`) writes it at that
+/// position. With 2 zero bytes, the device does nothing.
 pub fn clear_slot(slot: u8) -> Vec<u8> {
     let mut v = cmd(b"CLE");
-    v.extend_from_slice(&[0x00, 0x00, if slot == 0xFF { 0xFF } else { slot }]);
+    v.extend_from_slice(&[0x00, 0x00, 0x00, slot]);
     v
 }
 
@@ -177,11 +181,11 @@ mod tests {
 
     #[test]
     fn clear_slot_bytes() {
-        // `CLE`, `0x00 0x00`, slot. The slot `0xFF` clears all slots.
-        assert_eq!(clear_slot(6), command(b"CLE\x00\x00\x06"));
-        assert_eq!(clear_slot(15), command(b"CLE\x00\x00\x0F"));
-        assert_eq!(clear_slot(1), command(b"CLE\x00\x00\x01"));
-        assert_eq!(clear_slot(0xFF), command(b"CLE\x00\x00\xFF"));
+        // `CLE`, `0x00 0x00 0x00`, slot. The slot `0xFF` clears all slots.
+        assert_eq!(clear_slot(6), command(b"CLE\x00\x00\x00\x06"));
+        assert_eq!(clear_slot(15), command(b"CLE\x00\x00\x00\x0F"));
+        assert_eq!(clear_slot(1), command(b"CLE\x00\x00\x00\x01"));
+        assert_eq!(clear_slot(0xFF), command(b"CLE\x00\x00\x00\xFF"));
     }
 
     #[test]
