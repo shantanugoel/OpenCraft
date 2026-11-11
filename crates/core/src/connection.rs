@@ -137,6 +137,26 @@ impl<T: Transport> Device<T> {
             .to_string())
     }
 
+    /// Send the start sequence of a connection: the start command, the
+    /// brightness command, the clear command for all slots, and the commit.
+    /// Do this one time after each connection, before the first image. Then
+    /// send the images and [`Self::commit`].
+    ///
+    /// The order is necessary. If a commit goes to the device before the
+    /// first start command of the connection, the device does not show the
+    /// slot images that arrive after the start command, until it gets the
+    /// clear command for all slots. Thus the clear command is in the
+    /// sequence, and no commit is before the start command. See "Start
+    /// sequence" in `docs/kb/streamdock-protocol.md`.
+    ///
+    /// The start command also starts the keep-alive timer of the device:
+    /// see [`crate::link::Link`].
+    pub fn start(&mut self, brightness: u8) -> Result<()> {
+        self.init()?;
+        self.set_brightness(brightness)?;
+        self.clear_all()
+    }
+
     pub fn set_brightness(&mut self, percent: u8) -> Result<()> {
         self.send(protocol::set_brightness(percent))
     }
@@ -302,6 +322,22 @@ mod tests {
         assert_eq!(writes.len(), 2);
         assert_report(&writes[0], b"CRT\x00\x00CLE\x00\x00\x00\xFF");
         assert_report(&writes[1], b"CRT\x00\x00STP");
+    }
+
+    #[test]
+    fn start_sends_the_start_command_first_and_clears_all_slots_before_the_commit() {
+        // The clear command for all slots must follow `DIS`, and no commit
+        // can be before `DIS`. Without this order, the device can show no
+        // slot image (kb: "Start sequence").
+        let mut dev = fake_device();
+        dev.start(80).unwrap();
+        let writes = dev.into_transport().take_writes();
+
+        assert_eq!(writes.len(), 4);
+        assert_report(&writes[0], b"CRT\x00\x00DIS");
+        assert_report(&writes[1], b"CRT\x00\x00LIG\x00\x00\x50");
+        assert_report(&writes[2], b"CRT\x00\x00CLE\x00\x00\x00\xFF");
+        assert_report(&writes[3], b"CRT\x00\x00STP");
     }
 
     #[test]
@@ -511,6 +547,8 @@ mod tests {
             Surface {
                 id: SurfaceId::new(SurfaceKind::KeyFace, 1),
                 slot: Some(42),
+                x: 0,
+                y: 0,
                 width: 8,
                 height: 8,
                 format: ImageFormat::Png,
@@ -519,6 +557,8 @@ mod tests {
             Surface {
                 id: SurfaceId::new(SurfaceKind::Background, 1),
                 slot: None,
+                x: 0,
+                y: 0,
                 width: 513,
                 height: 258,
                 format: ImageFormat::Jpeg,

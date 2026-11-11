@@ -690,6 +690,8 @@ const fn invented_face(number: u8) -> opencraft_core::Surface {
     opencraft_core::Surface {
         id: opencraft_core::SurfaceId::new(opencraft_core::SurfaceKind::KeyFace, number),
         slot: Some(number),
+        x: 0,
+        y: 0,
         width: 64,
         height: 64,
         format: opencraft_core::ImageFormat::Jpeg,
