@@ -18,6 +18,10 @@ libc = "0.2"
 serde = { version = "1", features = ["derive"] }
 toml = "1"
 tempfile = "3"
+# Core Text for the labels on surfaces, on macOS only (decision 0010).
+core-text = { version = "22", default-features = false, features = ["link", "mountainlion"] }
+core-graphics = { version = "0.25", default-features = false, features = ["link"] }
+core-foundation = { version = "0.10", default-features = false, features = ["link"] }
 
 [profile.release]
 lto = "thin"
