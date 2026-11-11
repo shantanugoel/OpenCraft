@@ -41,7 +41,7 @@ action.
 | Integer, with a minimum and a maximum | A number | Integer |
 | Choice, with a list of options | One option. An option has a value and a label. | Text: the value of the option |
 | Toggle | On or off | Boolean |
-| Hotkey | A key with modifier keys | Text, for example `cmd+shift+4` |
+| Hotkey | A key with modifier keys | Text, for example `shift+cmd+4` |
 | Path, of a file or of an application | A file that the user selects or types | Text |
 
 The form of a hotkey text: the modifiers `ctrl`, `alt`, `shift`, and `cmd`,

@@ -85,7 +85,7 @@ at the same time.
 | Probe | `crates/cli` | Exists |
 | Engine | `crates/engine` | Exists |
 | GUI application | `crates/app` | Exists |
-| Built-in action handlers | `crates/actions` | Phase 3 |
+| Built-in action handlers | `crates/actions` | Exists |
 
 The reason for these crates is in decisions
 [0008](decisions/0008-crate-boundaries.md) and
