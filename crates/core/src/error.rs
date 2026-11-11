@@ -13,6 +13,12 @@ pub enum Error {
     #[error("no matching device found")]
     DeviceNotFound,
 
+    /// The open device is gone, for example because the cable is
+    /// disconnected. The handle cannot operate again. Open the device again:
+    /// see [`crate::link::Link`].
+    #[error("the device is disconnected")]
+    Disconnected,
+
     #[error("device returned an unexpected report size: {0}")]
     ShortReport(usize),
 
