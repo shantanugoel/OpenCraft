@@ -1,11 +1,10 @@
 # Recorded input reports
 
 This directory holds recordings of the input reports of the VSD N4 Pro.
-Each file holds the reports for one gesture. Tests in `crates/core` use the
-files to check the decoder in `crates/core/src/events.rs`.
+Tests in `crates/core` use the files to check the decoder in
+`crates/core/src/events.rs`.
 
-The recordings come from the procedure in GitHub issue #11. The files do not
-exist until the owner of the device does the procedure.
+The recordings come from the procedure in GitHub issue #11.
 
 ## How to make the recordings
 
@@ -16,18 +15,16 @@ repository:
 scripts/record-input.sh
 ```
 
-The script builds the probe, shows the slot number on each panel, and asks for
-the slot numbers. Then it gives 40 steps, one gesture for each step. The script
-shows the instruction for each step, and the physical position of the control.
-The slot numbers do not stay on the panels, thus the position is necessary. If
-`layout.txt` exists, the script can use it again. To continue after a stop, add
-`--from <step number>`. To write the files in a different directory, give the
-directory as the first argument. To print the table below, add `--list`.
+The script has 4 passes. Each pass is one recording. The script shows a short
+list of gestures for the pass. Do the gestures in the order of the list, then
+press Enter. The order tells which report comes from which control.
+
+To do one pass again, give its number: `scripts/record-input.sh 2`.
 
 You can also record one gesture by hand:
 
 ```sh
-opencraft-probe raw --save 01-key-06.txt --note "key 6: press and release" --until-enter
+opencraft-probe raw --draw --save key.txt --note "one key: press and release" --until-enter
 ```
 
 ## File format
@@ -46,7 +43,7 @@ Example (the bytes are not real):
 
 ```text
 # opencraft-input-recording v1
-# note: key 6: press and release
+# note: one key: press and release
 # device: VSD StreamDock N4 Pro
 # firmware: V4.VSD N4 Pro.02.010
 # columns: time_ms report_hex
@@ -58,58 +55,15 @@ To read a file in a test, use `opencraft_core::recording::parse`.
 
 ## Other files
 
-`layout.txt` holds the slot number at each physical position. The owner types
-the numbers when the script asks. The lines are `key_row_1`, `key_row_2`, and
+`layout.txt` holds the slot number at each physical position. The owner read
+the numbers from the panels. The lines are `key_row_1`, `key_row_2`, and
 `bar_panels`. The numbers go from left to right.
 
 ## Files and gestures
 
-A step that the owner skips has no file.
-
-| File | Gesture |
+| File | Gestures, in this order |
 |---|---|
-| `01-key-06.txt` | key 6: press and release |
-| `02-key-07.txt` | key 7: press and release |
-| `03-key-08.txt` | key 8: press and release |
-| `04-key-09.txt` | key 9: press and release |
-| `05-key-10.txt` | key 10: press and release |
-| `06-key-11.txt` | key 11: press and release |
-| `07-key-12.txt` | key 12: press and release |
-| `08-key-13.txt` | key 13: press and release |
-| `09-key-14.txt` | key 14: press and release |
-| `10-key-15.txt` | key 15: press and release |
-| `11-knob-1-left.txt` | knob 1 (first from the left): turn left about 5 clicks |
-| `12-knob-1-right.txt` | knob 1 (first from the left): turn right about 5 clicks |
-| `13-knob-1-push.txt` | knob 1 (first from the left): push and release |
-| `14-knob-2-left.txt` | knob 2 (second from the left): turn left about 5 clicks |
-| `15-knob-2-right.txt` | knob 2 (second from the left): turn right about 5 clicks |
-| `16-knob-2-push.txt` | knob 2 (second from the left): push and release |
-| `17-knob-3-left.txt` | knob 3 (third from the left): turn left about 5 clicks |
-| `18-knob-3-right.txt` | knob 3 (third from the left): turn right about 5 clicks |
-| `19-knob-3-push.txt` | knob 3 (third from the left): push and release |
-| `20-knob-4-left.txt` | knob 4 (fourth from the left): turn left about 5 clicks |
-| `21-knob-4-right.txt` | knob 4 (fourth from the left): turn right about 5 clicks |
-| `22-knob-4-push.txt` | knob 4 (fourth from the left): push and release |
-| `23-bar-tap-1.txt` | bar panel 1: tap |
-| `24-bar-tap-2.txt` | bar panel 2: tap |
-| `25-bar-tap-3.txt` | bar panel 3: tap |
-| `26-bar-tap-4.txt` | bar panel 4: tap |
-| `27-bar-hold-1.txt` | bar panel 1: press and hold for 2 seconds, then release |
-| `28-swipe-left-1.txt` | touch bar: swipe left, 1 time |
-| `29-swipe-right-1.txt` | touch bar: swipe right, 1 time |
-| `30-swipe-left-20.txt` | touch bar: swipe left, 20 times |
-| `31-swipe-right-20.txt` | touch bar: swipe right, 20 times |
-| `32-slide-left-to-right.txt` | touch bar: one finger moves slowly from the left end to the right end |
-| `33-slide-top-to-bottom.txt` | touch bar: one finger moves slowly from the top edge to the bottom edge |
-| `34-corner-top-left.txt` | touch bar: touch at the top-left corner |
-| `35-corner-top-right.txt` | touch bar: touch at the top-right corner |
-| `36-corner-bottom-left.txt` | touch bar: touch at the bottom-left corner |
-| `37-corner-bottom-right.txt` | touch bar: touch at the bottom-right corner |
-| `38-knob-1-fast.txt` | knob 1 (first from the left): turn as fast as possible for 5 seconds |
-| `39-keys-two.txt` | keys 7 and 8: pressed at the same time, then released |
-| `40-key-hold.txt` | key 8: press and hold for 3 seconds, then release |
-
-## Rules
-
-- Do not put a device serial number in a file here.
-- Do not change a recording by hand. Record the gesture again.
+| `session-1-keys.txt` | Each key one time: top row from left to right, then second row from left to right. Then 2 adjacent keys together. Then 1 key held for 3 seconds. |
+| `session-2-knobs.txt` | For each knob from left to right: turn left 5 clicks, turn right 5 clicks, push. Then the left knob turned as fast as possible for 5 seconds. |
+| `session-3-touch-bar.txt` | 4 taps on the touch bar from left to right. A slow slide from the left end to the right end. A slow slide from the top edge to the bottom edge. A finger held for 2 seconds at the left end. |
+| `session-4-swipes.txt` | 20 swipes left, then 20 swipes right. |
