@@ -3,7 +3,7 @@
 //! Confirms that we can talk to a StreamDock-class device without the vendor
 //! software: enumerate it, draw on every panel, and decode every input.
 
-use opencraft_core::{events, image, list_devices, protocol, Event, Found, Transport};
+use opencraft_core::{events, image, list_devices, protocol, Device, Event, Found, HidTransport};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
@@ -76,7 +76,7 @@ NOTE: quit VSD Craft before running — two apps driving one device will fight."
     );
 }
 
-fn open_device() -> Result<Transport, Box<dyn std::error::Error>> {
+fn open_device() -> Result<Device<HidTransport>, Box<dyn std::error::Error>> {
     let found: Vec<Found> = list_devices()?;
 
     let candidate = found
@@ -94,7 +94,7 @@ fn open_device() -> Result<Transport, Box<dyn std::error::Error>> {
                 "  iface  : interface {} / usage page 0x{:04X}\n",
                 f.interface, f.usage_page
             );
-            Ok(Transport::open(f)?)
+            Ok(Device::open(f)?)
         }
         None => {
             eprintln!("No known StreamDock device found.\n");
@@ -137,8 +137,8 @@ fn cmd_list() -> AnyResult {
 }
 
 fn cmd_identify() -> AnyResult {
-    let t = open_device()?;
-    let d = t.descriptor;
+    let mut t = open_device()?;
+    let d = t.descriptor();
     println!("  panels : {}", d.panels.len());
     println!("  packet : {} bytes", d.packet_size);
     match t.firmware_version() {
@@ -177,7 +177,7 @@ fn cmd_test(rest: &[String]) -> AnyResult {
     t.set_brightness(brightness)?;
 
     let mut led_colors = Vec::new();
-    for (i, panel) in t.descriptor.panels.iter().enumerate() {
+    for (i, panel) in t.descriptor().panels.iter().enumerate() {
         let png =
             image::render_test_panel(panel.width, panel.height, panel.slot, image::test_color(i))?;
         t.send_image(panel.slot, &png)?;
@@ -193,7 +193,7 @@ fn cmd_test(rest: &[String]) -> AnyResult {
     t.commit()?;
     println!(
         "  drawn  : {} panels committed\n",
-        t.descriptor.panels.len()
+        t.descriptor().panels.len()
     );
     println!("Each display now shows its slot number.");
     println!("Press keys / turn knobs / swipe the touch bar for {seconds}s.\n");
@@ -242,9 +242,9 @@ fn cmd_draw(rest: &[String]) -> AnyResult {
     let slot: u8 = rest[0].parse()?;
     let rgb = parse_hex_color(&rest[1])?;
 
-    let t = open_device()?;
+    let mut t = open_device()?;
     let panel = t
-        .descriptor
+        .descriptor()
         .panel(slot)
         .ok_or_else(|| format!("slot {slot} does not exist on this device"))?;
 
@@ -260,7 +260,7 @@ fn cmd_draw(rest: &[String]) -> AnyResult {
 }
 
 fn cmd_clear() -> AnyResult {
-    let t = open_device()?;
+    let mut t = open_device()?;
     t.clear_all()?;
     println!("  cleared all panels");
     Ok(())
@@ -268,7 +268,7 @@ fn cmd_clear() -> AnyResult {
 
 /// Read one report, tolerating the occasional transient IOKit hiccup.
 /// Returns None on timeout or a non-fatal error.
-fn read_tolerant(t: &mut Transport, consecutive_errors: &mut u32) -> Option<Vec<u8>> {
+fn read_tolerant(t: &mut Device<HidTransport>, consecutive_errors: &mut u32) -> Option<Vec<u8>> {
     match t.read(Duration::from_millis(100)) {
         Ok(report) => {
             *consecutive_errors = 0;
@@ -285,7 +285,7 @@ fn read_tolerant(t: &mut Transport, consecutive_errors: &mut u32) -> Option<Vec<
 }
 
 /// Read and decode events until the deadline.
-fn pump(t: &mut Transport, duration: Duration, verbose: bool) -> AnyResult {
+fn pump(t: &mut Device<HidTransport>, duration: Duration, verbose: bool) -> AnyResult {
     let deadline = Instant::now() + duration;
     let mut errors = 0u32;
     while Instant::now() < deadline {
