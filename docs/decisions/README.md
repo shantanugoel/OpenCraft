@@ -25,6 +25,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0007](0007-jpeg-for-key-faces-and-bar-panels.md) | Send JPEG to key faces and bar panels | Accepted |
 | [0008](0008-crate-boundaries.md) | One crate for the engine and one crate for the GUI application | Accepted |
 | [0009](0009-profile-file-format.md) | The profile is a directory with a TOML file and its images | Accepted |
+| [0011](0011-engine-thread-model.md) | The engine has one thread, and the shell uses messages | Accepted |
 
 ## Template
 

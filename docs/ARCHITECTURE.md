@@ -109,7 +109,8 @@ These rules stay true in all phases.
    controls, the input codes, and the capabilities of a device model. Code
    outside the descriptor table does not contain a check for a specific model.
 5. **Device I/O does not block the user interface.** Device reads and writes
-   occur on threads that are not the user interface thread.
+   occur on threads that are not the user interface thread. The threads of
+   the engine are in [decision 0011](decisions/0011-engine-thread-model.md).
 6. **Do not open the keyboard interface.** The device has a keyboard-emulation
    interface. OpenCraft opens only the vendor interface. See
    [kb/macos-permissions.md](kb/macos-permissions.md).
@@ -167,7 +168,6 @@ you make one, write a decision record and remove the row.
 |---|---|---|
 | Form of the GPUI dependency, and the widget library | 2 | See [kb/gpui.md](kb/gpui.md). |
 | Library for text and icons on surfaces | 2 | |
-| Thread model in the engine | 2 | Rule 5 is the limit. |
 | Engine in the GUI process, or in a different process | 5 | Rules 2 and 3 keep the two options open. |
 | Menu bar item | 5 | GPUI has no API for this. |
 | How an action describes its settings to the GUI | 3 | The answer must also be correct for a plug-in. |
