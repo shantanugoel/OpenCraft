@@ -107,9 +107,9 @@ recorded the result. No image caused an error or a restart of the device.
 | The image stays until a different image or a clear command replaces it. The clear command for all slots removes it. | Measured |
 
 A wide image did not show when it was the first draw after
-`opencraft-probe clear` on a new connection. The cause is the commit before
-the start command. See
-[streamdock-protocol.md](streamdock-protocol.md#start-sequence).
+`opencraft-probe clear` on a new connection. The size of the image was not
+the cause. Issue #18 records the cause in
+[streamdock-protocol.md](streamdock-protocol.md).
 
 ### Transparency
 
