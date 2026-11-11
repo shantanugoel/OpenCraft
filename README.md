@@ -214,7 +214,7 @@ The full hardware facts are in
 ```
 crates/core/     device descriptors, transport (HID and fake), protocol, input decoding, surface images
 crates/cli/      opencraft-probe — hardware bring-up tool
-crates/engine/   profile, surface images, device owner, commands and events
+crates/engine/   profile, bindings, handler interface, surface images, device owner, messages
 crates/app/      opencraft — native GUI shell
 scripts/         record-input.sh — guided recording of input reports
 docs/            architecture, roadmap, decision records, knowledge base

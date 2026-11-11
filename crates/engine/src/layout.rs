@@ -29,6 +29,8 @@ pub struct ControlLayout {
     /// The surface of the control, if the control has a display. The control
     /// is at the position of this surface.
     pub surface: Option<SurfaceId>,
+    /// The surface that shows feedback for this control.
+    pub feedback_surface: Option<SurfaceId>,
 }
 
 /// The layout of one device model.
@@ -75,6 +77,7 @@ impl From<&Descriptor> for DeviceLayout {
                     row: c.position.row,
                     column: c.position.column,
                     surface: c.surface,
+                    feedback_surface: c.feedback_surface(),
                 })
                 .collect(),
         }
@@ -109,6 +112,7 @@ mod tests {
                 assert_eq!(got.id, c.id());
                 assert_eq!((got.row, got.column), (c.position.row, c.position.column));
                 assert_eq!(got.surface, c.surface);
+                assert_eq!(got.feedback_surface, c.feedback_surface());
             }
         }
     }

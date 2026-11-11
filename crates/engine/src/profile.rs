@@ -1,11 +1,11 @@
 //! The profile: a named set of pages. A page holds the content of each
-//! surface.
+//! surface and the bindings.
 //!
 //! These types are the profile in memory. The file format is in
-//! [`crate::store`]. In Phase 2, a profile has one page, and the content of a
-//! surface is a label, a colour, and an image.
+//! [`crate::store`]. The active page is the first page.
 
-use opencraft_core::{SurfaceId, SurfaceKind};
+use crate::action::{Action, GestureKind};
+use opencraft_core::{ControlId, ControlKind, SurfaceId, SurfaceKind};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
@@ -78,13 +78,14 @@ impl SurfaceContent {
     }
 }
 
-/// One full set of surface content for a device.
+/// One full set of bindings and surface content for a device.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Page {
     pub name: String,
     /// The content of each surface that has content. A surface with no
     /// content is not in the map: use [`Page::update`] to change the map.
     surfaces: BTreeMap<SurfaceId, SurfaceContent>,
+    bindings: BTreeMap<(ControlId, GestureKind), Action>,
 }
 
 impl Page {
@@ -92,7 +93,34 @@ impl Page {
         Self {
             name: name.into(),
             surfaces: BTreeMap::new(),
+            bindings: BTreeMap::new(),
         }
+    }
+
+    pub fn binding(&self, control: ControlId, gesture: GestureKind) -> Option<&Action> {
+        self.bindings.get(&(control, gesture))
+    }
+
+    pub fn bindings(&self) -> impl Iterator<Item = ((ControlId, GestureKind), &Action)> {
+        self.bindings.iter().map(|(key, action)| (*key, action))
+    }
+
+    /// Set or remove a binding. Return true if it changes.
+    pub fn set_binding(
+        &mut self,
+        control: ControlId,
+        gesture: GestureKind,
+        action: Option<Action>,
+    ) -> bool {
+        if self.binding(control, gesture) == action.as_ref() {
+            return false;
+        }
+        if let Some(action) = action {
+            self.bindings.insert((control, gesture), action);
+        } else {
+            self.bindings.remove(&(control, gesture));
+        }
+        true
     }
 
     /// The content of `surface`. A surface with no content gives the empty
@@ -159,9 +187,14 @@ impl Profile {
         &self.pages
     }
 
-    /// The page that the device shows. In Phase 2 it is the first page.
+    /// The page that the device shows. It is the first page.
     pub fn active_page(&self) -> &Page {
         &self.pages[0]
+    }
+
+    /// Get one page for a change. Page numbers start at 0.
+    pub fn page_mut(&mut self, page: usize) -> Option<&mut Page> {
+        self.pages.get_mut(page)
     }
 
     pub fn active_page_mut(&mut self) -> &mut Page {
@@ -198,6 +231,31 @@ pub fn parse_surface_key(key: &str) -> Option<SurfaceId> {
         return None;
     }
     Some(SurfaceId::new(kind, number.parse().ok()?))
+}
+
+/// The text form of a control identity in the profile file.
+pub fn control_key(id: ControlId) -> String {
+    let kind = match id.kind {
+        ControlKind::Key => "key",
+        ControlKind::Knob => "knob",
+        ControlKind::BarPanel => "bar-panel",
+        ControlKind::TouchBar => "touch-bar",
+    };
+    format!("{kind}-{}", id.number)
+}
+
+/// Read the text form of a control identity. See [`control_key`].
+pub fn parse_control_key(key: &str) -> Option<ControlId> {
+    let (kind, number) = key.rsplit_once('-')?;
+    let kind = match kind {
+        "key" => ControlKind::Key,
+        "knob" => ControlKind::Knob,
+        "bar-panel" => ControlKind::BarPanel,
+        "touch-bar" => ControlKind::TouchBar,
+        _ => return None,
+    };
+    let id = ControlId::new(kind, number.parse().ok()?);
+    (id.number > 0 && control_key(id) == key).then_some(id)
 }
 
 fn kind_key(kind: SurfaceKind) -> &'static str {

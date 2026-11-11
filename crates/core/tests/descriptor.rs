@@ -122,6 +122,36 @@ fn each_surface_of_a_control_exists_and_has_the_correct_kind() {
 }
 
 #[test]
+fn feedback_surfaces_exist_and_keys_keep_their_own_display() {
+    for d in DESCRIPTORS {
+        for control in d.controls {
+            if let Some(id) = control.feedback_surface() {
+                assert!(d.surface(id).is_some());
+            }
+            if let Some(id) = control.surface {
+                assert_eq!(control.feedback_surface(), Some(id));
+            }
+        }
+    }
+    for knob in n4pro().controls_of(ControlKind::Knob) {
+        assert_eq!(knob.surface, None);
+        assert_eq!(
+            knob.feedback_surface(),
+            Some(opencraft_core::SurfaceId::new(
+                SurfaceKind::BarPanel,
+                knob.number
+            ))
+        );
+    }
+    let key = n4pro().controls_of(ControlKind::Key).next().unwrap();
+    let changed = opencraft_core::Control {
+        feedback_surface: Some(opencraft_core::SurfaceId::new(SurfaceKind::BarPanel, 4)),
+        ..*key
+    };
+    assert_eq!(changed.feedback_surface(), key.surface);
+}
+
+#[test]
 fn each_slot_is_used_one_time_and_only_the_background_has_no_slot() {
     for d in DESCRIPTORS {
         let mut slots = HashSet::new();

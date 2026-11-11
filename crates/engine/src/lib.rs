@@ -5,6 +5,7 @@
 //! does not know the GUI toolkit, and it can operate with no window
 //! (architecture rules 1, 2, 3, and 12).
 //!
+//! - [`action`]: actions, bindings, and the handler interface.
 //! - [`profile`]: the profile, its pages, and the content of each surface.
 //! - [`store`]: the profile directory: the profile file and the image files.
 //! - [`render`] and [`label`]: the image of a surface, made from its content.
@@ -15,6 +16,7 @@
 //! A shell uses only this crate, and not the device layer. Thus the crate
 //! gives the shell the types of the device layer that are in the messages.
 
+pub mod action;
 pub mod engine;
 pub mod error;
 pub mod label;
@@ -24,7 +26,8 @@ pub mod render;
 pub mod runtime;
 pub mod store;
 
-pub use engine::{Command, Engine, Event, SurfaceState};
+pub use action::*;
+pub use engine::{Command, Counters, Engine, Event, SurfaceState};
 /// The image type of the messages.
 pub use image::RgbImage;
 pub use layout::{ControlLayout, DeviceLayout, SurfaceLayout};

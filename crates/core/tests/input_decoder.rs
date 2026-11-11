@@ -652,6 +652,7 @@ const fn invented_key(number: u8, code: u8) -> Control {
             opencraft_core::SurfaceKind::KeyFace,
             number,
         )),
+        feedback_surface: None,
     }
 }
 
@@ -668,6 +669,7 @@ const fn invented_knob(number: u8, turn_left: u8, turn_right: u8, push: u8) -> C
             column: number,
         },
         surface: None,
+        feedback_surface: None,
     }
 }
 
@@ -806,12 +808,14 @@ fn an_invented_touch_bar_gets_the_touch_events_of_its_own_codes() {
             codes: InputCodes::BarPanel { tap: 0x61 },
             position: Position { row: 1, column: 1 },
             surface: None,
+            feedback_surface: None,
         },
         Control {
             number: 2,
             codes: InputCodes::BarPanel { tap: 0x62 },
             position: Position { row: 1, column: 2 },
             surface: None,
+            feedback_surface: None,
         },
         Control {
             number: 1,
@@ -823,6 +827,7 @@ fn an_invented_touch_bar_gets_the_touch_events_of_its_own_codes() {
             },
             position: Position { row: 1, column: 1 },
             surface: None,
+            feedback_surface: None,
         },
     ];
     let d = Descriptor {
