@@ -9,3 +9,11 @@
 
 pub mod hotkey;
 pub mod system;
+
+use opencraft_engine::Handler;
+
+/// The built-in handlers. A program gives this list to the engine when it
+/// starts the engine.
+pub fn handlers() -> Vec<Box<dyn Handler>> {
+    Vec::new()
+}

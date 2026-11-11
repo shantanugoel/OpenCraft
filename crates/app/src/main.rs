@@ -18,12 +18,16 @@ fn start_engine() -> (EngineHandle, async_channel::Receiver<Event>) {
         .or_else(opencraft_engine::default_profile_dir)
         .expect("OpenCraft cannot find the profile directory.");
     let trace = start_trace();
-    let engine = opencraft_engine::spawn(Config { profile_dir }, Vec::new(), move |event| {
-        if trace && matches!(event, Event::Connected) {
-            trace_now("device ready");
-        }
-        let _ = sender.try_send(event);
-    })
+    let engine = opencraft_engine::spawn(
+        Config { profile_dir },
+        opencraft_actions::handlers(),
+        move |event| {
+            if trace && matches!(event, Event::Connected) {
+                trace_now("device ready");
+            }
+            let _ = sender.try_send(event);
+        },
+    )
     .expect("OpenCraft cannot start the engine.");
     (engine, receiver)
 }
