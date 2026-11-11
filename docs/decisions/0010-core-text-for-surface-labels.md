@@ -51,6 +51,9 @@ and no engine code.
   for the script cases. Do not require identical pixels across OS versions.
 - Linux and Windows will need another implementation. That work is not in
   Phase 2. Do not expose Core Text types through the label interface.
+- The engine must build on Linux, because the continuous integration runs
+  there. On an operating system that is not macOS, the label module draws no
+  text. The tests that need text run only on macOS.
 - Look at this decision again before a Linux or Windows port, if a required
   script fails, or if the full application misses a product target. Compare
   COSMIC Text first if memory or portability becomes the limit.
