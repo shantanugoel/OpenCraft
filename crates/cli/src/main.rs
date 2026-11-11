@@ -791,7 +791,9 @@ fn flag_str<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
 
 fn parse_hex_color(s: &str) -> Result<[u8; 3], Box<dyn std::error::Error>> {
     let s = s.trim_start_matches('#');
-    if s.len() != 6 {
+    // A character that is not ASCII is not a hex digit, and it can make the
+    // byte slices below end inside a character.
+    if s.len() != 6 || !s.is_ascii() {
         return Err("colour must be 6 hex digits, e.g. ff8800".into());
     }
     Ok([

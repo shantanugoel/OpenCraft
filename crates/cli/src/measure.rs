@@ -1162,7 +1162,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Issue #38: a six-byte non-ASCII colour panics instead of returning an error"]
     fn send_knob_colors_refuses_non_ascii_without_panicking() {
         // Six bytes, but the first two-byte slice ends inside a character.
         assert!(send_steps(SendKind::KnobColors, &args(&["a€bc"]), Some(1)).is_err());

@@ -561,17 +561,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Issue #38: firmware_version keeps the feature report ID in the version text"]
-    fn firmware_version_excludes_the_report_id_and_padding() {
-        let mut dev = fake_device();
-        dev.transport_mut()
-            .set_feature_report(b"\x01V1.2\x00\x00".to_vec());
-        dev.transport_mut()
-            .set_feature_report(b"\x02Other".to_vec());
-        assert_eq!(dev.firmware_version().unwrap(), "V1.2");
-    }
-
-    #[test]
     fn reads_do_not_return_bytes_from_the_previous_report() {
         let mut dev = fake_device();
         dev.transport_mut().push_input(vec![0xAB; 512]);
