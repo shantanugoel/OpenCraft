@@ -1,10 +1,11 @@
 # Scripts
 
-This directory holds two scripts for work that needs a real device.
+This directory holds the scripts for work on the computer of a developer.
 
 | Script | Job |
 |---|---|
 | `measure-footprint.sh` | Measures the memory and the processor use of all processes of one application |
+| `sign-dev.sh` | Builds the GUI application and signs it with a stable identity, so that macOS keeps the Accessibility permission |
 | `record-input.sh` | Records the input reports of each control of the N4 Pro. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
 
 ## measure-footprint.sh
@@ -116,3 +117,21 @@ name of the application, as for VSD Craft.
   with the target in the [roadmap](../docs/ROADMAP.md#product-targets).
 - In the CSV file, the rows with `TOTAL` in the column `pid` are the totals of
   one sample. All other rows are processes.
+
+## sign-dev.sh
+
+macOS connects the Accessibility permission to the code signature of a
+program. The facts are in
+[kb/macos-permissions.md](../docs/kb/macos-permissions.md#code-signature-of-a-development-build).
+Use this script in place of `cargo build` when you want the permission to
+stay after a new build.
+
+```sh
+scripts/sign-dev.sh --run            # debug build, sign, start
+scripts/sign-dev.sh --release --run  # release build, sign, start
+```
+
+The script uses the first code signing identity of the keychain. To use a
+different identity, set `OPENCRAFT_SIGN_IDENTITY` to its name or to its SHA-1
+hash. `security find-identity -v -p codesigning` shows the identities. Do not
+write the name of an identity in the repository.
