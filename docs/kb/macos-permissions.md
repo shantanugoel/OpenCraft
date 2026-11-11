@@ -15,13 +15,20 @@ Input Monitoring permission.
 
 ## Actions
 
-These facts are not tested in this project. Test them in Phase 3.
+Date: 2026-11-12. A test program, not in the repository, did each
+operation two times: started from a terminal that has the Accessibility
+permission, and as an application bundle with no permission.
 
 | Fact | Confidence |
 |---|---|
+| A program reads and sets the sound volume and the mute of the default output through Core Audio with no permission | Measured |
+| A media key event from a program with no Accessibility permission does nothing: the "sound up" key did not change the volume. With the permission, it changed the volume. | Measured |
+| A media key event is lost if the program stops immediately after it sends the event. A program that stays for 300 ms does not lose it. | Measured |
+| `CGPreflightPostEventAccess` gives the same answer as `AXIsProcessTrusted` in the two cases | Measured |
 | An application needs the Accessibility permission to send key events to other applications | Inference |
 | An application needs no permission to open an application or a URL | Inference |
-| macOS connects a permission to the code signature. A build with a different signature can lose the permission. | Inference |
+
+The code is in `crates/actions/src/system/macos.rs`.
 
 The first plan put the permission work after the action work. That order is
 incorrect. The hotkey action needs the Accessibility permission on the first
@@ -52,4 +59,3 @@ Date: 2026-11-12. Tool: `codesign -d -r-`, on the program `opencraft`.
   permission after each build. The designated requirement stays the same:
   see "Code signature of a development build". The test with the permission
   itself needs the owner, who gives the permission one time.
-- Which permission the media key action and the sound volume action need.

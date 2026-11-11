@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/cli", "crates/engine", "crates/app"]
+members = ["crates/core", "crates/cli", "crates/engine", "crates/app", "crates/actions"]
 
 [workspace.package]
 version = "0.1.0"
@@ -24,6 +24,8 @@ tempfile = "3"
 core-text = { version = "22", default-features = false, features = ["link", "mountainlion"] }
 core-graphics = { version = "0.25", default-features = false, features = ["link"] }
 core-foundation = { version = "0.10", default-features = false, features = ["link"] }
+# The Objective-C runtime, for the media keys in the built-in actions.
+objc2 = "0.6"
 
 [profile.release]
 lto = "thin"

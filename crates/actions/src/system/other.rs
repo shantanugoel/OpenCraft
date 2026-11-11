@@ -1,0 +1,43 @@
+//! The system with no platform code: each function gives
+//! [`Error::NotSupported`].
+
+use super::{Error, MediaKey, Result, Volume};
+use crate::hotkey::Hotkey;
+
+pub fn can_send_keys() -> bool {
+    false
+}
+
+pub fn ask_to_send_keys() {}
+
+pub fn send_hotkey(_: &Hotkey) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
+pub fn type_text(_: &str) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
+pub fn media_key(_: MediaKey) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
+pub fn volume() -> Result<Volume> {
+    Err(Error::NotSupported)
+}
+
+pub fn set_volume_level(_: u8) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
+pub fn set_muted(_: bool) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
+pub fn open_application(_: &str) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
+pub fn open_url(_: &str) -> Result<()> {
+    Err(Error::NotSupported)
+}
