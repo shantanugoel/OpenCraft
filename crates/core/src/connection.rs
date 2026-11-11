@@ -99,8 +99,8 @@ impl<T: Transport> Device<T> {
         self.send_parts(image)
     }
 
-    /// Remove the background image. The SDK uses layer `0x03` for this. Send
-    /// [`Self::commit`] after it.
+    /// Remove the background image behind the keys and behind the touch bar
+    /// (area `0x03`). Send [`Self::commit`] after it.
     pub fn clear_background(&mut self) -> Result<()> {
         if self.descriptor.background().is_none() {
             return Err(Error::NoBackground);

@@ -29,7 +29,7 @@ on hardware.
 | Middle: one touch bar across the full width. It is a display and a touch sensor. | Measured | Owner, 2026-11-11 |
 | Bottom: 4 knobs. The user can turn and push each knob. | Measured | Owner, 2026-11-11 |
 | The touch bar is one 2.8 inch touch panel | Source | Mirabox specification |
-| Each knob has a ring light with a colour that software can set | Source | VSDinside product text |
+| Each knob has a ring light with a colour that software can set. See [Knob lights](#knob-lights). | Measured | Camera, 2026-11-11 |
 | The 10 keys are in 2 rows of 5 | Measured | Owner, 2026-11-11 |
 | Top row, from left to right: key slots 11, 12, 13, 14, 15 | Measured | Owner, 2026-11-11: `opencraft-probe test` shows the slot numbers |
 | Second row, from left to right: key slots 6, 7, 8, 9, 10 | Measured | Owner, 2026-11-11 |
@@ -44,22 +44,83 @@ on hardware.
 | Background | None | 800 × 480 | JPEG | 180° | Measured: the probe paints it. Owner, 2026-11-11 |
 
 The device has one display of 800 × 480 pixels behind the keys and the touch
-bar. Each key and the touch bar is a window on this display. The owner
-photographed a background test pattern with a grid and coordinates on
-2026-11-11. The values below are from that photograph, so they are
-approximate. (Measured)
+bar. Each key and the touch bar is a window on this display. (Measured: owner
+and camera, 2026-11-11)
 
-| Window | Part of the 800 × 480 image that shows |
+### Positions on the display
+
+A camera and a test program measured these positions on 2026-11-11. The method
+is in [How the camera measurements were made](#how-the-camera-measurements-were-made).
+The position is the top left corner of the image, in pixels of the upright
+800 × 480 display.
+
+| Surface | Slots, from left to right | x of each image | y | Size | Confidence |
+|---|---|---|---|---|---|
+| Key face, top row | 11, 12, 13, 14, 15 | 6, 176, 346, 514, 682 | 8 | 112 × 112 | Measured |
+| Key face, second row | 6, 7, 8, 9, 10 | 6, 176, 346, 514, 682 | 178 | 112 × 112 | Measured |
+| Bar panel | 1, 2, 3, 4 | 0, 203, 406, 609 | 358 | 176 × 112 | Measured |
+
+- The positions are accurate to 1 pixel. A background line of 1 pixel showed
+  when it was adjacent to an image, and it did not show when it was 1 pixel
+  inside the image. (Measured)
+- The camera saw the two vertical edges of 5 key faces and of 3 bar panels,
+  and one vertical edge of the other surfaces. It saw the top edge of each
+  surface, and the bottom edge of the bar panels only. Each edge that the
+  camera saw agrees with the sizes 112 × 112 and 176 × 112. (Measured)
+- The device draws an image of the correct size at its real size. A line at a
+  known position in the image showed at that position on the display.
+  (Measured)
+- A space of 27 pixels is between two bar panels. A space of 15 pixels is to
+  the right of bar panel 4. The background shows in these spaces. (Measured)
+- The horizontal distances from one key face to the next are 170, 170, 168,
+  and 168 pixels. They are not all equal. The vertical distance between the
+  two rows is 170 pixels. (Measured)
+- Each window shows more of the display than its image. Thus the background
+  shows around each image. (Measured)
+
+The camera was in front of the device and below its centre. From that
+position, each window showed these parts of the display. The values change
+with the position of the eye, because the display is below the key caps.
+(Measured, approximate)
+
+| Window | Part of the display that showed |
 |---|---|
-| Keys, top row | y from 0 to approximately 110. The left edge of the first key is near x = 0. The right edge of the fifth key is near x = 800. |
-| Keys, second row | y from approximately 165 to approximately 275 |
-| Touch bar | The full width, x from 0 to 800. y from approximately 370 to 480. |
+| Keys, column 1 to 5 | x from 0 to 116, 164 to 292, 336 to 468, 512 to 640, 690 to 798 |
+| Keys, top row | y from 0 to 114 |
+| Keys, second row | y from 166 to 290 |
+| Touch bar | x from 0 to 798, y from 340 to 476 |
 
 - The areas between these windows do not show.
-- A key face image and a bar panel image show on top of the background. The
-  background stays visible around them. (Measured: owner, 2026-11-11)
 - The touch bar shows 800 pixels of width. This agrees with the touch
-  coordinates. The 4 bar panels together are 704 pixels wide. (Measured)
+  coordinates. (Measured)
+
+### An image that is larger than its surface
+
+The probe command `wide` sent these images on 2026-11-11, and the camera
+recorded the result. No image caused an error or a restart of the device.
+
+| Fact | Confidence |
+|---|---|
+| The device puts the bottom right corner of the image at the bottom right corner of the surface. It draws the image at its real size, to the left and up, across the spaces and across other surfaces. | Measured: slot 2 with 352 × 112, slot 4 with 582, 700, 784, and 785 × 112, slot 12 with 282 × 112, slot 8 with 112 × 282, slot 1 with 176 × 224 |
+| An image of 785 × 112 pixels in slot 4 fills the touch bar from x = 0 to x = 784 | Measured: PNG and JPEG |
+| If the image does not fit to the left, the device makes it smaller. Slot 1 showed images of 352 × 112 and of 800 × 112 pixels in the width of the bar panel. Slot 11 showed 224 × 112 pixels in the width of the key face. Slot 4 showed 800 × 112 pixels (JPEG) in approximately 785 pixels. | Measured |
+| The image stays until a different image or a clear command replaces it. The clear command for all slots removes it. | Measured |
+
+A wide image did not show when it was the first draw after
+`opencraft-probe clear` on a new connection. The cause is the commit before
+the start command. See
+[streamdock-protocol.md](streamdock-protocol.md#start-sequence).
+
+### Transparency
+
+- The device draws a PNG that has transparency on top of the background. The
+  background shows through the transparent pixels. When the background
+  changes, the new background shows through. (Measured: camera, 2026-11-11)
+- The SDK sends a PNG only for an image that has transparency. It sends a
+  JPEG for all other key images. (Source: SDK, `PILHelper.py`,
+  `encode_key_image`)
+
+### Other facts
 
 - Slot 5 is not used. The SDK image map has no entry for it. (Source)
 - The 4 bar panels are the display of the touch bar. The SDK calls them the
@@ -136,6 +197,53 @@ Touch bar:
 - `0x40` to `0x43` are not keys adjacent to the knobs. The first plan was
   incorrect.
 
+## Knob lights
+
+A camera recorded these facts on 2026-11-11. The commands are in
+[streamdock-protocol.md](streamdock-protocol.md#commands).
+
+| Fact | Confidence |
+|---|---|
+| The colour command sets one colour for each knob. The first colour is for knob 1, the left knob. | Measured: red, green, blue, white, and a second set of 4 colours |
+| A knob with the colour black is off, if a different knob has a colour | Measured |
+| If all 4 colours are black, the lights show the default effect | Measured |
+| The default effect is one colour for all knobs. The colour changes slowly through the colours of the rainbow. It starts with the start command. | Measured |
+| The knob light brightness command changes the brightness. 100 is the brightest. 0 is off. | Measured: 100, 50, 10, 0 |
+| The lights are off when no host operates the device, and after the sleep command | Measured |
+| The command `DELED` ("reset the LED colour" in the SDK) changed nothing that the camera saw, after the lights were white | Measured: 1 time |
+
+## The device with no host
+
+| Fact | Confidence | Source |
+|---|---|---|
+| After the cable is connected, and after the device stops the USB connection, the device shows a boot animation and then a logo on an animated background. The knob lights are off. | Measured | Camera, 2026-11-11 |
+| The device continues to show the logo. After 10 minutes it was the same. | Measured | Camera, 2026-11-11 |
+| The device shows a slot image that arrives in this state, on top of the animation | Measured | Camera, 2026-11-11 |
+
+What the device does when the host stops is in
+[streamdock-protocol.md](streamdock-protocol.md#keep-alive-and-stop).
+
+## How the camera measurements were made
+
+On 2026-11-11, a USB camera recorded the device while a program sent
+commands. The camera was in front of the device. No person looked at the
+device for these facts.
+
+- The probe sent the commands that the probe has. A test program sent the
+  other commands. The test program uses the command builders of the device
+  layer, and it is not in the repository.
+- Position of an image: the test program drew a green line of 3 pixels on a
+  black background, at each second position across the display. Then it drew
+  the same line at 3 known positions in each slot image. The line of an image
+  and the line of the background are at the same place in the camera picture
+  when they are at the same place on the display.
+- Edge of an image: each slot had a black image. The test program drew a
+  background line of 1 pixel at each position near each edge. The line shows
+  only where no slot image covers it.
+- A picture from the camera shows colour and position well. It does not show
+  small text well. Thus the owner looks at the device for the quality of
+  small text.
+
 ## Device settings
 
 The SDK shows these settings. None is tested. (Source)
@@ -150,19 +258,11 @@ The SDK shows these settings. None is tested. (Source)
 
 Measure these in Phase 1.
 
-- The accurate position of each key window and of the touch bar window on the
-  800 × 480 display. The photograph gives approximate values only.
-- Where each bar panel image shows in the touch bar window, and whether a bar
-  panel image can be wider than 176 pixels. The background can put one image
-  across the full touch bar. The vendor software has a "Touch Bar mode" that
-  hides the knob icons. See [vsd-craft.md](vsd-craft.md).
 - The meaning of the input code `0xB2`.
 - The x coordinates at which the tap code changes from one bar panel to the
   next.
 - What the device sends when 2 or more keys are pressed together. One test
   showed one key only.
-- Whether the knob lights obey the colour command. The probe sends it, but the
-  result is not recorded.
 - Whether the device keeps its images when the computer sleeps and wakes.
 - The time from the cable connection until the device accepts images.
 
