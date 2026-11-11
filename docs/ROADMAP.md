@@ -42,8 +42,10 @@ Measure these from Phase 2. They are exit criteria for Phase 6.
 |---|---|
 | Cold start to a ready device | Less than 300 ms |
 | Memory in the steady state | Less than 80 MB |
-| Processor use when idle | Almost zero. Set the number after the first measurement. |
+| Processor use when idle | Less than 0.5 % of one core |
 | Lost input events | None |
+
+The measured values are in [kb/footprint.md](kb/footprint.md).
 
 ## Phase 0: Hardware gate (complete)
 

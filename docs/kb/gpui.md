@@ -148,8 +148,6 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
 
 ## Not known
 
-- The full application's memory and time to a ready device. This test has no
-  engine or device. Repeat the test in issue 58, including startup work.
 - Startup with empty OS and Metal caches. This test starts new processes but
   does not reset the computer or purge caches.
 - Long-run image replacement and idle use with a focused text field. This
