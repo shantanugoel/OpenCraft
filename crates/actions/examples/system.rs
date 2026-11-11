@@ -7,6 +7,12 @@
 use opencraft_actions::system::{self, MediaKey};
 use std::env;
 
+/// The system reads a key event after the call that sends it. A program that
+/// stops at once loses the event. See `docs/kb/macos-permissions.md`.
+fn wait() {
+    std::thread::sleep(std::time::Duration::from_millis(300));
+}
+
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -31,11 +37,9 @@ fn main() {
             "mute" => MediaKey::Mute,
             _ => panic!("the media key {key} is not known"),
         })
-        // The system reads the event after the call. A program that stops
-        // at once loses the event.
-        .map(|()| std::thread::sleep(std::time::Duration::from_millis(300))),
-        ["hotkey", text] => system::send_hotkey(&text.parse().expect("a hotkey")),
-        ["type", text] => system::type_text(text),
+        .map(|()| wait()),
+        ["hotkey", text] => system::send_hotkey(&text.parse().expect("a hotkey")).map(|()| wait()),
+        ["type", text] => system::type_text(text).map(|()| wait()),
         ["app", name] => system::open_application(name),
         ["url", url] => system::open_url(url),
         ["shell", command] => system::start_shell_command(command).map(|mut child| {

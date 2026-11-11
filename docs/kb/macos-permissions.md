@@ -23,7 +23,8 @@ permission, and as an application bundle with no permission.
 |---|---|
 | A program reads and sets the sound volume and the mute of the default output through Core Audio with no permission | Measured |
 | A media key event from a program with no Accessibility permission does nothing: the "sound up" key did not change the volume. With the permission, it changed the volume. | Measured |
-| A media key event is lost if the program stops immediately after it sends the event. A program that stays for 300 ms does not lose it. | Measured |
+| A key event, a text event, or a media key event is lost if the program stops immediately after it sends the event. A program that stays for 300 ms does not lose it. | Measured |
+| With the Accessibility permission, a program types text into the application in front, also letters with accents, a currency sign, an emoji, and a text of more than 20 UTF-16 units. A hotkey (`cmd+a`) operates in that application. | Measured: the label field of the OpenCraft window got the text |
 | `CGPreflightPostEventAccess` gives the same answer as `AXIsProcessTrusted` in the two cases | Measured |
 | An application needs the Accessibility permission to send key events to other applications | Inference |
 | An application needs no permission to open an application or a URL | Inference |
