@@ -109,8 +109,6 @@ Touch bar:
   (Measured)
 - Swipe is reliable on this firmware: 20 swipes to the left gave 20 times
   `0x39`, and 20 swipes to the right gave 20 times `0x38`. (Measured)
-- The names in the code are reversed: `events.rs` calls `0x38` "left" and
-  `0x39` "right". Correct this with the decoder tests.
 - `0xB2` came after a move from the top edge to the bottom edge, and after one
   quick move to the left. Its meaning is not known.
 - `0x40` to `0x43` are not keys adjacent to the knobs. The first plan was
