@@ -17,14 +17,36 @@ fn start_engine() -> (EngineHandle, async_channel::Receiver<Event>) {
         .map(PathBuf::from)
         .or_else(opencraft_engine::default_profile_dir)
         .expect("OpenCraft cannot find the profile directory.");
+    let trace = start_trace();
     let engine = opencraft_engine::spawn(Config { profile_dir }, move |event| {
+        if trace && matches!(event, Event::Connected) {
+            trace_now("device ready");
+        }
         let _ = sender.try_send(event);
     })
     .expect("OpenCraft cannot start the engine.");
     (engine, receiver)
 }
 
+/// True if the environment variable `OPENCRAFT_START_TRACE` is set. Then the
+/// application prints the time of each step of its start, for a measurement
+/// of the cold start. See `docs/kb/footprint.md`.
+fn start_trace() -> bool {
+    std::env::var_os("OPENCRAFT_START_TRACE").is_some()
+}
+
+/// Print `step` with the time of the system clock, in milliseconds.
+fn trace_now(step: &str) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    eprintln!("start-trace {step} {:.3}", now.as_secs_f64() * 1000.0);
+}
+
 fn main() {
+    if start_trace() {
+        trace_now("main");
+    }
     let (engine, events) = start_engine();
     // Keep ownership outside the view. Close and quit hooks stop the engine;
     // code after the run loop is a fallback on platforms where it returns.
@@ -65,6 +87,9 @@ fn main() {
                     ..Default::default()
                 },
                 move |window, cx| {
+                    if start_trace() {
+                        window.on_next_frame(|_, _| trace_now("first frame"));
+                    }
                     // Finish the engine before closing the last window. This path
                     // has no shutdown time limit and does not block the UI.
                     window.on_window_should_close(cx, move |window, cx| {
