@@ -61,7 +61,7 @@ the 800×480 background image at this time. The full hardware facts are in
 ## Layout
 
 ```
-crates/core/     device descriptors, HID transport, protocol, panel rendering
+crates/core/     device descriptors, transport (HID and fake), protocol, panel rendering
 crates/cli/      opencraft-probe — hardware bring-up tool
 docs/            architecture, roadmap, decision records, knowledge base
 ```

@@ -3,8 +3,10 @@
 Last update: 2026-11-11
 
 This entry gives the protocol that the N4 Pro family uses. The device facts are
-in [n4-pro-hardware.md](n4-pro-hardware.md). The code is in
-`crates/core/src/protocol.rs`, `transport.rs`, and `events.rs`.
+in [n4-pro-hardware.md](n4-pro-hardware.md). The code is in `crates/core/src/`.
+`protocol.rs` makes the commands. `connection.rs` sends the commands and the
+images. `events.rs` decodes the input reports. `transport/hid.rs` contains the
+`hidapi` I/O.
 
 ## Reports
 

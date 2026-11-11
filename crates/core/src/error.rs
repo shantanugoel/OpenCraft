@@ -5,6 +5,11 @@ pub enum Error {
     #[error("HID error: {0}")]
     Hid(#[from] hidapi::HidError),
 
+    /// A transport failed with no `hidapi` error, for example the fake
+    /// transport on request.
+    #[error("transport error: {0}")]
+    Transport(String),
+
     #[error("no matching device found")]
     DeviceNotFound,
 
