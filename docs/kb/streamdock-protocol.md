@@ -306,7 +306,7 @@ What the user sees when the host stops:
 
 | Case | Result | Confidence |
 |---|---|---|
-| The probe stops and sends no clear command (`test --keep`) | The images and the knob lights stay. The keys and the knobs do nothing. At 35 seconds after `DIS`, the device starts again and shows the logo. | Measured: camera |
+| The probe stops 12 seconds after `DIS` and sends no clear command (`test --seconds 12 --keep`). Its last `CONNECT` was at 10 seconds. | The images and the knob lights stay. The keys and the knobs do nothing. At 35 seconds after `DIS`, the device starts again and shows the logo. | Measured: camera |
 | The probe is killed (`kill -9`) 15 seconds after `DIS` | The same. The logo showed at 36 seconds, and it was the same after 10 minutes. | Measured: camera |
 | General | The images stay until 5 seconds after the end of the first period that has no `CONNECT`. That is 20 to 35 seconds after the last `CONNECT` that was in a period and not in the 5 seconds before a stop. | Inference from the rule |
 | The host sends `CLE`, `0x00 0x00`, `"DC"` (the SDK command "disconnected") | In less than 1 second, the device shows the logo, and the knob lights go off. The device stays on the bus: it did not stop the connection in 60 seconds with no `CONNECT`. Slot images show again after that, and `DIS` starts the knob lights again. | Measured: camera, 1 time |
