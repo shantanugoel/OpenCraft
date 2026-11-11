@@ -138,9 +138,11 @@ codes of the N4 Pro are in
 | Fact | Confidence | Source |
 |---|---|---|
 | The SDK and `opendeck-akp05` send `CONNECT` each 10 seconds | Source | Their source code |
-| The keep-alive is necessary. If the host sends no command, the device stops the USB connection approximately 35 seconds after the last command. Input from the user does not change this time. | Measured | Probe, 2026-11-11: 35.1 s and 35.4 s after the draw |
-| With `CONNECT` each 10 seconds, the connection stays. The test was 100 seconds. | Measured | Probe, 2026-11-11 |
-| After the device stops the connection, it is on the USB bus again in less than 2 seconds, and its panels are blank | Measured | Probe and owner, 2026-11-11 |
+| The keep-alive is necessary. After the start commands and a draw, with no keep-alive, the device stops the USB connection approximately 35 seconds later. Input from the user does not change this time. | Measured | Probe, 2026-11-11: 35.1 s, 35.4 s, and 35.0 s after the draw |
+| With `CONNECT` each 10 seconds, the connection stays. The longest test was 125 seconds with `opencraft-probe test`. | Measured | Probe, 2026-11-11 |
+| A draw does not start the 35 seconds again. In one test, the device stopped the connection 28.3 seconds after a full draw. The last `CONNECT` was some seconds before that draw. | Measured: 1 time | Probe, 2026-11-11 |
+| The clear command and the commit, sent to a device that has no timer in operation, do not start the timer. The device stayed on the bus for 75 seconds. | Measured: 1 time | Probe, 2026-11-11 |
+| After the device stops the connection, its displays are blank. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and a draw of the 14 key faces and bar panels then takes approximately 175 ms. | Measured: 2 times | Probe and owner, 2026-11-11 |
 | The bring-up in Phase 0 passed with no `CONNECT`, because its test was 30 seconds | Inference | The rows above |
 | `opendeck-akp05` sends a clear command and then `HAN` when it stops | Source | Its source code |
 | After the probe draws the panels and stops with no clear command, the panels go blank after a short time. The cause is possibly the same 35 seconds. | Measured (the blank panels), Inference (the cause) | Owner, 2026-11-11 |
@@ -150,8 +152,8 @@ codes of the N4 Pro are in
 The device layer sends `CONNECT` each 10 seconds while a device is connected:
 `Link::next_event` in `crates/core/src/link.rs` sends it, and the constant
 `KEEP_ALIVE_INTERVAL` holds the interval. It sends the keep-alive also when
-other commands went to the device, because the effect of the other commands
-on the 35 seconds is not known.
+other commands went to the device, because a draw does not start the 35
+seconds again.
 
 ## Not known
 
@@ -159,10 +161,12 @@ Measure these in Phase 1.
 
 - The longest interval between two keep-alive commands that keeps the
   connection. Only 10 seconds is tested.
-- Whether a command that is not `CONNECT` also starts the 35 seconds again.
+- Which commands start the timer of 35 seconds. A draw with the start commands
+  starts it. The clear command does not.
 - What the device shows after the host process is killed.
 - Whether each command with the label "Sent" gives the correct result.
-- The time to paint all 14 panels.
+- The time until the device shows a full draw. The time to send it is
+  approximately 175 ms.
 - Whether JPEG is quicker than PNG for a full repaint.
 - Whether the device accepts a `BAT` image larger than 65 535 bytes. The SDK
   writes a 4-byte length (Source).
