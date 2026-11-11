@@ -8,7 +8,7 @@ use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 use opencraft_core::{
     events, image, list_devices, protocol, recording, select, ControlKind, Decoded, Descriptor,
     Device, Error, Found, Gesture, HidConnector, HidTransport, InputCodes, InputEvent, Link,
-    LinkEvent,
+    LinkEvent, Transport,
 };
 use std::io::Write;
 use std::process::ExitCode;
@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+mod measure;
 mod record;
 
 type AnyResult = Result<(), Box<dyn std::error::Error>>;
@@ -42,6 +43,10 @@ fn main() -> ExitCode {
         "background" | "bg" => cmd_background(rest),
         "raw" => cmd_raw(rest),
         "record" => record::cmd_record(rest),
+        "send" => measure::cmd_send(rest),
+        "bars" => measure::cmd_bars(rest),
+        "wide" => measure::cmd_wide(rest),
+        "repaint" => measure::cmd_repaint(rest),
         "help" | "--help" | "-h" => {
             usage();
             Ok(())
@@ -82,6 +87,17 @@ COMMANDS:
     raw                  Hexdump raw input reports; can save them to a file
     record               Record each gesture to a file, one prompt at a time
                          (--out <dir>, --from <step>)
+    send <name> [args]   Send one protocol command and nothing else. The names
+                         are: brightness <0-100>..., knob-colors <rrggbb>...,
+                         knob-brightness <0-100>..., sleep, keep-alive, start,
+                         commit, haptic on|off. Prints the first 16 bytes.
+    bars                 Draw the 4 bar panels with a pattern that shows
+                         their edges
+    wide <slot>          Send an image that is wider than the surface
+                         (--size <w>x<h> is necessary)
+    repaint              Draw all surfaces many times and print the time of
+                         each repaint (for the repaint time and the image
+                         format)
 
 OPTIONS:
     --seconds <n>        How long to listen (default: 30 for test, 15 for listen)
@@ -89,6 +105,10 @@ OPTIONS:
     --mode <0-9>         Send a MODE command first (some rebrands need it)
     --keep               Leave the test pattern on screen when exiting
     --verbose            Also print the acknowledgements
+    --keep-alive <n>     For 'test', 'listen' and 'raw'. Not necessary: the
+                         device layer sends the keep-alive each 10 seconds.
+                         For a measurement, <n> changes the interval in
+                         seconds, and 0 stops the keep-alive.
 
 OPTIONS FOR 'raw':
     --save <file>        Write each full input report to <file> (text format)
@@ -97,9 +117,6 @@ OPTIONS FOR 'raw':
                          limit; default: 10)
     --draw               Draw the slot numbers after each connection, as
                          'test' does
-    --keep-alive <n>     Not necessary: the device layer sends the keep-alive
-                         each 10 seconds. For a measurement, <n> changes the
-                         interval in seconds, and 0 stops the keep-alive.
 
 OPTIONS FOR 'background':
     --file <path>        Draw this PNG or JPEG file, not the test pattern
@@ -108,6 +125,43 @@ OPTIONS FOR 'background':
     --clear              Remove the background image. Draw nothing.
     --init               Send the start commands before the background
     --hold <n>           Keep the connection for <n> seconds after the draw
+
+OPTIONS FOR 'send', 'bars', 'wide' AND 'repaint':
+    --hold <n>           Keep the connection for <n> seconds after the command,
+                         with the keep-alive. Without it, the device stops the
+                         connection approximately 35 seconds after a draw, and
+                         its displays go blank.
+    --keep-alive <n>     The keep-alive interval in seconds for --hold
+                         (default: 10). 0 sends no keep-alive.
+    --no-init            'bars', 'wide' and 'repaint' send the start commands
+                         (DIS, then the brightness command) before they draw.
+                         This option skips them.
+    --brightness <0-100> The brightness of the start commands (default: 80)
+
+OPTIONS FOR 'send':
+    --each <n>           Seconds between two values of 'brightness' or
+                         'knob-brightness' (default: 5)
+    --wait-key           Wait for a key press on the device before each value
+    --draw               First send the start commands and draw the numbered
+                         key faces and bar panels, so that you can see the
+                         effect of the command
+
+OPTIONS FOR 'wide':
+    --size <w>x<h>       The size of the image, for example 352x112 or 800x112.
+                         It does not come from the descriptor.
+    --format png|jpeg    The image format (default: the format of the surface)
+    --quality <1-100>    JPEG quality (default: 60)
+    --with-bars          Draw the edge pattern on the other bar panels also
+
+OPTIONS FOR 'repaint':
+    --count <n>          The number of repaints (default: 20)
+    --format png|jpeg    The image format (default: the format of each surface
+                         in the descriptor)
+    --quality <1-100>    JPEG quality (default: 60)
+    --one <slot>         Draw the surface of this slot only
+    --pause <ms>         Wait between two repaints (default: 0)
+    --wait-key           Wait for a key press on the device before the first
+                         repaint
 
 'test', 'listen' and 'raw' send the keep-alive, so the device stays
 connected. They continue after a disconnection and wait for the device to
@@ -275,13 +329,18 @@ fn cmd_test(rest: &[String]) -> AnyResult {
     let mode = flag_u64(rest, "--mode").map(|m| m as u8);
     let keep = rest.iter().any(|a| a == "--keep");
     let verbose = rest.iter().any(|a| a == "--verbose");
+    let keep_alive = measure::keep_alive_flag(rest)?;
 
     let device = open_device()?;
     let d = device.descriptor();
     let mut link = Link::from_device(HidConnector, device);
+    if let Some(interval) = keep_alive {
+        link.set_keep_alive_interval(Some(interval));
+    }
     if let Some(mode) = mode {
         println!("  mode   : MODE {mode} before each draw");
     }
+    println!("  alive  : {}", measure::describe_keep_alive(keep_alive));
     println!("  light  : brightness {brightness}%\n");
     println!("Each key face and each bar panel shows its slot number after the draw.");
     println!("Press keys / turn knobs / swipe the touch bar for {seconds}s.");
@@ -315,9 +374,14 @@ fn cmd_test(rest: &[String]) -> AnyResult {
 fn cmd_listen(rest: &[String]) -> AnyResult {
     let seconds = flag_u64(rest, "--seconds").unwrap_or(15);
     let verbose = rest.iter().any(|a| a == "--verbose");
+    let keep_alive = measure::keep_alive_flag(rest)?;
     let device = open_device()?;
     let d = device.descriptor();
     let mut link = Link::from_device(HidConnector, device);
+    if let Some(interval) = keep_alive {
+        link.set_keep_alive_interval(Some(interval));
+    }
+    println!("  alive  : {}", measure::describe_keep_alive(keep_alive));
     println!("Listening for {seconds}s. Ctrl-C to stop.\n");
     run_link(
         &mut link,
@@ -337,7 +401,7 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     let note = flag_str(rest, "--note").unwrap_or("");
     let until_enter = rest.iter().any(|a| a == "--until-enter");
     let draw = rest.iter().any(|a| a == "--draw");
-    let keep_alive = flag_u64(rest, "--keep-alive").map(Duration::from_secs);
+    let keep_alive = measure::keep_alive_flag(rest)?;
     let mut t = open_device()?;
 
     // The file never gets the serial number: the header has the model name
@@ -365,6 +429,7 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     if let Some(interval) = keep_alive {
         link.set_keep_alive_interval(Some(interval));
     }
+    println!("  alive  : {}", measure::describe_keep_alive(keep_alive));
     let stop = Arc::new(AtomicBool::new(false));
     if until_enter {
         watch_enter(Arc::clone(&stop));
@@ -416,10 +481,16 @@ fn draw_test_pattern(
         std::thread::sleep(Duration::from_millis(300));
     }
 
+    start_display(t, brightness)?;
+    draw_slot_surfaces(t)
+}
+
+/// Send the start commands: `DIS`, then the brightness command. After a new
+/// connection, the displays show nothing until these commands go out.
+fn start_display<T: Transport>(t: &mut Device<T>, brightness: u8) -> opencraft_core::Result<()> {
     t.init()?;
     std::thread::sleep(Duration::from_millis(150));
-    t.set_brightness(brightness)?;
-    draw_slot_surfaces(t)
+    t.set_brightness(brightness)
 }
 
 /// Draw its slot number on each surface that has a slot, give each knob light
@@ -559,10 +630,8 @@ fn cmd_background(rest: &[String]) -> AnyResult {
     );
 
     if rest.iter().any(|a| a == "--init") {
-        // The same start as the test command: clear, then set the brightness.
-        t.init()?;
-        std::thread::sleep(Duration::from_millis(150));
-        t.set_brightness(80)?;
+        // The same start as the test command.
+        start_display(&mut t, 80)?;
         println!("  init   : DIS, then brightness 80%");
     }
 
@@ -589,16 +658,8 @@ fn cmd_background(rest: &[String]) -> AnyResult {
     // its displays go blank. Keep the connection, so that a person has the
     // time to look at the result.
     if let Some(seconds) = flag_u64(rest, "--hold") {
-        println!("\nKeeping the connection for {seconds}s.");
-        let deadline = Instant::now() + Duration::from_secs(seconds);
-        let mut last = Instant::now();
-        while Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(200));
-            if last.elapsed() >= KEEP_ALIVE_INTERVAL {
-                t.keep_alive()?;
-                last = Instant::now();
-            }
-        }
+        let mut keeper = measure::Keeper::new(Some(KEEP_ALIVE_INTERVAL));
+        measure::hold(&mut t, seconds, &mut keeper)?;
     }
     Ok(())
 }

@@ -37,13 +37,23 @@ the probe clears all slots (add `--keep` to leave the pattern up).
 | `background` | Draw a test pattern or an image file on the 800×480 background |
 | `raw` | Hexdump raw input reports. Can save the full reports to a file. |
 | `record` | Record each gesture to a file, one prompt at a time. Options: `--out <dir>`, `--from <step>`. |
+| `send <name> [args]` | Send one protocol command and nothing else. Print the first 16 bytes that go out. |
+| `bars` | Draw the 4 bar panels with a pattern that shows their edges |
+| `wide <slot>` | Send to one slot an image that is wider than the surface |
+| `repaint` | Draw all surfaces many times. Print the time of each repaint, and the minimum, the median, and the maximum. |
 
-Options: `--seconds`, `--brightness`, `--mode <0-9>`, `--keep`, `--verbose`.
+Options: `--seconds`, `--brightness`, `--mode <0-9>`, `--keep`, `--verbose`,
+`--keep-alive <n>`.
 
 `test`, `listen`, and `raw` send the keep-alive command, so the device stays
 connected for the full `--seconds`. They continue after a disconnection and
 wait for the device to connect again. Then `test` draws the panels again.
-`--seconds` is the total time.
+`--seconds` is the total time. It has no upper limit, so a test of 30 minutes
+is `--seconds 1800`.
+
+`--keep-alive <n>` changes the keep-alive interval of `test`, `listen`, and
+`raw`. The unit is seconds. `0` stops the keep-alive. The default is 10. The
+command prints the interval that it uses.
 
 Options of `background`:
 
@@ -59,6 +69,89 @@ Options of `background`:
 `background` sends the command for the temporary background. It never sends
 the boot logo command, because the device writes the boot logo to permanent
 memory. See [docs/kb/streamdock-protocol.md](docs/kb/streamdock-protocol.md#background-image).
+
+### Commands for the measurements
+
+These commands help a person with the device to measure. The
+[issues](https://github.com/shantanugoel/OpenCraft/issues) for the
+measurements give the procedures.
+
+The device stops the USB connection approximately 35 seconds after a draw, if
+it gets no keep-alive command. Its displays then go blank. Thus each command
+below has `--hold <n>`. It keeps the connection for `<n>` seconds after the
+command and sends the keep-alive. `--keep-alive <n>` changes the interval, and
+`0` sends no keep-alive. If the connection fails during the hold, the command
+prints the time of the failure.
+
+`bars`, `wide`, and `repaint` send the start commands (`DIS`, then the
+brightness command) before they draw. The displays show nothing after a new
+connection without them. `--no-init` skips the start commands.
+`--brightness <0-100>` sets the brightness of the start commands. The default
+is 80.
+
+`send` sends one command and nothing else. The names are:
+
+| Name | Protocol operation | Arguments |
+|---|---|---|
+| `brightness` | `LIG` | One or more percents, 0 to 100 |
+| `knob-colors` | `SETLB` | One `rrggbb` for each knob |
+| `knob-brightness` | `LBLIG` | One or more percents, 0 to 100 |
+| `sleep` | `HAN` | None |
+| `keep-alive` | `CONNECT` | None |
+| `start` | `DIS` | None |
+| `commit` | `STP` | None |
+| `haptic` | `QUCMD` | `on` or `off` |
+
+`send` has no command for the boot logo. The device writes the boot logo to
+permanent memory.
+
+| Option of `send` | What it does |
+|---|---|
+| `--each <n>` | Wait `<n>` seconds between two values of `brightness` or `knob-brightness`. The default is 5. |
+| `--wait-key` | Wait for a key press on the device before each value, not for a time |
+| `--draw` | First send the start commands and draw the numbered key faces and bar panels, so that you can see the effect |
+
+Example: `opencraft-probe send brightness 0 50 100 --draw --each 4 --hold 10`
+
+`bars` draws each bar panel with a border of 1 pixel, its own fill colour, its
+slot number, its size, and a mark in each corner. Use it to see the edges of
+the panels and a space between them.
+
+`wide <slot> --size <w>x<h>` sends an image of a size that you choose to one
+slot. Use it to learn what the device does with an image that is wider than the
+surface. The size is not from the descriptor, because it is a measurement of
+what the device accepts. The image has a line at each multiple of the surface
+width and its x coordinates as text.
+
+| Option of `wide` | What it does |
+|---|---|
+| `--size <w>x<h>` | The size of the image, for example `352x112` or `800x112`. It is necessary. |
+| `--format png\|jpeg` | The image format. The default is the format of the surface. |
+| `--quality <1-100>` | JPEG quality. The default is 60. |
+| `--with-bars` | Draw the edge pattern on the other bar panels also |
+
+Example: `opencraft-probe wide 2 --size 352x112 --with-bars --hold 30`
+
+`repaint` draws all surfaces that have a slot, `--count` times, and sends the
+commit command after each full draw. It prints the time of each repaint, and at
+the end the minimum, the median, and the maximum. It also prints the number of
+bytes and reports for one repaint, and the input reports that arrived during
+the repaints. The images are icons with a gradient, a symbol, and two lines of
+text. They are different for each surface. The command makes and encodes all
+images first. The time counts only the writes to the device. A repaint draws
+one of two sets of images, and the next repaint draws the other set, so that
+the display changes each time.
+
+| Option of `repaint` | What it does |
+|---|---|
+| `--count <n>` | The number of repaints. The default is 20. |
+| `--format png\|jpeg` | The image format. The default is the format of each surface in the descriptor. |
+| `--quality <1-100>` | JPEG quality. The default is 60. |
+| `--one <slot>` | Draw the surface of this slot only |
+| `--pause <ms>` | Wait between two repaints. The default is 0. |
+| `--wait-key` | Wait for a key press on the device before the first repaint |
+
+Example: `opencraft-probe repaint --format jpeg --quality 80 --count 20 --hold 20`
 
 Options of `raw`:
 
