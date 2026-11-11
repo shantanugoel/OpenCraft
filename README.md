@@ -32,7 +32,7 @@ runs; each event prints with its decoded meaning. Panels are blanked on exit
 | `test` | Paint all slots, then decode input for `--seconds` |
 | `listen` | Decode input only |
 | `draw <slot> <rrggbb>` | Paint one slot a solid colour |
-| `clear` | Blank every panel |
+| `clear [slot]` | Send the clear command for one slot, or for all slots |
 | `raw` | Hexdump raw input reports. Can save the full reports to a file. |
 | `record` | Record each gesture to a file, one prompt at a time. Options: `--out <dir>`, `--from <step>`. |
 
