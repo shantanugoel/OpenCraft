@@ -32,6 +32,8 @@ mod actions;
 mod device_settings;
 #[path = "engine/history.rs"]
 mod history;
+#[path = "engine/labels.rs"]
+mod labels;
 #[path = "engine/pages.rs"]
 mod pages;
 #[path = "engine/profiles.rs"]

@@ -142,7 +142,9 @@ engine make these images on macOS, on 2026-11-11.
 
 | Fact | Confidence | Source |
 |---|---|---|
-| The module uses the system font in the weight for emphasis (`kCTFontEmphasizedSystemFontType`). It tries the sizes 20, 18, 16, 14, 12, and 10 pixels, and uses the first size at which the text fits. | Measured | The code and its tests |
+| The module uses the system font in the weight for emphasis (`kCTFontEmphasizedSystemFontType`) for a bold label, and `kCTFontSystemFontType` for a regular label (issue #189, 2026-11-13). It tries the size of the label (20 pixels by default), and then 2 pixels smaller each time to 10 pixels. It uses the first size at which the text fits. | Measured | The code and its tests |
+| A regular label of "Mail" at 20 pixels has less ink than a bold label: the bold label has more than 110 % of its pixels. A label at 32 pixels is more than 10 pixels wider than at 20 pixels. | Measured | Test `the_size_and_the_weight_change_the_text`, 2026-11-13 |
+| The module puts the text block at the top, at the centre, or at the bottom of its area. On a key face with no image, a label at the top starts less than 14 pixels from the top edge, and a label at the bottom ends less than 14 pixels from the bottom edge. | Measured | Tests in `crates/engine/src/render.rs` and `crates/engine/tests/engine/labels.rs`, 2026-11-13 |
 | A text that does not fit at 10 pixels is cut, and gets `…` at the end. The label stays in its area. | Measured | Test with a text of 880 characters |
 | One word of 60 letters with no space goes to more lines and stays in the area | Measured | Test |
 | Devanagari, CJK, Arabic, and an emoji each give a label on a key face | Measured | Test. An agent looked at one image with Devanagari, CJK, and an emoji. |

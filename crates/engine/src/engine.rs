@@ -42,7 +42,7 @@ use crate::action::{
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::history::{History, Target};
 use crate::layout::DeviceLayout;
-use crate::profile::{Color, Page, Profile, SurfaceContent, DEFAULT_PROFILE_NAME};
+use crate::profile::{Color, LabelChange, Page, Profile, SurfaceContent, DEFAULT_PROFILE_NAME};
 use crate::profiles::{ProfileEntry, ProfilesDir};
 use crate::render::{self, Size};
 use crate::store::ProfileStore;
@@ -108,6 +108,13 @@ pub enum Command {
     SetLabel {
         surface: SurfaceId,
         label: Option<String>,
+    },
+    /// Change one part of the label style of a surface: the position, the
+    /// size, the colour, or the weight. The engine puts a size into its
+    /// range. The label text does not change.
+    SetLabelStyle {
+        surface: SurfaceId,
+        change: LabelChange,
     },
     /// Set the colour of a surface. `None` removes it.
     SetColor {
@@ -217,6 +224,15 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
                 page: active,
                 surface: *surface,
             }),
+        ),
+        Command::SetLabelStyle { change, .. } => step(
+            match change {
+                LabelChange::Position(_) => "Set Title Position",
+                LabelChange::Size(_) => "Set Title Size",
+                LabelChange::Color(_) => "Set Title Colour",
+                LabelChange::Bold(_) => "Set Title Weight",
+            },
+            None,
         ),
         Command::SetColor { .. } => step("Set Fill", None),
         Command::SetImage { path: Some(_), .. } => step("Set Image", None),
@@ -1424,6 +1440,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     fn obey(&mut self, command: Command) -> bool {
         match command {
             Command::SetLabel { surface, label } => self.change(surface, |c| c.label = label),
+            Command::SetLabelStyle { surface, change } => {
+                self.change(surface, |c| c.label_style.apply(change))
+            }
             Command::SetColor { surface, color } => self.change(surface, |c| c.color = color),
             Command::SetImage { surface, path } => {
                 let image = match path {

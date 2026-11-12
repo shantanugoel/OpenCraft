@@ -135,7 +135,10 @@ The window parts are in `crates/app/src/view/history.rs`, the toolbar
 buttons in `view/toolbar.rs`, and the Edit menu in `app_menu.rs`. They obey
 decision 0029, sections 5 and 13. The names of the steps are those of
 section 13, and also "Remove the Image" for an image that the user removes.
-The toolbar button ends an open text edit first, and then sends Undo or Redo
+The label options of
+[#189](https://github.com/shantanugoel/OpenCraft/issues/189) add "Set Title
+Position", "Set Title Size", "Set Title Colour", and "Set Title Weight". The
+names are in `step_of` in `crates/engine/src/engine.rs`. The toolbar button ends an open text edit first, and then sends Undo or Redo
 to the engine.
 
 ## Rejected alternatives

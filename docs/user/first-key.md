@@ -17,7 +17,7 @@ the top of the right panel. The inspector has these parts, from the top:
 | Part | What it shows |
 |---|---|
 | Header | The image of the key face, the name "Key 1", and the position "Top row, first key" |
-| **Appearance** | The rows **Image**, **Title**, and **Fill** |
+| **Appearance** | The rows **Image**, **Title**, **Position**, **Text**, and **Fill** |
 | **Gestures** | One card for each gesture of the key: **Press** and **Release** |
 
 If the inspector is not tall enough, it shows a scrollbar at the right.
@@ -38,6 +38,28 @@ it on the colour. The selected colour has a blue frame.
   colour as `#RRGGBB`, for example `#1A6FD8`, and push Return. To close the
   field with no change, push Esc.
 - To remove the title, delete the text in the field.
+
+### Change the look of the title (optional)
+
+The rows **Position** and **Text** change how the title shows. They are
+below the field **Title**.
+
+![The Appearance section with the title at the middle, in 20 pt, in a gold colour, and not bold](images/label-options.png)
+
+| Row | Control | What it does |
+|---|---|---|
+| **Position** | **Top**, **Middle**, **Bottom**, **None** | Puts the title at the top, at the centre, or at the bottom of the key face. **None** hides the title. The text stays in the field **Title**. |
+| **Text** | The size button, for example "20 pt" | Click it, and click a size from 10 pt to 32 pt. |
+| **Text** | The colour button | Click it, and click a colour. Or type the colour as `#RRGGBB`, and push Return. **A** (Automatic) selects black or white for the fill colour. To close the colour list with no change, push Esc. |
+| **Text** | **B** | Bold. Click it to change the title to bold or to normal. **B** is light when the title is bold. |
+
+- At the start, a title is bold, 20 pt, and in the automatic colour. With
+  no image, it is at the centre. With an image, it is at the bottom.
+- If a long title does not fit at its size, OpenCraft makes the text
+  smaller.
+- With an image, a title at the top or at the bottom has its own band, and
+  the image is smaller. A title at the middle is on the image.
+- A bar panel has the same rows.
 
 ## 3. Set an image (optional)
 
@@ -124,7 +146,8 @@ You can undo each change to the pages of the profile, and then do it again.
 - When a text field has the cursor, Command-Z and **Edit > Undo** undo the
   typing in that field only. The toolbar button undoes the last change of
   the profile.
-- The undo covers the label, the colour, the image, the actions, and the
+- The undo covers the label and its position, size, colour, and weight, the
+  colour, the image, the actions, and the
   add, rename, move, duplicate, and removal of a page.
 - The undo does not cover the profiles and the device settings. When you
   select a different profile, or when you quit OpenCraft, the list of changes

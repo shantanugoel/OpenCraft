@@ -115,6 +115,9 @@ pub const PRESSED: Rgba = hex(0x42444b);
 pub const NEUTRAL_TINT: Rgba = hex_alpha(0xffffff, 0.06);
 /// The dashed border of the fill sample "Other colour" (section 10.2).
 pub const BORDER_SAMPLE_OTHER: Rgba = hex(0x5a5c63);
+/// The border of a toggle button that is on, for example "B" for bold
+/// (section 10.2).
+pub const BORDER_TOGGLE_ON: Rgba = BORDER_SAMPLE_OTHER;
 /// The white knob of a switch, and the text on a kind tile.
 pub const SWITCH_KNOB_COLOUR: Rgba = hex(0xffffff);
 /// The tile of a kind of each group of section 20, and of a group that is
@@ -364,6 +367,10 @@ pub const SAMPLE_OUTLINE_GAP: Pixels = px(2.);
 pub const WIDTH_COLOUR_POPOVER: Pixels = px(200.);
 /// A fill sample.
 pub const SAMPLE: Pixels = px(22.);
+/// The popup button of the label size, for example "20 pt", and its menu
+/// (section 10.2).
+pub const WIDTH_SIZE_POPUP: Pixels = px(76.);
+pub const WIDTH_SIZE_MENU: Pixels = px(100.);
 /// The icon tile of the device card.
 pub const DEVICE_TILE: Pixels = px(32.);
 /// The icon tile in the header of the device inspector (section 10.7).

@@ -4,19 +4,61 @@
 //! fonts for each script, so text that is not Latin shows correctly. The
 //! reasons are in `docs/decisions/0010-core-text-for-surface-labels.md`.
 //!
-//! The label is at the centre of its area. A text that is too wide goes to
-//! more lines. If the text does not fit, the font becomes smaller. If the
-//! text does not fit at the smallest size, the end is cut and gets `…`.
+//! The label is at the top, at the centre, or at the bottom of its area,
+//! and at the centre from left to right. A text that is too wide goes to
+//! more lines. If the text does not fit at the size of its [`Font`], the font
+//! becomes smaller in steps of 2 pixels. If the text does not fit at the
+//! smallest size, the end is cut and gets `…`.
 //!
 //! On an operating system that is not macOS, the module draws no text. No
 //! type of Core Text is in the interface of the module.
 
-use crate::profile::Color;
+use crate::profile::{Color, DEFAULT_LABEL_SIZE, MIN_LABEL_SIZE};
 use image::RgbImage;
 
-/// The font sizes that the label tries, in pixels, from the first to the
-/// smallest.
-pub const FONT_SIZES: [f64; 6] = [20.0, 18.0, 16.0, 14.0, 12.0, 10.0];
+/// The font of a label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Font {
+    /// The size that the label tries first, in pixels.
+    pub size: u8,
+    /// Bold, or the regular weight.
+    pub bold: bool,
+}
+
+impl Default for Font {
+    /// The font of a label of the earlier versions.
+    fn default() -> Self {
+        Self {
+            size: DEFAULT_LABEL_SIZE,
+            bold: true,
+        }
+    }
+}
+
+impl Font {
+    /// The font sizes that the label tries, in pixels, from the first to the
+    /// smallest: the size of the font, and then 2 pixels smaller each time,
+    /// to [`MIN_LABEL_SIZE`].
+    pub fn sizes(self) -> Vec<f64> {
+        let mut sizes: Vec<f64> = (MIN_LABEL_SIZE..=self.size.max(MIN_LABEL_SIZE))
+            .rev()
+            .step_by(2)
+            .map(f64::from)
+            .collect();
+        if sizes.last() != Some(&f64::from(MIN_LABEL_SIZE)) {
+            sizes.push(f64::from(MIN_LABEL_SIZE));
+        }
+        sizes
+    }
+}
+
+/// Where the text block is in its area, from top to bottom.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Top,
+    Middle,
+    Bottom,
+}
 
 /// The largest part of the height of a surface that the band of a label can
 /// have, when the surface also has an image.
@@ -34,18 +76,19 @@ pub struct Area {
     pub height: u32,
 }
 
-/// The height of the band at the bottom of a surface that the label `text`
-/// needs, for a surface with an image. `width` is the width for the text, and
+/// The height of the band above or below the image of a surface that the
+/// label `text` needs. `width` is the width for the text, and
 /// `surface_height` is the height of the surface.
-pub fn band_height(text: &str, width: u32, surface_height: u32) -> u32 {
+pub fn band_height(text: &str, font: Font, width: u32, surface_height: u32) -> u32 {
     let limit = (f64::from(surface_height) * BAND_PART) as u32;
-    let text_height = platform::fit_height(text, width, limit.saturating_sub(2 * BAND_SPACE));
+    let text_height = platform::fit_height(text, font, width, limit.saturating_sub(2 * BAND_SPACE));
     (text_height + 2 * BAND_SPACE).min(limit)
 }
 
-/// Draw `text` in `color` at the centre of `area` on `canvas`. The parts of
-/// `area` that are not on the canvas are ignored.
-pub fn draw(canvas: &mut RgbImage, area: Area, text: &str, color: Color) {
+/// Draw `text` in `font` and `color` in `area` on `canvas`, at the vertical
+/// place `align`. The parts of `area` that are not on the canvas are
+/// ignored.
+pub fn draw(canvas: &mut RgbImage, area: Area, text: &str, font: Font, color: Color, align: Align) {
     let x = area.x.min(canvas.width());
     let y = area.y.min(canvas.height());
     let area = Area {
@@ -57,23 +100,31 @@ pub fn draw(canvas: &mut RgbImage, area: Area, text: &str, color: Color) {
     if area.width == 0 || area.height == 0 || text.trim().is_empty() {
         return;
     }
-    platform::draw(canvas, area, text, color);
+    platform::draw(canvas, area, text, font, color, align);
 }
 
 #[cfg(not(target_os = "macos"))]
 mod platform {
-    use super::{Area, Color, RgbImage};
+    use super::{Align, Area, Color, Font, RgbImage};
 
-    pub fn fit_height(_text: &str, _width: u32, limit: u32) -> u32 {
+    pub fn fit_height(_text: &str, _font: Font, _width: u32, limit: u32) -> u32 {
         limit
     }
 
-    pub fn draw(_canvas: &mut RgbImage, _area: Area, _text: &str, _color: Color) {}
+    pub fn draw(
+        _canvas: &mut RgbImage,
+        _area: Area,
+        _text: &str,
+        _font: Font,
+        _color: Color,
+        _align: Align,
+    ) {
+    }
 }
 
 #[cfg(target_os = "macos")]
 mod platform {
-    use super::{Area, Color, RgbImage, FONT_SIZES};
+    use super::{Align, Area, Color, Font, RgbImage};
     use core_foundation::attributed_string::CFMutableAttributedString;
     use core_foundation::base::{CFRange, TCFType};
     use core_foundation::boolean::CFBoolean;
@@ -83,7 +134,9 @@ mod platform {
     use core_graphics::context::CGContext;
     use core_graphics::geometry::{CGPoint, CGRect, CGSize};
     use core_graphics::path::CGPath;
-    use core_text::font::{kCTFontEmphasizedSystemFontType, new_ui_font_for_language};
+    use core_text::font::{
+        kCTFontEmphasizedSystemFontType, kCTFontSystemFontType, new_ui_font_for_language,
+    };
     use core_text::framesetter::CTFramesetter;
     use core_text::line::CTLine;
     use core_text::string_attributes::{
@@ -109,10 +162,15 @@ mod platform {
         height: f64,
     }
 
-    fn layout(text: &str, size: f64, width: u32) -> Layout {
-        // The system font, in the weight for emphasis: a label on a small
-        // display is easier to read in this weight.
-        let font = new_ui_font_for_language(kCTFontEmphasizedSystemFontType, size, None);
+    fn layout(text: &str, size: f64, bold: bool, width: u32) -> Layout {
+        // The system font. Bold is the weight for emphasis: a label on a
+        // small display is easier to read in this weight.
+        let kind = if bold {
+            kCTFontEmphasizedSystemFontType
+        } else {
+            kCTFontSystemFontType
+        };
+        let font = new_ui_font_for_language(kind, size, None);
         let mut styled = CFMutableAttributedString::new();
         styled.replace_str(&CFString::new(text), CFRange::init(0, 0));
         let range = CFRange::init(0, styled.char_len());
@@ -168,43 +226,55 @@ mod platform {
     /// The layout of `text` for an area of `width` × `height`: at the first
     /// font size at which the text fits, or at the smallest size with the end
     /// of the text cut.
-    fn fit(text: &str, width: u32, height: u32) -> Layout {
+    fn fit(text: &str, font: Font, width: u32, height: u32) -> Layout {
         let text = text.trim();
-        for size in FONT_SIZES {
-            let layout = layout(text, size, width);
+        let sizes = font.sizes();
+        for &size in &sizes {
+            let layout = layout(text, size, font.bold, width);
             if fits(&layout, width, height) {
                 return layout;
             }
         }
         // Find the largest number of characters that fits with `…` after
         // them. A cut can divide a group of characters that make one sign.
-        let smallest = FONT_SIZES[FONT_SIZES.len() - 1];
+        let smallest = sizes[sizes.len() - 1];
         let ends: Vec<usize> = text.char_indices().map(|(i, _)| i).collect();
         if ends.is_empty() {
-            return layout("", smallest, width);
+            return layout("", smallest, font.bold, width);
         }
         let cut = |n: usize| format!("{}…", text[..ends[n]].trim_end());
         let (mut low, mut high) = (0, ends.len() - 1);
         while low < high {
             let middle = (low + high).div_ceil(2);
-            if fits(&layout(&cut(middle), smallest, width), width, height) {
+            if fits(
+                &layout(&cut(middle), smallest, font.bold, width),
+                width,
+                height,
+            ) {
                 low = middle;
             } else {
                 high = middle - 1;
             }
         }
-        layout(&cut(low), smallest, width)
+        layout(&cut(low), smallest, font.bold, width)
     }
 
-    pub fn fit_height(text: &str, width: u32, limit: u32) -> u32 {
+    pub fn fit_height(text: &str, font: Font, width: u32, limit: u32) -> u32 {
         if width == 0 || limit == 0 {
             return limit;
         }
-        (fit(text, width, limit).height.ceil() as u32).min(limit)
+        (fit(text, font, width, limit).height.ceil() as u32).min(limit)
     }
 
-    pub fn draw(canvas: &mut RgbImage, area: Area, text: &str, color: Color) {
-        let layout = fit(text, area.width, area.height);
+    pub fn draw(
+        canvas: &mut RgbImage,
+        area: Area,
+        text: &str,
+        font: Font,
+        color: Color,
+        align: Align,
+    ) {
+        let layout = fit(text, font, area.width, area.height);
         let (w, h) = (area.width as usize, area.height as usize);
         let mut context = CGContext::create_bitmap_context(
             None,
@@ -237,7 +307,12 @@ mod platform {
         context.set_should_antialias(true);
         context.set_should_smooth_fonts(false);
         // The text position is from the bottom of the bitmap, and y goes up.
-        let top = (f64::from(area.height) - layout.height) / 2.0;
+        let space = (f64::from(area.height) - layout.height).max(0.0);
+        let top = match align {
+            Align::Top => 0.0,
+            Align::Middle => space / 2.0,
+            Align::Bottom => space,
+        };
         for line in &layout.lines {
             context.set_text_position(
                 ((f64::from(area.width) - line.width) / 2.0).round(),
@@ -291,10 +366,65 @@ mod tests {
         bounds
     }
 
+    /// Draw with the default font, at the middle.
+    fn put(canvas: &mut RgbImage, area: Area, text: &str, color: Color) {
+        draw(canvas, area, text, Font::default(), color, Align::Middle);
+    }
+
+    fn drawn_with(text: &str, font: Font, align: Align) -> RgbImage {
+        let mut image = canvas(112, 112);
+        let area = full(&image);
+        draw(&mut image, area, text, font, Color::WHITE, align);
+        image
+    }
+
+    #[test]
+    fn the_sizes_go_down_in_steps_of_two_to_the_smallest() {
+        let sizes = |size| Font { size, bold: true }.sizes();
+        assert_eq!(sizes(20), [20.0, 18.0, 16.0, 14.0, 12.0, 10.0]);
+        assert_eq!(sizes(15), [15.0, 13.0, 11.0, 10.0]);
+        assert_eq!(sizes(10), [10.0]);
+        assert_eq!(sizes(4), [10.0]);
+    }
+
+    #[test]
+    fn the_alignment_puts_the_text_at_the_top_the_middle_or_the_bottom() {
+        let font = Font::default();
+        let (_, top, _, _) = ink(&drawn_with("Mail", font, Align::Top)).unwrap();
+        let (_, middle_top, _, middle_bottom) =
+            ink(&drawn_with("Mail", font, Align::Middle)).unwrap();
+        let (_, _, _, bottom) = ink(&drawn_with("Mail", font, Align::Bottom)).unwrap();
+        assert!(top < 8, "{top}");
+        assert!(bottom > 104, "{bottom}");
+        assert!(
+            middle_top > 35 && middle_bottom < 77,
+            "{middle_top} {middle_bottom}"
+        );
+    }
+
+    #[test]
+    fn the_size_and_the_weight_change_the_text() {
+        let font = |size, bold| Font { size, bold };
+        let width = |font| {
+            let (left, _, right, _) = ink(&drawn_with("Mail", font, Align::Middle)).unwrap();
+            right - left
+        };
+        let pixels = |font| {
+            drawn_with("Mail", font, Align::Middle)
+                .pixels()
+                .filter(|p| **p != DARK)
+                .count()
+        };
+        let regular = font(20, false);
+        assert!(width(font(32, false)) > width(regular) + 10);
+        assert!(width(font(12, false)) + 10 < width(regular));
+        assert!(pixels(font(20, true)) > pixels(regular) * 11 / 10);
+    }
+
     fn drawn(width: u32, height: u32, text: &str) -> RgbImage {
         let mut image = canvas(width, height);
         let area = full(&image);
-        draw(&mut image, area, text, Color::WHITE);
+        put(&mut image, area, text, Color::WHITE);
         image
     }
 
@@ -319,7 +449,7 @@ mod tests {
 
         let mut red = canvas(112, 112);
         let area = full(&red);
-        draw(&mut red, area, "Mail", Color::rgb(255, 0, 0));
+        put(&mut red, area, "Mail", Color::rgb(255, 0, 0));
         assert!(red.pixels().any(|p| p[0] > 240 && p[1] < 40 && p[2] < 60));
     }
 
@@ -341,7 +471,7 @@ mod tests {
             width: 80,
             height: 50,
         };
-        draw(&mut image, area, &text, Color::WHITE);
+        put(&mut image, area, &text, Color::WHITE);
         let (left, top, right, bottom) = ink(&image).unwrap();
         assert!(left >= 10 && right < 90, "{left} {right}");
         assert!(top >= 20 && bottom < 70, "{top} {bottom}");
@@ -390,7 +520,7 @@ mod tests {
                 height: 50,
             },
         ] {
-            draw(&mut image, area, "Mail", Color::WHITE);
+            put(&mut image, area, "Mail", Color::WHITE);
         }
         assert_eq!(ink(&image), None);
         // An area that is larger than the canvas is cut to the canvas.
@@ -400,16 +530,28 @@ mod tests {
             width: 500,
             height: 500,
         };
-        draw(&mut image, area, "Mail", Color::WHITE);
+        put(&mut image, area, "Mail", Color::WHITE);
     }
 
     #[test]
     fn the_band_is_as_high_as_the_text_needs_and_not_more_than_its_limit() {
-        let one = band_height("Mail", 104, 112);
-        let two = band_height("Volume up and down", 104, 112);
-        let many = band_height(&"word ".repeat(50), 104, 112);
+        let font = Font::default();
+        let one = band_height("Mail", font, 104, 112);
+        let two = band_height("Volume up and down", font, 104, 112);
+        let many = band_height(&"word ".repeat(50), font, 104, 112);
         assert!((16..=30).contains(&one), "{one}");
         assert!(two > one, "{one} {two}");
         assert!(two <= 44 && many <= 44, "{two} {many}");
+        // A smaller font needs a lower band.
+        let small = band_height(
+            "Mail",
+            Font {
+                size: 10,
+                bold: true,
+            },
+            104,
+            112,
+        );
+        assert!(small < one, "{small} {one}");
     }
 }

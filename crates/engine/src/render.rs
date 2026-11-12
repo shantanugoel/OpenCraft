@@ -10,16 +10,22 @@
 //! - The colour fills the surface. With no colour, the surface is black.
 //! - The image is as large as possible in its area, with its proportion, at
 //!   the centre. The colour shows through the transparent parts.
-//! - With a label and no image, the label is at the centre of the surface.
-//! - With a label and an image, the label is in a band at the bottom, and
-//!   the image has the area above the band.
+//! - The label has the position, the size, the colour, and the weight of its
+//!   [`LabelStyle`]. The default position is the middle with no image, and
+//!   the bottom with an image.
+//! - With a label and no image, the label is at the top, at the centre, or
+//!   at the bottom of the surface.
+//! - With a label at the top or at the bottom and an image, the label is in
+//!   a band at that edge, and the image has the rest of the surface. A label
+//!   at the middle is on the image, at the centre.
+//! - A label with the position "none" does not show.
 //!
 //! Feedback of a handler changes this layout: see
 //! [`surface_image_with_feedback`].
 
 use crate::action::{Feedback, FeedbackState};
-use crate::label::{self, Area};
-use crate::profile::{Color, SurfaceContent};
+use crate::label::{self, Align, Area, Font};
+use crate::profile::{Color, LabelPosition, LabelStyle, SurfaceContent};
 use image::imageops::{self, FilterType};
 use image::{DynamicImage, Rgb, RgbImage};
 
@@ -56,34 +62,78 @@ pub fn surface_image(
     if size.width == 0 || size.height == 0 {
         return canvas;
     }
-    let text = content.label.as_deref().filter(|t| !t.trim().is_empty());
+    let style = content.label_style;
+    let position = style.position_for(image.is_some());
+    let text = content
+        .label
+        .as_deref()
+        .filter(|t| !t.trim().is_empty() && position != LabelPosition::Hidden);
+    let font = Font {
+        size: style.size,
+        bold: style.bold,
+    };
+    let text_color = label_color(content);
+    let width = size.width.saturating_sub(2 * MARGIN);
+    // The label on all of the surface, inside the margin.
+    let full = Area {
+        x: MARGIN,
+        y: MARGIN,
+        width,
+        height: size.height.saturating_sub(2 * MARGIN),
+    };
 
-    // The band of the label, when the surface also has an image.
-    let mut image_height = size.height;
-    if let (Some(text), Some(_)) = (text, image) {
-        let band = label::band_height(text, size.width.saturating_sub(2 * MARGIN), size.height);
-        image_height = size.height - band;
-        let area = Area {
-            x: MARGIN,
-            y: image_height,
-            width: size.width.saturating_sub(2 * MARGIN),
-            height: band.saturating_sub(MARGIN / 2),
-        };
-        label::draw(&mut canvas, area, text, text_color(color));
-    } else if let Some(text) = text {
-        let area = Area {
-            x: MARGIN,
-            y: MARGIN,
-            width: size.width.saturating_sub(2 * MARGIN),
-            height: size.height.saturating_sub(2 * MARGIN),
-        };
-        label::draw(&mut canvas, area, text, text_color(color));
+    // The area of the image, from its top: all of the surface, or the part
+    // that the band of the label does not use.
+    let (mut image_top, mut image_height) = (0, size.height);
+    match (text, image, position) {
+        (Some(text), Some(_), LabelPosition::Top | LabelPosition::Bottom) => {
+            let band = label::band_height(text, font, width, size.height);
+            image_height = size.height - band;
+            let y = if position == LabelPosition::Top {
+                image_top = band;
+                MARGIN / 2
+            } else {
+                image_height
+            };
+            let area = Area {
+                x: MARGIN,
+                y,
+                width,
+                height: band.saturating_sub(MARGIN / 2),
+            };
+            label::draw(&mut canvas, area, text, font, text_color, Align::Middle);
+        }
+        (Some(text), None, _) => {
+            label::draw(&mut canvas, full, text, font, text_color, align(position));
+        }
+        _ => {}
     }
 
     if let Some(image) = image {
-        draw_image(&mut canvas, image, size.width, image_height);
+        draw_image(&mut canvas, image, image_top, size.width, image_height);
+        // A label at the middle is on the image.
+        if let (Some(text), LabelPosition::Middle) = (text, position) {
+            label::draw(&mut canvas, full, text, font, text_color, Align::Middle);
+        }
     }
     canvas
+}
+
+/// The vertical place of a label in its area for `position`.
+fn align(position: LabelPosition) -> Align {
+    match position {
+        LabelPosition::Top => Align::Top,
+        LabelPosition::Bottom => Align::Bottom,
+        LabelPosition::Middle | LabelPosition::Hidden => Align::Middle,
+    }
+}
+
+/// The colour of the label of `content`: the colour of its [`LabelStyle`],
+/// or else black or white for the fill (see [`text_color`]). A shell can use
+/// it to show the colour of the label.
+pub fn label_color(content: &SurfaceContent) -> Color {
+    let LabelStyle { color, .. } = content.label_style;
+    color.unwrap_or_else(|| text_color(content.color.unwrap_or(DEFAULT_COLOR)))
 }
 
 /// Make the surface image with the newest feedback of its bindings.
@@ -91,8 +141,9 @@ pub fn surface_image(
 /// - A label of the feedback replaces the label of the content.
 /// - A level is a bar at the bottom, with a dark track and a white fill. Its
 ///   area is separate from the label and the image.
-/// - The state "on" is a frame around the surface, in the colour of the
-///   label (see [`text_color`]). The rest of the image, with the level bar,
+/// - The state "on" is a frame around the surface, in black or white for the
+///   fill (see [`text_color`]), also when the label has a colour of its
+///   own. The rest of the image, with the level bar,
 ///   is inside the frame, so the frame covers no part of it. The state
 ///   "off" draws no frame.
 pub fn surface_image_with_feedback(
@@ -176,9 +227,9 @@ fn draw_frame(canvas: &mut RgbImage, width: u32, color: Color) {
     }
 }
 
-/// Draw `image` on `canvas`, as large as possible in the area from 0, 0 with
-/// the size `width` × `height`, with its proportion, at the centre.
-fn draw_image(canvas: &mut RgbImage, image: &DynamicImage, width: u32, height: u32) {
+/// Draw `image` on `canvas`, as large as possible in the area from 0, `top`
+/// with the size `width` × `height`, with its proportion, at the centre.
+fn draw_image(canvas: &mut RgbImage, image: &DynamicImage, top: u32, width: u32, height: u32) {
     if width == 0 || height == 0 || image.width() == 0 || image.height() == 0 {
         return;
     }
@@ -190,7 +241,7 @@ fn draw_image(canvas: &mut RgbImage, image: &DynamicImage, width: u32, height: u
             .into_rgba8()
     };
     let x = (width - scaled.width().min(width)) / 2;
-    let y = (height - scaled.height().min(height)) / 2;
+    let y = top + (height - scaled.height().min(height)) / 2;
     // Put the pixels on the colour with their transparency.
     let mut under = DynamicImage::ImageRgb8(std::mem::take(canvas)).into_rgba8();
     imageops::overlay(&mut under, &scaled, i64::from(x), i64::from(y));
@@ -238,8 +289,188 @@ mod tests {
         SurfaceContent {
             label: label.map(str::to_string),
             color,
-            image: None,
+            ..SurfaceContent::default()
         }
+    }
+
+    /// `content` with the label style `style`.
+    #[cfg(target_os = "macos")]
+    fn styled(label: &str, color: Option<Color>, style: LabelStyle) -> SurfaceContent {
+        SurfaceContent {
+            label_style: style,
+            ..content(Some(label), color)
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn at(position: LabelPosition) -> LabelStyle {
+        LabelStyle {
+            position: Some(position),
+            ..LabelStyle::default()
+        }
+    }
+
+    /// The first and the last row with a pixel of the colour `want`.
+    #[cfg(target_os = "macos")]
+    fn rows_of(image: &RgbImage, want: Rgb<u8>) -> Option<(u32, u32)> {
+        let rows: Vec<u32> = image
+            .enumerate_pixels()
+            .filter(|(_, _, p)| **p == want)
+            .map(|(_, y, _)| y)
+            .collect();
+        Some((*rows.iter().min()?, *rows.iter().max()?))
+    }
+
+    #[cfg(target_os = "macos")]
+    const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn each_position_puts_the_label_there_on_a_surface_with_no_image() {
+        for size in [KEY, BAR] {
+            let rows = |position| {
+                let image = surface_image(size, &styled("Mail", Some(RED), at(position)), None);
+                rows_of(&image, WHITE)
+            };
+            let (top, _) = rows(LabelPosition::Top).expect("the label shows at the top");
+            let (middle_top, middle_bottom) = rows(LabelPosition::Middle).unwrap();
+            let (_, bottom) = rows(LabelPosition::Bottom).unwrap();
+            let h = size.height;
+            assert!(top < 14, "{size:?} top {top}");
+            assert!(bottom > h - 14, "{size:?} bottom {bottom}");
+            assert!(
+                middle_top > h / 3 && middle_bottom < h * 2 / 3,
+                "{size:?} middle {middle_top} {middle_bottom}"
+            );
+            assert_eq!(rows(LabelPosition::Hidden), None, "{size:?} none");
+            // The automatic position is the middle.
+            assert_eq!(
+                surface_image(size, &content(Some("Mail"), Some(RED)), None),
+                surface_image(
+                    size,
+                    &styled("Mail", Some(RED), at(LabelPosition::Middle)),
+                    None
+                )
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn each_position_puts_the_label_there_on_a_surface_with_an_image() {
+        for size in [KEY, BAR] {
+            let draw = |position| {
+                surface_image(
+                    size,
+                    &styled("Mail", Some(RED), at(position)),
+                    Some(&green(size.width, size.height)),
+                )
+            };
+            let h = size.height;
+            // Top: a band at the top, and the image below it.
+            let image = draw(LabelPosition::Top);
+            let (label_top, label_bottom) = rows_of(&image, WHITE).unwrap();
+            let (green_top, green_bottom) = rows_of(&image, GREEN).unwrap();
+            assert!(
+                label_bottom < green_top,
+                "{size:?} {label_bottom} {green_top}"
+            );
+            assert!(label_top < 10 && green_bottom == h - 1, "{size:?}");
+            // Bottom: the image above, and a band at the bottom.
+            let image = draw(LabelPosition::Bottom);
+            let (label_top, _) = rows_of(&image, WHITE).unwrap();
+            let (green_top, green_bottom) = rows_of(&image, GREEN).unwrap();
+            assert!(green_bottom < label_top && green_top == 0, "{size:?}");
+            // The automatic position is the bottom.
+            assert_eq!(
+                image,
+                surface_image(
+                    size,
+                    &content(Some("Mail"), Some(RED)),
+                    Some(&green(size.width, size.height))
+                )
+            );
+            // Middle: the image fills the surface, and the label is on it.
+            let image = draw(LabelPosition::Middle);
+            let (label_top, label_bottom) = rows_of(&image, WHITE).unwrap();
+            assert_eq!(rows_of(&image, GREEN), Some((0, h - 1)), "{size:?}");
+            assert!(label_top > h / 3 && label_bottom < h * 2 / 3, "{size:?}");
+            // None: only the image.
+            let image = draw(LabelPosition::Hidden);
+            assert_eq!(rows_of(&image, WHITE), None);
+            assert_eq!(
+                image,
+                surface_image(
+                    size,
+                    &content(None, Some(RED)),
+                    Some(&green(size.width, size.height))
+                )
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_label_has_its_colour_size_and_weight() {
+        let blue = Color::rgb(0, 0, 255);
+        let image = surface_image(
+            KEY,
+            &styled(
+                "Mail",
+                Some(Color::WHITE),
+                LabelStyle {
+                    color: Some(blue),
+                    ..LabelStyle::default()
+                },
+            ),
+            None,
+        );
+        assert!(
+            image.pixels().any(|p| *p == Rgb(blue.0)),
+            "the label is blue"
+        );
+        assert_eq!(
+            label_color(&styled("x", Some(Color::WHITE), at(LabelPosition::Top))),
+            Color::BLACK
+        );
+        assert_eq!(
+            label_color(&styled(
+                "x",
+                None,
+                LabelStyle {
+                    color: Some(blue),
+                    ..LabelStyle::default()
+                }
+            )),
+            blue
+        );
+
+        let ink = |style: LabelStyle| {
+            let image = surface_image(KEY, &styled("Mail", None, style), None);
+            let columns: Vec<u32> = image
+                .enumerate_pixels()
+                .filter(|(_, _, p)| p.0 != [0, 0, 0])
+                .map(|(x, _, _)| x)
+                .collect();
+            let width = columns.iter().max().unwrap() - columns.iter().min().unwrap();
+            (width, columns.len())
+        };
+        let size = |size| LabelStyle {
+            size,
+            ..LabelStyle::default()
+        };
+        let (small, _) = ink(size(12));
+        let (normal, bold_pixels) = ink(size(20));
+        let (large, _) = ink(size(32));
+        assert!(small < normal && normal < large, "{small} {normal} {large}");
+        let (_, regular_pixels) = ink(LabelStyle {
+            bold: false,
+            ..LabelStyle::default()
+        });
+        assert!(
+            bold_pixels > regular_pixels,
+            "{bold_pixels} {regular_pixels}"
+        );
     }
 
     fn green(width: u32, height: u32) -> DynamicImage {

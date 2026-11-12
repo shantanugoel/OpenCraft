@@ -232,6 +232,7 @@ mod actions;
 mod canvas;
 mod device;
 mod history;
+mod label_options;
 mod library;
 mod nested;
 mod page_inspector;

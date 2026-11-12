@@ -68,11 +68,124 @@ impl FromStr for Color {
     }
 }
 
+/// Where the label of a surface is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LabelPosition {
+    /// At the top. With an image, the label is in a band above the image.
+    Top,
+    /// At the centre. With an image, the label is on the image.
+    Middle,
+    /// At the bottom. With an image, the label is in a band below the image.
+    Bottom,
+    /// The surface does not show the label. The text stays in the profile.
+    Hidden,
+}
+
+impl LabelPosition {
+    /// All positions, in the order of the window.
+    pub const ALL: [LabelPosition; 4] = [Self::Top, Self::Middle, Self::Bottom, Self::Hidden];
+
+    /// The text form in the profile file.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Top => "top",
+            Self::Middle => "middle",
+            Self::Bottom => "bottom",
+            Self::Hidden => "none",
+        }
+    }
+
+    /// Read the text form. See [`LabelPosition::key`].
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|p| p.key() == key)
+    }
+}
+
+/// The font size of a label that has no size of its own, in pixels of the
+/// surface image. A label of the earlier versions has this size.
+pub const DEFAULT_LABEL_SIZE: u8 = 20;
+/// The smallest and the largest font size of a label, in pixels.
+pub const MIN_LABEL_SIZE: u8 = 10;
+pub const MAX_LABEL_SIZE: u8 = 40;
+/// The font sizes that a shell offers, in pixels.
+pub const LABEL_SIZES: [u8; 9] = [10, 12, 14, 16, 18, 20, 24, 28, 32];
+
+/// How the label of a surface shows. The default is the look of the
+/// earlier versions: see each field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LabelStyle {
+    /// `None`: the automatic position. It is [`LabelPosition::Middle`] on a
+    /// surface with no image, and [`LabelPosition::Bottom`] on a surface
+    /// with an image. See [`LabelStyle::position_for`].
+    pub position: Option<LabelPosition>,
+    /// The font size, in pixels of the surface image. If the text does not
+    /// fit at this size, the font becomes smaller. The default is
+    /// [`DEFAULT_LABEL_SIZE`].
+    pub size: u8,
+    /// `None`: black or white, the colour that shows best on the fill. See
+    /// [`crate::render::label_color`].
+    pub color: Option<Color>,
+    /// The weight of the font. The default is bold.
+    pub bold: bool,
+}
+
+impl Default for LabelStyle {
+    fn default() -> Self {
+        Self {
+            position: None,
+            size: DEFAULT_LABEL_SIZE,
+            color: None,
+            bold: true,
+        }
+    }
+}
+
+impl LabelStyle {
+    /// The position of the label on a surface with an image or with no
+    /// image.
+    pub fn position_for(&self, has_image: bool) -> LabelPosition {
+        self.position.unwrap_or(if has_image {
+            LabelPosition::Bottom
+        } else {
+            LabelPosition::Middle
+        })
+    }
+
+    /// Apply `change`. A size goes into the range from [`MIN_LABEL_SIZE`] to
+    /// [`MAX_LABEL_SIZE`].
+    pub fn apply(&mut self, change: LabelChange) {
+        match change {
+            LabelChange::Position(position) => self.position = position,
+            LabelChange::Size(size) => self.size = size.clamp(MIN_LABEL_SIZE, MAX_LABEL_SIZE),
+            LabelChange::Color(color) => self.color = color,
+            LabelChange::Bold(bold) => self.bold = bold,
+        }
+    }
+}
+
+/// A change of one part of a [`LabelStyle`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LabelChange {
+    /// `None` is the automatic position.
+    Position(Option<LabelPosition>),
+    Size(u8),
+    /// `None` is the automatic colour.
+    Color(Option<Color>),
+    Bold(bool),
+}
+
 /// What the user put on one surface. Each part is optional.
+///
+/// A new part of the content needs a default that is "no change" to the
+/// look, so that [`SurfaceContent::is_empty`] and the file format can find
+/// it. The undo history copies the content, thus it covers a new part with
+/// no more work (decision 0030).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SurfaceContent {
     /// The text on the surface.
     pub label: Option<String>,
+    /// How the label shows.
+    pub label_style: LabelStyle,
     /// The colour behind the image and the label.
     pub color: Option<Color>,
     /// The image, as a path relative to the profile directory. The store
@@ -83,7 +196,10 @@ pub struct SurfaceContent {
 impl SurfaceContent {
     /// True if the content has no part.
     pub fn is_empty(&self) -> bool {
-        self.label.is_none() && self.color.is_none() && self.image.is_none()
+        self.label.is_none()
+            && self.label_style == LabelStyle::default()
+            && self.color.is_none()
+            && self.image.is_none()
     }
 }
 
@@ -391,6 +507,37 @@ mod tests {
         assert!(page.update(KEY_3, |c| c.label = Some(String::new())));
         assert_eq!(page.surfaces().count(), 0);
         assert!(!page.update(KEY_3, |c| c.label = Some(String::new())));
+    }
+
+    #[test]
+    fn a_label_style_is_content_and_its_default_is_the_old_look() {
+        let mut page = Page::new("Page 1");
+        assert!(page.update(KEY_3, |c| c
+            .label_style
+            .apply(LabelChange::Position(Some(LabelPosition::Top)))));
+        assert_eq!(page.surfaces().count(), 1, "a style alone is content");
+        assert!(page.update(KEY_3, |c| c.label_style.apply(LabelChange::Position(None))));
+        assert_eq!(page.surfaces().count(), 0);
+
+        let style = LabelStyle::default();
+        assert_eq!(style.position_for(false), LabelPosition::Middle);
+        assert_eq!(style.position_for(true), LabelPosition::Bottom);
+        assert_eq!((style.size, style.color, style.bold), (20, None, true));
+        let mut style = LabelStyle::default();
+        style.apply(LabelChange::Size(4));
+        assert_eq!(style.size, MIN_LABEL_SIZE);
+        style.apply(LabelChange::Size(200));
+        assert_eq!(style.size, MAX_LABEL_SIZE);
+        style.apply(LabelChange::Position(Some(LabelPosition::Hidden)));
+        assert_eq!(style.position_for(true), LabelPosition::Hidden);
+        for position in LabelPosition::ALL {
+            assert_eq!(LabelPosition::from_key(position.key()), Some(position));
+        }
+        assert_eq!(LabelPosition::from_key("centre"), None);
+        assert!(LABEL_SIZES
+            .iter()
+            .all(|s| (MIN_LABEL_SIZE..=MAX_LABEL_SIZE).contains(s)));
+        assert!(LABEL_SIZES.contains(&DEFAULT_LABEL_SIZE));
     }
 
     #[test]
