@@ -63,6 +63,7 @@ The tool is `cargo-about` 0.9.3 with `--offline`.
 | The run time is approximately 10 to 20 seconds on the computer of the owner. | Measured | `time` |
 | 42 crates of the set have no file for the licence that applies. For them, `cargo-about` uses the standard text of the licence, which has no copyright line. They are the `objc2` family (21 crates), `accesskit` (3), `lyon` (5), `pathfinder_geometry`, `pathfinder_simd`, `profiling`, `rust-i18n-support`, `taffy`, `mac`, `seahash`, `svg_fmt`, `zune-inflate`, `gpui-kit`, and `gpui-kit-assets` (Apache-2.0 only). The notices give the authors of the crate manifest for each of them. | Measured | cargo-about JSON output, `source_path` is empty |
 | A run with network gave the same 42 crates with the standard text. | Measured | cargo-about JSON output, with and without `--offline` |
+| On Linux (CI), `scripts/notices.sh --check` makes the same file as on macOS, byte for byte. | Measured | [CI run](https://github.com/shantanugoel/OpenCraft/actions/runs/43213581013) of the pull request for issue #146 |
 | `cargo-about` does not identify the licence files of `chrono`, `exr`, `granit-parser`, `libm`, `ryu`, and `gpui-kit-assets` (`LICENSE-LUCIDE`). Each file contains more than one licence, or has text before the licence. `about.toml` clarifies them with the file of the crate and its SHA-256. `chrono` uses the built-in workaround of `cargo-about`. | Measured | cargo-about output; `about.toml` |
 | The file `LICENSE` of `granit-parser` says: "Redistributions of this Work must include all inherited and new license notices". The notices include `LICENSE`, `.licenses/ChenYuheng-MIT`, and `.licenses/Ethiraric-MIT`. | Source | `granit-parser` 1.3.0 |
 | The `clarify` subcommand of `cargo-about` 0.9.3 reads the end of a subsection one character too early (`pos + 1` after `!!`). The checksums of the subsections in `about.toml` came from a short script that does the same cut as `generate`. | Source | `cargo-about` 0.9.3 `src/cargo-about/clarify.rs` |
@@ -90,8 +91,6 @@ The tool is `cargo-about` 0.9.3 with `--offline`.
 
 ## Not known
 
-- Whether the output of `cargo-about` on Linux (CI) is the same as on macOS.
-  The CI run of the pull request for issue #146 answers this.
 - The copyright lines of the 42 crates with no licence file in the package.
   Their Git repositories possibly have them. A `clarify` entry with `git`
   can fetch them, but it needs the network at each run.
