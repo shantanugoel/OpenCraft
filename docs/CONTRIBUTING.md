@@ -49,3 +49,14 @@ issues are organized. The roadmap issue is
    `opencraft-probe test` and writes the result in the pull request.
 10. **Write no personal data.** Do not put a device serial number, a home path,
     or a host name in the code, a document, an issue, or a commit.
+
+## For a person outside the project
+
+- Use an issue form to report a bug or to ask for a new device model. Do not
+  report a vulnerability in an issue: see [SECURITY.md](../SECURITY.md).
+- Read the rules above before you write a pull request. Rule 10 applies also
+  to the log lines and to the probe output that you paste in an issue.
+- The owner makes the task issues. If you want to do a task, write a comment
+  in the issue first.
+- The device layer needs the device for a test (rule 9). If you have no
+  device, say so in the pull request.
