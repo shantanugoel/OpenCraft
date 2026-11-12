@@ -114,7 +114,10 @@ not documented, and it needs a new binding crate.
   write and remove the file in a temporary directory with no device.
 - macOS adds a record for the file to its list of background items, with
   the name of the executable (`opencraft`). The record stays after the file
-  is removed. The user can turn the item off in System Settings. Then the
+  is removed. Note (2026-11-12): a later measurement found that the records
+  went away some time after the removal of the file. See
+  [kb/macos-start-at-login.md](../kb/macos-start-at-login.md#background-task-management).
+  The user can turn the item off in System Settings. Then the
   menu still shows the option as on, because the file exists. See the "Not
   known" list in [kb/macos-start-at-login.md](../kb/macos-start-at-login.md#not-known).
 - A start at a real login is not measured. The owner checks it in

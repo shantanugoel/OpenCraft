@@ -22,7 +22,8 @@ cargo build --release
 `test` draws its slot number on each key face and each bar panel, so you can map physical
 keys to protocol slots. Press keys, turn knobs and swipe the touch bar while it
 runs. The probe prints each input event: the control and the gesture. On exit,
-the probe clears all slots (add `--keep` to leave the pattern up).
+the probe sends the stop sequence of OpenCraft, and the displays become dark
+(add `--keep` to send nothing and leave the pattern up).
 
 ### GUI application
 
@@ -39,9 +40,10 @@ editor. The engine saves each change. You can edit with no device.
 Click "Device settings" to set the display brightness, the haptic feedback,
 and the knob lights. The engine keeps them for the device model in
 `device-settings.toml`, in the profiles directory.
-Close the window, and the engine continues to operate the device. The menu
-bar item opens the window again, sets the start at login, and quits
-OpenCraft. A quit makes the device dark.
+Close the window, and the engine continues to operate the device. On macOS,
+the menu bar item opens the window again, shows or hides the Dock icon, sets
+the start at login, and quits OpenCraft. A quit makes the device dark. A
+second start stops with the message "OpenCraft is already running."
 With no terminal, the messages go to `opencraft.log`, next to the profiles
 directory.
 
@@ -68,13 +70,16 @@ a test.
 | `repaint` | Draw all surfaces many times. Print the time of each repaint, and the minimum, the median, and the maximum. |
 
 Options: `--seconds`, `--brightness`, `--mode <0-9>`, `--keep`, `--verbose`,
-`--keep-alive <n>`.
+`--keep-alive <n>`, `--no-wake-draw`.
 
 `test`, `listen`, and `raw` send the keep-alive command, so the device stays
 connected for the full `--seconds`. They continue after a disconnection and
 wait for the device to connect again. Then `test` draws the panels again.
-`--seconds` is the total time. It has no upper limit, so a test of 30 minutes
-is `--seconds 1800`.
+After a sleep of the computer, they print `wake detected`, and `test` and
+`raw --draw` draw again. `--no-wake-draw` prevents the draw at a wake, so
+that you can see what the device kept during the sleep.
+`--seconds` is the total time awake: the time of a sleep does not count. It
+has no upper limit, so a test of 30 minutes is `--seconds 1800`.
 
 `--keep-alive <n>` changes the keep-alive interval of `test`, `listen`, and
 `raw`. The unit is seconds. `0` stops the keep-alive. The default is 10. The
@@ -223,8 +228,9 @@ The full hardware facts are in
 crates/core/     device descriptors, transport (HID and fake), protocol, input decoding, surface images
 crates/cli/      opencraft-probe — hardware bring-up tool
 crates/engine/   profile, bindings, handler interface, surface images, device owner, messages
-crates/app/      opencraft — native GUI shell
-scripts/         record-input.sh — guided recording of input reports
+crates/app/      opencraft — native GUI shell, menu bar item, start at login
+crates/actions/  built-in action handlers
+scripts/         measurement, signing, and input recording scripts (see scripts/README.md)
 docs/            architecture, roadmap, decision records, knowledge base
 ```
 

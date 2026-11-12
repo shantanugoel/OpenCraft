@@ -403,7 +403,7 @@ Thus the commands to wake the device are the brightness command and `DIS`.
 ## Device configuration
 
 `QUCMD` sets 6 device settings in one command. The haptic feedback is one of
-them.
+them. We read the sources of the next table on 2026-11-12.
 
 | Fact | Confidence | Source |
 |---|---|---|

@@ -105,8 +105,10 @@ scripts/measure-footprint.sh --pid "$(pgrep -x <process name>)" --interval 5 --d
 ```
 
 Use the same steps and the same times as for VSD Craft. Measure with the window
-open and with the window closed. When OpenCraft is a bundle (Phase 6), use the
-name of the application, as for VSD Craft.
+open and with the window closed. From Phase 5, also measure a start with
+`--login`, which opens no window. See
+[kb/footprint.md](../docs/kb/footprint.md#phase-5). When OpenCraft is a bundle
+(Phase 6), use the name of the application, as for VSD Craft.
 
 ### Read the output
 
@@ -127,7 +129,9 @@ Use this script in place of `cargo build` when you want the permission to
 stay after a new build. The script makes the bundle
 `target/<profile>/OpenCraft.app`. Start the bundle with `--run`, with `open`,
 or from the Finder. Do not start the program in the bundle from a terminal:
-then it has the permissions of the terminal.
+then it has the permissions of the terminal. A start with `open` or from the
+Finder has no terminal, thus the messages go to the log file. See
+[decision 0024](../docs/decisions/0024-log-file-with-no-terminal.md).
 
 ```sh
 scripts/sign-dev.sh --run            # debug build, sign, start

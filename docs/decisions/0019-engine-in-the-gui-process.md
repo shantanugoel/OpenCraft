@@ -44,6 +44,9 @@ directory. It locks the file with `flock(fd, LOCK_EX | LOCK_NB)` from the
 holds the lock, the application writes "OpenCraft is already running." to
 the standard error and stops with the exit status 0. It does not start the
 engine. The operating system removes the lock when the process stops.
+Note (2026-11-12): if the application cannot open or lock the file for a
+different reason, it writes a message and continues with no lock
+(`lock_or_stop` in `crates/app/src/main.rs`).
 
 The reasons:
 

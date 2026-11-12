@@ -10,6 +10,8 @@ What the device and `hidapi` do at a sleep and a wake is not known yet. See
 
 ## The clocks on macOS
 
+Date: 2026-11-12.
+
 | Fact | Confidence | Source |
 |---|---|---|
 | `std::time::Instant` on Apple platforms reads `CLOCK_UPTIME_RAW` | Source | Rust 1.99.1, `library/std/src/sys/time/unix.rs`, `Instant::CLOCK_ID` |
@@ -22,6 +24,8 @@ What the device and `hidapi` do at a sleep and a wake is not known yet. See
 | The wall clock (`SystemTime`, `CLOCK_REALTIME`) counts during a sleep, but a person or the time service can change it | Source | macOS manual page `clock_gettime(3)` |
 
 ## The clocks on Linux
+
+Date: 2026-11-12.
 
 | Fact | Confidence | Source |
 |---|---|---|

@@ -16,8 +16,11 @@ sleep and a wake of the computer.
 
 ## Decision
 
-At the start, before each other message, the shell looks at its standard
-error.
+At the start, after it has the lock of
+[decision 0019](0019-engine-in-the-gui-process.md), the shell looks at its
+standard error. Thus only one process writes and renames the log file. A
+second process that stops at the lock writes its one message to the
+standard error that it got.
 
 - If the standard error is the null device, the shell connects it to the
   file `opencraft.log` in the directory of the shell (the parent directory
@@ -30,6 +33,9 @@ error.
 - The first line of each start gives the time of the system clock, and the
   time from the start of the process to `main`. The time before `main` is a
   part of the start time (see [kb/footprint.md](../kb/footprint.md)).
+  Note (2026-11-12): only the macOS code reads the start time of the
+  process. On a different platform, the line gives only the time of the
+  system clock (`write_start_line` in `crates/app/src/log_file.rs`).
 
 The code is in `crates/app`, in the module `log_file`, for `cfg(unix)`. It
 uses `libc`, and no new dependency. The engine does not change: it writes
@@ -42,7 +48,12 @@ engine writes a line only for an event that is not frequent.
 
 - The owner and an agent can read what the engine did after a start at
   login, with no terminal.
-- The shell now writes two files: `shell.toml` and the log file.
+- The shell now writes two files: `shell.toml` and the log file. Note
+  (2026-11-12): the shell also writes the lock file `opencraft.lock` of
+  [decision 0019](0019-engine-in-the-gui-process.md), in the same
+  directory, and on macOS the LaunchAgent file of
+  [decision 0021](0021-start-at-login.md). The comment at the start of
+  `crates/app/src/main.rs` lists the files of the shell.
 - The size limit applies at a start only. A process that runs for a long
   time and writes many lines can make the file larger than the limit. Look
   at this decision again if a message becomes frequent.

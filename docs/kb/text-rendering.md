@@ -124,7 +124,7 @@ label module, not results of this test.
 
 | Fact | Confidence | Source |
 |---|---|---|
-| In Phase 2, an icon is an image file of the user: PNG or JPEG. The `image` crate decodes it. A text library is not necessary for that operation. | Source | Issue #50 task brief; `image` 0.25.10 decoder APIs; [Phase 2](../ROADMAP.md#phase-2-first-gui-see-and-paint-the-device) |
+| In Phase 2, an icon is an image file of the user: PNG or JPEG. The `image` crate decodes it. A text library is not necessary for that operation. | Source | Issue #50 task brief; `image` 0.25.10 decoder APIs; [Phase 2](../ROADMAP.md#phase-2-first-gui-see-and-paint-the-device-complete) |
 | The resize test uses `image` 0.25.10, a release build, and the mean of 100 calls. The source is synthetic RGB. No decode is in the time. | Measured | T: earlier resize test, `src/resize.rs`; supplied measurement record from issue #50 work |
 | `resvg` 0.49.0 with default features adds 47 crates above this image-only baseline, on this host. Its default features are `svgz`, `text`, `system-fonts`, `memmap-fonts`, and `raster-images`. | Measured | T: `tree-svg.txt`, set difference; R: manifest |
 | The `resvg` licence is MIT OR Apache-2.0. | Source | R: manifest |
