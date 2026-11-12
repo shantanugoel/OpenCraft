@@ -1,28 +1,38 @@
-//! The profile directory: the profile file and the image files.
+//! One profile directory: the profile file and the image files.
 //!
-//! A profile is a directory. The profile file is `profile.toml`, and the
-//! images are in the directory `images` next to it. The reasons are in
-//! `docs/decisions/0009-profile-file-format.md`.
+//! A profile is a directory in the profiles directory (see
+//! [`crate::profiles`]). The profile file is `profile.toml`, and the images
+//! are in the directory `images` next to it. The reasons are in
+//! `docs/decisions/0009-profile-file-format.md` and
+//! `docs/decisions/0018-many-profiles.md`.
 //!
 //! - The engine writes the file (architecture rule 9). A write makes a
 //!   temporary file and renames it, so a stop during a write does not leave
 //!   a file that is not complete.
 //! - The file has a schema version. The engine does not change a file that
 //!   it cannot use: it renames the file to a backup name and starts with an
-//!   empty profile.
+//!   empty profile. It does this only for the active profile. For a
+//!   different profile, [`ProfileStore::read`] gives an error and changes
+//!   nothing.
 //! - An image of the user becomes a PNG copy in `images`. The profile does
 //!   not refer to the original file.
 
-//! ## Schema version 2
+//! ## Schema version 3
 //!
-//! Version 2 adds bindings. Version 1 loads with no bindings. The next
-//! change writes version 2. Surface content keeps the same form.
+//! Version 3 adds the key `model`: the model identifier of the descriptor.
+//! Version 2 added bindings. A file of version 1 or 2 loads with the model of
+//! the first descriptor (see [`crate::profile::default_model`]), and version 1
+//! loads with no bindings. Nothing else changes, so the load loses nothing.
+//! The next write writes version 3.
 //!
 //! ```toml
-//! schema_version = 2
+//! schema_version = 3
 //! name = "Default"
+//! model = "n4-pro"
 //! [[pages]]
 //! name = "Page 1"
+//! [pages.surfaces.key-face-3]
+//! label = "Mail"
 //! [pages.bindings.key-3.press]
 //! kind = "opencraft.hotkey"
 //! [pages.bindings.key-3.press.settings]
@@ -34,25 +44,28 @@
 //! `tap`, `swipe-left`, and `swipe-right`. Settings keep text, integer,
 //! boolean, list, and table values.
 //!
-//! The keys `tap`, `swipe-left`, and `swipe-right` do not change the schema
-//! version. An engine that does not know them keeps the file as a backup,
-//! because the file has an error for it (decision 0009). The next schema
-//! version is 3: decision 0018 gives it, in the same phase as these keys.
+//! A file of version 2 can have the gesture keys `tap`, `swipe-left`, and
+//! `swipe-right`: they came in the same phase, before version 3. An engine
+//! that does not know them keeps the file as a backup, because the file has
+//! an error for it (decision 0009).
 
 use crate::action::{Action, GestureKind};
 use crate::error::{Error, Result};
 use crate::profile::{control_key, parse_control_key};
-use crate::profile::{parse_surface_key, surface_key, Color, Page, Profile, SurfaceContent};
+use crate::profile::{
+    default_model, parse_surface_key, surface_key, Color, Page, Profile, SurfaceContent,
+};
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, ImageReader};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
+use std::fmt;
 use std::fs;
 use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
 
 /// The schema version that this engine writes.
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// The name of the profile file in the profile directory.
 pub const PROFILE_FILE: &str = "profile.toml";
@@ -64,11 +77,12 @@ pub const IMAGE_DIR: &str = "images";
 /// becomes smaller when the user selects it.
 pub const IMAGE_LIMIT: u32 = 512;
 
-/// The profile directory of Phase 2: one profile with the name `default`.
+/// The profiles directory of the user. Each profile is a directory in it.
 /// `None` if the operating system gives no home directory.
 ///
-/// On macOS it is `~/Library/Application Support/OpenCraft/profiles/default`.
-pub fn default_profile_dir() -> Option<PathBuf> {
+/// On macOS it is `~/Library/Application Support/OpenCraft/profiles`. The
+/// profile of the earlier phases is the directory `default` in it.
+pub fn default_profiles_dir() -> Option<PathBuf> {
     let var = |name: &str| std::env::var_os(name).filter(|v| !v.is_empty());
     let base = if cfg!(target_os = "macos") {
         PathBuf::from(var("HOME")?)
@@ -83,7 +97,7 @@ pub fn default_profile_dir() -> Option<PathBuf> {
         }
         .join("opencraft")
     };
-    Some(base.join("profiles").join("default"))
+    Some(base.join("profiles"))
 }
 
 /// Why the engine did not use a profile file.
@@ -93,6 +107,20 @@ pub enum BackupReason {
     NewerSchema { found: u32 },
     /// The file has an error. The text gives the error.
     Invalid(String),
+}
+
+impl fmt::Display for BackupReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BackupReason::NewerSchema { found } => {
+                write!(
+                    f,
+                    "it has the schema version {found}, from a newer OpenCraft"
+                )
+            }
+            BackupReason::Invalid(error) => write!(f, "it has an error ({error})"),
+        }
+    }
 }
 
 /// A profile file that the engine did not use. The engine renamed it and did
@@ -145,28 +173,63 @@ impl ProfileStore {
     ///   caller must not write a profile then, because the write would
     ///   replace the file.
     pub fn load(&self) -> Result<Loaded> {
-        let path = self.profile_path();
-        let text = match fs::read_to_string(&path) {
-            Ok(text) => text,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                return Ok(Loaded {
-                    profile: Profile::default(),
-                    backup: None,
-                })
-            }
-            // Text that is not UTF-8 is a file with an error, not a failed read.
-            Err(e) if e.kind() == io::ErrorKind::InvalidData => {
-                return self.set_aside(BackupReason::Invalid(e.to_string()))
-            }
-            Err(source) => return Err(io_error("cannot read", &path, source)),
-        };
-        match parse(&text) {
-            Ok(profile) => Ok(Loaded {
+        match self.parse_file()? {
+            None => Ok(Loaded {
+                profile: Profile::default(),
+                backup: None,
+            }),
+            Some(Ok(profile)) => Ok(Loaded {
                 profile,
                 backup: None,
             }),
-            Err(reason) => self.set_aside(reason),
+            Some(Err(reason)) => self.set_aside(reason),
         }
+    }
+
+    /// Read the profile, and change nothing. Use this for a profile that is
+    /// not the active profile: a missing file, or a file that the engine
+    /// cannot use, gives an error, and the file stays as it is.
+    pub fn read(&self) -> Result<Profile> {
+        let unusable = |reason: String| Error::Unusable {
+            path: self.profile_path(),
+            reason,
+        };
+        match self.parse_file()? {
+            Some(Ok(profile)) => Ok(profile),
+            Some(Err(reason)) => Err(unusable(reason.to_string())),
+            None => Err(unusable("the file does not exist".to_string())),
+        }
+    }
+
+    /// The profile in the file, or the reason why the engine cannot use the
+    /// file. `None` if there is no file.
+    fn parse_file(&self) -> Result<Option<std::result::Result<Profile, BackupReason>>> {
+        let path = self.profile_path();
+        match fs::read_to_string(&path) {
+            Ok(text) => Ok(Some(parse(&text))),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            // Text that is not UTF-8 is a file with an error, not a failed read.
+            Err(e) if e.kind() == io::ErrorKind::InvalidData => {
+                Ok(Some(Err(BackupReason::Invalid(e.to_string()))))
+            }
+            Err(source) => Err(io_error("cannot read", &path, source)),
+        }
+    }
+
+    /// The name for the user and the model of the profile, from the top keys
+    /// of the file only. This read does not check the rest of the file, so a
+    /// profile with an error stays in the list of profiles. Each part that
+    /// the read cannot find is `None`. With no readable file, both are
+    /// `None`.
+    pub fn summary(&self) -> (Option<String>, Option<String>) {
+        let Ok(text) = fs::read_to_string(self.profile_path()) else {
+            return (None, None);
+        };
+        let Ok(table) = text.parse::<toml::Table>() else {
+            return (None, None);
+        };
+        let text_of = |key: &str| table.get(key).and_then(|v| v.as_str()).map(str::to_string);
+        (text_of("name"), text_of("model"))
     }
 
     /// Rename the profile file to a backup name that is not in use.
@@ -277,12 +340,30 @@ impl ProfileStore {
         Ok(removed)
     }
 
+    /// Copy each image file that `profile` uses from the profile directory of
+    /// `source` into this profile directory. An image that is missing in
+    /// `source` is not copied: the surface shows no image there either.
+    pub fn copy_images_from(&self, source: &ProfileStore, profile: &Profile) -> Result<()> {
+        let names: HashSet<&str> = profile.image_paths().filter_map(image_name).collect();
+        let dir = self.dir.join(IMAGE_DIR);
+        for name in names {
+            let from = source.dir.join(IMAGE_DIR).join(name);
+            if !from.exists() {
+                continue;
+            }
+            self.make_dir(&dir)?;
+            let to = dir.join(name);
+            fs::copy(&from, &to).map_err(|e| io_error("cannot copy", &from, e))?;
+        }
+        Ok(())
+    }
+
     fn make_dir(&self, dir: &Path) -> Result<()> {
         fs::create_dir_all(dir).map_err(|e| io_error("cannot make the directory", dir, e))
     }
 }
 
-fn io_error(action: &'static str, path: &Path, source: io::Error) -> Error {
+pub(crate) fn io_error(action: &'static str, path: &Path, source: io::Error) -> Error {
     Error::Io {
         action,
         path: path.to_path_buf(),
@@ -292,7 +373,7 @@ fn io_error(action: &'static str, path: &Path, source: io::Error) -> Error {
 
 /// Write `data` to a temporary file next to `path`, then rename it to `path`.
 /// A reader sees the old file or the new file, and not a part of a file.
-fn write_and_rename(path: &Path, data: &[u8]) -> Result<()> {
+pub(crate) fn write_and_rename(path: &Path, data: &[u8]) -> Result<()> {
     let mut name = path.file_name().unwrap_or_default().to_os_string();
     name.push(".tmp");
     let temporary = path.with_file_name(name);
@@ -344,12 +425,14 @@ struct Header {
     schema_version: u32,
 }
 
-/// The shared fields of schema versions 1 and 2.
+/// The fields of schema versions 1, 2, and 3. Version 3 adds `model`.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileData {
     schema_version: u32,
     name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    model: Option<String>,
     #[serde(default)]
     pages: Vec<PageData>,
 }
@@ -380,11 +463,17 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     let invalid = |message: String| BackupReason::Invalid(message);
     let header: Header = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
     match header.schema_version {
-        1 | SCHEMA_VERSION => {}
+        1..=SCHEMA_VERSION => {}
         0 => return Err(invalid("schema version 0 does not exist".to_string())),
         found => return Err(BackupReason::NewerSchema { found }),
     }
     let file: FileData = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
+    let model = match (header.schema_version, file.model) {
+        (SCHEMA_VERSION, Some(model)) if !model.is_empty() => model,
+        (SCHEMA_VERSION, _) => return Err(invalid("the file has no model".to_string())),
+        (_, None) => default_model().to_string(),
+        (version, Some(_)) => return Err(invalid(format!("version {version} has no model"))),
+    };
 
     let mut pages = Vec::new();
     for page_file in file.pages {
@@ -426,7 +515,7 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         }
         pages.push(page);
     }
-    Ok(Profile::new(file.name, pages))
+    Ok(Profile::for_model(model, file.name, pages))
 }
 
 /// The text of the profile file for `profile`.
@@ -434,6 +523,7 @@ fn to_text(profile: &Profile) -> Result<String> {
     let file = FileData {
         schema_version: SCHEMA_VERSION,
         name: profile.name.clone(),
+        model: Some(profile.model.clone()),
         pages: profile
             .pages()
             .iter()
@@ -547,8 +637,9 @@ mod tests {
         let (_dir, store) = store();
         store.save(&sample()).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        let want = r##"schema_version = 2
+        let want = r##"schema_version = 3
 name = "Default"
+model = "n4-pro"
 
 [[pages]]
 name = "Page 1"
@@ -640,12 +731,12 @@ image = "images/4f1c2a9be07d3356.png"
     #[test]
     fn a_file_with_a_newer_schema_version_is_kept_as_a_backup() {
         let (_dir, store) = store();
-        let text = "schema_version = 3\nname = \"Later\"\nnew_field = true\n";
+        let text = "schema_version = 4\nname = \"Later\"\nnew_field = true\n";
         let loaded = load_text(&store, text.as_bytes());
 
         assert_eq!(loaded.profile, Profile::default());
         let backup = loaded.backup.unwrap();
-        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 3 });
+        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 4 });
         assert_eq!(backup.path, store.dir().join("profile.backup-1.toml"));
         // The content of the file did not change, and no profile file is
         // there until the next save.
@@ -668,6 +759,11 @@ image = "images/4f1c2a9be07d3356.png"
             b"schema_version = 1\nname = \"x\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage = \"../secret.png\"\n",
             b"schema_version = 1\nname = \"x\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage = \"/tmp/a.png\"\n",
             b"\xFF\xFE not UTF-8",
+            // Version 3 needs a model, and versions 1 and 2 have none.
+            b"schema_version = 3\nname = \"x\"\n",
+            b"schema_version = 3\nname = \"x\"\nmodel = \"\"\n",
+            b"schema_version = 3\nname = \"x\"\nmodel = 4\n",
+            b"schema_version = 2\nname = \"x\"\nmodel = \"n4-pro\"\n",
         ];
         for (i, text) in cases.iter().enumerate() {
             let (_dir, store) = store();
@@ -683,6 +779,111 @@ image = "images/4f1c2a9be07d3356.png"
             );
             assert_eq!(&fs::read(&backup.path).unwrap(), text, "case {i}");
         }
+    }
+
+    #[test]
+    fn a_version_two_file_loads_with_no_loss_and_the_model_of_the_first_descriptor() {
+        let (_dir, store) = store();
+        let old = r##"schema_version = 2
+name = "Old"
+
+[[pages]]
+name = "Main"
+
+[pages.surfaces.key-face-3]
+label = "Mail"
+color = "#1E6FD9"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+
+[pages.bindings.key-3.press.settings]
+hotkey = "cmd+shift+4"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "test.tap"
+
+[pages.bindings.touch-bar-1.swipe-left]
+kind = "test.left"
+
+[pages.bindings.touch-bar-1.swipe-right]
+kind = "test.right"
+
+[[pages]]
+name = "Second"
+"##;
+        let loaded = load_text(&store, old.as_bytes());
+        assert_eq!(loaded.backup, None);
+        let profile = loaded.profile;
+        assert_eq!(profile.model, default_model());
+        assert_eq!(profile.name, "Old");
+        assert_eq!(profile.pages().len(), 2);
+        assert_eq!(profile.pages()[0].bindings().count(), 4);
+        // The load did not write the file.
+        assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
+
+        // The next write is version 3 with the same content and the model.
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(text.starts_with("schema_version = 3\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
+        assert!(text.contains("hotkey = \"cmd+shift+4\""), "{text}");
+        assert_eq!(store.load().unwrap().profile, profile);
+    }
+
+    #[test]
+    fn a_profile_of_a_different_model_saves_and_loads_with_its_model() {
+        let (_dir, store) = store();
+        let profile = Profile::for_model("other-model", "Other", vec![Page::new("A")]);
+        store.save(&profile).unwrap();
+        assert_eq!(store.load().unwrap().profile, profile);
+        assert_eq!(store.read().unwrap(), profile);
+        assert_eq!(
+            store.summary(),
+            (Some("Other".to_string()), Some("other-model".to_string()))
+        );
+    }
+
+    #[test]
+    fn read_changes_no_file_that_the_engine_cannot_use() {
+        for text in ["schema_version = 99\nname = \"x\"\n", "not TOML ["] {
+            let (_dir, store) = store();
+            fs::create_dir_all(store.dir()).unwrap();
+            fs::write(store.profile_path(), text).unwrap();
+            assert!(
+                matches!(store.read(), Err(Error::Unusable { .. })),
+                "{text}"
+            );
+            assert_eq!(files(store.dir()), [PROFILE_FILE]);
+            assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), text);
+        }
+        let (_dir, store) = store();
+        assert!(matches!(store.read(), Err(Error::Unusable { .. })));
+        assert_eq!(store.summary(), (None, None));
+    }
+
+    #[test]
+    fn a_copy_of_the_images_has_only_the_images_that_the_profile_uses() {
+        let (dir, store) = store();
+        let used = store
+            .import_image(&image_file(dir.path(), "a.png", 8, 8))
+            .unwrap();
+        store
+            .import_image(&image_file(dir.path(), "b.png", 9, 9))
+            .unwrap();
+        let mut profile = Profile::default();
+        let page = profile.page_mut(0).unwrap();
+        page.update(KEY_3, |c| c.image = Some(used.clone()));
+        page.update(BAR_1, |c| {
+            c.image = Some("images/0123456789abcdef.png".into())
+        });
+
+        let copy = ProfileStore::new(dir.path().join("copy"));
+        copy.copy_images_from(&store, &profile).unwrap();
+        assert_eq!(
+            files(&copy.dir().join(IMAGE_DIR)),
+            [image_name(&used).unwrap()]
+        );
+        assert!(copy.load_image(&used).is_ok());
     }
 
     #[test]

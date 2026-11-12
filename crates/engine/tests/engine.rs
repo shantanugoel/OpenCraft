@@ -15,7 +15,7 @@ use opencraft_engine::store::{PROFILE_FILE, SCHEMA_VERSION};
 use opencraft_engine::{
     Action, BindingId, BindingState, Color, Command, Counters, Engine, Event, Feedback,
     GestureKind, Handler, HandlerPort, KindDescription, Message, MessageSender, Profile,
-    ProfileStore, Request, Settings, Status, SurfaceState, Value,
+    ProfileEntry, ProfileStore, ProfilesDir, Request, Settings, Status, SurfaceState, Value,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -30,6 +30,8 @@ use tempfile::TempDir;
 mod actions;
 #[path = "engine/pages.rs"]
 mod pages;
+#[path = "engine/profiles.rs"]
+mod profiles;
 
 const KEY_3: SurfaceId = SurfaceId::new(SurfaceKind::KeyFace, 3);
 const BAR_2: SurfaceId = SurfaceId::new(SurfaceKind::BarPanel, 2);
@@ -97,6 +99,8 @@ struct World {
 struct Shared {
     fake: Rc<RefCell<FakeTransport>>,
     world: Rc<World>,
+    /// The model of the device.
+    descriptor: &'static opencraft_core::Descriptor,
 }
 
 impl Transport for Shared {
@@ -130,11 +134,10 @@ impl Connector for FakeConnector {
     type Transport = Shared;
 
     fn connect(&mut self) -> opencraft_core::Result<Option<Device<Shared>>> {
-        Ok(self
-            .queue
-            .borrow_mut()
-            .pop_front()
-            .map(|t| Device::new(t, &DESCRIPTORS[0])))
+        Ok(self.queue.borrow_mut().pop_front().map(|t| {
+            let descriptor = t.descriptor;
+            Device::new(t, descriptor)
+        }))
     }
 }
 
@@ -192,8 +195,13 @@ impl Rig {
         );
         let sink_events = Rc::clone(&events);
         let sink: Sink = Box::new(move |event| sink_events.borrow_mut().push(event));
-        let engine =
-            Engine::with_handlers(link, store_in(dir.path()), &DESCRIPTORS[0], ports, sink);
+        let engine = Engine::with_handlers(
+            link,
+            ProfilesDir::new(dir.path()),
+            &DESCRIPTORS[0],
+            ports,
+            sink,
+        );
         Self {
             engine,
             events,
@@ -213,10 +221,19 @@ impl Rig {
 
     /// Make a device present. The engine connects to it at the next poll.
     fn plug(&mut self) -> Rc<RefCell<FakeTransport>> {
+        self.plug_model(&DESCRIPTORS[0])
+    }
+
+    /// Make a device of the model `descriptor` present.
+    fn plug_model(
+        &mut self,
+        descriptor: &'static opencraft_core::Descriptor,
+    ) -> Rc<RefCell<FakeTransport>> {
         let fake = Rc::new(RefCell::new(FakeTransport::new()));
         self.queue.borrow_mut().push_back(Shared {
             fake: Rc::clone(&fake),
             world: Rc::clone(&self.world),
+            descriptor,
         });
         fake
     }
@@ -253,8 +270,10 @@ impl Rig {
     }
 }
 
+/// The store of the profile `default` in the profiles directory `dir`: the
+/// profile of the earlier phases.
 fn store_in(dir: &Path) -> ProfileStore {
-    ProfileStore::new(dir.join("profile"))
+    ProfilesDir::new(dir).store("default")
 }
 
 /// The surface states in `events`, in order.
@@ -416,13 +435,24 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
     assert_eq!((layout.display_width, layout.display_height), (800, 480));
 
     // Each key face and each bar panel has a state: no content, and a black
-    // image of the size of the surface. The list of pages comes last.
+    // image of the size of the surface. The list of profiles and the list of
+    // pages come last.
     let states = surfaces(&events);
     assert_eq!(states.len(), 14);
-    assert_eq!(events.len(), 17);
+    assert_eq!(events.len(), 18);
     assert_eq!(events[1], Event::Kinds(Vec::new()));
     assert_eq!(
         events[16],
+        Event::Profiles {
+            profiles: vec![ProfileEntry {
+                id: "default".into(),
+                name: "Default".into()
+            }],
+            active: "default".into()
+        }
+    );
+    assert_eq!(
+        events[17],
         Event::Pages {
             names: vec!["Page 1".into()],
             active: 0

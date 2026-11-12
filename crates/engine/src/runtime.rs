@@ -8,7 +8,7 @@
 
 use crate::action::{Handler, HandlerPort, Message};
 use crate::engine::{Command, Engine, Event};
-use crate::store::ProfileStore;
+use crate::profiles::ProfilesDir;
 use opencraft_core::device::DESCRIPTORS;
 use opencraft_core::{Clock, Connector, HidConnector, Link};
 use std::io;
@@ -28,8 +28,10 @@ const MESSAGES_PER_POLL: usize = 64;
 /// What the engine needs to start.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// The profile directory. See [`crate::store::default_profile_dir`].
-    pub profile_dir: PathBuf,
+    /// The profiles directory: each profile is a directory in it. See
+    /// [`crate::store::default_profiles_dir`]. A test or an example gives a
+    /// temporary directory.
+    pub profiles_dir: PathBuf,
 }
 
 /// The connection of a shell to the engine thread. When the handle goes
@@ -71,7 +73,8 @@ impl Drop for EngineHandle {
 /// The engine thread calls `sink` for each event. `sink` must return
 /// quickly: it puts the event in a queue of the shell and wakes the user
 /// interface thread. The first events are the layout, the kind descriptions,
-/// and the state of each surface and binding.
+/// the state of each surface, the profiles, the pages, and the state of each
+/// binding. See [`Event`].
 pub fn spawn(
     config: Config,
     handlers: Vec<Box<dyn Handler>>,
@@ -84,7 +87,7 @@ pub fn spawn(
         .spawn(move || {
             let mut engine = Engine::with_handlers(
                 Link::new(HidConnector),
-                ProfileStore::new(config.profile_dir),
+                ProfilesDir::new(config.profiles_dir),
                 // The layout until a device connects.
                 &DESCRIPTORS[0],
                 ports,

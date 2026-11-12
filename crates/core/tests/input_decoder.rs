@@ -712,6 +712,7 @@ static INVENTED_SURFACES: &[opencraft_core::Surface] = &[
 
 static INVENTED: Descriptor = Descriptor {
     name: "Invented model",
+    model: "invented",
     vid: 0x1234,
     pid: 0x5678,
     packet_size: 512,

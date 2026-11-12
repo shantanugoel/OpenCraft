@@ -1,11 +1,12 @@
-//! The profile: a named set of pages. A page holds the content of each
-//! surface and the bindings.
+//! The profile: a named set of pages for one device model. A page holds the
+//! content of each surface and the bindings.
 //!
 //! These types are the profile in memory. The file format is in
-//! [`crate::store`]. The engine holds the number of the active page: see
-//! [`crate::engine`].
+//! [`crate::store`], and the profiles directory is in [`crate::profiles`].
+//! The engine holds the number of the active page: see [`crate::engine`].
 
 use crate::action::{Action, GestureKind};
+use opencraft_core::device::DESCRIPTORS;
 use opencraft_core::{ControlId, ControlKind, SurfaceId, SurfaceKind};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -15,6 +16,13 @@ use std::str::FromStr;
 pub const DEFAULT_PROFILE_NAME: &str = "Default";
 /// The name of the first page of a new profile.
 pub const DEFAULT_PAGE_NAME: &str = "Page 1";
+
+/// The model identifier of the first descriptor. A profile file of schema
+/// version 1 or 2 has no model, and gets this one: the earlier phases
+/// supported only this model (decision 0018).
+pub fn default_model() -> &'static str {
+    DESCRIPTORS[0].model
+}
 
 /// A colour: red, green, and blue. The text form is `#RRGGBB`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -156,10 +164,14 @@ impl Page {
     }
 }
 
-/// A named set of pages.
+/// A named set of pages for one device model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Profile {
+    /// The name for the user. The identity of a profile is the name of its
+    /// directory: see [`crate::profiles`].
     pub name: String,
+    /// The model identifier of the descriptor, for example `n4-pro`.
+    pub model: String,
     /// The pages. A profile has one page or more: see [`Profile::new`].
     pages: Vec<Page>,
 }
@@ -172,14 +184,26 @@ impl Default for Profile {
 }
 
 impl Profile {
-    /// Make a profile. If `pages` is empty, the profile gets one page with no
-    /// content.
-    pub fn new(name: impl Into<String>, mut pages: Vec<Page>) -> Self {
+    /// Make a profile for the model of the first descriptor: see
+    /// [`default_model`]. If `pages` is empty, the profile gets one page with
+    /// no content.
+    pub fn new(name: impl Into<String>, pages: Vec<Page>) -> Self {
+        Self::for_model(default_model(), name, pages)
+    }
+
+    /// Make a profile for the model `model`. If `pages` is empty, the profile
+    /// gets one page with no content.
+    pub fn for_model(
+        model: impl Into<String>,
+        name: impl Into<String>,
+        mut pages: Vec<Page>,
+    ) -> Self {
         if pages.is_empty() {
             pages.push(Page::new(DEFAULT_PAGE_NAME));
         }
         Self {
             name: name.into(),
+            model: model.into(),
             pages,
         }
     }
@@ -362,6 +386,11 @@ mod tests {
     #[test]
     fn a_profile_has_one_page_or_more() {
         assert_eq!(Profile::default().pages().len(), 1);
+        assert_eq!(Profile::default().model, default_model());
+        assert_eq!(
+            Profile::for_model("other", "P", Vec::new()).pages().len(),
+            1
+        );
         assert_eq!(Profile::new("P", Vec::new()).pages().len(), 1);
         assert_eq!(Profile::default().pages()[0].name, DEFAULT_PAGE_NAME);
     }

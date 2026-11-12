@@ -14,6 +14,11 @@
 //! steps of a page change are in [`Engine::select_page`]. The reasons are in
 //! `docs/decisions/0016-pages-and-engine-requests-from-a-handler.md`.
 //!
+//! The engine gets the profiles directory, and holds only the active profile
+//! in memory. It offers only the profiles of the model of the device. The
+//! steps of a change of the active profile are in [`Engine::select_profile`].
+//! The reasons are in `docs/decisions/0018-many-profiles.md`.
+//!
 //! The logic has no thread of its own. A caller calls [`Engine::command`]
 //! and [`Engine::poll`] in a loop: see [`crate::runtime`]. A test calls them
 //! directly, with a fake transport and a fake clock (rule 7). The reasons
@@ -24,9 +29,10 @@ use crate::action::{
     KindDescription, Message, Request, Status,
 };
 use crate::layout::DeviceLayout;
-use crate::profile::{Color, Page, Profile, SurfaceContent};
+use crate::profile::{Color, Page, Profile, SurfaceContent, DEFAULT_PROFILE_NAME};
+use crate::profiles::{ProfileEntry, ProfilesDir};
 use crate::render::{self, Size};
-use crate::store::{BackupReason, ProfileStore};
+use crate::store::ProfileStore;
 use image::RgbImage;
 use opencraft_core::image::{encode_for, jpeg_quality_for};
 use opencraft_core::{
@@ -93,6 +99,29 @@ pub enum Command {
     /// the active page, the page after it becomes the active page. If it was
     /// the last page, the page before it becomes the active page.
     RemovePage { page: usize },
+    /// Make the profile with the identity `profile` the active profile. The
+    /// engine writes the old profile first if it changed. See
+    /// [`Engine::select_profile`].
+    SelectProfile { profile: String },
+    /// Add a profile with the name `name` for the user, and make it the
+    /// active profile. With `copy_of`, the new profile is a copy of the
+    /// profile with that identity: its pages and its image files. With no
+    /// `copy_of`, the new profile has one empty page. The engine makes the
+    /// identity from the name: see [`ProfilesDir::new_id`]. A name with only
+    /// spaces gives a problem.
+    AddProfile {
+        name: String,
+        copy_of: Option<String>,
+    },
+    /// Give the profile `profile` the name `name` for the user. The identity
+    /// does not change. A name with only spaces gives a problem.
+    RenameProfile { profile: String, name: String },
+    /// Move the directory of the profile `profile` into the directory
+    /// `removed` of the profiles directory. The engine does not delete it.
+    /// One profile for the model stays at the minimum. If `profile` is the
+    /// active profile, the profile after it in the list becomes the active
+    /// profile. If it was the last profile, the profile before it does.
+    RemoveProfile { profile: String },
     /// Ask the handler to correct the status of this kind.
     Resolve { kind: String },
     /// Send the current counters in an event.
@@ -123,11 +152,34 @@ pub struct Counters {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// The layout of the device model. It is the first event. It comes again
-    /// if a device of a different model connects. Before the first
+    /// if a device of a different descriptor connects. Before the first
     /// connection, it is the layout of the default model.
+    ///
+    /// If the new descriptor has a different model identifier, the engine
+    /// selects the profiles of that model. Then [`Event::Kinds`], each
+    /// [`Event::Surface`], [`Event::Profiles`], [`Event::Pages`], and each
+    /// [`Event::Binding`] follow, as at the start, and then
+    /// [`Event::Connected`].
     Layout(Arc<DeviceLayout>),
     /// All kind descriptions, after the layout.
     Kinds(Vec<KindDescription>),
+    /// The profiles of the model of the device, in the order of their
+    /// identities, and the identity of the active profile.
+    ///
+    /// The engine sends this event at the start and after each change of
+    /// the list or of the active profile. A rename, and the removal of a
+    /// profile that is not active, send only this event.
+    ///
+    /// If the active profile changed, the engine sends [`Event::Surface`]
+    /// for each surface before this event. Then [`Event::Pages`] comes, with
+    /// the first page of the new profile as the active page, and then
+    /// [`Event::Binding`] for each binding of that page. Thus a shell drops
+    /// all that it holds about the old profile when it gets this event with
+    /// a new `active`: the pages and the bindings come next.
+    Profiles {
+        profiles: Vec<ProfileEntry>,
+        active: String,
+    },
     /// The names of the pages in their order, and the number of the active
     /// page. Page numbers start at 0.
     ///
@@ -139,7 +191,8 @@ pub enum Event {
     /// number.
     ///
     /// If the active page changed, the engine sends [`Event::Surface`] for
-    /// each surface before this event.
+    /// each surface before this event. After a change of the active profile,
+    /// [`Event::Profiles`] comes between the surfaces and this event.
     Pages { names: Vec<String>, active: usize },
     /// A binding of the active page: after each [`Event::Pages`], and after
     /// a change of the binding. An unavailable kind stays. A state with no
@@ -170,7 +223,15 @@ pub enum Event {
 /// `S` is the function that gets each event. It must return quickly.
 pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     link: Link<C, K>,
+    profiles: ProfilesDir,
+    /// The profiles of the model of the device, in the order of their
+    /// identities. It always contains the active profile.
+    entries: Vec<ProfileEntry>,
+    /// The identity of the active profile.
+    profile_id: String,
+    /// The directory of the active profile.
     store: ProfileStore,
+    /// The active profile.
     profile: Profile,
     /// The number of the active page. It is always a page of `profile`.
     active: usize,
@@ -200,32 +261,37 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
 }
 
 impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
-    /// Make the engine: load the profile from `store`, and make the image of
-    /// each surface. `default_model` is the model for the layout until a
-    /// device connects.
+    /// Make the engine: load the active profile of `default_model` from
+    /// `profiles`, and make the image of each surface. `default_model` is
+    /// the model for the layout until a device connects.
     ///
-    /// The engine sends the layout and the state of each surface to `sink`.
-    /// It does not connect to the device here: the first [`Self::poll`] does.
+    /// The engine sends the layout, the state of each surface, the profiles,
+    /// the pages, and the bindings to `sink`. It does not connect to the
+    /// device here: the first [`Self::poll`] does.
     pub fn new(
         link: Link<C, K>,
-        store: ProfileStore,
+        profiles: ProfilesDir,
         default_model: &'static Descriptor,
         sink: S,
     ) -> Self {
-        Self::with_handlers(link, store, default_model, Vec::new(), sink)
+        Self::with_handlers(link, profiles, default_model, Vec::new(), sink)
     }
 
     /// Make the logic with non-blocking handler ports. No handler code runs here.
     pub fn with_handlers(
         link: Link<C, K>,
-        store: ProfileStore,
+        profiles: ProfilesDir,
         default_model: &'static Descriptor,
         ports: Vec<HandlerPort>,
         sink: S,
     ) -> Self {
         let mut engine = Self {
             link,
-            store,
+            // `open_profiles` sets the active profile below.
+            store: profiles.store(""),
+            profiles,
+            entries: Vec::new(),
+            profile_id: String::new(),
             profile: Profile::default(),
             active: 0,
             can_save: true,
@@ -242,16 +308,22 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             counters: Counters::default(),
             sink,
         };
-        engine.load_profile();
+        engine.open_profiles();
         engine.show_model();
+        engine.send_profiles();
         engine.send_pages();
         engine.appear();
         engine
     }
 
-    /// The profile in memory.
+    /// The active profile in memory.
     pub fn profile(&self) -> &Profile {
         &self.profile
+    }
+
+    /// The identity of the active profile.
+    pub fn active_profile(&self) -> &str {
+        &self.profile_id
     }
 
     /// The number of the active page. Page numbers start at 0.
@@ -333,6 +405,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.disappear();
         change(&mut self.profile);
         self.active = page;
+        self.redraw();
+        self.send_pages();
+        self.appear();
+    }
+
+    /// Make the image of each surface for the active page, and write to the
+    /// device only the images that are different from the images before.
+    /// These are steps 2 and 3 of a page change.
+    fn redraw(&mut self) {
         let before = std::mem::take(&mut self.images);
         let surfaces: Vec<&'static Surface> = self.descriptor.slot_surfaces().collect();
         for surface in &surfaces {
@@ -345,8 +426,6 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if self.link.is_connected() && !self.needs_draw {
             self.draw(&changed);
         }
-        self.send_pages();
-        self.appear();
     }
 
     /// Make `page` the active page. This is [`Command::SelectPage`]. The
@@ -579,36 +658,347 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 let count = self.profile.pages().len();
                 self.select_page(target.resolve(self.active, count));
             }
+            Message::Engine(EngineRequest::SelectProfile { name }) => {
+                // The list is in the order of the identities, so the first
+                // profile with the name wins.
+                match self.entries.iter().find(|e| e.name == name) {
+                    Some(entry) => {
+                        let id = entry.id.clone();
+                        self.select_profile(&id);
+                    }
+                    None => self.problem(format!(
+                        "OpenCraft did not change the profile, because no profile has the name \
+                         '{name}'."
+                    )),
+                }
+            }
         }
     }
 
-    fn load_profile(&mut self) {
-        match self.store.load() {
-            Ok(loaded) => {
-                self.profile = loaded.profile;
-                if let Some(backup) = loaded.backup {
-                    let reason = match backup.reason {
-                        BackupReason::NewerSchema { found } => {
-                            format!("it has the schema version {found}, from a newer OpenCraft")
-                        }
-                        BackupReason::Invalid(error) => format!("it has an error ({error})"),
-                    };
+    /// Find the profiles of the model of the device, and load the active
+    /// profile. The active profile is the profile in `state.toml` for the
+    /// model. If the file names no profile of the model, it is the first
+    /// profile in the list. If the model has no profile, the engine makes one
+    /// in memory. The first change, or a change of the active profile, writes
+    /// it.
+    fn open_profiles(&mut self) {
+        let model = self.descriptor.model;
+        self.entries = match self.profiles.list(model) {
+            Ok(entries) => entries,
+            Err(e) => {
+                self.problem(format!("OpenCraft could not read the profiles: {e}"));
+                Vec::new()
+            }
+        };
+        let recorded = self
+            .profiles
+            .active(model)
+            .filter(|id| self.entries.iter().any(|e| &e.id == id));
+        match recorded.or_else(|| self.entries.first().map(|e| e.id.clone())) {
+            Some(id) => self.load_profile(id),
+            None => self.make_profile(),
+        }
+    }
+
+    /// Make a new profile with no content for the model of the device, in
+    /// memory, and make it the active profile.
+    fn make_profile(&mut self) {
+        let id = match self.profiles.new_id(DEFAULT_PROFILE_NAME, &[]) {
+            Ok(id) => id,
+            Err(e) => {
+                self.problem(format!("OpenCraft could not read the profiles: {e}"));
+                DEFAULT_PROFILE_NAME.to_lowercase()
+            }
+        };
+        self.use_profile(
+            id,
+            Profile::for_model(self.descriptor.model, DEFAULT_PROFILE_NAME, Vec::new()),
+            true,
+        );
+    }
+
+    /// Load the profile `id` from its directory, and make it the active
+    /// profile. A file that the engine cannot use gets the steps of decision
+    /// 0009: the engine renames it to a backup name, tells the shell, and
+    /// starts with an empty profile.
+    fn load_profile(&mut self, id: String) {
+        let store = self.profiles.store(&id);
+        let model = self.descriptor.model;
+        let empty = || Profile::for_model(model, DEFAULT_PROFILE_NAME, Vec::new());
+        let (profile, can_save) = match store.load() {
+            Ok(loaded) => match loaded.backup {
+                Some(backup) => {
                     self.problem(format!(
-                        "OpenCraft could not use the profile file, because {reason}. \
+                        "OpenCraft could not use the profile file, because {}. \
                          The file is now {}. OpenCraft started with an empty profile.",
+                        backup.reason,
                         backup.path.display()
                     ));
-                } else if let Err(e) = self.store.remove_unused_images(&self.profile) {
-                    self.problem(format!("OpenCraft could not remove unused images: {e}"));
+                    (empty(), true)
                 }
-            }
+                None => {
+                    if let Err(e) = store.remove_unused_images(&loaded.profile) {
+                        self.problem(format!("OpenCraft could not remove unused images: {e}"));
+                    }
+                    (loaded.profile, true)
+                }
+            },
             Err(e) => {
-                self.can_save = false;
                 self.problem(format!(
                     "OpenCraft could not read the profile: {e}. \
                      It started with an empty profile, and it does not save changes."
                 ));
+                (empty(), false)
             }
+        };
+        self.use_profile(id, profile, can_save);
+    }
+
+    /// Make `profile` with the identity `id` the active profile, with its
+    /// first page as the active page. Put it in the list of profiles.
+    fn use_profile(&mut self, id: String, profile: Profile, can_save: bool) {
+        self.store = self.profiles.store(&id);
+        self.profile = profile;
+        self.profile_id = id;
+        self.active = 0;
+        self.can_save = can_save;
+        self.changed_at = None;
+        self.save_failed = false;
+        self.update_entry();
+    }
+
+    /// Put the name of the active profile in the list of profiles. Add the
+    /// entry if the list does not have it.
+    fn update_entry(&mut self) {
+        let entry = ProfileEntry {
+            id: self.profile_id.clone(),
+            name: self.profile.name.clone(),
+        };
+        match self.entries.binary_search_by(|e| e.id.cmp(&entry.id)) {
+            Ok(at) => self.entries[at] = entry,
+            Err(at) => self.entries.insert(at, entry),
+        }
+    }
+
+    /// Send the list of profiles and the identity of the active profile. See
+    /// [`Event::Profiles`].
+    fn send_profiles(&mut self) {
+        (self.sink)(Event::Profiles {
+            profiles: self.entries.clone(),
+            active: self.profile_id.clone(),
+        });
+    }
+
+    /// Make the profile `id` the active profile. This is
+    /// [`Command::SelectProfile`]. The engine does these steps in this order
+    /// (decision 0018):
+    ///
+    /// 1. It writes the old profile, if it changed or if it is not in a file
+    ///    yet. If the write fails, the engine tells the shell and stays on
+    ///    the old profile.
+    /// 2. It does the steps of a page change of [`Self::select_page`], with
+    ///    the first page of the new profile as the new page: Disappear for
+    ///    each binding of the old page, the images of the new page, a write
+    ///    of only the images that are different, and Appear for each binding
+    ///    of the new page.
+    /// 3. It writes the identity of the new profile in `state.toml`.
+    ///
+    /// The shell gets the state of each surface, then [`Event::Profiles`],
+    /// then [`Event::Pages`], then the state of each binding of the new
+    /// page.
+    pub fn select_profile(&mut self, id: &str) {
+        if id == self.profile_id {
+            return;
+        }
+        if !self.is_profile(id) || !self.save_before_leaving() {
+            return;
+        }
+        self.change_profile(id.to_string(), None);
+    }
+
+    /// True if `id` is a profile of the model. If it is not, tell the shell.
+    fn is_profile(&mut self, id: &str) -> bool {
+        let found = self.entries.iter().any(|e| e.id == id);
+        if !found {
+            self.problem(format!("The device model has no profile '{id}'."));
+        }
+        found
+    }
+
+    /// Write the active profile before the engine leaves it: if it changed,
+    /// or if it is not in a file yet, for example a profile that the engine
+    /// made. Return false if the write failed: then the engine tells the
+    /// shell and stays on the profile.
+    fn save_before_leaving(&mut self) -> bool {
+        match self.write_now() {
+            Ok(()) => true,
+            Err(e) => {
+                self.problem(format!(
+                    "OpenCraft did not change the profile, because it could not save the \
+                     active profile: {e}"
+                ));
+                false
+            }
+        }
+    }
+
+    /// The write of [`Self::save_before_leaving`], with no problem for the
+    /// shell.
+    fn write_now(&mut self) -> crate::Result<()> {
+        if !self.can_save || (self.changed_at.is_none() && self.store.profile_path().exists()) {
+            return Ok(());
+        }
+        self.store.save(&self.profile)?;
+        self.changed_at = None;
+        self.save_failed = false;
+        Ok(())
+    }
+
+    /// Steps 2 and 3 of [`Self::select_profile`]. The caller wrote the old
+    /// profile. With `profile`, the engine uses that profile in memory, and
+    /// does not read the file.
+    fn change_profile(&mut self, id: String, profile: Option<Profile>) {
+        self.disappear();
+        match profile {
+            Some(profile) => self.use_profile(id, profile, true),
+            None => self.load_profile(id),
+        }
+        self.redraw();
+        self.send_profiles();
+        self.send_pages();
+        self.appear();
+        if let Err(e) = self
+            .profiles
+            .set_active(self.descriptor.model, &self.profile_id)
+        {
+            self.problem(format!(
+                "OpenCraft could not record the active profile: {e}"
+            ));
+        }
+    }
+
+    /// A name for the user that is not empty, or a problem for the shell.
+    fn profile_name(&mut self, name: String) -> Option<String> {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            self.problem("A profile must have a name.".to_string());
+            return None;
+        }
+        Some(name)
+    }
+
+    fn add_profile(&mut self, name: String, copy_of: Option<String>) {
+        let Some(name) = self.profile_name(name) else {
+            return;
+        };
+        let (mut profile, source) = match copy_of {
+            None => (
+                Profile::for_model(self.descriptor.model, "", Vec::new()),
+                None,
+            ),
+            Some(id) if id == self.profile_id => (self.profile.clone(), Some(self.store.clone())),
+            Some(id) if self.is_profile(&id) => {
+                let source = self.profiles.store(&id);
+                match source.read() {
+                    Ok(profile) => (profile, Some(source)),
+                    Err(e) => {
+                        self.problem(format!("OpenCraft could not copy the profile: {e}"));
+                        return;
+                    }
+                }
+            }
+            Some(_) => return,
+        };
+        profile.name = name;
+        if !self.save_before_leaving() {
+            return;
+        }
+        let id = match self.profiles.new_id(&profile.name, &[&self.profile_id]) {
+            Ok(id) => id,
+            Err(e) => {
+                self.problem(format!("OpenCraft could not add the profile: {e}"));
+                return;
+            }
+        };
+        let store = self.profiles.store(&id);
+        let written = source
+            .map_or(Ok(()), |source| store.copy_images_from(&source, &profile))
+            .and_then(|()| store.save(&profile));
+        if let Err(e) = written {
+            // The directory is new and holds no profile of the user.
+            let _ = std::fs::remove_dir_all(store.dir());
+            self.problem(format!("OpenCraft could not add the profile: {e}"));
+            return;
+        }
+        self.change_profile(id, Some(profile));
+    }
+
+    fn rename_profile(&mut self, id: String, name: String) {
+        if !self.is_profile(&id) {
+            return;
+        }
+        let Some(name) = self.profile_name(name) else {
+            return;
+        };
+        if id == self.profile_id {
+            if self.profile.name == name {
+                return;
+            }
+            self.profile.name = name;
+            self.changed_at = Some(self.now());
+            self.update_entry();
+        } else {
+            let store = self.profiles.store(&id);
+            let renamed = store.read().and_then(|mut profile| {
+                if profile.name != name {
+                    profile.name = name.clone();
+                    store.save(&profile)?;
+                }
+                Ok(())
+            });
+            if let Err(e) = renamed {
+                self.problem(format!("OpenCraft could not rename the profile: {e}"));
+                return;
+            }
+            let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) else {
+                return;
+            };
+            if entry.name == name {
+                return;
+            }
+            entry.name = name;
+        }
+        self.send_profiles();
+    }
+
+    fn remove_profile(&mut self, id: String) {
+        if !self.is_profile(&id) {
+            return;
+        }
+        if self.entries.len() == 1 {
+            self.problem("One profile for the device model stays at the minimum.".to_string());
+            return;
+        }
+        let at = self
+            .entries
+            .iter()
+            .position(|e| e.id == id)
+            .expect("the profile is in the list");
+        let active = id == self.profile_id;
+        // The removed directory keeps the last state of the profile.
+        if active && !self.save_before_leaving() {
+            return;
+        }
+        if let Err(e) = self.profiles.remove(&id) {
+            self.problem(format!("OpenCraft could not remove the profile: {e}"));
+            return;
+        }
+        self.entries.remove(at);
+        if active {
+            let next = self.entries[at.min(self.entries.len() - 1)].id.clone();
+            self.change_profile(next, None);
+        } else {
+            self.send_profiles();
         }
     }
 
@@ -690,6 +1080,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Command::RenamePage { page, name } => self.rename_page(page, name),
             Command::MovePage { page, to } => self.move_page(page, to),
             Command::RemovePage { page } => self.remove_page(page),
+            Command::SelectProfile { profile } => self.select_profile(&profile),
+            Command::AddProfile { name, copy_of } => self.add_profile(name, copy_of),
+            Command::RenameProfile { profile, name } => self.rename_profile(profile, name),
+            Command::RemoveProfile { profile } => self.remove_profile(profile),
             Command::Resolve { kind } => {
                 self.request(&kind, Request::Resolve { kind: kind.clone() });
             }
@@ -736,8 +1130,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.link_problem = None;
                 let model = self.link.device().map(|d| d.descriptor());
                 if let Some(model) = model.filter(|m| !std::ptr::eq(*m, self.descriptor)) {
-                    self.descriptor = model;
-                    self.show_model();
+                    self.change_model(model);
                 }
                 // The event comes after the draw: a shell can use it as "the
                 // device is ready".
@@ -760,6 +1153,32 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Err(e) => self.link_error(&e),
         }
         self.save_if_due();
+    }
+
+    /// Use the descriptor of a device that connected. If its model
+    /// identifier is different, select the profiles of that model, as at the
+    /// start: see [`Event::Layout`]. The old profile is written first if it
+    /// changed. The caller draws all surfaces next.
+    fn change_model(&mut self, descriptor: &'static Descriptor) {
+        let new_model = descriptor.model != self.descriptor.model;
+        if new_model {
+            // The device of the new model must show its own profile, so the
+            // change continues after a failed write.
+            if let Err(e) = self.write_now() {
+                self.problem(format!("OpenCraft could not save the profile: {e}"));
+            }
+            self.disappear();
+        }
+        self.descriptor = descriptor;
+        if new_model {
+            self.open_profiles();
+        }
+        self.show_model();
+        if new_model {
+            self.send_profiles();
+            self.send_pages();
+            self.appear();
+        }
     }
 
     /// Send the start sequence and the image of each surface to the device

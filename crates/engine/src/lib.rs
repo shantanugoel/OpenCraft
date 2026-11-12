@@ -7,7 +7,9 @@
 //!
 //! - [`action`]: actions, bindings, and the handler interface.
 //! - [`profile`]: the profile, its pages, and the content of each surface.
-//! - [`store`]: the profile directory: the profile file and the image files.
+//! - [`profiles`]: the profiles directory: one directory for each profile,
+//!   and the active profile of each device model.
+//! - [`store`]: one profile directory: the profile file and the image files.
 //! - [`render`] and [`label`]: the image of a surface, made from its content.
 //! - [`layout`]: the layout of the device, as a message for a shell.
 //! - [`engine`]: the engine logic, with the commands and the events.
@@ -22,6 +24,7 @@ pub mod error;
 pub mod label;
 pub mod layout;
 pub mod profile;
+pub mod profiles;
 pub mod render;
 pub mod runtime;
 pub mod store;
@@ -37,4 +40,5 @@ pub use runtime::{spawn, Config, EngineHandle};
 
 pub use error::{Error, Result};
 pub use profile::{Color, Page, Profile, SurfaceContent};
-pub use store::{default_profile_dir, Backup, BackupReason, Loaded, ProfileStore};
+pub use profiles::{ProfileEntry, ProfilesDir};
+pub use store::{default_profiles_dir, Backup, BackupReason, Loaded, ProfileStore};

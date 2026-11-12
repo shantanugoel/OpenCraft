@@ -4,7 +4,7 @@
 //! device: do not run it while a different program operates the device.
 //!
 //! ```sh
-//! cargo run -p opencraft-engine --example headless -- <profile directory> [--counters]
+//! cargo run -p opencraft-engine --example headless -- <profiles directory> [--counters]
 //! ```
 //!
 //! With `--counters`, the program prints the input counters each second.
@@ -30,8 +30,8 @@ use std::sync::mpsc::RecvTimeoutError;
 use std::time::Instant;
 
 fn main() {
-    let Some(profile_dir) = std::env::args().nth(1).map(PathBuf::from) else {
-        eprintln!("usage: headless <profile directory> [--counters]");
+    let Some(profiles_dir) = std::env::args().nth(1).map(PathBuf::from) else {
+        eprintln!("usage: headless <profiles directory> [--counters]");
         std::process::exit(2);
     };
     let start = Instant::now();
@@ -48,6 +48,9 @@ fn main() {
                 println!("[{at:8.3}] input: {} {:?}", input.control, input.gesture)
             }
             Event::Kinds(kinds) => println!("[{at:8.3}] kinds: {kinds:?}"),
+            Event::Profiles { profiles, active } => {
+                println!("[{at:8.3}] profiles: {profiles:?}, active {active}")
+            }
             Event::Pages { names, active } => {
                 println!("[{at:8.3}] pages: {names:?}, active {active}")
             }
@@ -58,7 +61,7 @@ fn main() {
         }
     };
     let engine =
-        spawn(Config { profile_dir }, Vec::new(), sink).expect("cannot start the engine thread");
+        spawn(Config { profiles_dir }, Vec::new(), sink).expect("cannot start the engine thread");
 
     std::thread::scope(|scope| {
         let (stop, receiver) = std::sync::mpsc::channel::<()>();

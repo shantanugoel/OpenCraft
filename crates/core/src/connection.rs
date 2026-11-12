@@ -567,6 +567,7 @@ mod tests {
         ];
         static OTHER: Descriptor = Descriptor {
             name: "Test model",
+            model: "test-model",
             vid: 0x1234,
             pid: 0x5678,
             packet_size: 32,
