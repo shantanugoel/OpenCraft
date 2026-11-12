@@ -9,13 +9,13 @@
 //! | `panes` | The order and the widths of the panes, the dividers, show and hide |
 //! | `toolbar` | The toolbar above the canvas and the right panel |
 //! | `sidebar` | The sidebar |
-//! | `canvas` | The canvas: the page row, the device drawing |
+//! | `canvas` | The canvas: the page title, the device drawing |
 //! | `status_bar` | The status bar and the messages below the canvas |
 //! | `right_panel` | The right panel and its tabs |
 //! | `inspector` | The "Inspector" tab: the editor of the selection |
 //! | `library` | The "Library" tab |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
-//! | `device`, `pages`, `hotkey` | The device settings, the pages and the profiles, the hotkey names |
+//! | `device`, `pages`, `hotkey` | The device settings, the changes of the pages and the profiles, the hotkey names |
 //! | `form` | The parts of an inspector: the header, a section, the rows of a form |
 //! | `gesture_card` | The gesture card |
 //! | `controls` | Controls that more than one part uses |
@@ -28,7 +28,7 @@ use crate::{
     shell::Shell,
     state::{ViewState, HIGHLIGHT_TIME},
 };
-use controls::{button, button_if, danger_button, small_button};
+use controls::{button, button_if, small_button};
 use gpui_kit::base::{Scrollbar, ScrollbarMode};
 use gpui_kit::{
     component::{
@@ -185,7 +185,9 @@ impl DeviceView {
             // The surfaces of the new page came before this event.
             self.label_loaded = false;
         }
-        self.update_lists(&event);
+        if self.update_lists(&event) {
+            self.focus_workspace(window, cx);
+        }
         if let Event::Surface(surface) = &event {
             if let Some(old) = self
                 .images
@@ -328,13 +330,13 @@ impl Render for DeviceView {
             .on_action(cx.listener(|view, _: &ToggleInspector, window, cx| {
                 view.toggle_inspector(window, cx)
             }))
+            .map(|root| self.sidebar_actions(root, cx))
             .relative()
             .size_full()
             .bg(theme::BG_CANVAS)
             .text_color(theme::TEXT_PRIMARY)
             .text_size(theme::TEXT_BODY)
             .child(self.panes_layout(window, cx))
-            .children(self.profile_backdrop(cx))
     }
 }
 

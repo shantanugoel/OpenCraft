@@ -1,17 +1,19 @@
-//! The page tabs, the profile menu, the touch gestures, and stale edits.
+//! The touch gestures, stale edits after a change of the page or of the
+//! profile, and the window at its minimum size. The sidebar tests are in
+//! `sidebar.rs`.
 
 use super::actions::{input_text, top};
 use super::*;
 use opencraft_engine::ProfileEntry;
 
-fn pages(names: &[&str], active: usize) -> Event {
+pub(super) fn pages(names: &[&str], active: usize) -> Event {
     Event::Pages {
         names: names.iter().map(|n| (*n).into()).collect(),
         active,
     }
 }
 
-fn profiles(entries: &[(&str, &str)], active: &str) -> Event {
+pub(super) fn profiles(entries: &[(&str, &str)], active: &str) -> Event {
     Event::Profiles {
         profiles: entries
             .iter()
@@ -24,7 +26,7 @@ fn profiles(entries: &[(&str, &str)], active: &str) -> Event {
     }
 }
 
-fn send(cx: &mut VisualTestContext, tx: &async_channel::Sender<Event>, event: Event) {
+pub(super) fn send(cx: &mut VisualTestContext, tx: &async_channel::Sender<Event>, event: Event) {
     tx.try_send(event).unwrap();
     cx.run_until_parked();
 }
@@ -73,221 +75,6 @@ fn bound(id: BindingId, action: Action) -> Event {
         action: Some(action),
         available: true,
     })
-}
-
-#[gpui_kit::test]
-fn page_tabs_send_each_page_command_and_follow_the_engine(cx: &mut TestAppContext) {
-    let (view, cx, tx, sent) = window(cx);
-    send(cx, &tx, pages(&["Home", "Media", "Work"], 0));
-    for id in ["page-0", "page-1", "page-2", "page-add"] {
-        assert!(cx.debug_bounds(id).is_some(), "{id}");
-    }
-    click(cx, "page-1");
-    assert_eq!(sent.borrow().last(), Some(&Command::SelectPage { page: 1 }));
-    // The tabs show the page of the engine, not the click.
-    cx.update(|_, cx| assert_eq!(view.read(cx).state.page, 0));
-    // An action on the device changes the page: the tabs follow.
-    send(cx, &tx, pages(&["Home", "Media", "Work"], 1));
-    cx.update(|_, cx| {
-        assert_eq!(view.read(cx).state.page, 1);
-        assert_eq!(view.read(cx).state.pages, ["Home", "Media", "Work"]);
-    });
-    let count = sent.borrow().len();
-    click(cx, "page-1");
-    assert_eq!(sent.borrow().len(), count, "The active page is selected");
-
-    click(cx, "page-add");
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::AddPage { copy_of: None })
-    );
-    click(cx, "page-duplicate");
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::AddPage { copy_of: Some(1) })
-    );
-    click(cx, "page-left");
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::MovePage { page: 1, to: 0 })
-    );
-    click(cx, "page-right");
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::MovePage { page: 1, to: 2 })
-    );
-
-    click(cx, "page-rename");
-    assert!(cx.debug_bounds("page-name").is_some());
-    assert!(cx.debug_bounds("page-1").is_none());
-    cx.update(|_, cx| {
-        assert_eq!(
-            view.read(cx).lists.page_name.read(cx).value().as_ref(),
-            "Media"
-        )
-    });
-    cx.simulate_input("Games");
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::RenamePage {
-            page: 1,
-            name: "Games".into()
-        })
-    );
-    assert!(cx.debug_bounds("page-name").is_none());
-    let count = sent.borrow().len();
-    click(cx, "page-rename");
-    cx.simulate_input("Other");
-    cx.simulate_keystrokes("escape");
-    cx.run_until_parked();
-    assert!(cx.debug_bounds("page-name").is_none());
-    click(cx, "page-rename");
-    click(cx, "page-name-cancel");
-    assert!(cx.debug_bounds("page-name").is_none());
-    assert_eq!(
-        sent.borrow().len(),
-        count,
-        "A cancelled rename sends nothing"
-    );
-
-    // The removal needs a confirmation.
-    click(cx, "page-remove");
-    assert_eq!(sent.borrow().len(), count);
-    click(cx, "page-remove-cancel");
-    assert!(cx.debug_bounds("page-remove-confirm").is_none());
-    assert_eq!(sent.borrow().len(), count);
-    click(cx, "page-remove");
-    click(cx, "page-remove-confirm");
-    assert_eq!(sent.borrow().last(), Some(&Command::RemovePage { page: 1 }));
-    // A page change stops a confirmation: the number can be a different page.
-    click(cx, "page-remove");
-    send(cx, &tx, pages(&["Home", "Media", "Work"], 2));
-    assert!(cx.debug_bounds("page-remove-confirm").is_none());
-
-    // The first page has no move to the left, and the last page cannot go.
-    send(cx, &tx, pages(&["Home"], 0));
-    let count = sent.borrow().len();
-    for id in ["page-left", "page-right", "page-remove"] {
-        click(cx, id);
-    }
-    assert!(cx.debug_bounds("page-remove-confirm").is_none());
-    assert_eq!(sent.borrow().len(), count);
-}
-
-#[gpui_kit::test]
-fn profile_menu_sends_each_profile_command_and_follows_the_engine(cx: &mut TestAppContext) {
-    let (view, cx, tx, sent) = window(cx);
-    let list = [("default", "Default"), ("work", "Work")];
-    send(cx, &tx, profiles(&list, "default"));
-    assert!(cx.debug_bounds("profiles").is_none());
-    click(cx, "profile-menu");
-    assert!(cx.debug_bounds("profiles").is_some());
-    click(cx, "profile-1");
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::SelectProfile {
-            profile: "work".into()
-        })
-    );
-    assert!(cx.debug_bounds("profiles").is_none());
-    cx.update(|_, cx| assert_eq!(view.read(cx).state.profile.as_deref(), Some("default")));
-    // An action on the device selects a profile: the menu follows.
-    send(cx, &tx, profiles(&list, "work"));
-    cx.update(|_, cx| {
-        assert_eq!(view.read(cx).state.profile.as_deref(), Some("work"));
-        assert_eq!(view.read(cx).state.profiles.len(), 2);
-    });
-
-    click(cx, "profile-menu");
-    click(cx, "profile-add");
-    assert!(cx.debug_bounds("profile-name").is_some());
-    let count = sent.borrow().len();
-    // An empty name sends nothing.
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-    assert_eq!(sent.borrow().len(), count);
-    cx.simulate_input("Games");
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::AddProfile {
-            name: "Games".into(),
-            copy_of: None
-        })
-    );
-    assert!(cx.debug_bounds("profiles").is_none());
-
-    click(cx, "profile-menu");
-    click(cx, "profile-duplicate");
-    cx.update(|_, cx| {
-        assert_eq!(
-            view.read(cx).lists.profile_name.read(cx).value().as_ref(),
-            "Work copy"
-        )
-    });
-    click(cx, "profile-name-save");
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::AddProfile {
-            name: "Work copy".into(),
-            copy_of: Some("work".into())
-        })
-    );
-
-    click(cx, "profile-menu");
-    click(cx, "profile-rename");
-    cx.simulate_input("Office");
-    click(cx, "profile-name-save");
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::RenameProfile {
-            profile: "work".into(),
-            name: "Office".into()
-        })
-    );
-    // The menu stays open after a rename, and the list follows the engine.
-    assert!(cx.debug_bounds("profiles").is_some());
-    send(
-        cx,
-        &tx,
-        profiles(&[("default", "Default"), ("work", "Office")], "work"),
-    );
-    cx.update(|_, cx| assert_eq!(view.read(cx).state.profiles[1].name, "Office"));
-
-    let count = sent.borrow().len();
-    click(cx, "profile-remove");
-    assert_eq!(
-        sent.borrow().len(),
-        count,
-        "The removal needs a confirmation"
-    );
-    click(cx, "profile-edit-cancel");
-    click(cx, "profile-remove");
-    click(cx, "profile-remove-confirm");
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::RemoveProfile {
-            profile: "work".into()
-        })
-    );
-    assert!(cx.debug_bounds("profiles").is_none());
-
-    // A click outside the menu closes it and sends nothing.
-    let count = sent.borrow().len();
-    click(cx, "profile-menu");
-    click(cx, "profile-backdrop");
-    assert!(cx.debug_bounds("profiles").is_none());
-    assert_eq!(sent.borrow().len(), count);
-
-    // The last profile cannot go.
-    send(cx, &tx, profiles(&[("default", "Default")], "default"));
-    click(cx, "profile-menu");
-    click(cx, "profile-remove");
-    assert!(cx.debug_bounds("profile-remove-confirm").is_none());
-    assert_eq!(sent.borrow().len(), count);
 }
 
 #[gpui_kit::test]
@@ -529,43 +316,30 @@ fn the_window_shows_all_controls_at_the_minimum_size(cx: &mut TestAppContext) {
     }
     for id in [
         "toolbar-title",
-        "profile-menu",
         "open-device-settings",
         "connection",
         "toggle-inspector",
     ] {
         within(cx, id, "toolbar");
     }
-    for id in [
-        "page-0",
-        "page-rename",
-        "page-left",
-        "page-right",
-        "page-duplicate",
-        "page-remove",
-        "surface-key face 1",
-        "control-knob 1",
-    ] {
+    for id in ["page-title", "surface-key face 1", "control-knob 1"] {
         within(cx, id, "canvas");
     }
     within(cx, "editor", "right-panel");
-    within(cx, "device-card", "sidebar");
+    for id in [
+        "device-card",
+        "profile-default",
+        "profile-work",
+        "page-0",
+        "page-add",
+        "sidebar-settings",
+    ] {
+        within(cx, id, "sidebar");
+    }
     let panel = within(cx, "surface-bar panel 4", "canvas");
     let strip = within(cx, "control-touch bar 1", "canvas");
     let knob = within(cx, "control-knob 4", "canvas");
     assert!(panel.bottom() <= strip.top() && strip.bottom() <= knob.top());
-    // The tabs and the page buttons do not overlap.
-    assert!(
-        cx.debug_bounds("page-remove").unwrap().left()
-            > cx.debug_bounds("page-tabs").unwrap().right()
-    );
-    click(cx, "profile-menu");
-    let menu = cx.debug_bounds("profiles").unwrap();
-    assert!(menu.left() >= px(0.) && menu.right() <= px(width) && menu.bottom() <= px(height));
-    // While the menu is open, a click outside it only closes it.
-    click(cx, "control-touch bar 1");
-    assert!(cx.debug_bounds("profiles").is_none());
-    assert!(cx.debug_bounds("gesture-SwipeRight").is_none());
     click(cx, "control-touch bar 1");
     within(cx, "gesture-SwipeRight", "right-panel");
 }

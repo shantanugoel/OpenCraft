@@ -233,4 +233,5 @@ mod device;
 mod nested;
 mod pages;
 mod panes;
+mod sidebar;
 mod test_model;

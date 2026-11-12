@@ -67,20 +67,26 @@ nothing occurs. Touch again.
 A page is one full set of key faces, bar panels, and bindings. The device
 shows one page at a time. A profile has one page or more.
 
-The page row is at the top of the device picture. The button of the active
-page has a blue frame. At the right end of the row are five buttons for the
-active page. Put the pointer on a button to see its name.
+The sidebar at the left shows the pages of the active profile, below the
+name of the profile. The number at the right of a page is its position. The
+blue row is the active page. The name of the active page is also at the top
+of the device picture.
+
+![The sidebar with two profiles. The active profile "Work" has three pages, and "Main" is the active page.](images/sidebar.png)
 
 | To do this | Do this |
 |---|---|
-| Show a different page on the device | Click the button of the page |
-| Add an empty page | Click **+ Page**. The new page becomes the active page. |
-| Copy the active page | Click the button with two squares (**Duplicate the page**) |
-| Give the active page a name | Click the button with the pencil (**Rename the page**), or double-click the page button. Type the name, and push Return or click **Save**. |
-| Move the active page | Click the button with the arrow to the left or to the right |
-| Remove the active page | Click the button with the bin (**Remove the page…**), and then **Remove**. A profile keeps one page at the minimum. |
+| Show a different page on the device | Click the page in the sidebar |
+| Add an empty page | Click **Add a page** below the pages. The new page becomes the active page. |
+| Copy a page | Right-click the page, and select **Duplicate**. The copy goes after the last page and becomes the active page. |
+| Give a page a different name | Double-click the page. Or right-click the page, and select **Rename**. Type the name, and push Return. |
+| Move a page up or down in the list | Right-click the page, and select **Move Up** or **Move Down** |
+| Remove a page | Right-click the page, and select **Remove…**. Then click **Remove**. A profile keeps one page at the minimum. |
 
-When you click a page button, the device shows that page also. To change the
+When you edit a name, push Escape to keep the old name. A click outside the
+name keeps the new name. A name cannot be empty.
+
+When you click a page, the device shows that page also. To change the
 page from the device, set the action "Change the page" on a control. Use the
 same control on each page, so that you can always go to the next page. See
 [Change the page](actions.md#change-the-page).
@@ -88,24 +94,29 @@ same control on each page, so that you can always go to the next page. See
 Example: on each page, set "Swipe left" of the touch bar to "Next page", and
 "Swipe right" to "Previous page".
 
+To hide the pages of the active profile, click the arrow at the left of its
+name. Click the arrow again to show them.
+
 ## Profiles
 
 A profile is a named set of pages. You can use one profile for each type of
 work, for example one for video calls and one for photos. The device shows
 the active profile.
 
-Click the profile button in the toolbar, next to "Profile". The menu shows
-all profiles. The active profile has a check mark.
+The sidebar shows all profiles below **PROFILES**. The active profile has
+the mark **ON DEVICE**, and its pages are below it.
 
-| To do this | Do this in the menu |
+| To do this | Do this in the sidebar |
 |---|---|
 | Select a different profile | Click the name of the profile |
-| Add an empty profile | Click **New**. Type a name, and click **Add**. |
-| Copy the active profile | Click **Duplicate**. Type a name, and click **Add**. |
-| Give the active profile a different name | Click **Rename**. Type the name, and click **Save**. |
-| Remove the active profile | Click **Remove**, and then **Remove** again. You cannot remove the last profile. |
+| Add an empty profile | Click **+** at the right of **PROFILES**. Type a name in the new row, and push Return. |
+| Copy a profile | Right-click the profile, and select **Duplicate**. The copy has the name "*name* copy". |
+| Give a profile a different name | Double-click the profile. Or right-click the profile, and select **Rename**. Type the name, and push Return. |
+| Remove a profile | Right-click the profile, and select **Remove…**. Then click **Remove**. You cannot remove the last profile. |
 
 - A new profile or a copy becomes the active profile.
+- A double-click on a profile that is not active also makes it the active
+  profile.
 - OpenCraft does not delete a removed profile. It moves the profile to the
   folder `removed` in the profiles folder. To get it back, see
   [The files of OpenCraft](background.md#the-files-of-opencraft).
@@ -117,13 +128,14 @@ all profiles. The active profile has a check mark.
 The device settings are for the device, not for a profile. A change of the
 profile or of the page does not change them.
 
-1. Click **Device settings** in the toolbar. The **Inspector** tab of the
-   right panel shows the device settings. No control has the blue frame.
+1. Click the device at the top of the sidebar, or **Device settings** in the
+   toolbar. The **Inspector** tab of the right panel shows the device
+   settings. No control has the blue frame.
 2. Change a setting. To change a brightness, drag its slider. The number
    to the right of the setting name shows the value. The device shows the
    change immediately.
 3. To go back to the settings of a control, click a control in the device
-   picture.
+   picture, or click the active page in the sidebar.
 
 ![The device settings](images/device-settings.png)
 
