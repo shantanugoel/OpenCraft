@@ -127,8 +127,10 @@ These rules stay true in all phases.
    [decision 0006](decisions/0006-action-kinds-and-handler-interface.md). The
    interface is in decisions
    [0012](decisions/0012-action-handler-interface.md),
-   [0013](decisions/0013-action-feedback-on-a-surface.md), and
-   [0014](decisions/0014-action-settings-description.md).
+   [0013](decisions/0013-action-feedback-on-a-surface.md),
+   [0014](decisions/0014-action-settings-description.md),
+   [0016](decisions/0016-pages-and-engine-requests-from-a-handler.md), and
+   [0017](decisions/0017-toggle-and-sequence-actions.md).
    - An action has a kind and settings. The kind is an identifier with a
      namespace, for example `opencraft.hotkey`.
    - The engine sends the settings to the handler for that kind and does not
@@ -137,6 +139,8 @@ These rules stay true in all phases.
      settings in the profile. The shell shows that the action is not available.
    - A built-in action uses the same handler interface that a plug-in will
      use. Only messages go through this interface.
+   - A handler asks the engine for work with a message, for example for a
+     page change. The engine has no code for a specific kind.
    - A handler can send a message to change a surface at any time, not only
      after a gesture.
 9. **The profile file is the source of truth.** The shell changes the profile

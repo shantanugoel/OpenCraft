@@ -30,6 +30,10 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0012](0012-action-handler-interface.md) | An action handler gets requests and sends messages, on its own thread | Accepted |
 | [0013](0013-action-feedback-on-a-surface.md) | An action changes a surface with feedback data, and the engine makes the image | Accepted |
 | [0014](0014-action-settings-description.md) | An action kind describes its settings as a list of fields | Accepted |
+| [0015](0015-four-bar-panels-and-touch-gestures.md) | The touch bar shows four bar panels, and the device identifies the touch gestures | Accepted |
+| [0016](0016-pages-and-engine-requests-from-a-handler.md) | The engine holds the active page, and a handler asks the engine with a message | Accepted |
+| [0017](0017-toggle-and-sequence-actions.md) | An action can contain actions, and the engine draws the state of a toggle | Accepted |
+| [0018](0018-many-profiles.md) | Each profile is a directory in the profiles directory, and names its device model | Accepted |
 
 ## Template
 
