@@ -1,0 +1,48 @@
+name: Bug report
+description: OpenCraft does not do what it must do
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove personal data from everything that you write here. This
+        includes the device serial number, a home path, and a host name.
+        Do not report a vulnerability here. See SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Say what you did, what you expected, and what happened.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "For example: 15.1"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OpenCraft version
+      description: The version, or the commit if you built it from the source.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device model and firmware
+      description: "`opencraft-probe identify` shows the firmware. Do not write the serial number."
+      placeholder: "For example: VSD StreamDock N4 Pro, V4.VSD N4 Pro.02.010"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        The log file is `~/Library/Application Support/OpenCraft/opencraft.log`.
+        Write the lines that are about the problem only.
+        Remove personal data from the lines before you paste them.
+      render: text

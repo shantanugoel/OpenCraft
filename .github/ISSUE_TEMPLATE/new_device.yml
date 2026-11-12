@@ -1,0 +1,33 @@
+name: New device model
+description: Ask for support for a StreamDock-class controller
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OpenCraft supports the VSD StreamDock N4 Pro only. Remove personal
+        data from everything that you write here. Do not write the device
+        serial number.
+  - type: input
+    id: model
+    attributes:
+      label: Device model
+      placeholder: "For example: VSD StreamDock 293"
+    validations:
+      required: true
+  - type: input
+    id: usb
+    attributes:
+      label: USB vendor ID and product ID
+      description: "`opencraft-probe list` shows them. This command does not open the device."
+      placeholder: "For example: 0x5548:0x1023"
+  - type: textarea
+    id: layout
+    attributes:
+      label: Layout
+      description: The number of keys, knobs, and touch bar panels, and the screen sizes, if you know them.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Help
+      options:
+        - label: I can run commands on the device and write the result in this issue.
