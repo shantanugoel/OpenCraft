@@ -200,6 +200,8 @@ The owner used the device on 2026-11-12.
 | Fact | Confidence |
 |---|---|
 | 20 taps, 10 swipes to the left, and 13 swipes to the right each gave the correct gesture and one Invoke at a handler. The record is in [n4-pro-hardware.md](n4-pro-hardware.md#controls-and-input-codes). | Measured: owner, the engine example `touch_count` |
+| With the application and a check profile, each of these steps operated: a swipe to the left and to the right changed the page; a press of a key with a toggle showed the frame and the label for "on", and a second press removed them; a tap on a bar panel with a toggle did the same; a sequence showed the second page and then the first page again; a key selected a different profile, and a key selected the first profile again | Measured: owner |
+| The owner did the page changes and reported no problem with their time. The measured time is in [Time of a page change](#time-of-a-page-change-2026-11-12). | Measured: owner |
 
 ## Not known
 
