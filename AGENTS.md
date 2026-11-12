@@ -32,11 +32,12 @@ Each line names a rule. The link goes to the one place that holds the rule.
   `scripts/notices.sh` and commit `THIRD-PARTY-NOTICES.txt`. CI fails if the
   file is not correct. [scripts/README.md](scripts/README.md#noticessh)
 
-## Only the owner publishes
+## Publish only when the owner tells you
 
-Do not run `scripts/release.sh` with `OPENCRAFT_NOTARY_PROFILE`. Do not make
-a tag or a GitHub release, and do not push to the Homebrew tap. The owner
-does these steps. See
+A release is public and cannot be taken back. Do not run
+`scripts/release.sh` with `OPENCRAFT_NOTARY_PROFILE`, do not make a tag or a
+GitHub release, and do not push to the Homebrew tap, unless the owner tells
+you to do that step in your task. The procedure is in
 [Publish the Homebrew cask](scripts/README.md#publish-the-homebrew-cask).
 
 ## A real device can be connected
