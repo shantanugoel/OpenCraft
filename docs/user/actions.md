@@ -169,7 +169,7 @@ Pages are in [Knobs, touch bar, pages, and profiles](controls.md#pages).
 
 | Setting | What to give |
 |---|---|
-| Profile name | The name of a profile, as the profile menu shows it |
+| Profile name | The name of a profile, as the sidebar shows it |
 
 - The device shows the first page of that profile.
 - If no profile has that name, the window shows a message.

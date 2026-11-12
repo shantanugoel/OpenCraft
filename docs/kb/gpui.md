@@ -498,6 +498,27 @@ pictures are kept outside the repository.
 | `cx.debug_bounds(id)` of `VisualTestContext` takes a `&'static str`. A test cannot give it an identifier from `format!`. | Source | Build error in `view/tests/actions.rs` |
 | In a window test, a click goes to the centre of the element. The centre of the head row of a gesture card is on its popup button, so the test clicks the gesture name (`{id}-name`) to open the card. | Measured | `cards_open_set_a_kind_change_a_setting_and_clear_an_action` |
 
+## Sidebar in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+sidebar of [issue 177](https://github.com/shantanugoel/OpenCraft/issues/177),
+on the computer of [Release measurements](#release-measurements), with a
+scratch copy of the profiles (two profiles, three pages) and the device
+connected. A helper program operated the real window with Quartz events and
+took pictures of the window only. The pictures are kept outside the
+repository. The window tests are in `crates/app/src/view/tests/sidebar.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| In the application, a double click on a page row and on a profile row gave `ClickEvent::click_count()` 2, and the name field opened in the row. | Measured | Window pictures |
+| A Kit `Input` with one line handles Return with `cx.propagate()` and then emits `InputEvent::PressEnter`. On the test platform, the window then put the key into the text: a selected name became empty before the subscriber read it. A `capture_key_down` handler on the parent element that handles `"enter"` and calls `cx.stop_propagation()` keeps the name, in the tests and in the real window. | Source; Measured (test platform); Measured (the handler, real window) | `gpui-base` 0.9.1 `src/input/base/state.rs`, `enter`; `a_page_name_is_edited_in_the_row` |
+| `Input` applies the style of the caller after its own style. `.h(..)`, `.px(..)`, `.bg(..)`, `.rounded(..)`, and `.text_size(..)` on `Input::new(..)` changed the field. A negative leading margin on the parent (`ml(-inset)`) put the text of the field at the same x as the name in the other rows. | Source; Measured | `gpui-component` 0.9.1 `src/input/input.rs`, `refine_style`; window picture |
+| `Window::prompt(PromptLevel::Warning, message, Some(detail), &[PromptButton::ok("Remove"), PromptButton::cancel("Cancel")], cx)` shows a native alert in the centre of the window. Return chose "Remove", and Escape chose "Cancel". The receiver gives the index of the button. | Measured | Window pictures |
+| On the test platform, `VisualTestContext::pending_prompt()` gives the message and the detail of the alert, and `simulate_prompt_answer("Remove")` chooses a button by its label. | Source; Measured | `gpui-pre` 0.3.12 `src/app/test_context.rs`; `the_page_menu_sends_the_page_commands` |
+| On the test platform, `NativeMenu::show` shows nothing and returns: the test window has no raw window handle, thus the menu finds no view. A window test does the right click, and then sends the action of the menu item with `dispatch_action`. | Source; Measured (no panic) | `gpui-component` 0.9.1 `src/native_menu/macos.rs`, `ns_view_ptr`; `gpui-pre` 0.3.12 `src/platform/test/window.rs` |
+| `NativeMenu::menu_with_disabled` shows a disabled item, for example "Move Up" on the first page. `menu_with_check` shows a check mark. | Measured | Window pictures |
+| A native menu opens with its first item under the pointer, and that item is highlighted. Then the Up arrow key did not move the highlight. Move the pointer out of the menu before the arrow keys in a helper program. | Measured | Window pictures |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
@@ -603,18 +624,11 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   the light menu bar. Only the dark menu bar was tested.
 - Full input-method and accessibility behaviour. The test covers simple text
   entry, not every input method or assistive tool.
-- Whether a double click on a page tab of the application gives a click
-  count of 2 in the native window. A double click on a sidebar row of the
-  [window layout test](#window-layout-test-2026-11-12) gave 2, and the page
-  tab uses the same `ClickEvent::click_count`. Thus a count of 2 is likely
-  (Inference), but nobody measured it on the page tab.
 - How VoiceOver reads a sidebar of plain `div` rows, a drag and drop, and
   the command palette. The window layout test did not use an assistive
   tool. Plain rows have no tree role until the code adds one.
 - Arrow keys in a sidebar of plain `div` rows. The test program has no key
   bindings for them. The Kit tree has them.
-- What `NativeMenu::show` does on the no-display test platform. The window
-  tests use the drawn menu.
 - A drag out of the window, and a drag from a different application. The
   test only dragged inside the window.
 - The look of the Kit parts in the light theme. The window layout test used

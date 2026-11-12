@@ -1,9 +1,9 @@
-//! The canvas in the centre (decision 0029, section 8): the page row, the
+//! The canvas in the centre (decision 0029, section 8): the page title, the
 //! device drawing, the messages, and the status bar.
 //!
-//! The page row stays at the top of the canvas until #177 moves the pages
-//! into the sidebar. Its place is the place of the page header of #178. The
-//! drawing is the drawing of Phase 6 until #178 changes it to section 8.2.
+//! The sidebar has the pages and their commands (#177). The page title is
+//! in the place of the page header of #178. The drawing is the drawing of
+//! Phase 6 until #178 changes it to section 8.2.
 
 use super::*;
 
@@ -74,7 +74,8 @@ impl DeviceView {
                         .px(theme::SPACE_20)
                         .flex()
                         .items_center()
-                        .child(self.page_row(cx)),
+                        .gap(theme::SPACE_10)
+                        .child(self.page_title()),
                 )
             })
             .child(
@@ -90,6 +91,33 @@ impl DeviceView {
             .children(self.messages(cx))
             .child(self.status_bar())
             .into_any_element()
+    }
+
+    /// The name of the active page, and "Page *N* of *M*".
+    fn page_title(&self) -> impl IntoElement {
+        let pages = &self.state.pages;
+        div()
+            .id("page-title")
+            .debug_selector(|| "page-title".into())
+            .min_w_0()
+            .flex()
+            .items_baseline()
+            .gap(theme::SPACE_10)
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_size(theme::TEXT_HEADING)
+                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                    .child(super::pages::page_title(pages, self.state.page)),
+            )
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .text_size(theme::TEXT_LABEL)
+                    .text_color(theme::TEXT_TERTIARY)
+                    .child(format!("Page {} of {}", self.state.page + 1, pages.len())),
+            )
     }
 
     /// The surface with the blue frame of the selection. The device settings

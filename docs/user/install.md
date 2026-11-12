@@ -70,10 +70,10 @@ the middle, and the right panel. The parts:
 
 | Part | Position | What it shows |
 |---|---|---|
-| Sidebar | Left | The model of the device, for example "VSD StreamDock N4 Pro", and "Connected" or "Not connected" |
-| Toolbar | Top, above the device picture and the right panel | The name of the active page, the active profile and its number of pages, the **Profile** menu, **Device settings**, and the connection |
+| Sidebar | Left | At the top, the device: its model, for example "VSD StreamDock N4 Pro", and "Connected" or "Not connected". Below it, the [profiles and the pages](controls.md#pages). At the bottom, **Settings**, which is not available in this version. |
+| Toolbar | Top, above the device picture and the right panel | The name of the active page, the active profile and its number of pages, **Device settings**, and the connection |
 | Connection | Toolbar, right | "Live on the device", or "Not connected" |
-| Page row | Top of the device picture | One button for each page, **+ Page**, and the buttons for the active page |
+| Page title | Top of the device picture | The name of the active page, and its position, for example "Page 1 of 3" |
 | Device picture | Middle | The 10 key faces, the 4 bar panels, the touch bar, and the 4 knobs. Each key face and bar panel shows the same image as the device. |
 | Right panel | Right | Two tabs. **Inspector** shows the settings of the control that you selected. **Library** is empty in this version. |
 | Status bar | Bottom of the device picture | At the left, the last gesture on the device, for example "Key 3 · Press · now". At the right, "All changes saved". |

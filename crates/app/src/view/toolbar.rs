@@ -1,9 +1,9 @@
 //! The toolbar above the canvas and the right panel (decision 0029,
 //! section 5).
 //!
-//! The items, from the leading side: the title block, the profile menu and
-//! the button "Device settings" (until #177 and #180), a flexible space, the
-//! live state pill, and the button that hides the right panel. The places of
+//! The items, from the leading side: the title block, the button "Device
+//! settings" (until #180), a flexible space, the live state pill, and the
+//! button that hides the right panel. The places of
 //! undo and redo (#186) are after the title block, and the place of the
 //! search field (#192) is after the pill.
 
@@ -81,7 +81,6 @@ impl DeviceView {
                 )
             })
             .child(self.title_block(cx))
-            .child(self.profile_control(cx))
             .child(
                 small_button("open-device-settings", "Device settings", true)
                     .when(self.device.open, |d| {

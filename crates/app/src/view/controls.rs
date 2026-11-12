@@ -51,6 +51,9 @@ pub(super) fn small_button(
 }
 
 /// A button for a change that removes something.
+// The window has no such button since the sidebar menus replaced the page
+// row (#177). The tasks of #173 use it again.
+#[allow(dead_code)]
 pub(super) fn danger_button(
     id: impl Into<SharedString>,
     text: impl Into<SharedString>,
@@ -139,6 +142,8 @@ pub(super) fn dot(colour: gpui_kit::Rgba) -> Div {
 /// A square button with one icon, 28 × 28. `label` is the tooltip. A
 /// button that is not enabled shows a dim icon; the caller adds no click
 /// handler to it.
+// The page header of #178 uses it.
+#[allow(dead_code)]
 pub(super) fn square_button(
     id: &'static str,
     icon: IconName,

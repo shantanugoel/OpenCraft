@@ -61,6 +61,8 @@ pub const BORDER_CONTROL: Rgba = hex(0x42444b);
 pub const BORDER_OVERLAY: Rgba = hex(0x44474f);
 /// The border of the device card when it is not selected.
 pub const BORDER_DEVICE_CARD: Rgba = hex(0x383a40);
+/// The line above the bottom group of the sidebar.
+pub const LINE_SIDEBAR: Rgba = hex(0x2e3035);
 
 /// Normal text.
 pub const TEXT_PRIMARY: Rgba = hex(0xececee);
@@ -104,6 +106,9 @@ pub const HOVER_CONTROL: Rgba = hex(0x383a40);
 pub const HOVER_ICON: Rgba = hex_alpha(0xffffff, 0.06);
 /// A row under the pointer.
 pub const HOVER_ROW: Rgba = hex_alpha(0xffffff, 0.05);
+/// A selected row in a pane that does not have the selection, for example
+/// the active page row when the device is the selection.
+pub const SELECTED_UNFOCUSED: Rgba = hex_alpha(0xffffff, 0.07);
 /// A pressed button.
 pub const PRESSED: Rgba = hex(0x42444b);
 /// The background of the live state pill when no device is connected.
@@ -163,8 +168,9 @@ pub const TEXT_CONTROL: Pixels = px(12.5);
 pub const TEXT_BODY: Pixels = px(13.);
 /// The name in the inspector header.
 pub const TEXT_HEADING: Pixels = px(15.);
-/// A section header, in capital letters, weight 600. GPUI has no letter
-/// spacing, thus the header has the normal spacing of the font.
+/// A section header, in capital letters, weight 600, for example "PROFILES"
+/// in the sidebar. GPUI has no letter spacing, thus the header has the
+/// normal spacing of the font.
 pub const TEXT_SECTION: Pixels = px(11.);
 
 // MARK: Spacing steps (section 3.3)
@@ -289,8 +295,15 @@ pub const TOOLBAR_TITLE_MAX: Pixels = px(220.);
 /// The height of the page row at the top of the canvas (the place of the
 /// page header of section 8.1).
 pub const PAGE_HEADER_HEIGHT: Pixels = px(48.);
-/// The widest page button, and the widest profile button.
-pub const PAGE_BUTTON_MAX: Pixels = px(200.);
+/// The "+" button of a section header of the sidebar.
+pub const SIDEBAR_ADD_WIDTH: Pixels = px(24.);
+pub const SIDEBAR_ADD_HEIGHT: Pixels = px(22.);
+/// The text field that replaces a name in a sidebar row: its height, and
+/// the space from its edge to its text (padding and border).
+pub const ROW_FIELD_HEIGHT: Pixels = px(22.);
+pub const ROW_FIELD_INSET: Pixels = px(5.);
+/// The leading padding of a page row and of the "Add a page" row.
+pub const SIDEBAR_PAGE_INDENT: Pixels = px(50.);
 /// The space around the device drawing in the canvas.
 pub const DEVICE_MARGIN: f32 = 24.;
 
@@ -302,6 +315,8 @@ pub const ICON_SMALL: Pixels = px(12.);
 pub const ICON_BUTTON: Pixels = px(14.);
 /// An icon in a message row.
 pub const ICON_MESSAGE: Pixels = px(14.);
+/// An icon in a sidebar row.
+pub const ICON_ROW: Pixels = px(15.);
 /// The icon of a pane button.
 pub const ICON_PANE: Pixels = px(17.);
 /// The device icon of the device card.
@@ -362,10 +377,12 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     Copy,
     Ellipsis,
     Grid3x2,
+    Layers,
     PanelLeft,
     PanelRight,
     Pencil,
     Plus,
+    Settings,
     Trash,
     TriangleAlert,
 ]);
