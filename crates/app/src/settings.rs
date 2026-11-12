@@ -5,7 +5,9 @@
 //! file is in the parent directory of the profiles directory, next to the
 //! lock file of decision 0019.
 //!
-//! The file also keeps the panes of the window (decision 0029, section 4).
+//! The file also keeps the panes of the window (decision 0029, section 4),
+//! the options of the Settings window, and the pane of that window that was
+//! visible last (decision 0029, section 17).
 
 use crate::view::theme;
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
@@ -24,6 +26,13 @@ pub struct Settings {
     /// Show the Dock icon. If false, the application uses the accessory
     /// activation policy.
     pub show_dock_icon: bool,
+    /// Open the window at a start that is not a start at login (decision
+    /// 0029, section 17). A start at login never opens the window (decision
+    /// 0021).
+    pub show_window_at_start: bool,
+    /// The pane of the Settings window that was visible last.
+    #[serde(deserialize_with = "settings_pane")]
+    pub settings_pane: SettingsPane,
     #[serde(flatten)]
     pub panes: Panes,
 }
@@ -32,7 +41,34 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             show_dock_icon: true,
+            show_window_at_start: true,
+            settings_pane: SettingsPane::default(),
             panes: Panes::default(),
+        }
+    }
+}
+
+/// A pane of the Settings window, in the order of its tabs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SettingsPane {
+    #[default]
+    General,
+    Shortcuts,
+    About,
+}
+
+impl SettingsPane {
+    /// The panes, in the order of the tabs. The tabs "Plug-ins" and "Updates"
+    /// are places for later (decision 0029, section 21): they are not here.
+    pub const ALL: [SettingsPane; 3] = [Self::General, Self::Shortcuts, Self::About];
+
+    /// The name of the pane, for its tab and for the title of the window.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::General => "General",
+            Self::Shortcuts => "Shortcuts",
+            Self::About => "About",
         }
     }
 }
@@ -119,6 +155,10 @@ fn tab<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RightPanelTab, D::E
     lenient(deserializer, RightPanelTab::Inspector, |_| true)
 }
 
+fn settings_pane<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SettingsPane, D::Error> {
+    lenient(deserializer, SettingsPane::default(), |_| true)
+}
+
 /// The directory of the files of the shell: the parent directory of the
 /// profiles directory. A profiles directory with no parent gives the
 /// current directory.
@@ -184,7 +224,8 @@ mod tests {
         save(&config, &hidden).unwrap();
         assert_eq!(
             std::fs::read_to_string(config.join(FILE_NAME)).unwrap(),
-            "show_dock_icon = false\nsidebar_visible = true\ninspector_visible = true\n\
+            "show_dock_icon = false\nshow_window_at_start = true\nsettings_pane = \"general\"\n\
+             sidebar_visible = true\ninspector_visible = true\n\
              sidebar_width = 240.0\ninspector_width = 360.0\nright_panel_tab = \"inspector\"\n"
         );
         assert_eq!(load(&config), (hidden, None));
@@ -198,6 +239,35 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join(FILE_NAME), "later_setting = 3\n").unwrap();
         assert_eq!(load(dir.path()), (Settings::default(), None));
+    }
+
+    #[test]
+    fn the_options_of_the_settings_window_are_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        // The first start: the window shows at the start, at the first pane.
+        assert!(Settings::default().show_window_at_start);
+        assert_eq!(Settings::default().settings_pane, SettingsPane::General);
+        let settings = Settings {
+            show_window_at_start: false,
+            settings_pane: SettingsPane::About,
+            ..Settings::default()
+        };
+        save(dir.path(), &settings).unwrap();
+        assert_eq!(load(dir.path()), (settings, None));
+        // An unknown pane, for example a pane of a later version, gives the
+        // first pane. The other values stay, and the user sees no problem.
+        std::fs::write(
+            dir.path().join(FILE_NAME),
+            "show_window_at_start = false\nsettings_pane = \"plug-ins\"\n",
+        )
+        .unwrap();
+        let (loaded, problem) = load(dir.path());
+        assert_eq!(problem, None);
+        assert!(!loaded.show_window_at_start);
+        assert_eq!(loaded.settings_pane, SettingsPane::General);
+        // The panes are the ones of the tabs, in order.
+        let names: Vec<_> = SettingsPane::ALL.iter().map(|p| p.name()).collect();
+        assert_eq!(names, ["General", "Shortcuts", "About"]);
     }
 
     #[test]
@@ -246,6 +316,7 @@ mod tests {
                         inspector_width: 400.,
                         right_panel_tab: RightPanelTab::Inspector,
                     },
+                    ..Settings::default()
                 },
                 None
             )

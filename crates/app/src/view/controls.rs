@@ -19,7 +19,7 @@ use gpui_kit::{
 
 /// A button with a small padding. A button that is not enabled shows dim
 /// text; the caller adds no click handler to it.
-pub(super) fn small_button(
+pub(crate) fn small_button(
     id: impl Into<SharedString>,
     text: impl Into<SharedString>,
     enabled: bool,
@@ -62,7 +62,7 @@ pub(super) fn danger_button(
 }
 
 /// A normal button.
-pub(super) fn button(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
+pub(crate) fn button(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
     button_if(id, text, true)
 }
 
@@ -263,18 +263,27 @@ pub(super) fn popup_button(
         )
 }
 
-/// A switch, 30 × 18 (section 10.7): on is `accent`, off is
-/// `bg-segment-on`, with a white knob. The caller adds the click handler.
-pub(super) fn switch(id: impl Into<SharedString>, on: bool) -> Stateful<Div> {
+/// A switch (section 3.5): on is `accent` with the knob at the end, off is
+/// `bg-segment-on` with the knob at the start. The knob is white. `size` is
+/// [`theme::SWITCH_INSPECTOR`] or [`theme::SWITCH_SETTINGS`]. The caller adds
+/// the click handler, and keeps the value.
+pub(crate) fn switch(
+    id: impl Into<SharedString>,
+    on: bool,
+    size: theme::SwitchSize,
+) -> Stateful<Div> {
     let id: SharedString = id.into();
-    let travel = theme::SWITCH_WIDTH - theme::SWITCH_KNOB - theme::SPACE_4;
+    let inset = (size.height - size.knob) / 2.;
     div()
         .id(id.clone())
-        .debug_selector(move || id.to_string())
+        .debug_selector({
+            let id = id.clone();
+            move || id.to_string()
+        })
         .flex_shrink_0()
-        .w(theme::SWITCH_WIDTH)
-        .h(theme::SWITCH_HEIGHT)
-        .p(theme::SPACE_2)
+        .relative()
+        .w(size.width)
+        .h(size.height)
         .rounded_full()
         .bg(if on {
             theme::ACCENT
@@ -284,10 +293,14 @@ pub(super) fn switch(id: impl Into<SharedString>, on: bool) -> Stateful<Div> {
         .cursor_pointer()
         .child(
             div()
-                .size(theme::SWITCH_KNOB)
+                .debug_selector(move || format!("{id}-knob"))
+                .absolute()
+                .top(inset)
+                .when(on, |d| d.right(inset))
+                .when(!on, |d| d.left(inset))
+                .size(size.knob)
                 .rounded_full()
-                .bg(theme::SWITCH_KNOB_COLOUR)
-                .when(on, |d| d.ml(travel)),
+                .bg(theme::SWITCH_KNOB_COLOUR),
         )
 }
 

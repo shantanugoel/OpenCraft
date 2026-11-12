@@ -12,7 +12,7 @@ you need them.
 | 2. [Configure a key](first-key.md) | The main procedure: select a key, set its label, colour, image, and action, and push the key |
 | 3. [Actions](actions.md) | Each action kind and its settings, the toggle, and the sequence |
 | 4. [Knobs, touch bar, pages, and profiles](controls.md) | The other controls, more pages, more profiles, and the device settings |
-| 5. [Operation in the background](background.md) | The menu bar item, the Dock icon, the start at login, and the files of OpenCraft |
+| 5. [Operation in the background](background.md) | The menu bar item, the Settings window, the Dock icon, the start at login, and the files of OpenCraft |
 | 6. [Faults and corrections](faults.md) | What to do when something does not operate, and the limits of OpenCraft |
 
 ## Words in this guide

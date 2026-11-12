@@ -109,5 +109,5 @@ Mirabox and the [mirajazz](https://github.com/4ndv/mirajazz) crate (MPL-2.0).
 ## Licence
 
 MIT. See [LICENSE](LICENSE). The licences of the dependencies are in
-[THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt). The menu bar item of
-OpenCraft also opens them.
+[THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt). The tab About of the
+Settings window of OpenCraft also opens them.

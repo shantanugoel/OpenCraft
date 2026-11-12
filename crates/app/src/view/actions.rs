@@ -1023,6 +1023,7 @@ impl DeviceView {
             InputType::Toggle => row(controls::switch(
                 format!("{id}toggle-{index}"),
                 value == Some(&Value::Boolean(true)),
+                theme::SWITCH_INSPECTOR,
             )
             .on_click(cx.listener(move |view, _, _, cx| {
                 let Some(binding) = view.form_binding() else {

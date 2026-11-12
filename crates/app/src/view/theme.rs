@@ -287,10 +287,26 @@ pub const HEIGHT_EMPTY_NESTED: Pixels = px(32.);
 pub const HEIGHT_LONG_TEXT: Pixels = px(60.);
 /// The text field of an integer.
 pub const WIDTH_INTEGER_FIELD: Pixels = px(56.);
-/// A switch in the inspector: width, height, and the diameter of its knob.
-pub const SWITCH_WIDTH: Pixels = px(30.);
-pub const SWITCH_HEIGHT: Pixels = px(18.);
-pub const SWITCH_KNOB: Pixels = px(14.);
+/// The size of a switch (section 3.5): width, height, and the diameter of
+/// its knob.
+#[derive(Clone, Copy)]
+pub struct SwitchSize {
+    pub width: Pixels,
+    pub height: Pixels,
+    pub knob: Pixels,
+}
+/// A switch in the inspector.
+pub const SWITCH_INSPECTOR: SwitchSize = SwitchSize {
+    width: px(30.),
+    height: px(18.),
+    knob: px(14.),
+};
+/// A switch in the Settings window.
+pub const SWITCH_SETTINGS: SwitchSize = SwitchSize {
+    width: px(32.),
+    height: px(19.),
+    knob: px(15.),
+};
 /// The picture in the inspector header.
 pub const HEADER_PICTURE: Pixels = px(64.);
 /// The ring of the knob picture in the inspector header.
@@ -455,6 +471,35 @@ pub const DEVICE_AREA_GAP: Pixels = SPACE_18;
 /// The line height of the help line below the device.
 pub const HELP_LINE_HEIGHT: f32 = 16.;
 
+// MARK: The Settings window (section 17)
+
+/// The title of a sheet, and the name of the application in the pane "About".
+pub const TEXT_SHEET_TITLE: Pixels = px(17.);
+/// A group box of the Settings window.
+pub const RADIUS_GROUP: Pixels = px(10.);
+/// The width of the Settings window. Its height follows its pane.
+pub const SETTINGS_WIDTH: f32 = 640.;
+/// The height of the title bar of the Settings window, with the window
+/// buttons and the name of the pane.
+pub const SETTINGS_TITLE_HEIGHT: Pixels = px(34.);
+/// The point of the close button of the Settings window, from the top-left
+/// corner. The centre of the window buttons is then in the middle of the
+/// title bar.
+pub const SETTINGS_WINDOW_BUTTONS: (Pixels, Pixels) = (px(13.), px(10.));
+/// A tab of the Settings window.
+pub const SETTINGS_TAB: (Pixels, Pixels) = (px(78.), px(50.));
+/// The icon of a tab of the Settings window.
+pub const ICON_TAB: Pixels = px(20.);
+/// The padding of the content of a pane: top and bottom, and the sides.
+pub const SETTINGS_CONTENT_Y: Pixels = SPACE_18;
+pub const SETTINGS_CONTENT_X: Pixels = px(40.);
+/// The application icon in the pane "About".
+pub const APP_ICON: Pixels = px(64.);
+/// The line height of the Settings window, as a multiple of the text size.
+/// Each row has one or two lines, so the window does not use a taller
+/// line height.
+pub const SETTINGS_LINE_HEIGHT: f32 = 1.25;
+
 // MARK: Icons (section 3.6)
 
 // The window embeds only the icons in this list. A new icon in the window
@@ -467,6 +512,8 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     Copy,
     Ellipsis,
     Grid3x2,
+    Info,
+    Keyboard,
     Layers,
     PanelLeft,
     PanelRight,
@@ -474,6 +521,8 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     Plus,
     Redo2,
     Settings,
+    ShieldAlert,
+    ShieldCheck,
     Trash,
     TriangleAlert,
     Undo2,
