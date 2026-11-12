@@ -73,7 +73,7 @@ the middle, and the right panel. The parts:
 | Part | Position | What it shows |
 |---|---|---|
 | Sidebar | Left | At the top, the device: its model, for example "VSD StreamDock N4 Pro", and "Connected" or "Not connected". Below it, the [profiles and the pages](controls.md#pages). At the bottom, **Settings**, which opens the [Settings window](background.md#the-settings-window). |
-| Toolbar | Top, above the device picture and the right panel | The name of the active page, the active profile and its number of pages, the **Undo** and **Redo** buttons, **Device settings**, and the connection |
+| Toolbar | Top, above the device picture and the right panel | The name of the active page, the active profile and its number of pages, the **Undo** and **Redo** buttons, and the connection |
 | Connection | Toolbar, right | "Live on the device", or "Not connected" |
 | Page header | Top of the device picture | The name of the active page, "Page 1 of 1", the buttons **Previous page** and **Next page**, and **Page settings** |
 | Device picture | Middle | The 10 key faces, the 4 bar panels, the touch bar, and the 4 knobs, at their real positions. Each key face and bar panel shows the same image as the device. Below the device is a line of help. See [The device picture](controls.md#the-device-picture). |

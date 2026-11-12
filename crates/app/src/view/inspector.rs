@@ -1,5 +1,6 @@
 //! The "Inspector" tab of the right panel (decision 0029, section 10): the
-//! inspector of the selected control, or the device settings.
+//! inspector of the selected control, or the device inspector
+//! (`device_inspector`).
 //!
 //! The inspector of a key face or a bar panel has the header, the
 //! "Appearance" section, and the "Gestures" section with one gesture card
@@ -44,7 +45,7 @@ impl InspectorState {
 }
 
 /// A colour from the text `#RRGGBB` or `RRGGBB`.
-fn parse_colour(text: &str) -> Option<Color> {
+pub(super) fn parse_colour(text: &str) -> Option<Color> {
     let digits = text.trim().trim_start_matches('#');
     if digits.len() != 6 || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
         return None;
@@ -127,11 +128,7 @@ impl DeviceView {
     /// below.
     pub(super) fn inspector(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let content = if self.device.open {
-            self.device_editor(cx)
-                .gap(theme::SPACE_16)
-                .pt(theme::SECTION_PADDING_TOP)
-                .px(theme::SECTION_PADDING_SIDE)
-                .pb(theme::SECTION_PADDING_BOTTOM)
+            self.device_inspector(window, cx)
         } else {
             self.control_inspector(window, cx)
         };

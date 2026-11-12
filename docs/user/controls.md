@@ -191,30 +191,38 @@ the mark **ON DEVICE**, and its pages are below it.
 The device settings are for the device, not for a profile. A change of the
 profile or of the page does not change them.
 
-1. Click the device at the top of the sidebar, or **Device settings** in the
-   toolbar. The **Inspector** tab of the right panel shows the device
-   settings. The body of the device picture has a blue outline. No control
-   has a blue outline.
+1. Select the device. Click the device at the top of the sidebar, or click
+   the body of the device in the device picture, outside the key faces, the
+   display, and the knobs. The **Inspector** tab of the right panel shows the
+   device settings. The body of the device picture has a blue outline. No
+   control has a blue outline.
 2. Change a setting. To change a brightness, drag its slider. The number
-   to the right of the setting name shows the value. The device shows the
-   change immediately.
+   above the slider shows the value. The device shows the change at once.
 3. To go back to the settings of a control, click a control in the device
    picture, or click the active page in the sidebar.
 
 ![The device settings](images/device-settings.png)
 
-| Setting | Values | Default |
-|---|---|---|
-| Display brightness | 15 to 100 percent. The device gives the same light for all values from 0 to 15, thus the lowest value is 15. | 80 percent |
-| Haptic feedback | On or Off. The device vibrates a little when you operate a control. | On |
-| Knob lights | **Effect**: the colours of the device change slowly. **Colours**: one colour for each knob. **Off**: no light. | Effect |
-| Knob light brightness | 1 to 100 percent | 100 percent |
+The inspector has a header and three sections. The header shows the model of
+the device and "Connected by USB" or "Not connected". A device model that
+does not have a setting does not show the section of that setting.
+
+| Section | Setting | Values | Default |
+|---|---|---|---|
+| Display | Brightness | 15 to 100 percent. The device gives the same light for all values from 0 to 15, thus the lowest value is 15. | 80 percent |
+| Feedback | Haptic feedback | On or off. The device vibrates a little when you operate a control. Use the switch. | On |
+| Knob lights | Mode | **Effect**: the colours of the device change slowly. **Colours**: one colour for each knob. **Off**: no light. | Effect |
+| Knob lights | Light brightness | 1 to 100 percent. In the mode **Off**, the slider is dim and its value stays. | 100 percent |
 
 To give each knob light a colour:
 
-1. Below **Knob lights**, click **Colours**.
-2. For each knob, click a colour. Or type a colour in the form `#RRGGBB`,
-   for example `#FF8000`.
+1. In the section **Knob lights**, click **Colours**. The inspector shows one
+   button for each knob. Each button shows the colour of the knob and its
+   value in the form `#RRGGBB`.
+2. Click the button of a knob. A small window opens.
+3. Click a colour. Or type a colour in the form `#RRGGBB`, for example
+   `#FF8000`.
+4. To close the small window, push Return or Escape, or click outside it.
 
 A black knob light is off. If all knob lights are black, all knob lights are
 off.

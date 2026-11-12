@@ -238,7 +238,7 @@ fn a_click_with_no_selected_control_only_shows_a_message(cx: &mut TestAppContext
 
     // The device is the selection, and a key was selected before.
     click(cx, "surface-key face 2");
-    cx.update(|window, cx| view.update(cx, |view, cx| view.toggle_device_panel(window, cx)));
+    cx.update(|window, cx| view.update(cx, |view, cx| view.select_device(window, cx)));
     click(cx, "library-2");
     assert!(last_set(&sent).is_none());
     assert_eq!(message(&view, cx).as_deref(), Some(SELECT_FIRST));

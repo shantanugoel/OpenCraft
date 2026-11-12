@@ -243,7 +243,7 @@ fn the_tabs_change_the_content_of_the_right_panel(cx: &mut TestAppContext) {
     assert_eq!(bounds(cx, "tab-library"), header);
     // "Device settings" shows in the Inspector tab.
     click(cx, "tab-library");
-    click(cx, "open-device-settings");
+    click(cx, "device-card");
     click(cx, "tab-inspector");
     assert!(cx.debug_bounds("device-settings").is_some());
 }

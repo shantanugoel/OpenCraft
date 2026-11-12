@@ -140,14 +140,6 @@ impl DeviceView {
         .on_action(cx.listener(|view, _: &SelectDevice, window, cx| view.select_device(window, cx)))
     }
 
-    /// Make the device the selection. Until #180, the inspector then shows
-    /// the device settings.
-    pub(super) fn select_device(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.device.open {
-            self.toggle_device_panel(window, cx);
-        }
-    }
-
     /// Open the right-click menu of `row` at the pointer.
     fn open_menu(
         &mut self,
@@ -281,7 +273,7 @@ impl DeviceView {
     }
 
     /// The model name from the layout of the engine (rule 4).
-    fn device_name(&self) -> String {
+    pub(super) fn device_name(&self) -> String {
         self.state
             .layout
             .as_ref()
@@ -525,9 +517,9 @@ impl DeviceView {
     /// A click on a page row makes the page the active page. The device is
     /// not the selection now. The selection of the canvas stays (decision
     /// 0029, section 8.3).
-    fn activate_page(&mut self, page: usize, window: &mut Window, cx: &mut Context<Self>) {
-        if self.device.open {
-            self.toggle_device_panel(window, cx);
+    fn activate_page(&mut self, page: usize, _window: &mut Window, cx: &mut Context<Self>) {
+        if std::mem::take(&mut self.device.open) {
+            cx.notify();
         }
         if page != self.state.page {
             (self.send)(Command::SelectPage { page });

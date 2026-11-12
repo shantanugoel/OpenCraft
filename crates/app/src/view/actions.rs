@@ -672,10 +672,12 @@ impl DeviceView {
         cx.notify();
     }
 
-    /// Close the open menu of the cards, and the popover of "Other colour".
+    /// Close the open menu of the cards, the popover of "Other colour", and
+    /// the popover of a knob light colour.
     pub(super) fn close_kinds(&mut self) {
         self.form.menu = None;
         self.inspector.colour_open = false;
+        self.device.colour_open = None;
     }
 
     /// The label of the popup of `action`.

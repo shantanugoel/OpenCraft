@@ -535,7 +535,13 @@ impl DeviceView {
             .w(px(display_width))
             .h(px(display_height))
             .rounded(px(theme::DEVICE_DISPLAY_RADIUS * scale))
-            .bg(theme::DEVICE_DISPLAY);
+            .bg(theme::DEVICE_DISPLAY)
+            // A click on an empty part of the display selects the page. The
+            // body of the device would select the device.
+            .on_click(cx.listener(|view, _, window, cx| {
+                cx.stop_propagation();
+                view.select_page(window, cx)
+            }));
         for surface in layout
             .surfaces
             .iter()
@@ -561,7 +567,8 @@ impl DeviceView {
             .controls
             .iter()
             .filter(|c| c.id.kind == ControlKind::Knob)
-            .map(|knob| self.knob(layout, knob, scale, cx));
+            .map(|knob| self.knob(layout, knob, scale, cx))
+            .collect::<Vec<_>>();
         Some(
             div()
                 .id("device-body")
@@ -573,6 +580,13 @@ impl DeviceView {
                 .rounded(px(body_radius))
                 .bg(theme::DEVICE_BODY)
                 .shadow(theme::device_body_shadow())
+                // A click on the body, outside the display and the knobs,
+                // selects the device. A control stops its click.
+                .cursor_pointer()
+                .on_click(cx.listener(|view, _, window, cx| {
+                    cx.stop_propagation();
+                    view.select_device(window, cx)
+                }))
                 // The border is a layer, so that the parts have their
                 // positions from the edge of the body.
                 .child(

@@ -83,16 +83,6 @@ impl DeviceView {
             .child(self.title_block(cx))
             .child(self.history_button(true, cx))
             .child(self.history_button(false, cx))
-            .child(
-                small_button("open-device-settings", "Device settings", true)
-                    .when(self.device.open, |d| {
-                        d.border_color(theme::ACCENT_LINE)
-                            .text_color(theme::ACCENT_TEXT)
-                    })
-                    .on_click(
-                        cx.listener(|view, _, window, cx| view.toggle_device_panel(window, cx)),
-                    ),
-            )
             .child(self.moves_window(div().id("toolbar-space").flex_1().min_w_0().h_full(), cx))
             .child(self.live_pill())
             .child(
