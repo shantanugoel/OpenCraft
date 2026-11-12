@@ -16,6 +16,7 @@ pub enum Item {
     Profile,
     Open,
     ShowDockIcon,
+    StartAtLogin,
     Quit,
     Separator,
 }
@@ -33,13 +34,14 @@ pub enum Kind {
 }
 
 /// The items, in their order in the menu.
-pub const ITEMS: [Item; 8] = [
+pub const ITEMS: [Item; 9] = [
     Item::Device,
     Item::Profile,
     Item::Separator,
     Item::Open,
     Item::Separator,
     Item::ShowDockIcon,
+    Item::StartAtLogin,
     Item::Separator,
     Item::Quit,
 ];
@@ -49,7 +51,7 @@ impl Item {
         match self {
             Item::Device | Item::Profile => Kind::Text,
             Item::Open | Item::Quit => Kind::Command,
-            Item::ShowDockIcon => Kind::Check,
+            Item::ShowDockIcon | Item::StartAtLogin => Kind::Check,
             Item::Separator => Kind::Separator,
         }
     }
@@ -59,6 +61,7 @@ impl Item {
         match self {
             Item::Open => Some(ShellCommand::Open),
             Item::ShowDockIcon => Some(ShellCommand::ToggleDockIcon),
+            Item::StartAtLogin => Some(ShellCommand::ToggleStartAtLogin),
             Item::Quit => Some(ShellCommand::Quit),
             Item::Device | Item::Profile | Item::Separator => None,
         }
@@ -95,6 +98,8 @@ pub struct MenuState {
     /// profiles.
     pub profile: Option<String>,
     pub show_dock_icon: bool,
+    /// The LaunchAgent file of decision 0021 exists.
+    pub start_at_login: bool,
 }
 
 impl MenuState {
@@ -107,6 +112,7 @@ impl MenuState {
             Item::Profile => format!("Profile: {}", self.profile.as_ref()?),
             Item::Open => "Open OpenCraft".into(),
             Item::ShowDockIcon => "Show the Dock icon".into(),
+            Item::StartAtLogin => "Start at login".into(),
             Item::Quit => "Quit OpenCraft".into(),
             Item::Separator => String::new(),
         })
@@ -116,6 +122,7 @@ impl MenuState {
     pub fn checked(&self, item: Item) -> bool {
         match item {
             Item::ShowDockIcon => self.show_dock_icon,
+            Item::StartAtLogin => self.start_at_login,
             _ => false,
         }
     }
@@ -131,6 +138,7 @@ mod tests {
             connected: true,
             profile: Some("Desk".into()),
             show_dock_icon: true,
+            start_at_login: true,
         };
         let titles: Vec<_> = ITEMS
             .iter()
@@ -144,10 +152,24 @@ mod tests {
                 "Profile: Desk",
                 "Open OpenCraft",
                 "Show the Dock icon",
+                "Start at login",
                 "Quit OpenCraft"
             ]
         );
         assert!(state.checked(Item::ShowDockIcon));
+        assert!(state.checked(Item::StartAtLogin));
+        assert_eq!(Item::StartAtLogin.kind(), Kind::Check);
+        assert_eq!(
+            Item::StartAtLogin.command(),
+            Some(ShellCommand::ToggleStartAtLogin)
+        );
+        // Decision 0020: the item is after "Show the Dock icon", before the
+        // separator above "Quit OpenCraft".
+        assert_eq!(Item::StartAtLogin.tag(), Item::ShowDockIcon.tag() + 1);
+        assert_eq!(
+            ITEMS[Item::StartAtLogin.tag() as usize + 1],
+            Item::Separator
+        );
         assert_eq!(Item::Quit.key(), "q");
         assert_eq!(Item::Quit.command(), Some(ShellCommand::Quit));
         assert_eq!(Item::Open.command(), Some(ShellCommand::Open));
@@ -170,6 +192,7 @@ mod tests {
         // No profile line before the engine sends the profiles.
         assert_eq!(state.title(Item::Profile), None);
         assert!(!state.checked(Item::ShowDockIcon));
+        assert!(!state.checked(Item::StartAtLogin));
         assert!(!state.checked(Item::Open));
     }
 
