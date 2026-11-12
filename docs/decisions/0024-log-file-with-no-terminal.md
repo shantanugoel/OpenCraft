@@ -16,8 +16,11 @@ sleep and a wake of the computer.
 
 ## Decision
 
-At the start, before each other message, the shell looks at its standard
-error.
+At the start, after it has the lock of
+[decision 0019](0019-engine-in-the-gui-process.md), the shell looks at its
+standard error. Thus only one process writes and renames the log file. A
+second process that stops at the lock writes its one message to the
+standard error that it got.
 
 - If the standard error is the null device, the shell connects it to the
   file `opencraft.log` in the directory of the shell (the parent directory

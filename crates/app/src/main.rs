@@ -136,8 +136,11 @@ fn main() {
     }
     let profiles_dir = profiles_dir();
     let config_dir = settings::config_dir(&profiles_dir);
-    // Before each other message: a start through launchd or the Finder has
-    // no terminal, and the messages then go to the log file.
+    #[cfg(unix)]
+    let _lock = lock_or_stop(&config_dir);
+    // After the lock, so that only one process writes and renames the log
+    // file. A start through launchd or the Finder has no terminal, and the
+    // messages then go to the log file.
     #[cfg(unix)]
     {
         if let Err(error) = log_file::use_if_no_output(&config_dir) {
@@ -165,8 +168,6 @@ fn main() {
     if !open_window {
         eprintln!("OpenCraft starts with {LOGIN_ARGUMENT}. It opens no window.");
     }
-    #[cfg(unix)]
-    let _lock = lock_or_stop(&config_dir);
     let (settings, settings_problem) = settings::load(&config_dir);
     let (engine, events) = start_engine(profiles_dir);
     // Keep ownership outside the views. The quit hook stops the engine; code
