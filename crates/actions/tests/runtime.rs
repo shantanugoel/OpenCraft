@@ -78,7 +78,8 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             binding: binding(1),
             feedback: Some(Feedback {
                 label: None,
-                level: Some(50)
+                level: Some(50),
+                state: None,
             }),
         }
     );
@@ -89,7 +90,8 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             binding: binding(1),
             feedback: Some(Feedback {
                 label: None,
-                level: Some(55)
+                level: Some(55),
+                state: None,
             }),
         }
     );

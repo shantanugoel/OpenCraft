@@ -13,6 +13,8 @@ use std::time::{Duration, Instant};
 mod support;
 use support::*;
 
+mod flow;
+
 struct Rig {
     system: Arc<Fake>,
     handler: Box<dyn Handler>,
@@ -77,6 +79,7 @@ impl Rig {
                 feedback: Some(Feedback {
                     level: Some(level),
                     label: muted.then(|| "Muted".into()),
+                    state: None,
                 }),
             }
         );
@@ -564,16 +567,16 @@ fn a_closed_message_channel_does_not_panic() {
 }
 
 #[test]
-fn the_factory_has_exactly_seven_unique_kinds_with_the_required_fields() {
+fn the_factory_has_exactly_eleven_unique_kinds_with_the_required_fields() {
     let real: Vec<_> = handlers().iter().flat_map(|h| h.kinds()).collect();
     let fake: Vec<_> = handlers_with_system(Arc::new(Fake::default()))
         .iter()
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 7);
+    assert_eq!(real.len(), 11);
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 7);
+    assert_eq!(kinds.len(), 11);
     for (kind, name, key, input) in [
         (
             "open-application",
@@ -656,6 +659,63 @@ fn the_factory_has_exactly_seven_unique_kinds_with_the_required_fields() {
             assert_eq!(description.fields[0].default, None);
         }
     }
+}
+
+#[test]
+fn the_kinds_that_ask_the_engine_have_the_fields_of_their_decisions() {
+    let kinds: Vec<_> = handlers().iter().flat_map(|h| h.kinds()).collect();
+    let fields = |kind: &str| {
+        let description = kinds
+            .iter()
+            .find(|d| d.kind == format!("opencraft.{kind}"))
+            .unwrap();
+        assert!(!description.name.is_empty());
+        assert!(description.fields.iter().all(|f| !f.label.is_empty()));
+        description
+            .fields
+            .iter()
+            .map(|f| (f.key.as_str(), f.input.clone(), f.default.clone()))
+            .collect::<Vec<_>>()
+    };
+    let page = fields("page");
+    let InputType::Choice { options } = &page[0].1 else {
+        panic!("expected a choice")
+    };
+    let values: Vec<_> = options.iter().map(|o| o.value.as_str()).collect();
+    assert_eq!(values, ["next", "previous", "number"]);
+    assert_eq!(page[0].0, "target");
+    assert_eq!(page[0].2, Some(Value::Text("next".into())));
+    assert_eq!(
+        page[1],
+        (
+            "page",
+            InputType::Integer { min: 1, max: 100 },
+            Some(Value::Integer(1))
+        )
+    );
+    assert_eq!(fields("profile"), [("profile", InputType::Text, None)]);
+    assert_eq!(
+        fields("toggle"),
+        [
+            ("on", InputType::Action, None),
+            ("off", InputType::Action, None),
+            ("on_label", InputType::Text, None),
+        ]
+    );
+    assert_eq!(
+        fields("sequence"),
+        [
+            ("actions", InputType::ActionList, None),
+            (
+                "delay_ms",
+                InputType::Integer {
+                    min: 0,
+                    max: 10_000
+                },
+                Some(Value::Integer(100))
+            ),
+        ]
+    );
 }
 
 #[test]

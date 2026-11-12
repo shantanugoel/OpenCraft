@@ -2,6 +2,7 @@
 
 use crate::backend::{RealSystem, ShellChild, System};
 use crate::descriptions::*;
+use crate::flow::{NavigationHandler, SequenceHandler, ToggleHandler};
 use crate::hotkey::Hotkey;
 use crate::system::{MediaKey, Volume};
 use opencraft_engine::{
@@ -15,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-type Result<T> = std::result::Result<T, String>;
+pub(crate) type Result<T> = std::result::Result<T, String>;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Intervals {
@@ -52,22 +53,25 @@ pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dy
             intervals,
         }),
         Box::new(VolumeHandler {
-            system,
+            system: system.clone(),
             sender: None,
             state: Arc::new(Mutex::new(VolumeState::default())),
             poll: None,
             intervals,
         }),
+        Box::new(NavigationHandler::default()),
+        Box::new(ToggleHandler::default()),
+        Box::new(SequenceHandler::new(system)),
     ]
 }
 
-fn send(sender: &Option<MessageSender>, message: Message) {
+pub(crate) fn send(sender: &Option<MessageSender>, message: Message) {
     if let Some(sender) = sender {
         let _ = sender.send(message);
     }
 }
 
-fn problem(sender: &Option<MessageSender>, result: Result<()>) {
+pub(crate) fn problem(sender: &Option<MessageSender>, result: Result<()>) {
     if let Err(text) = result {
         send(sender, Message::Problem(text));
     }
@@ -80,7 +84,7 @@ fn text<'a>(settings: &'a Settings, key: &str) -> Result<&'a str> {
     }
 }
 
-fn nonblank<'a>(settings: &'a Settings, key: &str) -> Result<&'a str> {
+pub(crate) fn nonblank<'a>(settings: &'a Settings, key: &str) -> Result<&'a str> {
     let value = text(settings, key)?;
     if value.trim().is_empty() {
         Err(format!("Set {key} to text that is not empty."))
@@ -349,6 +353,7 @@ fn volume_feedback(sender: &Option<MessageSender>, binding: BindingId, volume: V
                 } else {
                     volume.level.min(100)
                 }),
+                state: None,
             }),
         },
     );

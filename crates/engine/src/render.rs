@@ -13,8 +13,11 @@
 //! - With a label and no image, the label is at the centre of the surface.
 //! - With a label and an image, the label is in a band at the bottom, and
 //!   the image has the area above the band.
+//!
+//! Feedback of a handler changes this layout: see
+//! [`surface_image_with_feedback`].
 
-use crate::action::Feedback;
+use crate::action::{Feedback, FeedbackState};
 use crate::label::{self, Area};
 use crate::profile::{Color, SurfaceContent};
 use image::imageops::{self, FilterType};
@@ -25,6 +28,12 @@ pub const DEFAULT_COLOR: Color = Color::BLACK;
 
 /// The space between the edge of the surface and the label, in pixels.
 const MARGIN: u32 = 4;
+
+/// The width of the frame for the state "on", in pixels. On a key face of
+/// 112 × 112, a frame of this width stays clear below the key cap, also
+/// where the cap hides a part of one edge from the eye (see
+/// `docs/kb/n4-pro-hardware.md`).
+pub const FRAME: u32 = 6;
 
 /// The size of a surface image, in pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,8 +86,15 @@ pub fn surface_image(
     canvas
 }
 
-/// Make the surface image with the newest feedback. The bar has a dark
-/// track and a white fill. Its area is separate from the label and image.
+/// Make the surface image with the newest feedback of its bindings.
+///
+/// - A label of the feedback replaces the label of the content.
+/// - A level is a bar at the bottom, with a dark track and a white fill. Its
+///   area is separate from the label and the image.
+/// - The state "on" is a frame around the surface, in the colour of the
+///   label (see [`text_color`]). The rest of the image, with the level bar,
+///   is inside the frame, so the frame covers no part of it. The state
+///   "off" draws no frame.
 pub fn surface_image_with_feedback(
     size: Size,
     content: &SurfaceContent,
@@ -92,14 +108,38 @@ pub fn surface_image_with_feedback(
     if let Some(label) = &feedback.label {
         content.label = Some(label.clone());
     }
-    if feedback.level.is_none() || size.width < 16 || size.height < 20 {
-        return surface_image(size, &content, image);
+    if feedback.state != Some(FeedbackState::On) {
+        return with_level(size, &content, image, feedback.level);
     }
+    let color = content.color.unwrap_or(DEFAULT_COLOR);
+    let frame = FRAME.min(size.width / 4).min(size.height / 4);
+    let inner = Size {
+        width: size.width - 2 * frame,
+        height: size.height - 2 * frame,
+    };
+    let mut canvas = RgbImage::from_pixel(size.width, size.height, Rgb(color.0));
+    let inside = with_level(inner, &content, image, feedback.level);
+    imageops::replace(&mut canvas, &inside, i64::from(frame), i64::from(frame));
+    draw_frame(&mut canvas, frame, text_color(color));
+    canvas
+}
+
+/// Make the surface image with a level bar at the bottom, if `level` is
+/// `Some` and the surface is large enough for the bar.
+fn with_level(
+    size: Size,
+    content: &SurfaceContent,
+    image: Option<&DynamicImage>,
+    level: Option<u8>,
+) -> RgbImage {
+    let Some(level) = level.filter(|_| size.width >= 16 && size.height >= 20) else {
+        return surface_image(size, content, image);
+    };
     let area = Size {
         width: size.width,
         height: size.height - 16,
     };
-    let top = surface_image(area, &content, image);
+    let top = surface_image(area, content, image);
     let mut canvas = RgbImage::from_pixel(
         size.width,
         size.height,
@@ -107,7 +147,7 @@ pub fn surface_image_with_feedback(
     );
     imageops::replace(&mut canvas, &top, 0, 0);
     let width = size.width - 12;
-    let fill = width * u32::from(feedback.level.unwrap_or(0).min(100)) / 100;
+    let fill = width * u32::from(level.min(100)) / 100;
     for y in size.height - 12..size.height - 4 {
         for x in 4..size.width - 4 {
             let border =
@@ -123,6 +163,17 @@ pub fn surface_image_with_feedback(
         }
     }
     canvas
+}
+
+/// Draw a frame of `width` pixels in `color` along the four edges of
+/// `canvas`.
+fn draw_frame(canvas: &mut RgbImage, width: u32, color: Color) {
+    let (w, h) = canvas.dimensions();
+    for (x, y, pixel) in canvas.enumerate_pixels_mut() {
+        if x < width || y < width || x + width >= w || y + width >= h {
+            *pixel = Rgb(color.0);
+        }
+    }
 }
 
 /// Draw `image` on `canvas`, as large as possible in the area from 0, 0 with
@@ -306,6 +357,7 @@ mod tests {
             let feedback = Feedback {
                 label: Some("Feedback".into()),
                 level: Some(50),
+                state: None,
             };
             let image = surface_image_with_feedback(size, &content, None, Some(&feedback));
             assert_eq!(image.dimensions(), (size.width, size.height));
@@ -331,6 +383,7 @@ mod tests {
                 let feedback = Feedback {
                     label: None,
                     level: Some(level),
+                    state: None,
                 };
                 let image = surface_image_with_feedback(size, &content, None, Some(&feedback));
                 let want = if level == 0 {
@@ -343,6 +396,7 @@ mod tests {
             let feedback = Feedback {
                 label: Some("Replacement".into()),
                 level: None,
+                state: Some(FeedbackState::Off),
             };
             assert_eq!(
                 surface_image_with_feedback(size, &content, None, Some(&feedback)),
@@ -355,6 +409,109 @@ mod tests {
                     None
                 )
             );
+        }
+    }
+
+    /// True if each pixel of the frame of `width` has the colour `want`.
+    fn has_frame(image: &RgbImage, width: u32, want: Color) -> bool {
+        let (w, h) = image.dimensions();
+        image
+            .enumerate_pixels()
+            .filter(|(x, y, _)| *x < width || *y < width || x + width >= w || y + width >= h)
+            .all(|(_, _, p)| *p == Rgb(want.0))
+    }
+
+    fn on(label: Option<&str>, level: Option<u8>) -> Feedback {
+        Feedback {
+            label: label.map(str::to_string),
+            level,
+            state: Some(FeedbackState::On),
+        }
+    }
+
+    #[test]
+    fn the_state_on_draws_a_frame_in_the_colour_of_the_label() {
+        for size in [KEY, BAR] {
+            // White on a dark colour, and black on a light colour.
+            for (background, frame) in [
+                (None, Color::WHITE),
+                (Some(RED), Color::WHITE),
+                (Some(Color::rgb(255, 210, 30)), Color::BLACK),
+            ] {
+                let content = content(None, background);
+                let image =
+                    surface_image_with_feedback(size, &content, None, Some(&on(None, None)));
+                assert_eq!(image.dimensions(), (size.width, size.height));
+                assert!(has_frame(&image, FRAME, frame), "{size:?} {background:?}");
+                // Inside the frame, the surface has its colour.
+                let inside = background.unwrap_or(DEFAULT_COLOR);
+                assert_eq!(image.get_pixel(FRAME, FRAME), &Rgb(inside.0));
+                assert_eq!(
+                    image.get_pixel(size.width / 2, size.height / 2),
+                    &Rgb(inside.0)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_state_off_draws_no_frame() {
+        let content = content(Some("Mail"), Some(RED));
+        let off = Feedback {
+            state: Some(FeedbackState::Off),
+            ..Feedback::default()
+        };
+        assert_eq!(
+            surface_image_with_feedback(KEY, &content, None, Some(&off)),
+            surface_image(KEY, &content, None)
+        );
+    }
+
+    #[test]
+    fn a_frame_keeps_the_image_the_label_and_the_level_bar_inside_it() {
+        for size in [KEY, BAR] {
+            let content = content(Some("Original"), Some(RED));
+            let feedback = on(Some("On"), Some(50));
+            let image =
+                surface_image_with_feedback(size, &content, Some(&green(64, 64)), Some(&feedback));
+            assert!(has_frame(&image, FRAME, Color::WHITE));
+
+            // The inside is the image with the level bar, at the size of the
+            // inside.
+            let inner = Size {
+                width: size.width - 2 * FRAME,
+                height: size.height - 2 * FRAME,
+            };
+            let level = Feedback {
+                state: None,
+                ..feedback.clone()
+            };
+            let want =
+                surface_image_with_feedback(inner, &content, Some(&green(64, 64)), Some(&level));
+            let inside =
+                imageops::crop_imm(&image, FRAME, FRAME, inner.width, inner.height).to_image();
+            assert_eq!(inside, want);
+            // The fill and the track of the bar are inside the frame.
+            let bar_y = FRAME + inner.height - 8;
+            assert_eq!(image.get_pixel(FRAME + 8, bar_y), &Rgb([255, 255, 255]));
+            assert_eq!(
+                image.get_pixel(FRAME + inner.width - 8, bar_y),
+                &Rgb([64, 64, 64])
+            );
+        }
+    }
+
+    #[test]
+    fn a_frame_on_a_small_surface_does_not_fail() {
+        for (width, height) in [(0, 0), (1, 1), (8, 8), (30, 12)] {
+            let size = Size { width, height };
+            let image = surface_image_with_feedback(
+                size,
+                &content(Some("Mail"), None),
+                None,
+                Some(&on(Some("On"), Some(100))),
+            );
+            assert_eq!(image.dimensions(), (width, height));
         }
     }
 

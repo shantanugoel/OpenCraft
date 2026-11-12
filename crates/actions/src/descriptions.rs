@@ -10,6 +10,18 @@ pub(crate) const MEDIA: &str = "opencraft.media-key";
 pub(crate) const VOLUME: &str = "opencraft.volume";
 pub(crate) const SHELL: &str = "opencraft.shell-command";
 pub(crate) const KEY_KINDS: [&str; 3] = [HOTKEY, TEXT, MEDIA];
+pub(crate) const PAGE: &str = "opencraft.page";
+pub(crate) const PROFILE: &str = "opencraft.profile";
+pub(crate) const TOGGLE: &str = "opencraft.toggle";
+pub(crate) const SEQUENCE: &str = "opencraft.sequence";
+
+/// The largest page number that the page change accepts. The user sees page
+/// numbers from 1.
+pub(crate) const PAGE_LIMIT: i64 = 100;
+/// The largest delay of a sequence, in milliseconds.
+pub(crate) const DELAY_LIMIT: i64 = 10_000;
+/// The delay of a sequence with no delay in its settings, in milliseconds.
+pub(crate) const DEFAULT_DELAY: i64 = 100;
 
 fn field(key: &str, label: &str, input: InputType) -> Field {
     Field {
@@ -83,6 +95,55 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             "Run a shell command",
             vec![field("command", "Command", InputType::LongText)],
         ),
+        PAGE => {
+            let mut target = field(
+                "target",
+                "Page",
+                choice(&[
+                    ("next", "Next page"),
+                    ("previous", "Previous page"),
+                    ("number", "Page number"),
+                ]),
+            );
+            target.default = Some(Value::Text("next".into()));
+            let mut page = field(
+                "page",
+                "Page number",
+                InputType::Integer {
+                    min: 1,
+                    max: PAGE_LIMIT,
+                },
+            );
+            page.default = Some(Value::Integer(1));
+            ("Change the page", vec![target, page])
+        }
+        PROFILE => (
+            "Select a profile",
+            vec![field("profile", "Profile name", InputType::Text)],
+        ),
+        TOGGLE => (
+            "Toggle",
+            vec![
+                field("on", "Action for on", InputType::Action),
+                field("off", "Action for off", InputType::Action),
+                field("on_label", "Label for on", InputType::Text),
+            ],
+        ),
+        SEQUENCE => {
+            let mut delay = field(
+                "delay_ms",
+                "Delay between two actions, in milliseconds",
+                InputType::Integer {
+                    min: 0,
+                    max: DELAY_LIMIT,
+                },
+            );
+            delay.default = Some(Value::Integer(DEFAULT_DELAY));
+            (
+                "Sequence of actions",
+                vec![field("actions", "Actions", InputType::ActionList), delay],
+            )
+        }
         _ => {
             return KindDescription {
                 kind: kind.into(),

@@ -13,3 +13,8 @@ thiserror.workspace = true
 core-graphics.workspace = true
 core-foundation.workspace = true
 objc2.workspace = true
+
+[dev-dependencies]
+# The end-to-end tests drive the engine logic with the fake transport.
+opencraft-core.workspace = true
+tempfile.workspace = true

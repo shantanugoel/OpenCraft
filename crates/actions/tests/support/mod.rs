@@ -18,6 +18,8 @@ pub enum Call {
     Application(String),
     Url(String),
     Shell(String),
+    /// A wait of a sequence, in milliseconds.
+    Sleep(u64),
 }
 
 #[derive(Clone, Copy)]
@@ -39,6 +41,10 @@ pub struct Fake {
     pub failure: Mutex<Option<&'static str>>,
     calls: Mutex<Vec<Call>>,
     gate: Gate,
+    /// The waits that started, and the waits that may end. See
+    /// [`Fake::hold_sleeps`].
+    pub sleeps_started: AtomicUsize,
+    sleep_gate: Arc<(Mutex<Option<usize>>, Condvar)>,
 }
 
 impl Default for Fake {
@@ -56,6 +62,8 @@ impl Default for Fake {
             failure: Mutex::new(None),
             calls: Mutex::new(vec![]),
             gate: Arc::new((Mutex::new(Some(Exit::Code(0))), Condvar::new())),
+            sleeps_started: AtomicUsize::new(0),
+            sleep_gate: Arc::new((Mutex::new(None), Condvar::new())),
         }
     }
 }
@@ -86,6 +94,19 @@ impl Fake {
     }
     pub fn block_shell(&self) {
         *self.gate.0.lock().unwrap() = None;
+    }
+    /// Make each wait of a sequence stop until the test calls
+    /// [`Fake::release_sleep`]. With no hold, a wait ends at once.
+    pub fn hold_sleeps(&self) {
+        *self.sleep_gate.0.lock().unwrap() = Some(0);
+    }
+    /// Let one held wait end.
+    pub fn release_sleep(&self) {
+        let (lock, wake) = &*self.sleep_gate;
+        if let Some(permits) = lock.lock().unwrap().as_mut() {
+            *permits += 1;
+        }
+        wake.notify_all();
     }
     pub fn finish_shell(&self, exit: Exit) {
         *self.gate.0.lock().unwrap() = Some(exit);
@@ -153,6 +174,23 @@ impl System for Fake {
     }
     fn open_url(&self, url: &str) -> Result<()> {
         self.record(Call::Url(url.into()), "url")
+    }
+    fn sleep(&self, duration: Duration) {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(Call::Sleep(duration.as_millis() as u64));
+        self.sleeps_started.fetch_add(1, Ordering::SeqCst);
+        let (lock, wake) = &*self.sleep_gate;
+        // A timeout also releases a wait if a test assertion fails.
+        let (mut permits, _) = wake
+            .wait_timeout_while(lock.lock().unwrap(), Duration::from_millis(800), |p| {
+                *p == Some(0)
+            })
+            .unwrap();
+        if let Some(permits) = permits.as_mut() {
+            *permits = permits.saturating_sub(1);
+        }
     }
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>> {
         self.record(Call::Shell(command.into()), "shell")?;
