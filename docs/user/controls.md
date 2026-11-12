@@ -31,6 +31,8 @@ Knob 1 is below bar panel 1.
 | A yellow glow | The control that you operate on the device now. A yellow dot shows where you touch the touch bar. |
 | "◀ Touch bar ▶" | The control for the swipe gestures, between the keys and the bar panels. It is blue when it is selected. |
 
+![The device picture with knob 1 selected, and the knob lights set to Colours](images/device-picture.png)
+
 Click an empty part of the canvas to select the page. In this version, the
 inspector shows nothing for the page.
 
