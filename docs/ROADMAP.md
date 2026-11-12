@@ -20,7 +20,7 @@ application that other persons can adopt.
 | 1 | Device layer foundation | Complete |
 | 2 | First GUI: see and paint the device | Complete |
 | 3 | Actions for keys and knobs | Complete |
-| 4 | Pages and the touch bar | Not started |
+| 4 | Pages and the touch bar | In work |
 | 5 | Background operation | Not started |
 | 6 | First public release | Not started |
 
@@ -228,7 +228,12 @@ record of the checks.
 - [ ] The owner uses OpenCraft as the daily driver for one week with no blocking fault. This criterion came from Phase 3.
 
 **Decisions that this phase forces.** One image across the full touch bar, or
-four bar panels only.
+four bar panels only. The answer is four bar panels only. See
+[decision 0015](decisions/0015-four-bar-panels-and-touch-gestures.md). The
+other decisions of the phase are
+[0016](decisions/0016-pages-and-engine-requests-from-a-handler.md),
+[0017](decisions/0017-toggle-and-sequence-actions.md), and
+[0018](decisions/0018-many-profiles.md).
 
 ## Phase 5: Background operation
 
