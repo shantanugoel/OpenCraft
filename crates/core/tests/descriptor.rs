@@ -41,6 +41,31 @@ fn each_usb_identity_selects_one_descriptor() {
 }
 
 #[test]
+fn a_model_identifier_has_one_layout_and_a_stable_form() {
+    for d in DESCRIPTORS {
+        assert!(!d.model.is_empty(), "{}", d.name);
+        assert!(
+            d.model
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'),
+            "{}: {}",
+            d.name,
+            d.model
+        );
+        // A profile for the model works on each descriptor of the model.
+        for other in DESCRIPTORS.iter().filter(|o| o.model == d.model) {
+            assert_eq!(other.surfaces, d.surfaces, "{} and {}", d.name, other.name);
+            assert_eq!(other.controls, d.controls, "{} and {}", d.name, other.name);
+        }
+    }
+    // The profiles of the earlier phases name this model (decision 0018).
+    assert_eq!(DESCRIPTORS[0].model, "n4-pro");
+    for d in DESCRIPTORS.iter().filter(|d| d.name.contains("N4 Pro")) {
+        assert_eq!(d.model, "n4-pro", "{}", d.name);
+    }
+}
+
+#[test]
 fn no_two_controls_share_an_input_code() {
     // All codes are in control reports. The touch reports have no code.
     for d in DESCRIPTORS {

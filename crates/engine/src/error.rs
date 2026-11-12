@@ -26,6 +26,11 @@ pub enum Error {
     #[error("the image path '{0}' is not in the image directory of the profile")]
     ImagePath(String),
 
+    /// The engine cannot use the profile file of a profile that is not the
+    /// active profile. The file did not change.
+    #[error("cannot use the profile file {path}: {reason}")]
+    Unusable { path: PathBuf, reason: String },
+
     /// The profile could not be written as text.
     #[error("cannot write the profile as text: {0}")]
     Format(#[from] toml::ser::Error),

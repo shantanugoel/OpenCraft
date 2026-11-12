@@ -13,13 +13,13 @@ use std::{cell::RefCell, path::PathBuf, rc::Rc};
 /// Start the device before the GUI toolkit. The sink never waits for the GUI.
 fn start_engine() -> (EngineHandle, async_channel::Receiver<Event>) {
     let (sender, receiver) = async_channel::unbounded();
-    let profile_dir = std::env::var_os("OPENCRAFT_PROFILE_DIR")
+    let profiles_dir = std::env::var_os("OPENCRAFT_PROFILES_DIR")
         .map(PathBuf::from)
-        .or_else(opencraft_engine::default_profile_dir)
-        .expect("OpenCraft cannot find the profile directory.");
+        .or_else(opencraft_engine::default_profiles_dir)
+        .expect("OpenCraft cannot find the profiles directory.");
     let trace = start_trace();
     let engine = opencraft_engine::spawn(
-        Config { profile_dir },
+        Config { profiles_dir },
         opencraft_actions::handlers(),
         move |event| {
             if trace && matches!(event, Event::Connected) {

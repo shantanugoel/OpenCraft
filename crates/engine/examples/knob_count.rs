@@ -66,7 +66,7 @@ impl Handler for CountHandler {
 }
 
 fn main() {
-    let profile_dir =
+    let profiles_dir =
         std::env::temp_dir().join(format!("opencraft-knob-count-{}", std::process::id()));
     let (notes, receiver) = mpsc::channel();
     let handler = CountHandler {
@@ -89,7 +89,7 @@ fn main() {
     };
     let engine = spawn(
         Config {
-            profile_dir: profile_dir.clone(),
+            profiles_dir: profiles_dir.clone(),
         },
         vec![Box::new(handler)],
         sink,
@@ -162,7 +162,7 @@ fn main() {
         }
     }
     engine.stop();
-    let _ = std::fs::remove_dir_all(&profile_dir);
+    let _ = std::fs::remove_dir_all(&profiles_dir);
 
     let seconds = match (inputs.first(), inputs.last()) {
         (Some(first), Some(last)) => last.2.duration_since(first.2).as_secs_f64(),

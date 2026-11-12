@@ -74,6 +74,9 @@ impl ViewState {
             Event::Problem(text) => self.problems.push(text),
             Event::Input(input) => return self.input(input, now),
             Event::Kinds(kinds) => self.kinds = kinds,
+            // The window does not show the profiles yet. The engine sends the
+            // pages and the bindings of the new profile after this event.
+            Event::Profiles { .. } => {}
             Event::Pages { active, .. } => {
                 // The engine sends each binding of the active page next.
                 self.page = active;

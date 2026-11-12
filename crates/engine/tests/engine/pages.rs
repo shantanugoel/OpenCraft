@@ -56,7 +56,7 @@ fn disappear(binding: BindingId) -> Request {
 }
 
 /// The bindings of the binding states in `events`, in order.
-fn binding_states(events: &[Event]) -> Vec<BindingId> {
+pub(super) fn binding_states(events: &[Event]) -> Vec<BindingId> {
     events
         .iter()
         .filter_map(|e| match e {
@@ -67,7 +67,7 @@ fn binding_states(events: &[Event]) -> Vec<BindingId> {
 }
 
 /// The slots of the images in `sent`, in order.
-fn image_slots(sent: &[Sent]) -> Vec<u8> {
+pub(super) fn image_slots(sent: &[Sent]) -> Vec<u8> {
     sent.iter()
         .filter_map(|s| match s {
             Sent::Image { slot, .. } => Some(*slot),
@@ -104,7 +104,7 @@ fn the_engine_starts_on_the_first_page() {
 
 /// One thing that a page change does, as a test sees it.
 #[derive(Debug, PartialEq)]
-enum Step {
+pub(super) enum Step {
     Request(Request),
     Write,
 }

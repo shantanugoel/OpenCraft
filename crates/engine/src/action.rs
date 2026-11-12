@@ -108,11 +108,17 @@ pub enum Message {
 
 /// Work that a handler asks the engine to do. A request names no binding: it
 /// applies to the active profile. The reasons are in
-/// `docs/decisions/0016-pages-and-engine-requests-from-a-handler.md`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// `docs/decisions/0016-pages-and-engine-requests-from-a-handler.md` and
+/// `docs/decisions/0018-many-profiles.md`.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EngineRequest {
     /// Make a different page the active page.
     SelectPage(PageTarget),
+    /// Make the profile with the name `name` for the user the active
+    /// profile, as [`crate::Command::SelectProfile`] does. If two profiles of
+    /// the model have the name, the first in the order of the identities
+    /// wins. If no profile has it, the engine tells the shell.
+    SelectProfile { name: String },
 }
 
 /// The page that [`EngineRequest::SelectPage`] selects.

@@ -299,6 +299,12 @@ impl Control {
 #[derive(Debug, Clone, Copy)]
 pub struct Descriptor {
     pub name: &'static str,
+    /// The stable text identifier of the model, for example `n4-pro`. A
+    /// profile names its model with it. Descriptors of models with the same
+    /// surfaces and controls have the same identifier, so a profile works on
+    /// each of them. The form is small letters, digits, and `-`. See
+    /// `docs/decisions/0018-many-profiles.md`.
+    pub model: &'static str,
     pub vid: u16,
     pub pid: u16,
     /// Output report payload size.
@@ -494,6 +500,7 @@ static N4PRO_CONTROLS: &[Control] = &[
 pub static DESCRIPTORS: &[Descriptor] = &[
     Descriptor {
         name: "VSD StreamDock N4 Pro",
+        model: "n4-pro",
         vid: 0x5548,
         pid: 0x1023,
         packet_size: protocol::PACKET_SIZE,
@@ -504,6 +511,7 @@ pub static DESCRIPTORS: &[Descriptor] = &[
     // Not tested on hardware. The same data as 0x1023.
     Descriptor {
         name: "StreamDock N4 Pro (0x1008)",
+        model: "n4-pro",
         vid: 0x5548,
         pid: 0x1008,
         packet_size: protocol::PACKET_SIZE,
@@ -514,6 +522,7 @@ pub static DESCRIPTORS: &[Descriptor] = &[
     // Not tested on hardware. The same data as 0x1023.
     Descriptor {
         name: "StreamDock N4 Pro (0x1021)",
+        model: "n4-pro",
         vid: 0x5548,
         pid: 0x1021,
         packet_size: protocol::PACKET_SIZE,

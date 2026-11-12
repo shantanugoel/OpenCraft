@@ -38,8 +38,9 @@ Select a key face or a bar panel. Set its label, colour, or image in the
 editor. The engine saves each change. You can edit with no device.
 Close the window to stop the engine and quit.
 
-The engine uses its default profile directory. Set `OPENCRAFT_PROFILE_DIR`
-to use a different directory for a test.
+The engine uses its default profiles directory. Each profile is a directory
+in it. Set `OPENCRAFT_PROFILES_DIR` to use a different profiles directory for
+a test.
 
 ### Probe commands
 

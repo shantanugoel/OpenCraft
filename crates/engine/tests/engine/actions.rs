@@ -485,7 +485,7 @@ fn feedback_ignores_an_inactive_page_and_a_control_with_no_surface() {
 }
 
 #[test]
-fn a_version_one_file_waits_for_a_change_then_writes_version_two() {
+fn a_version_one_file_waits_for_a_change_then_writes_the_current_version() {
     let dir = TempDir::new().unwrap();
     let store = store_in(dir.path());
     fs::create_dir_all(store.dir()).unwrap();
@@ -532,7 +532,7 @@ fn a_version_one_file_waits_for_a_change_then_writes_version_two() {
     set_binding(&mut rig, id, Some(action.clone()));
     rig.engine.finish();
     let text = rig.profile_text().unwrap();
-    assert!(text.starts_with("schema_version = 2\n"));
+    assert!(text.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")));
     assert!(text.contains("[pages.bindings.key-3.press]"));
     let rig = rig.restart();
     assert_eq!(
@@ -640,7 +640,7 @@ fn a_busy_message_queue_does_not_stop_device_polls() {
     );
     rig.engine = Engine::new(
         link,
-        store_in(rig.dir.path()),
+        ProfilesDir::new(rig.dir.path()),
         &DESCRIPTORS[0],
         Box::new(move |event| {
             if matches!(event, Event::Input(_)) {
@@ -746,7 +746,7 @@ fn a_blocked_handler_does_not_stop_the_runtime_or_another_handler() {
                 world: rig.world.clone(),
             },
         ),
-        store_in(rig.dir.path()),
+        ProfilesDir::new(rig.dir.path()),
         &DESCRIPTORS[0],
         ports,
         Box::new(move |event| {
