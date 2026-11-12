@@ -4,7 +4,7 @@ This file lists the changes for each version. Its form follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - Not released
+## [0.1.0] - 2026-11-12
 
 This is the first version. It operates the VSD StreamDock N4 Pro on macOS,
 with no vendor software.

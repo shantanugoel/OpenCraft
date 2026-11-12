@@ -117,8 +117,9 @@ number.
 
 ## Not known
 
-- The first start of a notarized and stapled bundle: the dialog of macOS
-  and its text. This needs the notary credentials of the owner.
+- The first start of a notarized and stapled bundle that a browser or
+  Homebrew downloaded: the dialog of macOS and its text. It is in issue
+  [#170](https://github.com/shantanugoel/OpenCraft/issues/170).
 - The behaviour on macOS 12 to 26. This computer has only macOS 27.
 - An Intel build. This computer has no Rosetta.
 - An Apple Event to an application that asks for the Automation
@@ -127,7 +128,8 @@ number.
   in the release bundle after a person gives the Accessibility permission.
   The fact above is an inference. Nobody gave the permission to the release
   bundle, also not in the new-user test of issue
-  [#152](https://github.com/shantanugoel/OpenCraft/issues/152).
+  [#152](https://github.com/shantanugoel/OpenCraft/issues/152). The check
+  is in issue [#170](https://github.com/shantanugoel/OpenCraft/issues/170).
 - Whether the Accessibility permission of `com.shantanugoel.opencraft`
   stays after an update. The designated requirement says yes. A second
   version is necessary for a measurement.
