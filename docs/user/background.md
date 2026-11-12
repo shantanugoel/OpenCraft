@@ -40,6 +40,8 @@ these steps:
 - Click the menu bar item, and click **Settings…**.
 - In the window of OpenCraft, click **OpenCraft** in the menu bar of macOS,
   and click **Settings…**. Or push Command-comma (⌘,).
+- In the window of OpenCraft, click **Settings** at the bottom of the
+  sidebar.
 
 If the Settings window is already open, these steps bring it to the front. The
 menu item **About OpenCraft** and the item **About and licence notices** in
@@ -82,7 +84,8 @@ At the bottom, the tab has two rows with the button **Show in Finder**:
 ### The tab Shortcuts
 
 The tab lists the key commands of the OpenCraft window with their keys, for
-example **Hide or show the sidebar** with ⌃⌘S. You cannot change the keys.
+example **Undo** with ⌘Z and **Hide or show the sidebar** with ⌃⌘S. You
+cannot change the keys.
 
 ![The tab Shortcuts of the Settings window](images/settings-shortcuts.png)
 

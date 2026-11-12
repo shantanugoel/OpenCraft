@@ -200,7 +200,7 @@ impl DeviceView {
     }
 
     /// The picture of the header: the image of the surface from the engine,
-    /// or a knob.
+    /// or a knob with the ring of the canvas.
     fn header_picture(&self, control: &ControlLayout, layout: &DeviceLayout) -> Option<AnyElement> {
         if control.id.kind == ControlKind::Knob {
             return Some(
@@ -210,7 +210,11 @@ impl DeviceView {
                     .rounded_full()
                     .bg(theme::DEVICE_KNOB)
                     .border(theme::HEADER_KNOB_RING)
-                    .border_color(theme::DEVICE_KNOB_RING)
+                    // The same ring colour as the knob on the canvas.
+                    .border_color(super::canvas::knob_ring(
+                        self.state.device_settings.as_ref(),
+                        control.id,
+                    ))
                     .flex()
                     .justify_center()
                     .child(

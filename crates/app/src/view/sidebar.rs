@@ -12,6 +12,7 @@ use super::{
     pages::{page_title, MenuItem, NameEdit, Row},
     *,
 };
+use crate::{app_menu::OpenSettings, shell::ShellCommand};
 use gpui_kit::{
     actions,
     assets::IconName,
@@ -111,7 +112,7 @@ impl DeviceView {
                     .overflow_y_scroll()
                     .child(self.profile_rows(cx)),
             )
-            .child(self.bottom_group())
+            .child(self.bottom_group(cx))
             .into_any_element()
     }
 
@@ -582,8 +583,9 @@ impl DeviceView {
             .into_any_element()
     }
 
-    /// The bottom group: "Settings". The row is disabled until #193.
-    fn bottom_group(&self) -> AnyElement {
+    /// The bottom group: "Settings" (section 7.4). A click opens the
+    /// Settings window, as "Settings…" in the application menu does.
+    fn bottom_group(&self, cx: &mut Context<Self>) -> AnyElement {
         div()
             .flex_shrink_0()
             .flex()
@@ -595,19 +597,26 @@ impl DeviceView {
             .border_t_1()
             .border_color(theme::LINE_SIDEBAR)
             .child(
-                div()
-                    .id("sidebar-settings")
-                    .debug_selector(|| "sidebar-settings".into())
-                    .h(theme::HEIGHT_CONTROL)
+                row("sidebar-settings", false)
                     .px(theme::SPACE_8)
-                    .flex()
-                    .items_center()
                     .gap(theme::SPACE_8)
-                    .rounded(theme::RADIUS_CONTROL)
-                    .text_color(theme::TEXT_DISABLED)
+                    .text_color(theme::TEXT_SECONDARY)
+                    .cursor_pointer()
+                    .on_click(cx.listener(|view, _, _, cx| {
+                        view.shell.update(cx, |shell, cx| {
+                            shell.command(ShellCommand::OpenSettings(None), cx)
+                        })
+                    }))
                     .child(Icon::new(IconName::Settings).size(theme::ICON_ROW))
                     .child(row_text("Settings"))
-                    .child(div().text_size(theme::TEXT_CAPTION).child("⌘,")),
+                    .children(
+                        crate::settings_window::shortcuts::keys(&OpenSettings, cx).map(|keys| {
+                            div()
+                                .text_size(theme::TEXT_CAPTION)
+                                .text_color(theme::TEXT_TERTIARY)
+                                .child(keys)
+                        }),
+                    ),
             )
             .into_any_element()
     }

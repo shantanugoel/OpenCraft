@@ -37,25 +37,23 @@ use std::path::{Path, PathBuf};
 mod about;
 mod general;
 mod parts;
-mod shortcuts;
+pub(crate) mod shortcuts;
 #[cfg(test)]
 mod tests;
 
-/// The height of the window for a pane, in points: the title bar, the row of
-/// tabs, and the content of the pane with its padding. The content of a pane
-/// has fixed rows, thus the heights are constants. The pane "Shortcuts" has
-/// `rows` rows, and the pane "About" has more text without the notices file.
+/// The height of the window for a pane, in points (see
+/// [`theme::SETTINGS_HEIGHT_GENERAL`]). The pane "Shortcuts" has `rows` rows,
+/// and the pane "About" has more text without the notices file.
 fn pane_height(pane: SettingsPane, rows: usize, notices: bool) -> f32 {
     match pane {
-        SettingsPane::General => 480.,
-        SettingsPane::Shortcuts => 132. + rows as f32 * 37.,
-        SettingsPane::About if notices => 300.,
-        SettingsPane::About => 332.,
+        SettingsPane::General => theme::SETTINGS_HEIGHT_GENERAL,
+        SettingsPane::Shortcuts => {
+            theme::SETTINGS_HEIGHT_SHORTCUTS + rows as f32 * theme::SETTINGS_SHORTCUT_ROW
+        }
+        SettingsPane::About if notices => theme::SETTINGS_HEIGHT_ABOUT,
+        SettingsPane::About => theme::SETTINGS_HEIGHT_ABOUT_NO_NOTICES,
     }
 }
-
-/// The height that a message adds below the content of the pane.
-const MESSAGE_HEIGHT: f32 = 52.;
 
 /// The options of the Settings window. It opens in the middle of the main
 /// screen, at the height that its pane needs.
@@ -222,7 +220,11 @@ impl SettingsView {
         if self.shown.is_none_or(|(shown, _)| shown != pane) {
             window.set_window_title(pane.name());
         }
-        let extra = if message { MESSAGE_HEIGHT } else { 0. };
+        let extra = if message {
+            theme::SETTINGS_MESSAGE_HEIGHT
+        } else {
+            0.
+        };
         let height = pane_height(pane, shortcuts::rows(cx).len(), self.snapshot.has_notices);
         window.resize(size(px(theme::SETTINGS_WIDTH), px(height + extra)));
         self.shown = Some((pane, message));
@@ -314,7 +316,7 @@ impl SettingsView {
                 .id("settings-message")
                 .debug_selector(|| "settings-message".into())
                 .flex_shrink_0()
-                .h(px(MESSAGE_HEIGHT))
+                .h(px(theme::SETTINGS_MESSAGE_HEIGHT))
                 .px(theme::SPACE_16)
                 .flex()
                 .items_center()
@@ -332,7 +334,7 @@ impl SettingsView {
                     div()
                         .flex_1()
                         .min_w_0()
-                        .max_h(px(32.))
+                        .max_h(theme::SETTINGS_MESSAGE_TEXT_MAX)
                         .overflow_hidden()
                         .child(text),
                 )
