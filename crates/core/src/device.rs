@@ -2,6 +2,7 @@
 //!
 //! The descriptor table is the only place in the device layer that knows a
 //! specific model (architecture rule 4). A new model is a new table entry.
+//! The procedure is in `docs/ADDING-A-DEVICE-MODEL.md`.
 //!
 //! A descriptor lists:
 //!
@@ -312,6 +313,8 @@ pub struct Descriptor {
     pub surfaces: &'static [Surface],
     pub controls: &'static [Control],
     /// Some rebrands need an explicit mode switch before they accept commands.
+    /// No code reads this field now: the start sequence sends no `MOD`. See
+    /// issue #155.
     pub required_mode: Option<u8>,
     /// The device settings that the model has. See [`SettingsSupport`].
     pub settings: SettingsSupport,
@@ -575,6 +578,17 @@ pub const KNOWN_VIDS: &[u16] = &[
 /// the known set rather than a single value.
 pub const VENDOR_USAGE_PAGES: &[u16] = &[0xFFA0, 0xFF00, 0xFF60];
 
+/// The descriptor of the device with the USB identity `vid`:`pid` in the table
+/// of the known models, [`DESCRIPTORS`].
 pub fn find(vid: u16, pid: u16) -> Option<&'static Descriptor> {
-    DESCRIPTORS.iter().find(|d| d.vid == vid && d.pid == pid)
+    find_in(DESCRIPTORS, vid, pid)
+}
+
+/// The descriptor of the device with the USB identity `vid`:`pid` in `table`.
+///
+/// [`find`] uses the table of the known models. A test gives a different
+/// table, for example a table with a test model that is not a real device.
+/// See `docs/ADDING-A-DEVICE-MODEL.md`.
+pub fn find_in(table: &'static [Descriptor], vid: u16, pid: u16) -> Option<&'static Descriptor> {
+    table.iter().find(|d| d.vid == vid && d.pid == pid)
 }

@@ -120,7 +120,8 @@ pub fn spawn(
         let mut engine = Engine::with_handlers(
             Link::new(HidConnector),
             ProfilesDir::new(config.profiles_dir),
-            // The layout until a device connects.
+            // The layout until a device connects. With more than one model,
+            // this is not always the model of the device (issue #156).
             &DESCRIPTORS[0],
             ports,
             sink,

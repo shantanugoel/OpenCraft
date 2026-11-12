@@ -186,3 +186,4 @@ mod actions;
 mod device;
 mod nested;
 mod pages;
+mod test_model;

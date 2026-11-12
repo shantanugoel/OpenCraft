@@ -34,6 +34,12 @@ mod device_settings;
 mod pages;
 #[path = "engine/profiles.rs"]
 mod profiles;
+#[path = "engine/test_model.rs"]
+mod test_model;
+/// The test model of the device layer tests: a second model that is not a
+/// real device.
+#[path = "../../core/tests/support/test_model.rs"]
+mod test_model_data;
 
 const KEY_3: SurfaceId = SurfaceId::new(SurfaceKind::KeyFace, 3);
 const BAR_2: SurfaceId = SurfaceId::new(SurfaceKind::BarPanel, 2);
@@ -188,6 +194,15 @@ impl Rig {
     }
 
     fn with_ports(dir: TempDir, ports: Vec<opencraft_engine::HandlerPort>) -> Self {
+        Self::with_model(dir, ports, &DESCRIPTORS[0])
+    }
+
+    /// An engine with the layout of `model` until a device connects.
+    fn with_model(
+        dir: TempDir,
+        ports: Vec<opencraft_engine::HandlerPort>,
+        model: &'static opencraft_core::Descriptor,
+    ) -> Self {
         let world = Rc::new(World {
             now: Cell::new(Instant::now()),
             asleep: Cell::new(Duration::ZERO),
@@ -205,13 +220,7 @@ impl Rig {
         );
         let sink_events = Rc::clone(&events);
         let sink: Sink = Box::new(move |event| sink_events.borrow_mut().push(event));
-        let engine = Engine::with_handlers(
-            link,
-            ProfilesDir::new(dir.path()),
-            &DESCRIPTORS[0],
-            ports,
-            sink,
-        );
+        let engine = Engine::with_handlers(link, ProfilesDir::new(dir.path()), model, ports, sink);
         Self {
             engine,
             events,
