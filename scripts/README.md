@@ -7,6 +7,7 @@ This directory holds the scripts for work on the computer of a developer.
 | `measure-footprint.sh` | Measures the memory and the processor use of all processes of one application |
 | `sign-dev.sh` | Builds the GUI application as a bundle and signs it with a stable identity, so that macOS keeps the Accessibility permission |
 | `release.sh` | Makes the release: the signed bundle, the disk image, the notarization, and the checksum. See [decision 0025](../docs/decisions/0025-release-form.md). |
+| `homebrew-cask.sh` | Writes the Homebrew cask file for one release. See [decision 0027](../docs/decisions/0027-homebrew-cask.md). |
 | `make-icon.swift` | Draws the application icon `assets/macos/OpenCraft.icns` |
 | `record-input.sh` | Records the input reports of each control of the N4 Pro. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
 
@@ -161,7 +162,7 @@ in `target/release-bundle/`:
 |---|---|
 | `OpenCraft.app` | The bundle with the Developer ID signature |
 | `OpenCraft-<version>-arm64.dmg` | The disk image to publish |
-| `OpenCraft-<version>-arm64.dmg.sha256` | The SHA-256 of the disk image, for the Homebrew cask |
+| `OpenCraft-<version>-arm64.dmg.sha256` | The SHA-256 of the disk image, for the Homebrew cask. See [homebrew-cask.sh](#homebrew-casksh). |
 
 The version is the workspace version in `Cargo.toml`.
 
@@ -218,6 +219,104 @@ checks:
 If the file `THIRD-PARTY-NOTICES.txt` is in the root of the repository, the
 script copies it into `OpenCraft.app/Contents/Resources/`. Issue
 [#146](https://github.com/shantanugoel/OpenCraft/issues/146) makes that file.
+
+## homebrew-cask.sh
+
+The script writes the Homebrew cask file `opencraft.rb` for one version. It
+holds the only copy of the cask text. The decision is
+[decision 0027](../docs/decisions/0027-homebrew-cask.md). The facts are in
+[kb/homebrew.md](../docs/kb/homebrew.md).
+
+```sh
+scripts/homebrew-cask.sh ../homebrew-opencraft/Casks/opencraft.rb
+```
+
+With no other argument, the script reads the version and the SHA-256 from the
+one file `target/release-bundle/*.dmg.sha256` of `release.sh`. It stops if
+the disk image does not have that SHA-256, or if the disk image has no
+stapled notarization ticket. The options are:
+
+| Option | Meaning |
+|---|---|
+| `--version VERSION --sha256 SHA256` | Use these values and do not read `target/release-bundle` |
+| `--allow-unnotarized` | Do not check the notarization ticket. Use it only for a test. |
+
+### Publish the Homebrew cask
+
+The owner does these steps. The tap is public only after this repository is
+public. The disk image must be the notarized one: the script stops
+otherwise.
+
+For the first release:
+
+1. Make this repository public.
+2. Make the release. `OPENCRAFT_NOTARY_PROFILE=<profile> scripts/release.sh`
+   prints the SHA-256 and writes the disk image.
+3. Make the GitHub release with the tag `v<version>`, where `<version>` is
+   the version in `target/release-bundle` (for example `0.1.0`). Attach the
+   disk image and the `.sha256` file:
+
+   ```sh
+   gh release create v<version> target/release-bundle/OpenCraft-<version>-arm64.dmg target/release-bundle/OpenCraft-<version>-arm64.dmg.sha256 --title "OpenCraft <version>"
+   ```
+
+4. Download the disk image from the release. Its SHA-256 must be the same
+   as the content of the `.sha256` file:
+
+   ```sh
+   curl -sL -o /tmp/opencraft-check.dmg https://github.com/shantanugoel/OpenCraft/releases/download/v<version>/OpenCraft-<version>-arm64.dmg
+   shasum -a 256 /tmp/opencraft-check.dmg
+   cat target/release-bundle/OpenCraft-<version>-arm64.dmg.sha256
+   rm /tmp/opencraft-check.dmg
+   ```
+
+5. Make the tap repository and a checkout of it:
+
+   ```sh
+   cd ..
+   gh repo create shantanugoel/homebrew-opencraft --public --description "Homebrew tap for OpenCraft" --clone
+   cd OpenCraft
+   ```
+
+   The tap is then next to this repository, in `../homebrew-opencraft`.
+
+6. Copy `scripts/homebrew-tap/README.md` of this repository to
+   `../homebrew-opencraft/README.md`. After this step, the copy in the tap
+   is the only one.
+7. Write the cask into the tap, from the root of this repository:
+
+   ```sh
+   mkdir -p ../homebrew-opencraft/Casks
+   scripts/homebrew-cask.sh ../homebrew-opencraft/Casks/opencraft.rb
+   ```
+
+8. Commit and push in the tap:
+
+   ```sh
+   cd ../homebrew-opencraft
+   git add README.md Casks/opencraft.rb
+   git commit -m "Add the cask opencraft <version>"
+   git push -u origin HEAD
+   ```
+
+9. Test as a user. Quit VSD Craft and OpenCraft first.
+
+   ```sh
+   brew install --cask shantanugoel/opencraft/opencraft
+   brew audit --cask --online --strict --signing shantanugoel/opencraft/opencraft
+   brew style --cask shantanugoel/opencraft/opencraft
+   spctl --assess --type exec --verbose /Applications/OpenCraft.app
+   ```
+
+   Do not use `brew audit --new`. It checks the numbers of stars for
+   `homebrew/cask` ([kb/homebrew.md](../docs/kb/homebrew.md#which-repository-holds-the-cask)),
+   which a tap does not need. `spctl` must say `accepted` and
+   `source=Notarized Developer ID`. Then start OpenCraft from the
+   Applications folder.
+
+For a later release, do steps 2, 3, 4, and 7 in a checkout of the tap that
+is up to date, then step 8 with the message "Update the cask opencraft to
+<version>", and then step 9. The tap needs no other change.
 
 ## make-icon.swift
 
