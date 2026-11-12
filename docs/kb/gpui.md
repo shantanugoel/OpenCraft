@@ -66,7 +66,7 @@ at `gpui_kit::*`.
 | `InputEvent::PressEnter` comes when the user presses Enter in a single-line `Input`. | Source; Measured | `gpui-base` 0.9.1 `input/base/state.rs`; application window tests |
 | `deferred(element).with_priority(n)` paints an element after all other elements, and a higher number paints later. A menu with priority 2 over a full-window layer with priority 1 operates in the window tests. Each of the two needs `occlude`: with the default hitbox, a click also gets to the elements behind. | Source; Measured | `gpui-pre` 0.3.12 `src/elements/deferred.rs` and `src/elements/div.rs`, `occlude`; application window tests |
 | `ClickEvent::click_count` gives the count of clicks of the mouse-up event. The page tabs use it for a double click. | Source | `gpui-pre` 0.3.12 `src/interactive.rs` |
-| The no-display test platform does not show the result of a double click, of a tooltip, or of the visual style. The window tests check the bounds of the elements and the commands only. | Inference | `TestAppContext` API; application window tests |
+| The no-display test platform does not show the result of a tooltip or of the visual style. The window tests of Phase 4 check the bounds of the elements and the commands only. The Kit test API can send a double click: see [Window tests of these parts](#window-tests-of-these-parts). | Inference; Measured (double click) | `TestAppContext` API; application window tests; `sidebar_renames_in_the_row` of the window layout test |
 
 ## Shell test of Phase 5 (2026-11-12)
 
@@ -204,6 +204,255 @@ button. After each second start, it read the process list each 0.25 s for
 | `SliderState` emits `SliderEvent::Change` for each move of a drag and for a click on the track, and `SliderEvent::Release` one time at the end of a drag. `SliderState::set_value` emits no event. The minimum is set when the state is made, so a different minimum needs a new `SliderState`. | Source; Measured | `gpui-base` 0.9.1 `src/slider.rs`; application window tests |
 | In the release build, a drag of the brightness slider with 40 mouse moves in approximately 0.5 s changed the device. The window showed 15 % and 100 %, the settings file had the same values, and the camera saw the display brightness change. | Measured: 3 drags | Window screenshot; `device-settings.toml`; USB camera |
 
+## Window layout test (2026-11-12)
+
+**Measured.** A test program, not in the repository, makes the seven parts
+of the new window layout of
+[issue 175](https://github.com/shantanugoel/OpenCraft/issues/175). It uses
+`gpui-kit` 0.9.1 with a copy of the lock file of the workspace, and no
+OpenCraft crate. It opens no device. It has 17 window tests on the
+no-display test platform, and all 17 pass. A helper program also operated
+the real window with Quartz mouse and key events, read the menu bar through
+the Accessibility API, and took pictures of the window only. The computer is
+the same as in [Release measurements](#release-measurements). The window
+used the dark theme of the kit. The source column names the files and the
+tests of the test program: `src/spike.rs`, `src/tests.rs`, and
+`src/main.rs`. The pictures are kept outside the repository.
+
+In the tables, `component::` is `gpui_kit::component::`. The pattern blocks
+are short forms of the code of the test program.
+
+### Window tests of these parts
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The Kit test API `gpui_kit::test::{TestWindowExt, TestEventExt}` operates on the `Window` of a `VisualTestContext` from `TestAppContext::add_window_view`. `find`, `try_find`, `click`, `double_click`, `right_click`, `drag`, `drag_to`, `press`, and `input` send real window events with real hit testing. `pointer_move`, `pointer_down`, and `pointer_up` give the steps of a drag. | Measured | `src/tests.rs`; Kit `TESTING.md` |
+| `find` gets an element only if the element has `.id(...)` and `.test_support()` (`gpui_kit::base::TestSupportExt`). Some Kit parts register their own IDs: each tab of a `TabBar` is `Integer(ix)` in the scope of the bar ID, a `Toggle` uses its own ID, and a drawn menu is `"popup-menu"` with its items as `Integer(ix)`. | Measured | `src/tests.rs` |
+| `within(id)` stops the test when two elements in one path have the same ID. `TabBar::new("tabs")` has this problem, because the inner `Tabs` element also uses the ID `"tabs"`. Give the bar a different ID, for example `"right-tabs"`. | Measured | `tabs_change_the_content` |
+| The test window is not active. GPUI then sends an empty previous focus path to the focus listeners, so `InputEvent::Blur` does not come. Call `window.activate_window()` before a test that needs a blur. | Source; Measured | `gpui-pre` 0.3.12 `src/window.rs`, `draw`; `sidebar_renames_in_the_row` |
+| The test window opens at a size that is not the size of `simulate_resize`. Thus each test has a window size change at its start. | Measured | `open` in `src/tests.rs` |
+| The test platform shows no pixels. The drag picture, the colour of a highlight, the look of a popover, and the native menu need a check in the real window. | Measured | All parts below |
+
+### 1. Sidebar with a tree of two levels
+
+| Fact | Confidence | Source |
+|---|---|---|
+| Plain `div` rows make a tree of two levels: a profile row with a disclosure triangle, and page rows below it. A click on a row selects it. A click on the triangle opens or closes the profile, and does not change the selection, because its handler calls `cx.stop_propagation()`. | Measured | `Spike::sidebar_row`; `sidebar_selects_rows_and_the_triangle_alone_expands`; real window |
+| The triangle is `Icon::new(IconName::ChevronRight)`, and `.rotate(gpui_kit::percentage(0.25))` turns it down when the profile is open. The icon needs an asset source: see part 3. | Measured | Real window picture |
+| In the real window, a double click on a row gave `ClickEvent::click_count()` 2, and the edit field opened. | Measured | Real window; event log |
+| Edit of a name in the row: put `Input::new(&state)` in the row in place of the label. At the start, call `set_value`, `select_all`, and `focus` on the `InputState` entity. The old name was selected, and typed text replaced it. Enter (`InputEvent::PressEnter`) and a click out of the field (`InputEvent::Blur`) keep the new name. A `capture_key_down` handler on the row gets Escape before the field and cancels. | Measured | `start_rename`, `commit_rename`, `cancel_rename`; `sidebar_renames_in_the_row`; real window pictures |
+| After the edit, give the focus back to the workspace element. The key bindings of part 6 need the workspace element in the focus path. | Measured (with the focus call); Inference (without it) | `commit_rename`; `sidebar_renames_in_the_row` |
+| A right click can show a native AppKit menu: `component::native_menu::NativeMenu::new().menu("Rename", Box::new(Rename)).separator().show(event.position, window, cx)` in `on_mouse_down(MouseButton::Right, ...)`. The menu opened at the pointer. Arrow keys with Return, and a mouse click, chose an item. | Measured | `MenuKind::Native`; real window picture; event log |
+| A `NativeMenu` item sends its action with `Window::dispatch_action`, thus to the focused element. Focus the workspace element before `show`, and keep the row of the click in the view state. The workspace handler then knows the row. | Source; Measured | `gpui-component` 0.9.1 `src/native_menu/mod.rs`; real window |
+| The window tests use a drawn menu: `ContextMenuExt::context_menu` with `PopupMenuItem::new(label).on_click(...)`. It opens at the pointer. The test did not call `NativeMenu::show` on the no-display platform. | Measured | `MenuKind::Drawn`; `sidebar_drawn_context_menu_operates` |
+| The Kit tree (`component::tree::{tree, TreeState, TreeItem}`) has arrow keys in the key context `"Tree"`, accessibility roles, and a virtual list. But a click on any part of a folder row selects the row and also opens or closes it. It has no public method that opens one folder, `set_items` clears the selection, and its only events are `TreeEvent::Expanded` and `TreeEvent::Collapsed`. | Source; Measured (row click) | `gpui-base` 0.9.1 `src/tree.rs`; `kit_tree_toggles_a_folder_on_a_row_click` |
+| `component::sidebar::SidebarMenuItem` has a trailing caret, `click_to_toggle`, `active`, and `context_menu`. Its label is text only, thus it cannot hold an edit field. | Source | `gpui-component` 0.9.1 `src/sidebar/menu.rs` |
+| A selection that is an index into the rows becomes incorrect after an insert: after "Duplicate", the new copy showed as selected. Keep the selection as a stable ID. | Measured | Real window picture |
+
+```rust
+// A profile row. `row` is Row::Profile(p) or Row::Page(p, i).
+div().id(row_id).test_support().h(px(26.)).flex().items_center().rounded_md()
+    .when(selected, |d| d.bg(theme.accent))
+    .child(div().id(("disclosure", p)).test_support()
+        .child(Icon::new(IconName::ChevronRight).when(open, |i| i.rotate(percentage(0.25))))
+        .on_click(cx.listener(move |v, _, _, cx| { cx.stop_propagation(); v.toggle(p, cx) })))
+    .child(if editing { Input::new(&v.rename).xsmall().into_any_element() } else { name })
+    .on_click(cx.listener(move |v, e: &ClickEvent, window, cx| {
+        v.select(row, cx);
+        if e.click_count() == 2 { v.start_rename(row, window, cx) }
+    }))
+    .on_mouse_down(MouseButton::Right, cx.listener(move |v, e: &MouseDownEvent, window, cx| {
+        v.context_row = Some(row);
+        window.focus(&v.focus, cx);
+        NativeMenu::new().menu("Rename", Box::new(Rename)).show(e.position, window, cx);
+    }))
+```
+
+**Window test.** `double_click(row_id)`, then `input("Intro")` and
+`press("enter")` or `press("escape")`. For a click out, call
+`activate_window` first. For the menu, use the drawn menu:
+`right_click(row_id)`, then `within("popup-menu").click(1usize)`.
+
+### 2. Three panes with dividers
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `component::h_resizable(id).with_state(&Entity<ResizableState>)` with three `component::resizable_panel()` children makes the panes. `.size(px)` gives the first width, `.size_range(min..max)` the limits, and `.visible(bool)` hides a pane. The default minimum is 100 px. | Source; Measured | `gpui-base` 0.9.1 `src/resizable/`; `Spike::render` |
+| A drag of a divider changes the width and stops at the limits: +60 px gave 280, a long drag right gave the maximum 320, and a long drag left gave the minimum 180. The right divider also operates. `on_resize` runs at the mouse-up, and `ResizableState::sizes()` gives the widths. | Measured | `panes_resize_with_the_divider_and_keep_the_limits`; real window event log |
+| In the real window, the divider shows a short bar when the pointer is on it, and a longer bar during the drag. | Measured | Real window pictures |
+| Without `.fixed()`, a change of the window size changes all panes in proportion. With `.fixed()` on the two side panes, only the centre pane changes: at 900 and 1400 px the widths were 220, 380, 300 and 220, 880, 300. | Measured | `panes_keep_the_side_widths_when_the_window_changes_size`, `panes_with_no_fixed_sides_change_with_the_window` |
+| Without `.fixed()`, `sizes()` can hold a width below the minimum. The panel applies the limits only when it draws. Thus clamp a width from `sizes()` before you save it. | Measured | Same tests: stored 128.3 px, drawn 180 px |
+| `.visible(false)` keeps the index and the width of the pane. After hide and show, the pane had its last width again, also after a divider drag. | Measured | `panes_hide_and_show`; real window pictures |
+| GPUI does not stop the window at the sum of the pane widths. At 760 px, with fixed side panes of 220 and 300 px and a centre minimum of 320 px, the right pane went 80 px out of the window. Set `window_min_size` to the sum of the shown panes, or hide a side pane when the window is too narrow. | Measured | `side_widths_after_resize`; real window picture |
+| View menu items that send `ToggleSidebar` and `ToggleInspector` operate. The native menu showed the key equivalents of the key bindings ⌃⌘S and ⌥⌘I, also when the bindings have a key context. | Measured | Real window; AX `AXMenuItemCmdChar` and `AXMenuItemCmdModifiers` |
+
+```rust
+h_resizable("panes").with_state(&self.panes)
+    .on_resize(|state, _, cx| save(state.read(cx).sizes()))
+    .child(resizable_panel().size(px(220.)).size_range(px(180.)..px(320.))
+        .visible(self.show_sidebar).fixed().child(sidebar))
+    .child(resizable_panel().size_range(px(320.)..Pixels::MAX).child(canvas))
+    .child(resizable_panel().size(px(300.)).size_range(px(260.)..px(420.))
+        .visible(self.show_inspector).fixed().child(inspector))
+```
+
+**Window test.** Get the right edge of the sidebar from
+`find("sidebar").bounds()`, then `window.drag(edge, edge + dx)`. Read the
+widths from `bounds()` of each pane or from `ResizableState::sizes()`. Use
+`simulate_resize` for a window size change.
+
+### 3. Popover and modal layer
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `component::popover::Popover::new(id).trigger(button).content(...)` opens below the trigger with its left edge on the left edge of the trigger (`Anchor::TopLeft`, the default) and a gap of 0.25 rem. It painted above the sidebar and the pane divider. | Measured | `popover_opens_below_its_button_and_closes_on_a_choice`; real window picture |
+| `.open(bool)` with `.on_open_change(...)` makes the popover controlled. Escape and a click out of the popover close it and call `on_open_change`. A click on an item of the content does not close it: set the state to closed in the item handler. | Measured | Same test; real window event log |
+| The `content` closure runs on each draw. Do not make entities in it. | Source | `gpui-component` 0.9.1 `src/popover.rs` |
+| Kit icons need an asset source: `gpui_kit::application().with_assets(gpui_kit::assets::Assets)`. The test program has it, and the icons showed. The application has no asset source now, thus Kit icons (also the caret of a `Select` and the chevron of a tree) would show nothing. | Measured (test program); Inference (application) | `src/main.rs`; `crates/app/src/main.rs`; real window picture |
+| `WindowExt::open_dialog(cx, \|dialog, window, cx\| ...)` shows a modal layer. The Kit `Root` draws the layer. The Root of `gpui_kit::open_window`, and the Root that the application makes, are sufficient. | Measured | `open_palette`; real window |
+| When the layer opens, the Root moves the focus into it. The workspace key bindings stopped: ⌃⌘S did nothing. The View menu items were not enabled while the layer was open. A click out of the dialog closed it, and the element below did not get the click. Escape closed it and gave the focus back to the earlier element. | Measured | `command_palette_is_modal_and_has_the_focus`; real window; AX `enabled` |
+| The background did not become darker in the picture of the dark theme. | Measured | Real window picture |
+| The command palette is `component::command::{Command, CommandItem, CommandState}` in the dialog. Call `CommandState::focus` one time, on the first draw of the dialog. Typing filters the items. Up, Down, Enter, and Escape operate (key context `"Command"`). Escape clears a query first, and closes the dialog at the second press. | Measured | `open_palette`; real window pictures |
+| The filter runs in a task. In a window test, call `run_until_parked` after `input` and before `press("enter")`. | Measured | `command_palette_is_modal_and_has_the_focus` |
+| `CommandItem::action` sends the action to the focus in the dialog. The workspace element is not in that path, so the workspace does not get the action. Use `on_confirm`: close the dialog, focus the workspace, then call `window.dispatch_action` again. With this, the palette showed and hid the panes. | Source; Measured | `gpui-component` 0.9.1 `src/command/state.rs`, `confirm`; `open_palette` |
+| A `CommandState` keeps its query between two openings. Make a new state for each opening, as the Kit example of `open_dialog` does, or call `set_query("")`. Both operated. | Measured | `open_palette`, `SPIKE_REUSE_PALETTE`; real window |
+| The palette showed no key equivalent next to an item. It looks for the binding from the focus in the dialog, and the bindings have the key context `"Workspace"`. | Source; Measured | `src/command/state.rs`, `item_binding`; real window picture |
+
+```rust
+pub fn open_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    let palette = cx.new(|cx| CommandState::new(window, cx));
+    let first = Cell::new(true);
+    let view = cx.entity();
+    window.open_dialog(cx, move |dialog, window, cx| {
+        if first.replace(false) { palette.update(cx, |s, cx| s.focus(window, cx)) }
+        let view = view.clone();
+        dialog.w(px(480.)).margin_top(px(80.)).close_button(false).child(
+            Command::new(&palette).items(items()).on_confirm(move |ix, window, cx| {
+                window.close_dialog(cx);
+                view.update(cx, |v, cx| window.focus(&v.focus, cx));
+                window.dispatch_action(action_of(ix.row), cx);
+            }))
+    });
+}
+```
+
+**Window test.** `click("icon-button")`, then compare `find("icon-grid")`
+and `find("icon-button")` bounds. For the dialog: `press("cmd-k")`,
+`window.has_active_dialog(cx)`, and
+`palette.read(cx).focus_handle(cx).contains_focused(window, cx)`.
+
+### 4. Drag and drop from the right pane to the centre pane
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The source row has `.on_drag(value, \|value, offset, window, cx\| cx.new(\|_\| Preview { .. }))`. The target has `.drag_over::<T>(\|style, value, window, cx\| style.bg(..).border_color(..))` and `.on_drop(cx.listener(\|view, value: &T, window, cx\| ..))`. The drop handler got the data of the row. | Measured | `Spike::library`, `Spike::canvas`; `drag_from_the_library_to_a_key`; real window |
+| A drag starts when the pointer moves more than 2 px with the left button down. A shorter move is a click. | Source; Measured | `gpui-pre` 0.3.12 `src/elements/div.rs`, `DRAG_THRESHOLD`; same test |
+| GPUI puts the top-left corner of the drag picture at the pointer minus `offset`, and `offset` is the point of the press in the source element. A small picture from a wide row thus shows far from the pointer: 149 px to the left in the picture. Add a padding of `offset` in the picture, and the picture stays at the pointer. | Source; Measured | `src/window.rs`, `cursor_offset`; real window pictures with and without `SPIKE_PLAIN_PREVIEW` |
+| `drag_over` uses the position of the pointer, not of the picture. | Measured | Real window picture |
+| A drop out of all targets sends no event and changes nothing. | Measured | `drag_from_the_library_to_a_key` |
+| The `accent` colour of the dark Kit theme is grey, so a highlight with it was hard to see. A blue (`0x0a84ff`) border and background showed clearly. | Measured | Real window pictures |
+| One element can have one `on_drag` only. | Source | `src/elements/div.rs`, `debug_assert` |
+
+```rust
+// Source row in the library.
+div().id(("action", i)).on_drag(ActionDrag { name }, |drag, offset, _, cx| {
+    cx.new(|_| DragPreview { name: drag.name.clone(), offset })
+})
+// The picture: padding keeps the pill at the pointer.
+div().pl(self.offset.x - px(8.)).pt(self.offset.y - px(8.)).child(pill)
+// Target in the canvas.
+div().id(("key", k))
+    .drag_over::<ActionDrag>(|s, _, _, _| s.bg(rgba(0x0a84ff33)).border_color(rgb(0x0a84ff)))
+    .on_drop(cx.listener(move |v, d: &ActionDrag, window, cx| v.drop_on(k, d, window, cx)))
+```
+
+**Window test.** `drag_to("action-3", "key-0")`, or `pointer_down`, eight
+`pointer_move` steps with `Some(MouseButton::Left)`, and `pointer_up`.
+`cx.has_active_drag()` is true during the drag. The test cannot see the
+picture or the highlight.
+
+### 5. Controls in a two-column grid
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `component::form::{h_form, field}` makes the two columns: `h_form().label_width(px(84.)).child(field().label("Size").child(control))`. The left edges of all five controls were at the same x. | Measured | `Spike::inspector`; `controls_in_the_form` |
+| The form puts the labels on the left side of the label column. `label_fn` with `text_right` did not move the text, because the label is in a container of its own width. A label element with a fixed width and `flex().justify_end()` was on the right side. | Source; Measured | `gpui-component` 0.9.1 `src/form/field.rs`; real window pictures |
+| Segmented control: `ToggleGroup::new(id).segmented().single()` with `Toggle::new((id, i)).label(..).checked(..)` and `.on_click(\|checked: &Vec<bool>, ..\|)`. A click on the checked item clears all items, so keep the old value when no item is checked. In the dark theme, it had no outline. | Measured | `controls_in_the_form`; real window picture |
+| Two other forms look more like a macOS segmented control: `ButtonGroup::new(id).outline()` with `Button::new(..).label(..).selected(..)` (import `component::Selectable`), and `TabBar::new(id).segmented()`. Both operated. | Measured | Real window picture; event log |
+| Switch: `Switch::new(id).checked(b).on_click(\|checked: &bool, ..\|)`. The owner keeps the value. | Measured | `controls_in_the_form`; real window |
+| Slider: `Slider::new(&state)` with `SliderState::new().min(..).max(..).step(..).default_value(..)`. A drag gave `SliderEvent::Change` for each move and one `Release`. | Measured | `controls_in_the_form`; real window event log |
+| Text field: `Input::new(&state).small()`. The input of "Mail" gave four `InputEvent::Change` events, and `value()` in the subscriber gave "Mail" each time, because the events were in a queue. Use the event, not a count of events. | Measured | `controls_in_the_form` |
+| Popup button: `Select::new(&state).id("font").small()` with `SelectState::new(vec_of_shared_strings, Some(IndexPath::new(0)), window, cx)`. `SelectEvent::Confirm(Option<value>)` comes after a choice. The list opened below the field, with a check mark at the current item. Down, Down, Enter chose the third item in the test, and a click chose it in the real window. | Measured | `controls_in_the_form`; real window picture |
+| `div().grid().grid_cols(n)` also makes a grid. The test program uses it for the keys and the icons. | Measured | `Spike::canvas`, `icon_popover` |
+
+```rust
+h_form().label_width(px(84.))
+    .child(field().label("Title").child(Switch::new("show-title").checked(on)
+        .on_click(move |c: &bool, _, cx| view.update(cx, |v, cx| v.set_title(*c, cx)))))
+    .child(field().label("Size").child(Slider::new(&self.size)))
+    .child(field().label("Font").child(Select::new(&self.font).id("font").small()))
+    .child(field()
+        .label_fn(|_, _| div().w(px(72.)).flex().justify_end().child("Style"))
+        .child(ButtonGroup::new("style").outline().small().children(buttons)))
+```
+
+**Window test.** `click(("style", 2usize))`, `click("show-title")`, a
+`drag` across the slider bounds, `click` on the field and `input("Mail")`,
+`click("font")` and `press("down")`, `press("enter")`. Compare
+`bounds().origin.x` for the column.
+
+### 6. Key commands in the window
+
+| Fact | Confidence | Source |
+|---|---|---|
+| Pattern: `actions!(ns, [..])`, `cx.bind_keys([KeyBinding::new("cmd-z", Undo, Some("Workspace")), ..])`, and on the root element of the view `.key_context("Workspace").track_focus(&focus).on_action(cx.listener(..))`. Focus that element when the window opens, and after a click on the canvas, an edit, or a dialog. ⌘K, ⌘Z, ⇧⌘Z, ⌘C, ⌘V, Delete (`backspace`), and forward delete (`delete`) operated in the tests and in the real window. | Measured | `src/main.rs`, `bind_keys`; `key_commands_on_the_canvas`; real window event log |
+| A binding with no key context gets the depth of the deepest context. It then has the same depth as the bindings of a text field (key context `"Input"`), and the binding that was added last wins. With bindings of no context, a focused field lost Backspace, ⌘Z, ⌘C, and ⌘V to the workspace: Backspace removed the action of the selected key. With the key context `"Workspace"`, the field kept all four. | Source; Measured | `gpui-pre` 0.3.12 `src/keymap.rs`, `binding_enabled`; `a_focused_text_field_keeps_its_keys_with_global_bindings` and `..._with_context_bindings`; real window |
+| ⌘K opened the palette also from a focused field, because the field has no binding for it. | Measured | Same tests |
+| The Kit `Root` binds ⌘C in the key context `"Root"` for text selection. A binding in `"Workspace"` is deeper and wins. | Source; Measured | `gpui-base` 0.9.1 `src/root.rs`; `key_commands_on_the_canvas` |
+| `cx.set_menus` with `MenuItem::action("Undo", Undo)` shows the key equivalents of the bindings in the Edit menu. A key press in a focused field goes to the field and not to the menu. | Measured | Real window; AX attributes; event log |
+| But a click on a menu item sends the workspace action also when a field has the focus. Edit > Undo undid the last change of the canvas while the user typed. In the workspace handler, if `window.focused_input(cx)` (`component::WindowExt`) is `Some`, send `component::input::{Undo, Redo, Copy, Paste, Delete}` to the field. With this, Edit > Undo, Redo, and Delete changed the text of the field. | Measured | `forward_to_field`; real window event log |
+| The clipboard is `cx.write_to_clipboard(ClipboardItem::new_string(text))` and `cx.read_from_clipboard().and_then(\|c\| c.text())`. | Measured | `Spike::copy`, `Spike::paste` |
+
+```rust
+cx.bind_keys([
+    KeyBinding::new("cmd-k", CommandPalette, Some("Workspace")),
+    KeyBinding::new("cmd-z", Undo, Some("Workspace")),
+    KeyBinding::new("cmd-shift-z", Redo, Some("Workspace")),
+    KeyBinding::new("backspace", DeleteSelection, Some("Workspace")),
+]);
+div().key_context("Workspace").track_focus(&self.focus)
+    .on_action(cx.listener(|v, _: &Undo, window, cx| {
+        if window.focused_input(cx).is_some() {
+            window.dispatch_action(Box::new(input::Undo), cx); // from the Edit menu
+        } else {
+            v.undo(cx)
+        }
+    }))
+```
+
+**Window test.** `press("cmd-shift-z")` and the other keys. For a field,
+call `state.update(cx, |s, cx| s.focus(window, cx))`, then `input` and
+`press`, and check that the workspace state did not change. A window test
+does not use the native menu: test the menu items in the real window.
+
+### 7. Tabs in a pane
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `component::tab::{TabBar, Tab}`: `TabBar::new("right-tabs").segmented().small().selected_index(ix).child(Tab::new().label("Inspector")).on_click(cx.listener(\|view, ix: &usize, ..\|))`. The owner keeps the index. An `on_click` on the bar replaces the handlers of the tabs. | Source; Measured | `Spike::right_panel`; `tabs_change_the_content`; real window |
+| The bar has the forms `segmented`, `underline`, `pill`, `outline`, and `folder`. | Source | `gpui-component` 0.9.1 `src/tab/tab_bar.rs` |
+
+**Window test.** `within("right-tabs").click(1usize)`, then
+`within("right-tabs").find(1usize).selected()`.
+
+### Real window checks
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `screencapture -x -o -l <id>` gives a picture of one window at 1 pixel for each point. A native menu is a different window of the process, at layer 101. | Measured | Helper program; window list |
+| A Quartz key event takes the modifier state of the earlier event if its flags are not set. After ⌘K, typed letters were Command keys, and no text came. Set the flags of each key event, also to 0. | Measured | Helper program |
+| System Events can read the items of a menu (`enabled`, `AXMenuItemCmdChar`, `AXMenuItemCmdModifiers`) and click an item. | Measured | Helper program |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
@@ -309,8 +558,22 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   the light menu bar. Only the dark menu bar was tested.
 - Full input-method and accessibility behaviour. The test covers simple text
   entry, not every input method or assistive tool.
-- Whether a double click on a page tab gives a click count of 2 in the
-  native window. The window tests do not simulate a double click.
+- Whether a double click on a page tab of the application gives a click
+  count of 2 in the native window. A double click on a sidebar row of the
+  [window layout test](#window-layout-test-2026-11-12) gave 2, and the page
+  tab uses the same `ClickEvent::click_count`. Thus a count of 2 is likely
+  (Inference), but nobody measured it on the page tab.
+- How VoiceOver reads a sidebar of plain `div` rows, a drag and drop, and
+  the command palette. The window layout test did not use an assistive
+  tool. Plain rows have no tree role until the code adds one.
+- Arrow keys in a sidebar of plain `div` rows. The test program has no key
+  bindings for them. The Kit tree has them.
+- What `NativeMenu::show` does on the no-display test platform. The window
+  tests use the drawn menu.
+- A drag out of the window, and a drag from a different application. The
+  test only dragged inside the window.
+- The look of the Kit parts in the light theme. The window layout test used
+  the dark theme only.
 
 ## Sources
 
@@ -329,3 +592,7 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   <https://docs.rs/crate/gpui-pre-platform/0.3.12/source/>
 - GPUI Component 0.9.1 published source:
   <https://docs.rs/crate/gpui-component/0.9.1/source/>
+- GPUI Base 0.9.1 published source:
+  <https://docs.rs/crate/gpui-base/0.9.1/source/>
+- GPUI Kit 0.9.1 published source and its testing guide `TESTING.md`:
+  <https://docs.rs/crate/gpui-kit/0.9.1/source/>
