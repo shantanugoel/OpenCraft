@@ -214,6 +214,10 @@ The owner used the device on 2026-11-12.
 - The footprint with no device connected. The engine then looks for the
   device one time each second.
 - The footprint after many hours.
+- The footprint of the application with no window open. Issue
+  [#128](https://github.com/shantanugoel/OpenCraft/issues/128) measures it.
+  A GPUI test program with no engine gives the part of GPUI: see
+  [gpui.md](gpui.md#footprint-with-no-window).
 
 ## Sources
 

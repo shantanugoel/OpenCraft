@@ -55,6 +55,9 @@ Date: 2026-11-12. Tool: `codesign -d -r-`, on the program `opencraft`.
 `scripts/sign-dev.sh` makes a bundle with the stable signature. See
 [scripts/README.md](../../scripts/README.md#sign-devsh).
 
+The permission of a program that launchd starts is in
+[macos-start-at-login.md](macos-start-at-login.md#a-launchagent-in-the-launchagents-directory-of-the-user).
+
 ## Not known
 
 - Whether the permission stays after a change of the signing identity, for

@@ -67,6 +67,89 @@ at `gpui_kit::*`.
 | `ClickEvent::click_count` gives the count of clicks of the mouse-up event. The page tabs use it for a double click. | Source | `gpui-pre` 0.3.12 `src/interactive.rs` |
 | The no-display test platform does not show the result of a double click, of a tooltip, or of the visual style. The window tests check the bounds of the elements and the commands only. | Inference | `TestAppContext` API; application window tests |
 
+## Shell test of Phase 5 (2026-11-12)
+
+**Measured.** A test program, not in the repository, uses `gpui-kit` 0.9.1
+and has no engine. It opens no device. It makes a menu bar item with
+`NSStatusItem` from `objc2-app-kit`, in the GPUI event loop. It opens and
+closes one small window, changes the activation policy, and gets commands
+from its menu, from a named pipe, and from signals. A helper program read
+the state through the Accessibility API, and pressed the menu items, the
+close button, and the Dock icon. Each result below is from 1 try, if the
+row gives no count. The program ran in two forms: the executable in a small
+bundle, started from a shell, and the bare executable from `cargo build`.
+The bare form did these tests again with the same results: the start with
+no window, the menu, the Dock icon, the click on the Dock icon, and Cmd-Q.
+The computer is the same as in
+[Release measurements](#release-measurements). The test of a start through
+launchd is in [macos-start-at-login.md](macos-start-at-login.md).
+
+### Menu bar item
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `NSStatusBar::systemStatusBar().statusItemWithLength(NSVariableStatusItemLength)` in the callback of `Application::run` makes the menu bar item. The callback runs on the main thread, thus `MainThreadMarker::new()` gives a marker. | Measured | Test program |
+| A menu item calls a method of an Objective-C class that `objc2::define_class!` makes. The method sends a command on an `async_channel`, and a GPUI foreground task from `App::spawn` receives it. The menu items operated with a window open and with no window. | Measured | Test program; AX press on each item |
+| While the menu is open, the GPUI foreground task continues. It did two commands from the pipe. One command changed the title of a menu item, and the menu showed the new title. | Measured | Test program log; AX titles |
+| A menu item with no action and `setEnabled(false)` shows a line of text that the user cannot select. `setState(NSControlStateValueOn)` shows a check mark. | Measured | AX attributes |
+| The menu bar item stays when the activation policy changes. | Measured | AX |
+| The test needs no new crate. Its `objc2` 0.6.5, `objc2-foundation` 0.3.2, and `objc2-app-kit` 0.3.2 are the versions that GPUI uses in the lock file of the workspace. | Measured | The two lock files |
+| The features of `objc2-app-kit` for the test are `std`, `NSStatusBar`, `NSStatusItem`, `NSStatusBarButton`, `NSButton`, `NSControl`, `NSView`, `NSResponder`, `NSMenu`, `NSMenuItem`, `NSCell`, `NSApplication`, and `NSRunningApplication`, with no default features. The features of `objc2-foundation` are `std`, `NSString`, `NSObject`, and `NSArray`. | Measured | Test program manifest; build |
+| The button of the test shows a text title. An image on the button was not tested. | Measured | Test program |
+
+### Windows, Dock icon, and activation
+
+| Fact | Confidence | Source |
+|---|---|---|
+| With `QuitMode::Explicit`, the process continues after the last window closes, through the close button or through `Window::remove_window`. | Measured | Test program; AX close button |
+| `Application::on_reopen` runs when the user clicks the Dock icon and no window is open. With a window open, GPUI does not call it, and macOS only activates the application. | Measured; Source | AX press on the Dock icon; `gpui-pre-macos` 0.3.12 `platform.rs`, `should_handle_reopen` |
+| `App::set_activation_policy(ActivationPolicy::Accessory)` removes the Dock icon at run time. The window stays on the screen, and the application becomes inactive. | Measured | Dock items through AX; window list |
+| An accessory application that is active is the front application, but the menu bar stays with the application that was active before. Thus its application menu is not visible. | Measured | `NSWorkspace` `frontmostApplication` and `menuBarOwningApplication` |
+| `App::set_activation_policy(ActivationPolicy::Regular)` shows the Dock icon again. If the application is active at that time, the menu bar stays with the other application. | Measured: 3 of 3 tries | `menuBarOwningApplication` |
+| `NSApplication::deactivate` before the change to the regular policy does not correct this, with an activation 0, 50, or 200 ms later. | Measured: 4 tries | `menuBarOwningApplication` |
+| This sequence corrects it: activate the Dock application (bundle identifier `com.apple.dock`) with `NSRunningApplication::activateWithOptions`, set the regular policy, and call `App::activate(true)` 50 ms or 200 ms later. | Measured: 4 of 4 tries | `menuBarOwningApplication` |
+| If the application is not active at the change to the regular policy, its menu bar shows when it becomes active. | Measured | `menuBarOwningApplication` |
+| `Application::with_windowing(WindowingRequest::Headless)` sets the accessory policy before the run loop. During a start with no window, 30 checks of the Dock in the first seconds did not find the Dock icon. | Measured; Source | Dock items through AX; `gpui-pre-macos` 0.3.12 `platform.rs`, `run` |
+| `App::activate(true)` with no window did not make the application active. | Measured | `NSRunningApplication` `isActive` |
+| An accessory application does not show in the list of Cmd-Tab. | Inference | It has no Dock icon. Not measured. |
+
+### Quit
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The application of Phase 4 sets no application menu and binds no key to quit. In the test program with the same configuration, Cmd-Q did nothing. With an application menu that has a Quit item, and a key binding `cmd-q` to the same action, Cmd-Q quit the program. | Measured | Test program; `CGEventPostToPid` with Cmd-Q; `crates/app/src/main.rs` |
+| Thus the missing menu and key binding are the cause of the result of Phase 4: Cmd-Q through System Events did not quit the application. | Inference | The row above |
+| Cmd-Q quits through the GPUI key binding when the window has the keyboard focus, also with the accessory policy. | Measured | Test program |
+| `App::quit` calls `NSApplication::terminate`. Then GPUI calls each `on_app_quit` closure and waits for the futures for at most 200 ms (see [Application checks](#application-checks-2026-11-11)). A future that needed 500 ms did not complete before the process stopped. Work of 500 ms in the closure itself, before the closure returns its future, completed, and then the process stopped. | Measured | Test program log |
+| SIGTERM to a program with no signal handler stops it immediately. The `on_app_quit` closures do not run. | Measured | Test program log |
+| A program can block SIGTERM with `pthread_sigmask` as the first step of `main`, before it starts other threads. Then one thread can wait with `sigwait` and send a quit command to the GPUI foreground task. With this, SIGTERM from `kill` and from `launchctl bootout` called `App::quit`, and the `on_app_quit` closures ran. | Measured | Test program log, 3 times |
+| But a child process that `std::process::Command` starts gets the blocked signal mask. A `/bin/sleep` child of the program did not stop after SIGTERM. | Measured; Source | `ps -o stat`; `man 2 execve`: "Blocked signals remain blocked" |
+| A signal handler from `libc::signal` that writes one byte to a pipe, and one thread that reads the pipe and sends the quit command, also called `App::quit` for SIGTERM and for SIGINT. A child process got the default action and stopped after SIGTERM. | Measured; Source | Test program log; `ps -o stat`; `man 2 execve`: a caught signal is "set to default action in the new process image" |
+| A quit from the menu bar item with no window open calls `App::quit`, and the `on_app_quit` closures run. | Measured | Test program log |
+
+### Footprint with no window
+
+The procedure is the same as in [Release measurements](#release-measurements):
+`footprint -p` and the processor time of the process each 5 seconds, for 60
+seconds. The test program is a release build with thin LTO. It has the menu
+bar item and 14 small elements in its window.
+
+| Measurement | Physical footprint: minimum, median, maximum | Processor use, mean (100 % is one core) | Threads | Confidence |
+|---|---|---|---|---|
+| Window open | 36.50, 36.50, 36.84 MiB | 0.013 % | 5 | Measured |
+| Window closed | 28.34, 29.16, 29.16 MiB | 0.004 % | 5 | Measured |
+| Window open again | 34.00, 34.00, 34.13 MiB | 0.021 % | 7 | Measured |
+| Window closed again | 28.92, 28.92, 28.92 MiB | 0.004 % | 6 | Measured |
+| Window closed, after 5 more cycles of open and close | 29.56, 29.56, 29.56 MiB | 0.002 % | 6 | Measured |
+| No window and accessory policy, after 3 windows | 30.81, 30.81, 30.81 MiB | 0.003 % | 8 | Measured |
+| Bare executable, start with no window and the accessory policy, no window opened yet | 17.95, 18.00, 18.00 MiB | 0.003 % | 5 | Measured |
+
+- After a window closes, the footprint is approximately 7 MiB less than with
+  the window open. It does not go back to the value before the first window.
+  (Measured)
+- 5 more cycles of open and close added 0.6 MiB. This is a short test, not
+  proof for many cycles. (Measured)
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
@@ -137,7 +220,7 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
 | Fact | Confidence | Source |
 |---|---|---|
 | GPUI has no built-in menu bar item API in this snapshot. Pull request 44047 closed without a merge on 2025-12-12. | Source | Published platform API; [tray PR] |
-| The PR discusses `gpui-tray`. A direct `NSStatusItem` through `objc2-app-kit` is another possible route. Neither route was tested here. | Source; Inference (direct route) | [tray PR]; macOS AppKit API |
+| The PR discusses `gpui-tray`. A direct `NSStatusItem` through `objc2-app-kit` is another route. The direct route operates: see [Shell test of Phase 5](#shell-test-of-phase-5-2026-11-12). `gpui-tray` was not tested. | Source; Measured (direct route) | [tray PR]; test program |
 | GPUI has `prompt_for_paths` and `prompt_for_new_path` native file dialogs, and `ActivationPolicy::Accessory` to hide the Dock icon. | Source | Published GPUI `src/platform.rs` and `src/app.rs` |
 | `QuitMode::Default` is explicit quit on macOS. The program can keep running after its last window closes. The test uses `QuitMode::Explicit` and confirms this. | Source; Measured | Published GPUI `src/app.rs`; test program, close test |
 | The snapshot has separate platform crates. Bare desktop code needs the platform crate and `gpui_platform::application()`, not just the core crate. On macOS, enable `font-kit` for text. The kit sets the platform features, including `runtime_shaders`. | Source; Measured (build) | Published platform and kit manifests; test program |
@@ -165,8 +248,12 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   test bounds image replacement to 650 pairs and measures idle with no focus.
 - The work that a future snapshot update needs. One successful version does
   not predict the next API change.
-- Whether a menu bar item operates correctly with the GPUI event loop. This
-  stays for Phase 5; no menu bar item was made here.
+- Whether an accessory application shows in the list of Cmd-Tab.
+- What occurs at a logout. macOS asks each application to quit, and the
+  Inference is that this calls `NSApplication::terminate` and the
+  `on_app_quit` closures. Nobody logged out during the test.
+- Whether an image on the button of the menu bar item shows correctly in
+  the light and the dark menu bar.
 - Full input-method and accessibility behaviour. The test covers simple text
   entry, not every input method or assistive tool.
 - Whether a double click on a page tab gives a click count of 2 in the
