@@ -23,6 +23,12 @@
 //! stops the connection. The caller does not send the keep-alive. It calls
 //! [`Link::next_event`] in a loop, as for the input.
 //!
+//! The link also finds a wake of the computer from sleep: see
+//! [`LinkEvent::Woke`]. After a sleep, the device possibly lost its state or
+//! its keep-alive. The caller then draws all surfaces again, as after a
+//! connection. The reasons are in
+//! `docs/decisions/0023-wake-from-the-sleep-time-of-the-clocks.md`.
+//!
 //! A [`Connector`] and a [`Clock`] are interfaces, so a test can supply fakes
 //! and run with no device and no real wait (architecture rule 7).
 
@@ -52,6 +58,15 @@ pub const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
 /// return at once, so this pause prevents a busy loop. With [`ERROR_LIMIT`],
 /// an error that stays becomes a disconnection after approximately 1 second.
 pub const ERROR_PAUSE: Duration = Duration::from_millis(100);
+
+/// A sleep of the computer that is longer than this gives
+/// [`LinkEvent::Woke`].
+///
+/// The sleep time of [`SystemClock::asleep`] does not change while the
+/// computer is awake (measured: no change in 6.9 days). Thus a short limit
+/// gives no false wake. The limit is not zero, so that a small difference
+/// between two clocks is never a wake.
+pub const WAKE_THRESHOLD: Duration = Duration::from_secs(2);
 
 /// Finds the device and opens it.
 pub trait Connector {
@@ -89,11 +104,25 @@ impl Connector for HidConnector {
 
 /// The time source of a [`Link`]. A test supplies a clock that does not wait.
 pub trait Clock {
+    /// The time for the waits and the keep-alive. On macOS and on Linux,
+    /// [`Instant`] does not count the time while the computer sleeps.
     fn now(&self) -> Instant;
+
+    /// Wait for `duration`.
     fn sleep(&mut self, duration: Duration);
+
+    /// The total time that the computer slept, from a start that does not
+    /// change while the process operates. `None` if the clock cannot tell.
+    /// Then the link finds no wake.
+    ///
+    /// The link compares two values to find a sleep. The default is `None`.
+    fn asleep(&self) -> Option<Duration> {
+        None
+    }
 }
 
-/// The real clock: [`Instant::now`] and [`std::thread::sleep`].
+/// The real clock: [`Instant::now`], [`std::thread::sleep`], and
+/// [`computer_sleep_time`].
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemClock;
 
@@ -105,6 +134,56 @@ impl Clock for SystemClock {
     fn sleep(&mut self, duration: Duration) {
         std::thread::sleep(duration);
     }
+
+    fn asleep(&self) -> Option<Duration> {
+        computer_sleep_time()
+    }
+}
+
+/// The total time that the computer slept since it started. `None` on a
+/// platform with no such clock.
+///
+/// - macOS: `CLOCK_MONOTONIC_RAW` minus `CLOCK_UPTIME_RAW`. The two clocks
+///   count at the same rate, but `CLOCK_UPTIME_RAW` stops while the computer
+///   sleeps.
+/// - Linux: `CLOCK_BOOTTIME` minus `CLOCK_MONOTONIC`. `CLOCK_MONOTONIC`
+///   stops while the computer is suspended.
+///
+/// The facts and their sources are in `docs/kb/sleep-and-wake.md`. The
+/// value does not depend on the wall clock, so a change of the time of day
+/// is not a sleep.
+pub fn computer_sleep_time() -> Option<Duration> {
+    #[cfg(target_vendor = "apple")]
+    {
+        let awake = read_clock(libc::CLOCK_UPTIME_RAW)?;
+        let total = read_clock(libc::CLOCK_MONOTONIC_RAW)?;
+        Some(total.saturating_sub(awake))
+    }
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        let awake = read_clock(libc::CLOCK_MONOTONIC)?;
+        let total = read_clock(libc::CLOCK_BOOTTIME)?;
+        Some(total.saturating_sub(awake))
+    }
+    #[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "android")))]
+    {
+        None
+    }
+}
+
+#[cfg(any(target_vendor = "apple", target_os = "linux", target_os = "android"))]
+fn read_clock(clock: libc::clockid_t) -> Option<Duration> {
+    let mut time = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    // SAFETY: `time` is a valid `timespec` that the call writes.
+    if unsafe { libc::clock_gettime(clock, &mut time) } != 0 {
+        return None;
+    }
+    let secs = u64::try_from(time.tv_sec).ok()?;
+    let nanos = u32::try_from(time.tv_nsec).ok()?;
+    Some(Duration::new(secs, nanos))
 }
 
 /// One event from [`Link::next_event`].
@@ -116,6 +195,17 @@ pub enum LinkEvent {
     Disconnected,
     /// One input report from the device. Decode it with [`crate::decode`].
     Input(Vec<u8>),
+    /// The computer slept for `slept`, more than [`WAKE_THRESHOLD`], and is
+    /// awake now. The device possibly lost its images, its start, or its
+    /// keep-alive timer during the sleep. If a device is connected, do the
+    /// same as for [`LinkEvent::Connected`]: send the start sequence and draw
+    /// all surfaces again (architecture rule 10).
+    ///
+    /// The link sent the keep-alive just before this event. If a write fails
+    /// after the wake, the usual rules apply: the link drops the device and
+    /// connects again, and [`LinkEvent::Connected`] follows. With no device
+    /// connected, the link tries to connect at once.
+    Woke { slept: Duration },
     /// The time limit expired with no other event.
     Timeout,
 }
@@ -137,6 +227,10 @@ pub struct Link<C: Connector, K: Clock = SystemClock> {
     /// True after [`Link::stop`]. The link then sends nothing and does not
     /// connect again.
     stopped: bool,
+    /// The last value of [`Clock::asleep`].
+    asleep: Option<Duration>,
+    /// The sleep time of a wake that the caller did not get yet.
+    woke: Option<Duration>,
 }
 
 /// The keep-alive policy. All decisions about the keep-alive are here.
@@ -171,6 +265,25 @@ impl KeepAlive {
         self.next = None;
     }
 
+    /// Make the next keep-alive due at `now`, if a keep-alive is scheduled.
+    fn due_at(&mut self, now: Instant) {
+        if self.next.is_some() {
+            self.next = Some(now);
+        }
+    }
+
+    /// The computer slept for `slept`. [`Instant`] did not count that time,
+    /// but the device did. Move the next keep-alive earlier by `slept`, so
+    /// that the keep-alive follows the time of the device.
+    fn after_sleep(&mut self, now: Instant, slept: Duration) {
+        if let Some(next) = self.next {
+            self.next = Some(match next.checked_sub(slept) {
+                Some(earlier) if earlier > now => earlier,
+                _ => now,
+            });
+        }
+    }
+
     /// True if the keep-alive must go out at `now`.
     fn is_due(&self, now: Instant) -> bool {
         self.next.is_some_and(|t| now >= t)
@@ -202,6 +315,7 @@ impl<C: Connector> Link<C> {
 impl<C: Connector, K: Clock> Link<C, K> {
     /// Make a link with no device that uses `clock` for all waits.
     pub fn with_clock(connector: C, clock: K) -> Self {
+        let asleep = clock.asleep();
         Self {
             connector,
             clock,
@@ -211,6 +325,8 @@ impl<C: Connector, K: Clock> Link<C, K> {
             errors: 0,
             keep_alive: KeepAlive::new(),
             stopped: false,
+            asleep,
+            woke: None,
         }
     }
 
@@ -342,6 +458,15 @@ impl<C: Connector, K: Clock> Link<C, K> {
         }
         let deadline = self.clock.now() + timeout;
         loop {
+            self.check_wake();
+            if let Some(slept) = self.woke.take() {
+                if self.device.is_some() {
+                    // A write error after the wake is handled as always. A
+                    // disconnection becomes the next event.
+                    let _ = self.send_keep_alive_if_due();
+                }
+                return Ok(LinkEvent::Woke { slept });
+            }
             if self.device.is_some() {
                 self.send_keep_alive_if_due()?;
                 if let Some(event) = self.pending.take() {
@@ -425,6 +550,37 @@ impl<C: Connector, K: Clock> Link<C, K> {
         }
     }
 
+    /// Read the sleep time of the clock. If the computer slept, move the
+    /// keep-alive. If it slept for more than [`WAKE_THRESHOLD`], record a
+    /// wake: the keep-alive is due at once, and with no device, the next try
+    /// to connect is at once.
+    fn check_wake(&mut self) {
+        let Some(total) = self.clock.asleep() else {
+            return;
+        };
+        let Some(last) = self.asleep else {
+            self.asleep = Some(total);
+            return;
+        };
+        // The two clocks are read one after the other, so the value changes
+        // by some nanoseconds at each read. Such a change is not a sleep, and
+        // it must not add up.
+        let slept = total.saturating_sub(last);
+        if slept < Duration::from_millis(1) {
+            return;
+        }
+        self.asleep = Some(total);
+        let now = self.clock.now();
+        self.keep_alive.after_sleep(now, slept);
+        if slept > WAKE_THRESHOLD {
+            if self.device.is_some() {
+                self.keep_alive.due_at(now);
+            }
+            self.next_try = None;
+            self.woke = Some(self.woke.unwrap_or_default() + slept);
+        }
+    }
+
     fn set_device(&mut self, device: Device<C::Transport>) {
         self.device = Some(device);
         self.errors = 0;
@@ -469,6 +625,9 @@ mod tests {
     struct World {
         start: Instant,
         now: Cell<Instant>,
+        /// The fake sleep time of the computer. A test adds to it to
+        /// simulate a sleep. `now` does not move then, as on macOS.
+        asleep: Cell<Duration>,
         /// The time from the start, and the report, of each write try.
         writes: RefCell<Vec<(Duration, Vec<u8>)>>,
     }
@@ -479,6 +638,7 @@ mod tests {
             Rc::new(Self {
                 start,
                 now: Cell::new(start),
+                asleep: Cell::new(Duration::from_secs(1000)),
                 writes: RefCell::new(Vec::new()),
             })
         }
@@ -607,6 +767,10 @@ mod tests {
         fn sleep(&mut self, duration: Duration) {
             self.sleeps.push(duration);
             self.world.advance(duration);
+        }
+
+        fn asleep(&self) -> Option<Duration> {
+            Some(self.world.asleep.get())
         }
     }
 
@@ -1091,6 +1255,105 @@ mod tests {
             LinkEvent::Disconnected
         );
         assert_eq!(link.next_event(Duration::ZERO).unwrap(), LinkEvent::Timeout);
+    }
+
+    /// Simulate a sleep of the computer for `duration`.
+    fn sleep_computer(link: &TestLink, duration: Duration) {
+        let world = world(link);
+        world.asleep.set(world.asleep.get() + duration);
+    }
+
+    #[test]
+    fn no_sleep_gives_no_wake() {
+        let mut link = connected_link(vec![]);
+        let got = run_until(&mut link, secs(120));
+        assert!(got.is_empty(), "{got:?}");
+        assert_eq!(world(&link).keep_alive_times().len(), 11);
+    }
+
+    #[test]
+    fn a_long_sleep_gives_woke_after_a_keep_alive() {
+        let mut link = connected_link(vec![]);
+        run_until(&mut link, secs(5));
+        sleep_computer(&link, secs(70));
+
+        assert_eq!(
+            link.next_event(STEP).unwrap(),
+            LinkEvent::Woke { slept: secs(70) }
+        );
+        // The keep-alive went out at once, and the interval starts again.
+        assert_eq!(world(&link).keep_alive_times(), vec![secs(5)]);
+        assert!(link.is_connected());
+        let got = run_until(&mut link, secs(30));
+        assert!(got.is_empty(), "one Woke only: {got:?}");
+        assert_eq!(
+            world(&link).keep_alive_times(),
+            vec![secs(5), secs(15), secs(25)]
+        );
+    }
+
+    #[test]
+    fn a_short_sleep_gives_no_wake_but_moves_the_keep_alive() {
+        let mut link = connected_link(vec![]);
+        run_until(&mut link, secs(5));
+        // Two sleeps of 1.5 seconds: the device counted 3 seconds more than
+        // `Instant`. The keep-alive that was due at 10 s must go out 3
+        // seconds earlier.
+        let short = Duration::from_millis(1500);
+        assert!(short < WAKE_THRESHOLD);
+        sleep_computer(&link, short);
+        assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Timeout);
+        sleep_computer(&link, short);
+        let got = run_until(&mut link, secs(15));
+        assert!(got.is_empty(), "{got:?}");
+        assert_eq!(world(&link).keep_alive_times(), vec![secs(7)]);
+    }
+
+    #[test]
+    fn a_wake_with_a_device_that_is_gone_gives_woke_then_disconnected() {
+        let mut link = connected_link(vec![Some(FakeTransport::new())]);
+        run_until(&mut link, secs(5));
+        disconnect(&mut link);
+        sleep_computer(&link, secs(600));
+
+        assert_eq!(
+            link.next_event(STEP).unwrap(),
+            LinkEvent::Woke { slept: secs(600) }
+        );
+        assert!(!link.is_connected());
+        assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Disconnected);
+        assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Connected);
+    }
+
+    #[test]
+    fn a_wake_with_no_device_tries_to_connect_at_once() {
+        let mut link = link(vec![None, Some(FakeTransport::new())]);
+        assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Timeout);
+        assert_eq!(link.connector().tries, 1);
+        sleep_computer(&link, secs(60));
+
+        assert_eq!(
+            link.next_event(STEP).unwrap(),
+            LinkEvent::Woke { slept: secs(60) }
+        );
+        assert!(world(&link).writes.borrow().is_empty());
+        assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Connected);
+        assert_eq!(link.connector().tries, 2, "no wait for the retry interval");
+    }
+
+    #[test]
+    fn the_sleep_time_of_the_computer_does_not_change_while_it_is_awake() {
+        let has_clock = cfg!(any(target_vendor = "apple", target_os = "linux"));
+        let Some(first) = computer_sleep_time() else {
+            // A platform with no such clock: the link finds no wake.
+            assert!(!has_clock);
+            return;
+        };
+        std::thread::sleep(Duration::from_millis(20));
+        let second = computer_sleep_time().unwrap();
+        let change = second.abs_diff(first);
+        assert!(change < Duration::from_millis(5), "{change:?}");
+        assert!(SystemClock.asleep().is_some());
     }
 
     /// The full report of `payload`, as the device gets it.

@@ -5,8 +5,9 @@
 //! (architecture rules 1 and 2). The messages contain data only.
 //!
 //! The engine holds the image of each surface, so it can draw all surfaces
-//! again at any time (rule 10). It does this after each connection. The
-//! device and the shell get the same image (rule 11).
+//! again at any time (rule 10). It does this after each connection and after
+//! each wake of the computer from sleep. The device and the shell get the
+//! same image (rule 11).
 //!
 //! The engine holds the number of the active page in memory. The device and
 //! the shell show the active page, and the commands for a surface or a
@@ -55,7 +56,8 @@ pub const DEFAULT_BRIGHTNESS: u8 = 80;
 
 /// Write one line about the device to standard error, with the time of the
 /// system clock in seconds since 1970. The engine writes a line only for an
-/// event that is not frequent: a connection, a disconnection, and the stop.
+/// event that is not frequent: a connection, a disconnection, a wake of the
+/// computer, a full draw, and the stop.
 /// A person can read the result of a test on the device from a log file.
 fn log(text: &str) {
     let now = std::time::SystemTime::now()
@@ -229,8 +231,14 @@ pub enum Event {
     Surface(SurfaceState),
     /// A device is connected, and the engine sent the image of each surface
     /// to it. Before this event, no device is connected.
+    ///
+    /// After a sleep of the computer, the engine sends [`Event::Disconnected`]
+    /// and then this event again, with a full draw between them. The device
+    /// possibly lost its images during the sleep, and an input event during
+    /// the sleep, for example a release, is lost.
     Connected,
-    /// The device is gone. The engine looks for it again.
+    /// The device is gone, or the computer slept. The engine looks for the
+    /// device again, or draws it again. See [`Event::Connected`].
     Disconnected,
     /// The user did a gesture on a control.
     Input(InputEvent),
@@ -1165,11 +1173,25 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 if let Some(model) = model.filter(|m| !std::ptr::eq(*m, self.descriptor)) {
                     self.change_model(model);
                 }
-                // The event comes after the draw: a shell can use it as "the
-                // device is ready".
                 log("connected");
                 self.draw_all();
-                (self.sink)(Event::Connected);
+                self.announce_connected();
+            }
+            Ok(LinkEvent::Woke { slept }) => {
+                log(&format!(
+                    "wake detected: the computer slept {:.1} s",
+                    slept.as_secs_f64()
+                ));
+                if self.link.is_connected() {
+                    // The engine does not know what the device kept during
+                    // the sleep. It does the same as after a new connection
+                    // (rule 10, decision 0023). The shell gets Disconnected
+                    // first, so that it drops its input marks: a release
+                    // during the sleep is lost.
+                    (self.sink)(Event::Disconnected);
+                    self.draw_all();
+                    self.announce_connected();
+                }
             }
             Ok(LinkEvent::Disconnected) => {
                 log("disconnected");
@@ -1188,6 +1210,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Err(e) => self.link_error(&e),
         }
         self.save_if_due();
+    }
+
+    /// Tell the shell that the device is ready, after the full draw. If the
+    /// draw lost the device, the link gives `Disconnected` next, and the
+    /// shell gets no `Connected`.
+    fn announce_connected(&mut self) {
+        if self.link.is_connected() {
+            (self.sink)(Event::Connected);
+        }
     }
 
     /// Use the descriptor of a device that connected. If its model

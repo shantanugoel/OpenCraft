@@ -174,8 +174,11 @@ OPTIONS FOR 'repaint':
 
 'test', 'listen' and 'raw' send the keep-alive, so the device stays
 connected. They continue after a disconnection and wait for the device to
-connect again. 'test' and 'raw --draw' draw the surfaces again. '--seconds' is
-the total time.
+connect again. 'test' and 'raw --draw' draw the surfaces again. They print
+'wake detected' after a sleep of the computer, and then draw the surfaces
+again also. '--no-wake-draw' prevents the draw at a wake, so that you can see
+what the device kept during the sleep. '--seconds' is the total time awake:
+the time of a sleep does not count.
 
 NOTE: quit VSD Craft first. Two applications must not operate one device at
 the same time."
@@ -340,6 +343,7 @@ fn cmd_test(rest: &[String]) -> AnyResult {
     let brightness = flag_u64(rest, "--brightness").unwrap_or(80) as u8;
     let mode = flag_u64(rest, "--mode").map(|m| m as u8);
     let keep = rest.iter().any(|a| a == "--keep");
+    let no_wake_draw = rest.iter().any(|a| a == "--no-wake-draw");
     let verbose = rest.iter().any(|a| a == "--verbose");
     let keep_alive = measure::keep_alive_flag(rest)?;
 
@@ -362,6 +366,7 @@ fn cmd_test(rest: &[String]) -> AnyResult {
         &mut link,
         Duration::from_secs(seconds),
         None,
+        !no_wake_draw,
         |d| draw_test_pattern(d, mode, brightness),
         |data| {
             print_event(d, data, verbose);
@@ -399,6 +404,7 @@ fn cmd_listen(rest: &[String]) -> AnyResult {
         &mut link,
         Duration::from_secs(seconds),
         None,
+        false,
         |_| Ok(0),
         |data| {
             print_event(d, data, verbose);
@@ -413,6 +419,7 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
     let note = flag_str(rest, "--note").unwrap_or("");
     let until_enter = rest.iter().any(|a| a == "--until-enter");
     let draw = rest.iter().any(|a| a == "--draw");
+    let no_wake_draw = rest.iter().any(|a| a == "--no-wake-draw");
     let keep_alive = measure::keep_alive_flag(rest)?;
     let mut t = open_device()?;
 
@@ -456,6 +463,7 @@ fn cmd_raw(rest: &[String]) -> AnyResult {
         &mut link,
         Duration::from_secs(seconds),
         Some(&stop),
+        !no_wake_draw,
         |d| {
             if draw {
                 draw_test_pattern(d, None, 80)
@@ -671,14 +679,16 @@ fn cmd_background(rest: &[String]) -> AnyResult {
 /// Operate the link until `duration` expires or `stop` is set.
 ///
 /// After each connection, `draw` draws all surfaces; it returns the number of
-/// surfaces that it drew. For each input report, `on_input` runs. The link sends
-/// the keep-alive. The function prints a line when the device disconnects and
-/// when it connects again. An error that does not stop the link is printed one
-/// time, until it changes.
+/// surfaces that it drew. With `wake_draw`, `draw` also runs after a wake of
+/// the computer from sleep, as the engine does. For each input report,
+/// `on_input` runs. The link sends the keep-alive. The function prints a line
+/// when the device disconnects, when it connects again, and at a wake. An
+/// error that does not stop the link is printed one time, until it changes.
 fn run_link(
     link: &mut Link<HidConnector>,
     duration: Duration,
     stop: Option<&AtomicBool>,
+    wake_draw: bool,
     mut draw: impl FnMut(&mut Device<HidTransport>) -> opencraft_core::Result<usize>,
     mut on_input: impl FnMut(&[u8]) -> AnyResult,
 ) -> AnyResult {
@@ -705,20 +715,21 @@ fn run_link(
                         lost.elapsed().as_secs_f64()
                     );
                 }
-                let drawn_at = Instant::now();
-                match link.with_device(|d| draw(d)) {
-                    Ok(0) => {}
-                    Ok(n) => println!(
-                        "  {} drawn  : {n} surfaces committed in {} ms",
-                        stamp(),
-                        drawn_at.elapsed().as_millis()
-                    ),
-                    Err(e) => eprintln!("  {} (draw failed: {e})", stamp()),
-                }
+                draw_now(link, &mut draw, &stamp);
                 if first {
                     println!();
                 }
                 first = false;
+            }
+            Ok(LinkEvent::Woke { slept }) => {
+                println!(
+                    "  {} wake detected: the computer slept {:.1}s",
+                    stamp(),
+                    slept.as_secs_f64()
+                );
+                if wake_draw && link.is_connected() {
+                    draw_now(link, &mut draw, &stamp);
+                }
             }
             Ok(LinkEvent::Disconnected) => {
                 lost_at = Some(Instant::now());
@@ -740,6 +751,24 @@ fn run_link(
         }
     }
     Ok(())
+}
+
+/// Run `draw` on the device of `link`, and print the result.
+fn draw_now(
+    link: &mut Link<HidConnector>,
+    draw: &mut impl FnMut(&mut Device<HidTransport>) -> opencraft_core::Result<usize>,
+    stamp: &impl Fn() -> String,
+) {
+    let drawn_at = Instant::now();
+    match link.with_device(|d| draw(d)) {
+        Ok(0) => {}
+        Ok(n) => println!(
+            "  {} drawn  : {n} surfaces committed in {} ms",
+            stamp(),
+            drawn_at.elapsed().as_millis()
+        ),
+        Err(e) => eprintln!("  {} (draw failed: {e})", stamp()),
+    }
 }
 
 /// Print one decoded input report.

@@ -9,3 +9,4 @@ license.workspace = true
 hidapi.workspace = true
 image.workspace = true
 thiserror.workspace = true
+libc.workspace = true
