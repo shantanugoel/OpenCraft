@@ -54,8 +54,11 @@ pub struct Shell {
     /// is not known.
     #[cfg(target_os = "macos")]
     login_dir: Option<PathBuf>,
-    /// The LaunchAgent file exists. The shell reads this at the start and
-    /// after each change.
+    /// The executable of this process. The LaunchAgent file names it.
+    #[cfg(target_os = "macos")]
+    executable: Option<PathBuf>,
+    /// The LaunchAgent file starts this executable. The shell reads this at
+    /// the start and after each change.
     #[cfg(target_os = "macos")]
     start_at_login: bool,
 }
@@ -68,6 +71,8 @@ impl Shell {
     pub fn new(config_dir: PathBuf, settings: Settings, send: Rc<dyn Fn(Command)>) -> Self {
         #[cfg(target_os = "macos")]
         let login_dir = crate::login::agents_dir();
+        #[cfg(target_os = "macos")]
+        let executable = std::env::current_exe().ok();
         Self {
             state: ViewState::default(),
             settings,
@@ -76,17 +81,38 @@ impl Shell {
             #[cfg(target_os = "macos")]
             menu_bar: None,
             #[cfg(target_os = "macos")]
-            start_at_login: login_dir.as_deref().is_some_and(crate::login::is_on),
+            start_at_login: login_dir
+                .as_deref()
+                .zip(executable.as_deref())
+                .is_some_and(|(dir, executable)| crate::login::is_on(dir, executable)),
             #[cfg(target_os = "macos")]
             login_dir,
+            #[cfg(target_os = "macos")]
+            executable,
         }
     }
 
     /// Use `dir` in place of `~/Library/LaunchAgents`.
     #[cfg(all(test, target_os = "macos"))]
     pub fn set_login_dir(&mut self, dir: PathBuf) {
-        self.start_at_login = crate::login::is_on(&dir);
         self.login_dir = Some(dir);
+        self.start_at_login = self.login_is_on();
+    }
+
+    /// Use `executable` in place of the executable of this process.
+    #[cfg(all(test, target_os = "macos"))]
+    pub fn set_executable(&mut self, executable: PathBuf) {
+        self.executable = Some(executable);
+        self.start_at_login = self.login_is_on();
+    }
+
+    /// True if the LaunchAgent file starts the executable of this process.
+    #[cfg(target_os = "macos")]
+    fn login_is_on(&self) -> bool {
+        match (&self.login_dir, &self.executable) {
+            (Some(dir), Some(executable)) => crate::login::is_on(dir, executable),
+            _ => false,
+        }
     }
 
     /// Start the two tasks that receive the engine events and the shell
@@ -256,21 +282,37 @@ impl Shell {
 
     /// Write or remove the LaunchAgent file. The new state comes from the
     /// file, also after an error.
+    ///
+    /// If the file starts a different executable, for example a copy of the
+    /// application that the user moved, the option is off, and the user can
+    /// turn it on for this executable (decision 0025).
     #[cfg(target_os = "macos")]
     fn toggle_start_at_login(&mut self, cx: &mut Context<Self>) {
         use crate::login;
-        let Some(dir) = self.login_dir.clone() else {
+        let (Some(dir), Some(executable)) = (self.login_dir.clone(), self.executable.clone())
+        else {
             self.problem(
-                "OpenCraft cannot change the start at login: it cannot find the home directory."
+                "OpenCraft cannot change the start at login: it cannot find the home directory \
+                 or its own executable."
                     .into(),
                 cx,
             );
             return;
         };
-        let result = if login::is_on(&dir) {
+        let on = self.login_is_on();
+        if !on && login::on_read_only_volume(&executable) {
+            self.problem(
+                "To start OpenCraft at login, move it to the Applications folder and start it \
+                 from there. It runs now from a read-only location, for example the disk image."
+                    .into(),
+                cx,
+            );
+            return;
+        }
+        let result = if on {
             login::turn_off(&dir)
         } else {
-            std::env::current_exe().and_then(|executable| login::turn_on(&dir, &executable))
+            login::turn_on(&dir, &executable)
         };
         if let Err(error) = result {
             self.problem(
@@ -281,7 +323,7 @@ impl Shell {
                 cx,
             );
         }
-        self.start_at_login = login::is_on(&dir);
+        self.start_at_login = self.login_is_on();
         self.refresh_menu();
         cx.notify();
     }
@@ -551,8 +593,62 @@ mod tests {
             .unwrap();
         cx.run_until_parked();
         assert!(!on(cx));
-        assert!(!login::is_on(&agents));
+        assert!(!agents.join(login::FILE_NAME).exists());
         assert!(cx.update(|cx| f.shell.read(cx).state.problems.is_empty()));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui_kit::test]
+    fn a_file_for_a_different_executable_shows_off_and_is_replaced(cx: &mut TestAppContext) {
+        use crate::login;
+        let f = shell(cx);
+        let agents = f.dir.path().join("LaunchAgents");
+        // The user moved the application after the option was on.
+        login::turn_on(
+            &agents,
+            std::path::Path::new("/old place/OpenCraft.app/opencraft"),
+        )
+        .unwrap();
+        f.shell
+            .update(cx, |shell, _| shell.set_login_dir(agents.clone()));
+        let on =
+            |cx: &mut TestAppContext| cx.update(|cx| f.shell.read(cx).menu_state().start_at_login);
+        assert!(!on(cx));
+        f.commands
+            .try_send(ShellCommand::ToggleStartAtLogin)
+            .unwrap();
+        cx.run_until_parked();
+        assert!(on(cx));
+        let executable = std::env::current_exe().unwrap();
+        assert_eq!(
+            std::fs::read_to_string(agents.join(login::FILE_NAME)).unwrap(),
+            login::content(executable.to_str().unwrap())
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui_kit::test]
+    fn an_executable_on_a_read_only_volume_does_not_turn_the_option_on(cx: &mut TestAppContext) {
+        use crate::login;
+        let f = shell(cx);
+        // The system volume is read-only, as a disk image is.
+        f.shell.update(cx, |shell, _| {
+            shell.set_executable(PathBuf::from("/usr/bin/true"))
+        });
+        f.commands
+            .try_send(ShellCommand::ToggleStartAtLogin)
+            .unwrap();
+        cx.run_until_parked();
+        assert!(!cx.update(|cx| f.shell.read(cx).menu_state().start_at_login));
+        assert!(!f
+            .dir
+            .path()
+            .join("LaunchAgents")
+            .join(login::FILE_NAME)
+            .exists());
+        let problems = cx.update(|cx| f.shell.read(cx).state.problems.clone());
+        assert_eq!(problems.len(), 1);
+        assert!(problems[0].contains("move it to the Applications folder"));
     }
 
     #[cfg(target_os = "macos")]

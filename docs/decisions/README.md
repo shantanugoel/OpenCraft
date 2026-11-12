@@ -40,6 +40,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0022](0022-device-settings-and-stop-state.md) | Device settings are for each device model, outside the profile, and the device goes dark at the stop | Accepted |
 | [0023](0023-wake-from-the-sleep-time-of-the-clocks.md) | The link finds a wake from the sleep time of the clocks, and the engine then draws all surfaces again | Accepted |
 | [0024](0024-log-file-with-no-terminal.md) | The messages go to a log file when the process has no terminal | Accepted |
+| [0025](0025-release-form.md) | The release is a signed and notarized bundle in one disk image for Apple silicon | Accepted |
 
 ## Template
 

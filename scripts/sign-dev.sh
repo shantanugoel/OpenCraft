@@ -7,6 +7,10 @@
 # last build does not apply to a new build. A signature from one identity
 # stays the same for each build. See docs/kb/macos-permissions.md.
 #
+# The identifier `opencraft-dev` is not the identifier of the release
+# (scripts/release.sh). Thus a development build and a release do not share
+# permissions. See docs/decisions/0025-release-form.md.
+#
 # The bundle is target/<profile>/OpenCraft.app. macOS gives a program that
 # starts from a terminal the permissions of the terminal. A bundle that
 # starts through `open`, the Finder, or the Dock has its own permissions.
@@ -34,6 +38,9 @@ for arg in "$@"; do
 done
 
 cd "$(dirname "$0")/.."
+
+# The workspace version in Cargo.toml.
+version="$(cargo pkgid -p opencraft-app | sed 's/.*[#@]//')"
 
 identity="${OPENCRAFT_SIGN_IDENTITY:-}"
 if [ -z "$identity" ]; then
@@ -68,7 +75,7 @@ cat > "$bundle/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key><string>$IDENTIFIER</string>
     <key>CFBundleName</key><string>OpenCraft</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleShortVersionString</key><string>$version</string>
     <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>

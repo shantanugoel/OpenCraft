@@ -12,6 +12,7 @@ use crate::shell::ShellCommand;
 /// One item of the menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Item {
+    Version,
     Device,
     Profile,
     Open,
@@ -34,7 +35,9 @@ pub enum Kind {
 }
 
 /// The items, in their order in the menu.
-pub const ITEMS: [Item; 9] = [
+pub const ITEMS: [Item; 11] = [
+    Item::Version,
+    Item::Separator,
     Item::Device,
     Item::Profile,
     Item::Separator,
@@ -49,7 +52,7 @@ pub const ITEMS: [Item; 9] = [
 impl Item {
     pub fn kind(self) -> Kind {
         match self {
-            Item::Device | Item::Profile => Kind::Text,
+            Item::Version | Item::Device | Item::Profile => Kind::Text,
             Item::Open | Item::Quit => Kind::Command,
             Item::ShowDockIcon | Item::StartAtLogin => Kind::Check,
             Item::Separator => Kind::Separator,
@@ -63,7 +66,7 @@ impl Item {
             Item::ShowDockIcon => Some(ShellCommand::ToggleDockIcon),
             Item::StartAtLogin => Some(ShellCommand::ToggleStartAtLogin),
             Item::Quit => Some(ShellCommand::Quit),
-            Item::Device | Item::Profile | Item::Separator => None,
+            Item::Version | Item::Device | Item::Profile | Item::Separator => None,
         }
     }
 
@@ -89,6 +92,11 @@ impl Item {
     }
 }
 
+/// The version of the application: the workspace version in `Cargo.toml`.
+/// The release script writes the same version into the bundle (decision
+/// 0025).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// The values that the menu shows.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MenuState {
@@ -107,6 +115,7 @@ impl MenuState {
     /// item now.
     pub fn title(&self, item: Item) -> Option<String> {
         Some(match item {
+            Item::Version => format!("OpenCraft {VERSION}"),
             Item::Device if self.connected => "Device: connected".into(),
             Item::Device => "Device: not connected".into(),
             Item::Profile => format!("Profile: {}", self.profile.as_ref()?),
@@ -148,6 +157,7 @@ mod tests {
         assert_eq!(
             titles,
             [
+                format!("OpenCraft {VERSION}").as_str(),
                 "Device: connected",
                 "Profile: Desk",
                 "Open OpenCraft",
@@ -178,6 +188,12 @@ mod tests {
             Some(ShellCommand::ToggleDockIcon)
         );
         assert_eq!(Item::Device.command(), None);
+        assert_eq!(Item::Version.command(), None);
+        assert_eq!(Item::Version.kind(), Kind::Text);
+        // Decision 0025: the version is the first item, with a separator
+        // after it.
+        assert_eq!(Item::Version.tag(), 0);
+        assert_eq!(ITEMS[1], Item::Separator);
         assert_eq!(Item::Device.kind(), Kind::Text);
         assert_eq!(Item::Profile.kind(), Kind::Text);
     }
@@ -185,6 +201,10 @@ mod tests {
     #[test]
     fn the_menu_shows_the_state() {
         let state = MenuState::default();
+        assert_eq!(
+            state.title(Item::Version),
+            Some(format!("OpenCraft {}", env!("CARGO_PKG_VERSION")))
+        );
         assert_eq!(
             state.title(Item::Device).as_deref(),
             Some("Device: not connected")
