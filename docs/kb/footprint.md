@@ -193,6 +193,14 @@ second recorded the device.
 - The time from a finger on the device to the page change is not in these
   values. The device sends the report of a swipe when the finger lifts.
 
+### Checks by the owner
+
+The owner used the device on 2026-11-12.
+
+| Fact | Confidence |
+|---|---|
+| 20 taps, 10 swipes to the left, and 13 swipes to the right each gave the correct gesture and one Invoke at a handler. The record is in [n4-pro-hardware.md](n4-pro-hardware.md#controls-and-input-codes). | Measured: owner, the engine example `touch_count` |
+
 ## Not known
 
 - The start time after a start of the computer, when the files of the
