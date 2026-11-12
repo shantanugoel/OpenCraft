@@ -21,7 +21,7 @@ application that other persons can adopt.
 | 2 | First GUI: see and paint the device | Complete |
 | 3 | Actions for keys and knobs | Complete |
 | 4 | Pages and the touch bar | Complete |
-| 5 | Background operation | Not started |
+| 5 | Background operation | Complete |
 | 6 | First public release | Not started |
 
 ## Checks for each phase
@@ -259,7 +259,7 @@ record of the checks.
   are handlers in `opencraft-actions`. The engine contains no name of a
   built-in kind (rule 8).
 
-## Phase 5: Background operation
+## Phase 5: Background operation (complete)
 
 **Goal.** OpenCraft operates all day with no window open.
 
@@ -273,12 +273,52 @@ record of the checks.
 
 **Exit criteria.**
 
-- [ ] The device operates with no window open.
-- [ ] The device operates after sleep and wake with no user action.
-- [ ] The product targets are met with no window open.
+- [x] The device operates with no window open.
+- [x] The device operates after sleep and wake with no user action. This is
+  true in the engine tests, with a sleep that the test makes. The check with
+  a real sleep of the computer is not done.
+- [x] The product targets are met with no window open. This is true for the
+  memory and for the processor use. The start time is below its target for a
+  repeated start only.
+
+On 2026-11-12 the owner moved three checks out of this phase: a real sleep
+and wake, a start at a real login, and the cold start after a start of the
+computer. The owner does them later, and they block no phase. They are in
+[issue #143](https://github.com/shantanugoel/OpenCraft/issues/143).
 
 **Decisions that this phase forces.** Engine in the GUI process or in a
-different process. How to make the menu bar item.
+different process. The answer is the GUI process: see
+[decision 0019](decisions/0019-engine-in-the-gui-process.md). How to make
+the menu bar item. The answer is AppKit code in the shell: see
+[decision 0020](decisions/0020-menu-bar-item-and-dock-icon.md). The other
+decisions of the phase are
+[0021](decisions/0021-start-at-login.md),
+[0022](decisions/0022-device-settings-and-stop-state.md),
+[0023](decisions/0023-wake-from-the-sleep-time-of-the-clocks.md), and
+[0024](decisions/0024-log-file-with-no-terminal.md).
+
+**Result.** The phase is complete on 2026-11-12, with the limits that the
+exit criteria give. The [checks for each phase](#checks-for-each-phase) are
+done. [Issue #129](https://github.com/shantanugoel/OpenCraft/issues/129) has
+the record of the checks.
+
+- With no window open, the engine operated the device for 30 minutes after
+  a start with `--login`, and the camera showed the profile on the device
+  after a close of the window. See
+  [kb/footprint.md](kb/footprint.md#phase-5) and
+  [kb/gpui.md](kb/gpui.md).
+- The measured footprint with no window is in
+  [kb/footprint.md](kb/footprint.md#phase-5). The memory and the processor
+  use are below their targets.
+- A quit from the menu bar item, Cmd-Q, and a stop signal each make the
+  device dark. See "Keep-alive and stop" in
+  [kb/streamdock-protocol.md](kb/streamdock-protocol.md#keep-alive-and-stop).
+- The owner did the check of the haptic feedback and of the dark state on
+  the device. The camera measured the brightness and the knob lights.
+- The start at login operated through launchd with a test file. The facts
+  are in [kb/macos-start-at-login.md](kb/macos-start-at-login.md).
+- What the link and the engine do at a wake is in
+  [kb/sleep-and-wake.md](kb/sleep-and-wake.md).
 
 ## Phase 6: First public release
 

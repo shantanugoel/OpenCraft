@@ -95,7 +95,7 @@ command `sfltool dumpbtm` prints it.
 ## Not known
 
 - A start at a real login. Nobody logged out during the test. Issue
-  [#126](https://github.com/shantanugoel/OpenCraft/issues/126) has a check
+  [#143](https://github.com/shantanugoel/OpenCraft/issues/143) has a check
   by the owner.
 - Whether a program in a signed bundle gets the Accessibility permission of
   that bundle when launchd starts its executable directly.

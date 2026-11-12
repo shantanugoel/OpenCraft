@@ -334,7 +334,7 @@ the first full draw. Each time is from the start of the process.
 - A repeated start meets the target of 300 ms. The first start of a new
   executable file does not meet it. The start after a start of the computer
   is not measured. Issue
-  [#137](https://github.com/shantanugoel/OpenCraft/issues/137) measures it.
+  [#143](https://github.com/shantanugoel/OpenCraft/issues/143) measures it.
 
 ### Product targets with no window (2026-11-12)
 
@@ -342,14 +342,14 @@ the first full draw. Each time is from the start of the process.
 |---|---|---|
 | Memory in the steady state: less than 80 MB | 21.6 MB after a start with `--login`, 32.9 MB after the window closed | Met |
 | Processor use when idle: less than 0.5 % of one core | 0.13 to 0.17 %, and 0.16 % in 30 minutes. No sample of 5 seconds above 1.2 %. | Met |
-| Cold start to a ready device: less than 300 ms | 52 ms for a repeated start; 589 ms for the first start of a new executable file; not measured after a start of the computer | Met for a repeated start only. Issue [#137](https://github.com/shantanugoel/OpenCraft/issues/137). |
-| Lost input events: none | Not measured again. The window does not change the input path of the engine. | Not measured with no window |
+| Cold start to a ready device: less than 300 ms | 52 ms for a repeated start; 589 ms for the first start of a new executable file; not measured after a start of the computer | Met for a repeated start only. Issue [#143](https://github.com/shantanugoel/OpenCraft/issues/143). |
+| Lost input events: none | Not measured again in Phase 5. The counts of Phase 3 and Phase 4 used the engine examples `knob_count` and `touch_count`, which have no window. The window does not change the input path of the engine. | Met in Phase 3 and Phase 4, with no window. Not measured with the Phase 5 application. |
 
 ## Not known
 
 - The start time after a start of the computer, when the files of the
   application are not in the memory of the operating system. Issue
-  [#137](https://github.com/shantanugoel/OpenCraft/issues/137) measures it.
+  [#143](https://github.com/shantanugoel/OpenCraft/issues/143) measures it.
   Start 1 of [Phase 2](#phase-2) and of [Phase 5](#phase-5) are the nearest
   values.
 - The cause of the samples with 1.2 % and 1.6 % of one core: see
