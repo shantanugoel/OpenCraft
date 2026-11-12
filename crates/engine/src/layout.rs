@@ -5,7 +5,7 @@
 //! with their positions, and the controls with their places. The layout
 //! contains data only, and no reference to the descriptor.
 
-use opencraft_core::{ControlId, Descriptor, SurfaceId};
+use opencraft_core::{ControlId, Descriptor, SettingsSupport, SurfaceId};
 
 /// One surface of the layout. The position and the size are in pixels of the
 /// display. See [`DeviceLayout::display_width`].
@@ -43,6 +43,9 @@ pub struct DeviceLayout {
     pub display_height: u16,
     pub surfaces: Vec<SurfaceLayout>,
     pub controls: Vec<ControlLayout>,
+    /// The device settings that the model has. The shell shows only these
+    /// settings.
+    pub settings: SettingsSupport,
 }
 
 impl DeviceLayout {
@@ -80,6 +83,7 @@ impl From<&Descriptor> for DeviceLayout {
                     feedback_surface: c.feedback_surface(),
                 })
                 .collect(),
+            settings: descriptor.settings,
         }
     }
 }
@@ -101,6 +105,7 @@ mod tests {
             );
             assert_eq!(layout.surfaces.len(), d.surfaces.len());
             assert_eq!(layout.controls.len(), d.controls.len());
+            assert_eq!(layout.settings, d.settings);
             for s in d.surfaces {
                 let got = layout.surface(s.id).unwrap();
                 assert_eq!(

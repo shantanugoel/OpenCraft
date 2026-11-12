@@ -282,6 +282,15 @@ commands. It is not in the repository.
 Thus a host must send the colours and the knob light brightness after each
 `DIS` that starts a connection or follows `DC`. (Inference)
 
+The engine of OpenCraft sent the knob light commands on 2026-11-12. A camera
+recorded the device.
+
+| Fact | Confidence |
+|---|---|
+| `SETLB` and `LBLIG` directly after the start sequence (`DIS`, `LIG`, `CLE 0xFF`, `STP`), before the images, set the knob lights. Red, green, blue, and white showed on knobs 1 to 4 at a first connection, after a restart of the program, and after the device stopped the USB connection and connected again. | Measured: camera, 4 times |
+| `LBLIG 0` alone switches off the lights that the colour command set. A later `SETLB` with all colours black and `LBLIG` 1 or 100 shows the default effect again. | Measured: camera, 2 times |
+| `LBLIG` 10 after red, green, blue, and white gave less light on each knob, with the same colours | Measured: camera, 1 time |
+
 ## The device with no host
 
 | Fact | Confidence | Source |

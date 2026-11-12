@@ -1,8 +1,9 @@
 //! Window-independent state of the shell. No device or file work occurs here.
 
 use opencraft_engine::{
-    BindingId, BindingState, ControlId, ControlKind, DeviceLayout, Event, Gesture, GestureKind,
-    InputEvent, KindDescription, ProfileEntry, Status, SurfaceId, SurfaceKind, SurfaceState,
+    BindingId, BindingState, ControlId, ControlKind, DeviceLayout, DeviceSettings, Event, Gesture,
+    GestureKind, InputEvent, KindDescription, ProfileEntry, Status, SurfaceId, SurfaceKind,
+    SurfaceState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -43,6 +44,10 @@ pub struct ViewState {
     /// The bindings of the active page only.
     pub bindings: BTreeMap<BindingId, BindingState>,
     pub statuses: BTreeMap<String, Status>,
+    /// The device settings of the model of the device. The engine sends them
+    /// at the start and after each change. The layout tells which settings
+    /// the model has.
+    pub device_settings: Option<DeviceSettings>,
     pub pressed: BTreeSet<ControlId>,
     /// One step is one twelfth of a turn. This is a display mark, not device state.
     pub knob_steps: BTreeMap<ControlId, i32>,
@@ -111,6 +116,7 @@ impl ViewState {
             Event::Status { kind, status } => {
                 self.statuses.insert(kind, status);
             }
+            Event::DeviceSettings(settings) => self.device_settings = Some(settings),
             Event::Counters(_) => {}
         }
         None
@@ -331,6 +337,11 @@ pub(crate) mod tests {
                     feedback_surface: None,
                 },
             ],
+            settings: opencraft_engine::SettingsSupport {
+                lowest_brightness: 15,
+                knob_lights: 2,
+                haptic: true,
+            },
         }))
     }
     pub fn key() -> SurfaceId {

@@ -610,6 +610,11 @@ mod tests {
             surfaces: SURFACES,
             controls: &[],
             required_mode: None,
+            settings: crate::device::SettingsSupport {
+                lowest_brightness: 0,
+                knob_lights: 0,
+                haptic: false,
+            },
         };
         let mut dev = Device::new(FakeTransport::new(), &OTHER);
         let data: Vec<u8> = (0..65).collect();

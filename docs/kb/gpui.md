@@ -175,6 +175,13 @@ result is from 1 try, if the row gives no count.
 | Cmd-Q to the active application quit it with the accessory policy. A label change 30 ms before the Cmd-Q, and a label change directly before SIGTERM, were in the profile file after the quit. The save delay of the engine is 500 ms, thus the engine wrote the file at the stop. | Measured | `CGEventPostToPid` key events; profile file |
 | A second start while the application ran printed "OpenCraft is already running." and ended with the exit status 0. | Measured | Terminal output; exit status |
 
+## Device settings area (2026-11-12)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `SliderState` emits `SliderEvent::Change` for each move of a drag and for a click on the track, and `SliderEvent::Release` one time at the end of a drag. `SliderState::set_value` emits no event. The minimum is set when the state is made, so a different minimum needs a new `SliderState`. | Source; Measured | `gpui-base` 0.9.1 `src/slider.rs`; application window tests |
+| In the release build, a drag of the brightness slider with 40 mouse moves in approximately 0.5 s changed the device. The window showed 15 % and 100 %, the settings file had the same values, and the camera saw the display brightness change. | Measured: 3 drags | Window screenshot; `device-settings.toml`; USB camera |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

@@ -313,6 +313,26 @@ pub struct Descriptor {
     pub controls: &'static [Control],
     /// Some rebrands need an explicit mode switch before they accept commands.
     pub required_mode: Option<u8>,
+    /// The device settings that the model has. See [`SettingsSupport`].
+    pub settings: SettingsSupport,
+}
+
+/// The device settings that a model has: the capabilities for the display
+/// brightness, the knob lights, and the haptic feedback. The engine sends a
+/// setting command only to a model that has the setting, and the shell shows
+/// only these settings. See
+/// `docs/decisions/0022-device-settings-and-stop-state.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SettingsSupport {
+    /// The lowest value of the brightness command that changes the light of
+    /// the displays, in percent. The values below it give the same light as
+    /// this value. The highest value is 100.
+    pub lowest_brightness: u8,
+    /// The number of knob lights. The colour command has one colour for each
+    /// knob light, knob 1 first. 0: the model has no knob lights.
+    pub knob_lights: u8,
+    /// True if the model has haptic feedback (`QUCMD`).
+    pub haptic: bool,
 }
 
 impl Descriptor {
@@ -497,6 +517,15 @@ static N4PRO_CONTROLS: &[Control] = &[
     },
 ];
 
+/// N4 Pro: the values 0 to 15 of the brightness command give the same light
+/// (measured), 4 knob lights, and haptic feedback. See "Device settings" in
+/// `docs/kb/n4-pro-hardware.md`.
+const N4PRO_SETTINGS: SettingsSupport = SettingsSupport {
+    lowest_brightness: 15,
+    knob_lights: 4,
+    haptic: true,
+};
+
 pub static DESCRIPTORS: &[Descriptor] = &[
     Descriptor {
         name: "VSD StreamDock N4 Pro",
@@ -507,6 +536,7 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         surfaces: N4PRO_SURFACES,
         controls: N4PRO_CONTROLS,
         required_mode: None,
+        settings: N4PRO_SETTINGS,
     },
     // Not tested on hardware. The same data as 0x1023.
     Descriptor {
@@ -518,6 +548,7 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         surfaces: N4PRO_SURFACES,
         controls: N4PRO_CONTROLS,
         required_mode: None,
+        settings: N4PRO_SETTINGS,
     },
     // Not tested on hardware. The same data as 0x1023.
     Descriptor {
@@ -529,6 +560,7 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         surfaces: N4PRO_SURFACES,
         controls: N4PRO_CONTROLS,
         required_mode: None,
+        settings: N4PRO_SETTINGS,
     },
 ];
 

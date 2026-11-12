@@ -11,6 +11,7 @@
 //!   and the active profile of each device model.
 //! - [`store`]: one profile directory: the profile file and the image files.
 //! - [`render`] and [`label`]: the image of a surface, made from its content.
+//! - [`device_settings`]: the device settings of each model, and their file.
 //! - [`layout`]: the layout of the device, as a message for a shell.
 //! - [`engine`]: the engine logic, with the commands and the events.
 //! - [`runtime`]: the engine thread.
@@ -19,6 +20,7 @@
 //! gives the shell the types of the device layer that are in the messages.
 
 pub mod action;
+pub mod device_settings;
 pub mod engine;
 pub mod error;
 pub mod label;
@@ -30,6 +32,7 @@ pub mod runtime;
 pub mod store;
 
 pub use action::*;
+pub use device_settings::{DeviceSettings, KnobLightMode, KnobLights, SettingsSupport};
 pub use engine::{Command, Counters, Engine, Event, SurfaceState};
 /// The image type of the messages.
 pub use image::RgbImage;

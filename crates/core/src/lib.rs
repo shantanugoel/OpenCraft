@@ -17,7 +17,7 @@ pub mod transport;
 pub use connection::Device;
 pub use device::{
     Control, ControlId, ControlKind, Descriptor, ImageFormat, InputCodes, Position, Rotation,
-    Surface, SurfaceId, SurfaceKind,
+    SettingsSupport, Surface, SurfaceId, SurfaceKind,
 };
 pub use error::{Error, Result};
 pub use events::{decode, Decoded, Gesture, InputEvent};

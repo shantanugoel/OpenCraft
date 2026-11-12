@@ -56,12 +56,28 @@ fn a_model_identifier_has_one_layout_and_a_stable_form() {
         for other in DESCRIPTORS.iter().filter(|o| o.model == d.model) {
             assert_eq!(other.surfaces, d.surfaces, "{} and {}", d.name, other.name);
             assert_eq!(other.controls, d.controls, "{} and {}", d.name, other.name);
+            // The settings file has one table for each model identifier.
+            assert_eq!(other.settings, d.settings, "{} and {}", d.name, other.name);
         }
     }
     // The profiles of the earlier phases name this model (decision 0018).
     assert_eq!(DESCRIPTORS[0].model, "n4-pro");
     for d in DESCRIPTORS.iter().filter(|d| d.name.contains("N4 Pro")) {
         assert_eq!(d.model, "n4-pro", "{}", d.name);
+    }
+}
+
+#[test]
+fn the_device_settings_are_in_range_and_agree_with_the_controls() {
+    for d in DESCRIPTORS {
+        let s = d.settings;
+        assert!(s.lowest_brightness <= 100, "{}", d.name);
+        // A knob light belongs to a knob.
+        assert!(
+            usize::from(s.knob_lights) <= d.controls_of(ControlKind::Knob).count(),
+            "{}",
+            d.name
+        );
     }
 }
 
@@ -377,6 +393,17 @@ fn the_n4_pro_has_the_measured_controls_and_surfaces() {
     slots.sort();
     assert_eq!(slots, [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
     assert!(d.background().unwrap().slot.is_none());
+}
+
+#[test]
+fn the_n4_pro_has_the_measured_device_settings() {
+    // kb: n4-pro-hardware.md, "Knob lights" and "Device settings", and
+    // streamdock-protocol.md, "Brightness": the values 0 to 15 give the same
+    // light.
+    let s = n4pro().settings;
+    assert_eq!(s.lowest_brightness, 15);
+    assert_eq!(s.knob_lights, 4);
+    assert!(s.haptic);
 }
 
 #[test]

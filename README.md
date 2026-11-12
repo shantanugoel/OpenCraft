@@ -36,6 +36,9 @@ cargo run -p opencraft-app --release
 
 Select a key face or a bar panel. Set its label, colour, or image in the
 editor. The engine saves each change. You can edit with no device.
+Click "Device settings" to set the display brightness, the haptic feedback,
+and the knob lights. The engine keeps them for the device model in
+`device-settings.toml`, in the profiles directory.
 Close the window to stop the engine and quit.
 
 The engine uses its default profiles directory. Each profile is a directory
