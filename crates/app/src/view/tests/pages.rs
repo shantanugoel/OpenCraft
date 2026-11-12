@@ -322,7 +322,7 @@ fn the_window_shows_all_controls_at_the_minimum_size(cx: &mut TestAppContext) {
     ] {
         within(cx, id, "toolbar");
     }
-    for id in ["page-title", "surface-key face 1", "control-knob 1"] {
+    for id in ["page-header", "surface-key face 1", "control-knob 1"] {
         within(cx, id, "canvas");
     }
     within(cx, "editor", "right-panel");
@@ -336,10 +336,12 @@ fn the_window_shows_all_controls_at_the_minimum_size(cx: &mut TestAppContext) {
     ] {
         within(cx, id, "sidebar");
     }
+    let key = within(cx, "surface-key face 10", "canvas");
     let panel = within(cx, "surface-bar panel 4", "canvas");
     let strip = within(cx, "control-touch bar 1", "canvas");
     let knob = within(cx, "control-knob 4", "canvas");
-    assert!(panel.bottom() <= strip.top() && strip.bottom() <= knob.top());
+    assert!(key.bottom() <= strip.top() && strip.bottom() <= panel.top());
+    assert!(panel.bottom() <= knob.top());
     click(cx, "control-touch bar 1");
     within(cx, "gesture-SwipeRight", "right-panel");
 }

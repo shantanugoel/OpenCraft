@@ -8,8 +8,9 @@ Before you start, do the steps in [Install and first start](install.md).
 ## 1. Select the key
 
 1. In the device picture, click the key face at the top left. This is key 1.
+   At the start, it is selected already.
 
-The key face gets a blue frame. The **Inspector** tab of the right panel
+The key face has a blue outline. The **Inspector** tab of the right panel
 shows the key. If the right panel shows **Library**, click **Inspector** at
 the top of the right panel. The inspector has these parts, from the top:
 
