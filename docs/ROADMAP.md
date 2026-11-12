@@ -19,7 +19,7 @@ application that other persons can adopt.
 | 0 | Hardware gate | Complete |
 | 1 | Device layer foundation | Complete |
 | 2 | First GUI: see and paint the device | Complete |
-| 3 | Actions for keys and knobs | In work |
+| 3 | Actions for keys and knobs | Complete |
 | 4 | Pages and the touch bar | Not started |
 | 5 | Background operation | Not started |
 | 6 | First public release | Not started |
@@ -147,7 +147,7 @@ record of the checks.
 - One product target is not measured: lost input events. Phase 3 has an exit
   criterion for it.
 
-## Phase 3: Actions for keys and knobs
+## Phase 3: Actions for keys and knobs (complete)
 
 **Goal.** The device does useful work. The owner uses OpenCraft each day in
 place of the vendor software.
@@ -170,32 +170,6 @@ place of the vendor software.
 - [x] A new action kind needs no change to the engine (rule 8).
 - [x] Each built-in action uses the handler interface only (rule 8).
 - [x] The engine keeps a binding that has an action kind with no handler (rule 8).
-- [ ] The owner uses OpenCraft as the daily driver for one week with no blocking fault.
-
-**State on 2026-11-12.** Six exit criteria are true. The last criterion, one
-week of daily use, started on 2026-11-12.
-
-The owner did three checks on the device: each action kind, the sound volume
-from a knob with the level on the bar panel, and the count of input events
-during fast knob turns. The record is in
-[kb/footprint.md](kb/footprint.md#checks-by-the-owner-1). The Accessibility
-permission stays after a new signed build: see
-[kb/macos-permissions.md](kb/macos-permissions.md#code-signature-of-a-development-build).
-
-For three criteria, the proof is in tests that run with no device.
-
-- A new action kind: the engine test
-  `a_new_kind_dispatches_settings_without_engine_changes` uses a kind that
-  the engine code does not contain.
-- The handler interface only: the crate `opencraft-actions` depends on
-  `opencraft-engine` only, and not on `opencraft-core`. The engine code
-  contains no name of a built-in kind.
-- A kind with no handler: the engine test
-  `an_unavailable_kind_stays_in_the_file_and_reports_its_state`.
-
-Issue [#83](https://github.com/shantanugoel/OpenCraft/issues/83) closes the
-phase after the week. The measured footprint of this phase is in
-[kb/footprint.md](kb/footprint.md#phase-3).
 
 **Decisions that this phase forces.** Interface of an action handler. How an
 action changes a surface. How an action describes its settings to the GUI. Make
@@ -204,6 +178,35 @@ each decision so that it is also correct for a plug-in. See
 answers are in decisions [0012](decisions/0012-action-handler-interface.md),
 [0013](decisions/0013-action-feedback-on-a-surface.md), and
 [0014](decisions/0014-action-settings-description.md).
+
+**Result.** All exit criteria are true on 2026-11-12, and the
+[checks for each phase](#checks-for-each-phase) are done.
+[Issue #83](https://github.com/shantanugoel/OpenCraft/issues/83) has the
+record of the checks.
+
+- The owner did three checks on the device: each action kind, the sound
+  volume from a knob with the level on the bar panel, and the count of input
+  events during fast knob turns. The record is in
+  [kb/footprint.md](kb/footprint.md#checks-by-the-owner-1).
+- The Accessibility permission stays after a new signed build. See
+  [kb/macos-permissions.md](kb/macos-permissions.md#code-signature-of-a-development-build).
+- For three criteria, the proof is in tests that run with no device. A new
+  action kind: the engine test
+  `a_new_kind_dispatches_settings_without_engine_changes`. The handler
+  interface only: the crate `opencraft-actions` depends on `opencraft-engine`
+  only, and the engine code contains no name of a built-in kind. A kind with
+  no handler: the engine test
+  `an_unavailable_kind_stays_in_the_file_and_reports_its_state`.
+- The measured footprint is in [kb/footprint.md](kb/footprint.md#phase-3).
+  The memory and the processor use are below their targets.
+- Decision 0011 asked for a new look in this phase, because a handler can
+  block. Decision 0012 gives each handler its own thread. The engine test
+  `a_blocked_handler_does_not_stop_the_runtime_or_another_handler` shows that
+  the thread model of decision 0011 stays correct.
+- This phase had one more exit criterion: the owner uses OpenCraft as the
+  daily driver for one week with no blocking fault. On 2026-11-12 the owner
+  moved it to Phase 4, so that the work on Phase 4 can start during that
+  week. The week started on 2026-11-12.
 
 ## Phase 4: Pages and the touch bar
 
@@ -222,6 +225,7 @@ answers are in decisions [0012](decisions/0012-action-handler-interface.md),
 - [ ] A page change repaints the device in a time that the owner accepts. Write the time in `kb/`.
 - [ ] Swipe and tap operate reliably, or the knowledge base gives the limit.
 - [ ] A toggle shows its state on the key face.
+- [ ] The owner uses OpenCraft as the daily driver for one week with no blocking fault. This criterion came from Phase 3.
 
 **Decisions that this phase forces.** One image across the full touch bar, or
 four bar panels only.
