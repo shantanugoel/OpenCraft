@@ -136,6 +136,17 @@ the cause. The cause was the commit before the start command. See
   JPEG for all other key images. (Source: SDK, `PILHelper.py`,
   `encode_key_image`)
 
+### A frame at the edge of an image (2026-11-12)
+
+The engine draws a frame of 6 pixels at the edge of the image for a toggle in
+the state "on". See
+[decision 0017](../decisions/0017-toggle-and-sequence-actions.md).
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A white frame of 6 pixels shows fully on a key face with a dark colour and on a bar panel. The key cap does not hide it from the position of the camera. | Measured | Camera, 2026-11-12: key faces 2 and 3, bar panel 2 |
+| A black frame on a key face with a light colour is difficult to see in the camera picture. The dark edge of the key is around it. | Measured | Camera, 2026-11-12: key face 4 |
+
 ### Other facts
 
 - Slot 5 is not used. The SDK image map has no entry for it. (Source)
@@ -295,8 +306,8 @@ Phase 1 did not answer these questions. Each question has a reason.
 | Question | Reason that it stays |
 |---|---|
 | The exact part of the display that each window shows to the eye of the user | It changes with the position of the eye. The camera gives approximate values for one position. The positions of the images are exact, and the GUI needs only those. |
-| The meaning of the input code `0xB2` | The decoder gives it as the end of a touch with no gesture, and no action uses it. Phase 4 adds the touch bar gestures. Examine the code then, if a gesture needs it. |
-| The exact x coordinates at which the tap code changes from one bar panel to the next | The ranges are known: see "Controls and input codes". Each measured tap gave the code of the bar panel below the finger. Phase 4 adds the tap gesture. Measure the exact values then, if the design needs them. |
+| The meaning of the input code `0xB2` | The decoder gives it as the end of a touch with no gesture, and no action uses it. No binding uses it: see [decision 0015](../decisions/0015-four-bar-panels-and-touch-gestures.md). |
+| The exact x coordinates at which the tap code changes from one bar panel to the next | The ranges are known: see "Controls and input codes". Each measured tap gave the code of the bar panel below the finger. The engine uses the code that the device gives, and it does not use the coordinates: see [decision 0015](../decisions/0015-four-bar-panels-and-touch-gestures.md). |
 | What the device sends for other sequences of 2 or more keys: 3 keys, keys that are not adjacent, a key and a knob | The measured cases show that the device does not report 2 keys at the same time. Thus OpenCraft has no key combination, and a binding uses one key. The bindings of Phase 3 did not need more cases. |
 | Whether the descriptors for `0x5548:0x1008` and `0x5548:0x1021` are correct | The owner does not have these models. More device models are not in a phase. |
 | What the command `DELED` does, and what each device setting in "Device settings" does | No surface or control needs them. Phase 5 has the device settings in its scope: brightness, haptic feedback, and knob lights. |

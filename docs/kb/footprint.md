@@ -124,6 +124,40 @@ permission.
   events, and requests sent. The owner recorded the result line of the
   program and not the counts.
 
+## Phase 4
+
+### Time of a page change (2026-11-12)
+
+A test program, not in the repository, used the engine logic with the real
+device. It made a profile in a temporary directory, and it called the page
+change of the engine each 1.2 seconds. A USB camera with 30 pictures each
+second recorded the device.
+
+- The engine time is the time of the function for the page change: it makes
+  the 14 images, encodes the images that changed, writes them, and writes
+  the commit. The program is a release build.
+- The camera time is from the start of the page change to the first picture
+  with the new colour of key face 3. It includes the delay of the camera,
+  which is not measured, and one picture is 33 ms. Thus it is an upper
+  limit.
+
+| Change | Count | Engine time: minimum, median, maximum | Camera time: minimum, median, maximum | Confidence |
+|---|---|---|---|---|
+| Page change, all 14 surfaces are different | 20 | 24, 34, 43 ms | 111, 147, 169 ms | Measured |
+| Page change, 1 surface is different | 20 | 7, 12, 19 ms | 108, 141, 156 ms | Measured |
+| Profile change, all 14 surfaces are different | 10 | 30, 43, 48 ms | 131, 146, 165 ms | Measured |
+
+- The page was a label and a colour on each surface, with no image file.
+  A page with image files was not measured.
+- Key face 1, key face 3, and bar panel 1 showed the new page in the same
+  camera picture or in adjacent pictures: the medians were 144, 147, and
+  130 ms. Thus the device shows a new page as one change, not surface by
+  surface. (Measured)
+- A page change adds 12 ms of engine time when one image changed. This is
+  the time to make the 14 images and to compare them. (Measured)
+- The time from a finger on the device to the page change is not in these
+  values. The device sends the report of a swipe when the finger lifts.
+
 ## Not known
 
 - The start time after a start of the computer, when the files of the
