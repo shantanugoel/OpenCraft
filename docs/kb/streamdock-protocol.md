@@ -35,15 +35,16 @@ to our device. How the camera measurements were made is in
 | Remove the background image | `BGCLE` | Area: `0x01` the key area, `0x02` the touch bar area, `0x03` the two areas | Measured: camera, 2026-11-11 |
 | Boot logo header. **Do not send.** | `LOG` | Length (4 bytes, big-endian), `0x01` | Source: not sent |
 | Start | `DIS` | None | Measured. See "Start sequence". |
-| Brightness | `LIG` | `0x00 0x00`, percent 0 to 100 | Measured: camera, 2026-11-11. See "Brightness". |
+| Brightness | `LIG` | `0x00 0x00`, percent 0 to 100 | Measured: camera, 2026-11-11 and 2026-11-12. See "Brightness". |
 | Clear one slot, or all slots with `0xFF` | `CLE` | `0x00 0x00 0x00`, slot | Measured: owner, 2026-11-11 |
-| Knob light colours | `SETLB` | Red, green, blue for each knob | Measured: camera, 2026-11-11. See [n4-pro-hardware.md](n4-pro-hardware.md#knob-lights). |
-| Knob light brightness | `LBLIG` | Percent 0 to 100 | Measured: camera, 2026-11-11 |
+| Knob light colours | `SETLB` | Red, green, blue for each knob | Measured: camera, 2026-11-11 and 2026-11-12. See [n4-pro-hardware.md](n4-pro-hardware.md#knob-lights). |
+| Knob light brightness | `LBLIG` | Percent 0 to 100 | Measured: camera, 2026-11-11 and 2026-11-12 |
 | Reset the knob lights | `DELED` | None | Source: SDK binary, `Transport::resetLedColor`. Sent 1 time: the camera saw no change. OpenCraft has no builder for it. |
-| Sleep | `HAN` | None | Measured: camera, 2026-11-11. See "Sleep". |
+| Sleep | `HAN` | None | Measured: camera, 2026-11-11 and 2026-11-12. See "Sleep". |
+| Disconnected | `CLE` | `0x00 0x00`, `"DC"` | Measured: camera, 2026-11-11 and 2026-11-12. See "Keep-alive and stop". |
 | Keep-alive | `CONNECT` | None | Measured. See "Keep-alive and stop". |
 | Set the firmware mode | `MOD` | `0x00 0x00`, ASCII digit | Source: not sent |
-| Haptic feedback | `QUCMD` | `0x1F 0x11 0x00`, `0x11` on or `0xFF` off, `0x00 0x11` | Source: not sent |
+| Device configuration, which includes the haptic feedback | `QUCMD` | 6 bytes, one for each setting | Measured: sent, 2026-11-12. See "Device configuration". |
 
 The clear command needs 3 zero bytes before the slot. With 2 zero bytes, the
 device does nothing. The code had 2 zero bytes until 2026-11-11. The SDK
@@ -52,8 +53,9 @@ correct position. (Measured, and Source)
 
 The SDK transport library has one more command that starts with `CLE`:
 `CLE`, `0x00 0x00`, `"DC"`. The SDK function is `Transport::disconnected`, and
-the SDK sends it when it closes a device. (Source) Its effect is in
-"Keep-alive and stop". (Measured) The device layer has no builder for it.
+the SDK sends it when it closes a device. (Source) This document calls it
+`DC`. Its effect is in "Keep-alive and stop". (Measured) The device layer has
+no builder for it.
 
 ## Image transfer
 
@@ -149,14 +151,22 @@ OpenCraft has no builder for `LOG`. A test in `protocol.rs` makes sure that
 
 ## Brightness
 
-A camera recorded these facts on 2026-11-11. The camera adjusts its exposure,
-so the values are a comparison, not a measurement of light.
+A camera recorded these facts on 2026-11-11 and 2026-11-12. The camera adjusts
+its exposure, so the values are a comparison, not a measurement of light. On
+2026-11-12, the test program drew green on all 14 slots and measured the mean
+green in the area of the key faces and in the area of the touch bar.
 
 | Fact | Confidence |
 |---|---|
 | `LIG` with 50 gives a darker display than with 80 or 100 | Measured |
-| `LIG` with 0 does not switch off the display. The camera saw no difference between 0 and 10. | Measured |
+| `LIG` with 0 to 15 gives the same brightness. The values 0, 1, 2, 3, 5, 10, 12, 14, and 15 gave the same picture. `LIG` with 0 does not switch off the display. | Measured: 2 runs, 2026-11-12 |
+| From 16 to 100, each higher value that was tested gave a brighter display: 16, 18, 20, 22, 25, 30, 40, 50, 60, 80, 100 | Measured: 2 runs, 2026-11-12 |
+| Thus the values that change the brightness are 15 to 100 | Inference |
+| The key faces and the bar panels change together. One `LIG` command sets the brightness of the full display. | Measured, 2026-11-12 |
 | `LIG` does not change the knob lights. `LBLIG` does. | Measured |
+| After `DC` and a new `DIS` with no `LIG`, the brightness is the last value of `LIG`. This was the result after `LIG` 100, 50, 10, and 0. | Measured, 2026-11-12 |
+| After the device stops the USB connection and starts again, the brightness is not kept. After `LIG` 10 and a stop, `DIS` with no `LIG` gave a display approximately as bright as with `LIG` 100. | Measured: 2 times, 2026-11-12 |
+| The brightness command wakes the displays after `HAN` | Measured. See "Sleep". |
 
 ## Input reports
 
@@ -281,7 +291,8 @@ One rule agrees with each row:
   30, 30 to 45, and so on.
 - The device must get one `CONNECT` or more in each period, but not in the
   first period (0 to 15 seconds). A `CONNECT` in the first period does not
-  count for a later period.
+  count for a later period. A `DIS` that is not the first `DIS` of the timer
+  counts as a `CONNECT`. (Measured on 2026-11-12. See the next table.)
 - If a period ends with no `CONNECT`, the device stops the USB connection
   5 seconds after the end of that period. A `CONNECT` in these 5 seconds does
   not prevent the stop.
@@ -296,12 +307,17 @@ no `CONNECT`.
 | An interval that is less than 15 seconds puts a `CONNECT` in each period. An interval of exactly 15 seconds is not tested. | Inference | The rule |
 | Only `DIS` starts the timer. On a connection with no timer in operation, the device stayed connected for 60 seconds after each of these: no command, the brightness command, an image and `STP`, `CONNECT`, `STP`. After `DIS` alone, it stopped the connection at 35.1 seconds. | Measured | Test program |
 | A second `DIS`, a draw, and input from the user do not start the timer again and do not move its periods. A test that started 300 seconds after the first `DIS`, on the same connection, kept the periods of the first `DIS`. | Measured | Test program, probe |
+| A `DIS` that is not the first `DIS` of the timer counts as a `CONNECT` in its period. `DIS` at 8 seconds and no `CONNECT`: the stop came at 35.1 seconds. `CONNECT` at 10 seconds, `DIS` at 22 seconds, and nothing after: the stop came at 50.1 seconds. `DIS` at 22 seconds and `CONNECT` at 32, 42, and 52 seconds: no stop in 62 seconds. | Measured: 2026-11-12. The last case 3 times, on a new connection and after `DC`. | Test program |
+| `DC` stops the timer. With no `CONNECT` after `DC`, the device stayed connected for 120 seconds. | Measured: 2026-11-12, 3 times | Test program |
+| The first `DIS` after `DC` starts a new timer, as the first `DIS` of a connection does. With no `CONNECT` after it, the device stopped the connection 35.1 seconds after that `DIS`. | Measured: 2026-11-12, 1 time | Test program |
+| A process that is killed 12 seconds after `DIS`, and a new process that sends the start sequence at 22 seconds and `CONNECT` each 10 seconds: the device stayed connected. When the new process sent only `CONNECT`, the device stopped the connection at 35 seconds. The rows above give these results. | Measured: 2026-11-12, 2 times each | Test program |
+| A start sequence directly after `DC`, with no pause, is lost. The logo stays, and the images that follow the start sequence do not show. Images that come later show. After a pause of 0.1, 0.3, 0.5, 1, or 2 seconds, the start sequence and the images showed. | Measured: 2026-11-12. No pause: 2 times. Each pause: 1 time. | Test program and camera |
 | The device sent no input report in answer to a command in these tests. No acknowledgement for a write was seen. | Measured | Test program, probe |
 | With the keep-alive of the device layer each 10 seconds, one connection stayed for 47 minutes. The images stayed, and a key press at the end arrived. | Measured | Probe (`raw --draw`), camera, and owner, 2026-11-11 |
 | The SDK and `opendeck-akp05` send `CONNECT` each 10 seconds | Source | Their source code |
 | When the device stops the connection, it starts again: it shows the boot animation and then the logo, and the knob lights go off. The images are gone. | Measured | Camera |
 | The device is on the bus again 6 to 7 seconds after the stop. The device layer opens it again 7 to 8 seconds after it sees the disconnection, and the probe then draws again. | Measured | Test program: 20 times. Probe and owner: 2 times. |
-| `opendeck-akp05` sends a clear command and then `HAN` when it stops | Source | Its source code |
+| The function `shutdown` of `mirajazz` sends `DC` and then `HAN`. Which programs use it is in [prior-art.md](prior-art.md#opendeck-akp05). | Source | `mirajazz`, `src/device.rs` |
 | The SDK README refers to `ACK` and `OK` in input reports for newer protocol versions | Source | SDK README |
 
 What the user sees when the host stops:
@@ -311,13 +327,38 @@ What the user sees when the host stops:
 | The probe stops 12 seconds after `DIS` and sends no clear command (`test --seconds 12 --keep`). Its last `CONNECT` was at 10 seconds. | The images and the knob lights stay. The keys and the knobs do nothing. At 35 seconds after `DIS`, the device starts again and shows the logo. | Measured: camera |
 | The probe is killed (`kill -9`) 15 seconds after `DIS` | The same. The logo showed at 36 seconds, and it was the same after 10 minutes. | Measured: camera |
 | General | The images stay until 5 seconds after the end of the first period that has no `CONNECT`. That is 20 to 35 seconds after the last `CONNECT` that was in a period and not in the 5 seconds before a stop. | Inference from the rule |
-| The host sends `CLE`, `0x00 0x00`, `"DC"` (the SDK command "disconnected") | In less than 1 second, the device shows the logo, and the knob lights go off. The device stays on the bus: it did not stop the connection in 60 seconds with no `CONNECT`. Slot images show again after that, and `DIS` starts the knob lights again. | Measured: camera, 1 time |
 | VSD Craft quits | The displays and the knob lights go off, and the device does not show the logo. It was the same 50 seconds later. The next `DIS` and brightness command showed the last background of VSD Craft again. Which commands VSD Craft sends is not known. | Measured: camera, 1 time |
 
-Thus a host that stops can send the SDK command "disconnected". The device
-then goes to its logo at once, and it does not stop and start the USB
-connection. A defined state at the stop is in the scope of Phase 5. See the
-[roadmap](../ROADMAP.md#phase-5-background-operation).
+On 2026-11-12, a test program measured each stop sequence in the next
+table one time, with a camera. Before each stop, the slots were green, the
+knob lights were blue, and the last `CONNECT` was at 10 seconds after `DIS`.
+The program sent the sequence at 11 seconds after `DIS`, closed the device,
+and exited. Then the camera recorded the device for the given time. The
+program then did a normal start: `DIS`, `LIG`, `CLE 0xFF`, `STP`, the
+images, the knob light commands, and `CONNECT` each 10 seconds.
+
+| Stop sequence | Displays | Knob lights | USB connection | A normal start after it | Confidence |
+|---|---|---|---|---|---|
+| None: the process is killed (`abort`) | The images stay. The logo shows when the device starts again. | On until the device starts again, then off | The device stopped it at 35 seconds after `DIS`, and was on the bus again 7 seconds later | Shows the images and the knob lights | Measured, 50 seconds |
+| `CLE 0xFF`, `STP` | Black, then the logo when the device starts again | On until the device starts again, then off | Stopped at 35 seconds after `DIS` | Shows the images | Measured, 50 seconds |
+| `HAN` | Dark, then the logo when the device starts again | Off | Stopped at 35 seconds after `DIS` | Shows the images | Measured, 50 seconds |
+| `LIG 0` | The images stay, dimmer. Then the logo when the device starts again. | On until the device starts again, then off | Stopped at 35 seconds after `DIS` | Shows the images | Measured, 50 seconds |
+| `DC` | The logo, in less than 1 second, for all of the 120 seconds | Off | Not stopped | Shows the images | Measured, 120 seconds. The same result 1 time on 2026-11-11, and at the end of each test on 2026-11-12. |
+| `DC`, then `HAN` | Dark, for all of the 120 seconds | Off | Not stopped | Shows the images. The brightness command in the start wakes the displays. | Measured, 120 seconds |
+| `HAN`, then `DC` | Dark, for all of the 60 seconds | Off | Not stopped | Shows the images | Measured, 60 seconds |
+
+- The device got `DC` and `HAN` when the process exited directly after the
+  two writes, with no pause and no close of the device. The displays were
+  dark each time. (Measured: 3 times, 2026-11-12)
+- `DC` with byte 1 of the device configuration set to `0xFF` also gives dark
+  displays and knob lights that are off. See "Device configuration".
+  (Measured)
+- The dark result of VSD Craft agrees with `HAN`, and with byte 1 of the
+  device configuration set to `0xFF`. Which of the two VSD Craft uses is not
+  known. (Inference)
+
+The state that OpenCraft gives the device at its stop is in
+[decision 0022](../decisions/0022-device-settings-and-stop-state.md).
 
 The device layer sends `CONNECT` each 10 seconds while a device is connected:
 `Link::next_event` in `crates/core/src/link.rs` sends it, and the constant
@@ -342,6 +383,34 @@ A camera recorded these facts on 2026-11-11.
 
 Thus the commands to wake the device are the brightness command and `DIS`.
 
+## Device configuration
+
+`QUCMD` sets 6 device settings in one command. The haptic feedback is one of
+them.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The command is `QUCMD` and 6 bytes, one for each setting, in this order: 0 `LedFollowKeyLight`, 1 `KeyLightOnDisconnect`, 2 `CheckUsbPower`, 3 `EnableVibration`, 4 `ResetUsbReport`, 5 `EnableBootVideo` | Source | SDK, `streamdockN4Pro.h` (`N4ProConfigEnumerate`) and `streamdockconfigcmd.h` |
+| The SDK values are `0x11` on, `0xFF` off, and `0x1F` "follow". The SDK sends `0x11` for each setting that the caller does not give. | Source | SDK, `streamdockconfigcmd.h` (`ConfigState`, `buildConfigCommand`) |
+| `mirajazz` sends `0x1F 0x11 0x00`, then `0x11` (vibration on) or `0xFF` (vibration off), then `0x00 0x11`. It says that these bytes are the bytes of the vendor software. | Source | `mirajazz`, `src/device.rs`, `set_vibration`; `opendeck-akp05`, `src/mappings.rs` (a USB capture on the N4 Pro E) |
+| The device layer function `protocol::set_vibration` makes the bytes of `mirajazz` | Measured | `crates/core/src/protocol.rs` |
+
+In this document, "byte N" is the byte at position N in the list of 6.
+
+A test program sent `QUCMD` on 2026-11-12. A camera recorded the device. No
+person touched the device.
+
+| Fact | Confidence |
+|---|---|
+| The device accepts `QUCMD` with byte 3 `0xFF` and with byte 3 `0x11`. The write gives no error, and the device sends no input report in the next 3 seconds. The displays, the knob lights, and the USB connection do not change. | Measured: 2 times each |
+| With byte 1 `0xFF`, `DC` makes the displays dark and switches off the knob lights. The device does not show the logo. With byte 1 `0x11` again, `DC` shows the logo again. | Measured: 2 times each |
+| The device keeps the configuration when it stops the USB connection and starts again. After byte 1 `0xFF` and a stop, `DC` on the new connection made the displays dark, with no new `QUCMD`. | Measured: 1 time |
+| With byte 1 `0xFF`, the device still shows the boot animation and the logo when it starts again after a stop | Measured: 1 time |
+| The device keeps byte 3 (vibration) in the same way, because the same command sets it | Inference |
+| At the end of the tests, the test program sent the bytes of `mirajazz` with vibration on: `0x1F 0x11 0x00 0x11 0x00 0x11` | Measured |
+
+What byte 3 changes on the device needs a person. See "Not known".
+
 ## Not known
 
 Phase 1 did not answer these questions. Each question has a reason.
@@ -353,8 +422,12 @@ Phase 1 did not answer these questions. Each question has a reason.
 | The largest JPEG that the device accepts for `BGPIC` | The device showed a file of 1 191 260 bytes. A background of 800 × 480 at a useful quality is much smaller. |
 | Whether an interval of exactly 15 seconds between two keep-alive commands keeps the connection | The device layer uses 10 seconds, as the vendor SDK does. 14 seconds is measured. No design needs a longer interval. |
 | What the layer argument of `BGPIC` does. Each value gave the same result. | The device layer sends layer 0 for a full background, as the SDK does. No feature needs a different layer. |
-| What `MOD` and `QUCMD` do. No program sent them to our device. | Our device operates without `MOD`. `QUCMD` is the haptic feedback, which is a device setting in the scope of Phase 5. |
-| Which commands VSD Craft sends when it quits | The device goes dark, and that is not the state that OpenCraft wants at its stop. The SDK command "disconnected" is measured. Phase 5 defines the state at the stop. |
+| What `MOD` does. No program sent it to our device. | Our device operates without `MOD`. |
+| Whether byte 3 of `QUCMD` switches the vibration at a key press on and off | It needs a person, because the device vibrates only at a key press. OpenCraft sends the command at each connection, so the decision does not depend on the answer. The procedure for the owner is in issue [#124](https://github.com/shantanugoel/OpenCraft/issues/124). |
+| Whether the device keeps the `QUCMD` configuration after the cable is disconnected | It needs a person. OpenCraft sends the command at each connection. |
+| What bytes 0, 2, 4, and 5 of `QUCMD` do, and what the value `0x00` does | OpenCraft sends the bytes of `mirajazz` for them. No feature needs them. Byte 2 (`CheckUsbPower`) and byte 4 (`ResetUsbReport`) can possibly change the USB behaviour, so do not test other values without a reason. |
+| What the device does in the dark state after `DC` and `HAN` when the user presses a key or turns a knob | It needs a person. No program reads the device in that state, so a report has no effect. |
+| Which commands VSD Craft sends when it quits | `DC` and `HAN` give the same dark state. See [decision 0022](../decisions/0022-device-settings-and-stop-state.md). |
 
 ## Sources
 
@@ -369,5 +442,12 @@ Phase 1 did not answer these questions. Each question has a reason.
   - `CPP-SDK/src/DeviceInfo/streamdock.cpp`
   - The SDK binary: `CPP-SDK/src/Transport/TransportDLL/libtransport.so`
     (x86-64). We read it with `objdump`.
-- `mirajazz` (MPL-2.0): <https://github.com/4ndv/mirajazz>
-- `opendeck-akp05`: <https://github.com/ambiso/opendeck-akp05>
+  - On 2026-11-12: `CPP-SDK/src/HotspotDevice/StreamDockN4Pro/streamdockN4Pro.h`
+    and `CPP-SDK/src/DeviceInfo/streamdockconfigcmd.h`
+- `mirajazz` (MPL-2.0): <https://github.com/4ndv/mirajazz>. On 2026-11-12 we
+  read version 0.16.3, `src/device.rs`.
+- `opendeck-akp05`: <https://github.com/ambiso/opendeck-akp05>. On 2026-11-12
+  we read version 0.11.1, `src/device.rs`, `src/config.rs`, and
+  `src/mappings.rs`.
+- The measurements of 2026-11-12 used a test program that is not in the
+  repository. It uses the command builders of the device layer.
