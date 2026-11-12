@@ -19,7 +19,7 @@ Quit the vendor software VSD Craft before you start OpenCraft. The
 [user guide](https://github.com/shantanugoel/OpenCraft/blob/main/docs/user/install.md)
 gives the full procedure to install, to start, and to remove OpenCraft.
 
-The file `Casks/opencraft.rb` is written by the script
-`scripts/homebrew-cask.sh` of the OpenCraft repository, for each release. Do
-not change the file by hand. Report a problem in the
+The script `scripts/homebrew-cask.sh` of the OpenCraft repository writes the
+file `Casks/opencraft.rb` for each release. Do not change the file by hand.
+Report a problem in the
 [issues of OpenCraft](https://github.com/shantanugoel/OpenCraft/issues).

@@ -34,9 +34,9 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0016](0016-pages-and-engine-requests-from-a-handler.md) | The engine holds the active page, and a handler asks the engine with a message | Accepted |
 | [0017](0017-toggle-and-sequence-actions.md) | An action can contain actions, and the engine draws the state of a toggle | Accepted |
 | [0018](0018-many-profiles.md) | Each profile is a directory in the profiles directory, and names its device model | Accepted |
-| [0019](0019-engine-in-the-gui-process.md) | The engine stays in the process of the GUI application | Accepted |
+| [0019](0019-engine-in-the-gui-process.md) | The engine stays in the process of the GUI application | Accepted. 0028 changes what a second start does. |
 | [0020](0020-menu-bar-item-and-dock-icon.md) | The shell makes the menu bar item with AppKit, and has one quit path | Accepted |
-| [0021](0021-start-at-login.md) | A LaunchAgent file starts OpenCraft at login, with the argument `--login` | Accepted |
+| [0021](0021-start-at-login.md) | A LaunchAgent file starts OpenCraft at login, with the argument `--login` | Accepted. 0025 changes the state of the option, and keeps the LaunchAgent file. |
 | [0022](0022-device-settings-and-stop-state.md) | Device settings are for each device model, outside the profile, and the device goes dark at the stop | Accepted |
 | [0023](0023-wake-from-the-sleep-time-of-the-clocks.md) | The link finds a wake from the sleep time of the clocks, and the engine then draws all surfaces again | Accepted |
 | [0024](0024-log-file-with-no-terminal.md) | The messages go to a log file when the process has no terminal | Accepted |

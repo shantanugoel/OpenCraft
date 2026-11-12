@@ -30,11 +30,15 @@ Homebrew puts `OpenCraft.app` in the Applications folder.
    [releases page](https://github.com/shantanugoel/OpenCraft/releases) of
    OpenCraft.
 2. Download the file `OpenCraft-<version>-arm64.dmg` of the newest version.
-3. Open the downloaded file.
-4. Move OpenCraft to the Applications folder.
+3. Open the downloaded disk image. A window opens. It shows OpenCraft and a
+   shortcut with the name Applications.
+4. Drag OpenCraft onto the shortcut Applications. This copies OpenCraft to
+   the Applications folder.
+5. Eject the disk image: in the sidebar of the Finder, click the eject
+   button next to "OpenCraft <version>".
 
-Do not start OpenCraft from the downloaded file. Start it from the
-Applications folder.
+Do not start OpenCraft from the disk image. Start it from the Applications
+folder. After the copy, you can delete the downloaded disk image.
 
 ## Quit the vendor software first
 
@@ -55,9 +59,13 @@ VSD Craft, or in System Settings > General > Login Items.
 
 OpenCraft opens its window. If you have no profile, OpenCraft makes the
 profile "Default" with one empty page. The key faces and the bar panels are
-black.
+black. No control is selected. Thus the editor at the right shows only the
+text "Click a key, a knob, a bar panel, or the touch bar in the device
+picture." The knob
+lights on the device show colours that change slowly. This is the default of
+the [device settings](controls.md#device-settings).
 
-![The OpenCraft window with key 1 selected](images/window.png)
+![The OpenCraft window at the first start, with no control selected](images/first-start.png)
 
 The window has these parts:
 
@@ -92,6 +100,9 @@ saves them, and the device shows them when you connect it. OpenCraft looks
 for the device each second. You do not have to start OpenCraft again.
 
 ## Give the Accessibility permission
+
+This step is not necessary to install OpenCraft. Do it only when you first
+use "Send a hotkey", "Type text", or "Media key".
 
 Three action kinds need the Accessibility permission of macOS: "Send a
 hotkey", "Type text", and "Media key". These actions send keys to other

@@ -113,8 +113,10 @@ The device settings are for the device, not for a profile. A change of the
 profile or of the page does not change them.
 
 1. Click **Device settings** at the top right. The editor shows the device
-   settings.
-2. Change a setting. The device shows the change immediately.
+   settings. No control has the blue frame.
+2. Change a setting. To change a brightness, drag its slider. The number
+   to the right of the setting name shows the value. The device shows the
+   change immediately.
 3. To go back to the editor of a control, click a control in the device
    picture.
 
