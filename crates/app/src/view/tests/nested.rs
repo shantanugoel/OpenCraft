@@ -33,6 +33,7 @@ fn leaf() -> KindDescription {
                 default: None,
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -55,6 +56,7 @@ fn two() -> KindDescription {
                 default: None,
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -77,6 +79,7 @@ fn many() -> KindDescription {
                 default: Some(Value::Integer(100)),
             },
         ],
+        ..Default::default()
     }
 }
 

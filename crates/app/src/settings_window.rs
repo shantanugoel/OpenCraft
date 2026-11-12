@@ -90,21 +90,24 @@ pub struct Permission {
     pub kinds: Vec<String>,
 }
 
-/// The state of the permission, from the statuses that the engine sends. A
+/// The state of the permission. The kinds that need it come from their
+/// descriptions (`needs_accessibility`, decision 0029, section 20). A
 /// handler gives a status for each kind that needs something from the user,
-/// and the status "needs the user" means that the permission is not given.
-/// The window has no list of kinds (decision 0029, section 20).
+/// and the status "needs the user" of such a kind means that the permission
+/// is not given. The window has no list of kinds (rule 8).
 pub fn permission(state: &ViewState) -> Permission {
-    let given = !state
-        .statuses
-        .values()
-        .any(|status| matches!(status, Status::NeedsUser { .. }));
-    let kinds = state
+    let needs: Vec<_> = state
         .kinds
         .iter()
-        .filter(|kind| state.statuses.contains_key(&kind.kind))
-        .map(|kind| kind.name.clone())
+        .filter(|kind| kind.needs_accessibility)
         .collect();
+    let given = !needs.iter().any(|kind| {
+        matches!(
+            state.statuses.get(&kind.kind),
+            Some(Status::NeedsUser { .. })
+        )
+    });
+    let kinds = needs.iter().map(|kind| kind.name.clone()).collect();
     Permission { given, kinds }
 }
 

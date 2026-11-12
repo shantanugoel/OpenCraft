@@ -22,6 +22,9 @@ pub(super) const SAVED: &str = "All changes saved";
 /// The text before the first input.
 pub(super) const NO_INPUT: &str = "No input yet";
 
+/// A message shows in place of the last input for this time (section 6.1).
+pub(super) const MESSAGE_TIME: Duration = Duration::from_secs(4);
+
 /// The hour and the minute of `time` in the local time zone.
 #[cfg(unix)]
 fn hours_minutes(time: SystemTime) -> (u32, u32) {
@@ -81,8 +84,30 @@ impl DeviceView {
         }));
     }
 
+    /// Show `text` in place of the last input for [`MESSAGE_TIME`], with no
+    /// dot, for example after a click in the library. A new message replaces
+    /// the message before it, and starts the time again.
+    pub(super) fn show_message(
+        &mut self,
+        text: impl Into<SharedString>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.status_message = Some(text.into());
+        self.message_timer = Some(cx.spawn_in(window, async move |view, cx| {
+            cx.background_executor().timer(MESSAGE_TIME).await;
+            let _ = view.update(cx, |view, cx| {
+                view.status_message = None;
+                view.message_timer = None;
+                cx.notify();
+            });
+        }));
+        cx.notify();
+    }
+
     pub(super) fn status_bar(&self) -> AnyElement {
-        let input = self.state.last_input.as_ref();
+        let message = self.status_message.clone();
+        let input = self.state.last_input.as_ref().filter(|_| message.is_none());
         div()
             .id("status-bar")
             .debug_selector(|| "status-bar".into())
@@ -105,10 +130,11 @@ impl DeviceView {
                     .flex_1()
                     .min_w_0()
                     .truncate()
-                    .child(input.map_or_else(
-                        || NO_INPUT.to_string(),
-                        |input| input_text(input, std::time::Instant::now()),
-                    )),
+                    .child(match (message, input) {
+                        (Some(message), _) => message.to_string(),
+                        (None, Some(input)) => input_text(input, std::time::Instant::now()),
+                        (None, None) => NO_INPUT.to_string(),
+                    }),
             )
             .child(
                 div()

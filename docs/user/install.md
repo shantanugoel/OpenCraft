@@ -77,7 +77,7 @@ the middle, and the right panel. The parts:
 | Connection | Toolbar, right | "Live on the device", or "Not connected" |
 | Page header | Top of the device picture | The name of the active page, "Page 1 of 1", the buttons **Previous page** and **Next page**, and **Page settings** |
 | Device picture | Middle | The 10 key faces, the 4 bar panels, the touch bar, and the 4 knobs, at their real positions. Each key face and bar panel shows the same image as the device. Below the device is a line of help. See [The device picture](controls.md#the-device-picture). |
-| Right panel | Right | Two tabs. **Inspector** shows the settings of the control that you selected. **Library** is empty in this version. |
+| Right panel | Right | Two tabs. **Inspector** shows the settings of the control that you selected. **Library** shows the [action kinds](actions.md#the-library). |
 | Status bar | Bottom of the device picture | At the left, the last gesture on the device, for example "Key 3 · Press · now". At the right, "All changes saved". |
 
 When you push a key, turn a knob, or touch the touch bar, the device picture

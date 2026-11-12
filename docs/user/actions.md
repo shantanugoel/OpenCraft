@@ -4,24 +4,58 @@ An action is the work that OpenCraft does when you operate a control. This
 chapter gives each action kind and its settings. The procedure to set an
 action is in [Configure a key](first-key.md#4-set-an-action).
 
-The menu of the action kinds in the window has this order:
+The action kinds are in four groups. The [library](#the-library) and the
+menu of the action kinds show the groups and the kinds in this order:
 
-| Action kind | Needs the Accessibility permission |
-|---|---|
-| [Open an application](#open-an-application) | No |
-| [Open a URL](#open-a-url) | No |
-| [Run a shell command](#run-a-shell-command) | No |
-| [Send a hotkey](#send-a-hotkey) | Yes |
-| [Type text](#type-text) | Yes |
-| [Media key](#media-key) | Yes |
-| [Sound volume](#sound-volume) | No |
-| [Change the page](#change-the-page) | No |
-| [Select a profile](#select-a-profile) | No |
-| [Toggle](#toggle) | Only for the actions that it contains |
-| [Sequence of actions](#sequence-of-actions) | Only for the actions that it contains |
+| Group | Action kind | Needs the Accessibility permission |
+|---|---|---|
+| System | [Open an application](#open-an-application) | No |
+| System | [Open a URL](#open-a-url) | No |
+| System | [Run a shell command](#run-a-shell-command) | No |
+| System | [Send a hotkey](#send-a-hotkey) | Yes |
+| System | [Type text](#type-text) | Yes |
+| Media | [Media key](#media-key) | Yes |
+| Media | [Sound volume](#sound-volume) | No |
+| Navigation | [Change the page](#change-the-page) | No |
+| Navigation | [Select a profile](#select-a-profile) | No |
+| Logic | [Toggle](#toggle) | Only for the actions that it contains |
+| Logic | [Sequence of actions](#sequence-of-actions) | Only for the actions that it contains |
 
 The permission is in
 [Install and first start](install.md#give-the-accessibility-permission).
+
+## The library
+
+The tab **Library** of the right panel shows all action kinds in their
+groups. Each row shows the tile of the kind, its name, and at the right a
+short help text: "Accessibility" for a kind that needs the Accessibility
+permission, and "Knob" for **Sound volume**, which is best on a knob. The
+tile has the colour of the group.
+
+![The library, after a click on "Open a URL" with key 7 selected](images/library.png)
+
+To set an action with the library:
+
+1. In the device picture, click a key face, a bar panel, or a knob.
+2. Click **Library** at the top of the right panel.
+3. Click an action kind.
+
+The action goes on the open card of the control, with the default settings
+of the kind. If no card is open, the action goes on the first gesture:
+**Press** for a key, **Tap** for a bar panel, and **Turn right** for a knob.
+If the gesture has an action already, the new action replaces it. To get the
+old action back, push Command-Z. The status bar shows the change for 4
+seconds, for example "Key 7 gets “Open a URL” for Press". The right panel
+stays on **Library**. Click **Inspector** to change the settings of the new
+action.
+
+If the page or the device is selected, a click on an action kind does
+nothing, and the status bar shows "Select a control first".
+
+To find a kind, type a part of its name in the search field at the top of
+the library, for example `text`. The library then shows only the kinds with
+that text in their names. If no kind agrees, it shows "No action matches"
+and your text. To see all kinds again, delete the text.
 
 ## The settings of an action
 

@@ -149,6 +149,16 @@ fn kind(id: &str, name: &str) -> KindDescription {
         kind: id.into(),
         name: name.into(),
         fields: Vec::new(),
+        ..Default::default()
+    }
+}
+
+/// A kind that needs the Accessibility permission, as its description
+/// tells.
+fn key_kind(id: &str, name: &str) -> KindDescription {
+    KindDescription {
+        needs_accessibility: true,
+        ..kind(id, name)
     }
 }
 
@@ -175,10 +185,10 @@ fn key_kinds(ready: bool) -> Vec<Event> {
 
 fn send_kinds(f: &Fixture, cx: &mut VisualTestContext, ready: bool) {
     let mut events = vec![Event::Kinds(vec![
-        kind("test.hotkey", "Send a hotkey"),
+        key_kind("test.hotkey", "Send a hotkey"),
         kind("test.open", "Open an application"),
-        kind("test.text", "Type text"),
-        kind("test.media", "Media key"),
+        key_kind("test.text", "Type text"),
+        key_kind("test.media", "Media key"),
     ])];
     events.extend(key_kinds(ready));
     for event in events {
@@ -203,26 +213,34 @@ fn the_names_are_joined_with_commas_and_and() {
 
 #[test]
 fn the_permission_texts_follow_the_statuses_of_the_engine() {
+    // With no kinds, no kind needs the permission.
+    assert_eq!(
+        permission_texts(&permission(&ViewState::default())),
+        ("given", String::new())
+    );
     let mut state = ViewState {
         kinds: vec![
-            kind("test.hotkey", "Send a hotkey"),
+            key_kind("test.hotkey", "Send a hotkey"),
             kind("test.open", "Open an application"),
-            kind("test.text", "Type text"),
-            kind("test.media", "Media key"),
+            key_kind("test.text", "Type text"),
+            key_kind("test.media", "Media key"),
         ],
         ..ViewState::default()
     };
-    // Before the engine sends a status, no kind waits for the permission.
+    // The names come from the descriptions of the kinds. Before the engine
+    // sends a status, no kind waits for the permission.
     assert_eq!(
         permission_texts(&permission(&state)),
-        ("given", String::new())
+        (
+            "given",
+            "Necessary for Send a hotkey, Type text and Media key".into()
+        )
     );
     assert!(kinds_waiting_for_permission(&state).is_empty());
 
     for event in key_kinds(false) {
         state.apply(event, std::time::Instant::now());
     }
-    // The kind with no status does not need the permission.
     assert_eq!(
         permission_texts(&permission(&state)),
         (
@@ -263,6 +281,19 @@ fn the_permission_texts_follow_the_statuses_of_the_engine() {
             "Necessary for Send a hotkey, Type text and Media key".into()
         )
     );
+    // A status of a kind that does not need the permission does not change
+    // the state.
+    state.apply(
+        Event::Status {
+            kind: "test.open".into(),
+            status: opencraft_engine::Status::NeedsUser {
+                text: String::new(),
+                button: String::new(),
+            },
+        },
+        std::time::Instant::now(),
+    );
+    assert!(permission(&state).given);
 }
 
 #[gpui_kit::test]

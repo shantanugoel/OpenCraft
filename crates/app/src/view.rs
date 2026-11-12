@@ -14,7 +14,7 @@
 //! | `right_panel` | The right panel and its tabs |
 //! | `inspector` | The "Inspector" tab: the editor of the selection |
 //! | `page_inspector` | The inspector of the page, with the swipe gestures of the touch bar |
-//! | `library` | The "Library" tab |
+//! | `library` | The "Library" tab: the action kinds in their groups |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
 //! | `device`, `pages`, `hotkey` | The device settings, the changes of the pages and the profiles, the hotkey names |
 //! | `form` | The parts of an inspector: the header, a section, the rows of a form |
@@ -112,6 +112,10 @@ pub struct DeviceView {
     highlight_tasks: BTreeMap<ControlId, Task<()>>,
     /// The timer that changes "now" to the time of the last input.
     input_timer: Option<Task<()>>,
+    /// The message of the status bar that shows in place of the last input
+    /// (decision 0029, section 6.1), and the timer that removes it.
+    status_message: Option<SharedString>,
+    message_timer: Option<Task<()>>,
     /// True from a press on an empty part of the toolbar to the first move
     /// of the pointer, which then moves the window.
     window_move: bool,
@@ -122,6 +126,7 @@ pub struct DeviceView {
     lists: pages::Lists,
     page_inspector: page_inspector::PageInspector,
     device: device::DevicePanel,
+    library: library::LibraryState,
     /// The scroll position of the inspector. It shows a scrollbar when its
     /// content is taller than the window.
     inspector_scroll: ScrollHandle,
@@ -161,6 +166,7 @@ impl DeviceView {
             .collect();
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
+        let library = library::LibraryState::new(state.kinds.len(), window, cx);
         Self {
             state,
             shell: shell.clone(),
@@ -174,6 +180,8 @@ impl DeviceView {
             _input_subscription: subscription,
             highlight_tasks: BTreeMap::new(),
             input_timer: None,
+            status_message: None,
+            message_timer: None,
             window_move: false,
             panes,
             form: actions::ActionForm::default(),
@@ -181,6 +189,7 @@ impl DeviceView {
             lists: pages::Lists::new(window, cx),
             page_inspector: page_inspector::PageInspector::new(window, cx),
             device: device::DevicePanel::new(),
+            library,
             inspector_scroll: ScrollHandle::new(),
         }
     }
@@ -226,6 +235,7 @@ impl DeviceView {
             self.highlight_tasks.clear();
         }
         let settings = matches!(event, Event::Layout(_) | Event::DeviceSettings(_));
+        let kinds = matches!(event, Event::Kinds(_));
         let input = matches!(event, Event::Input(_));
         if let Some((control, deadline)) = self.state.apply(event, Instant::now()) {
             let task = cx.spawn_in(window, async move |view, cx| {
@@ -245,6 +255,9 @@ impl DeviceView {
         }
         if settings {
             self.sync_device_panel(window, cx);
+        }
+        if kinds {
+            self.sync_library(window, cx);
         }
         self.sync_form(window, cx);
         self.sync_page_name(window, cx);

@@ -117,11 +117,28 @@ pub const NEUTRAL_TINT: Rgba = hex_alpha(0xffffff, 0.06);
 pub const BORDER_SAMPLE_OTHER: Rgba = hex(0x5a5c63);
 /// The white knob of a switch, and the text on a kind tile.
 pub const SWITCH_KNOB_COLOUR: Rgba = hex(0xffffff);
-/// The tile of a kind of a group that is not in the table of section 20.
-/// Until #184 gives the groups, all kinds use it.
+/// The tile of a kind of each group of section 20, and of a group that is
+/// not in that table.
+pub const KIND_TILE_SYSTEM: Rgba = hex(0x3a3f47);
+pub const KIND_TILE_MEDIA: Rgba = hex(0x2350a8);
+pub const KIND_TILE_NAVIGATION: Rgba = hex(0x1f6f6b);
+pub const KIND_TILE_LOGIC: Rgba = hex(0x7a3e2e);
 pub const KIND_TILE_OTHER: Rgba = hex(0x4b3b7a);
 /// The tile of an action kind that has no handler (rule 8).
 pub const KIND_TILE_UNAVAILABLE: Rgba = hex(0x3a3c42);
+
+/// The tile colour of a kind of the group `group` (decision 0029, section
+/// 20). The colour comes from the group, thus the window needs no colour for
+/// each kind. A group of a plug-in gets [`KIND_TILE_OTHER`].
+pub fn kind_tile(group: &str) -> Rgba {
+    match group {
+        "System" => KIND_TILE_SYSTEM,
+        "Media" => KIND_TILE_MEDIA,
+        "Navigation" => KIND_TILE_NAVIGATION,
+        "Logic" => KIND_TILE_LOGIC,
+        _ => KIND_TILE_OTHER,
+    }
+}
 
 /// The body of the device.
 pub const DEVICE_BODY: Rgba = hex(0x0b0c0e);
@@ -247,7 +264,7 @@ pub const RADIUS_BADGE: Pixels = px(4.);
 pub const RADIUS_SEGMENT: Pixels = px(5.);
 /// A button, a text field, a popup button, a sidebar row.
 pub const RADIUS_CONTROL: Pixels = px(6.);
-/// A segmented control track, and a search field.
+/// A segmented control track, a search field, and a library row.
 pub const RADIUS_TRACK: Pixels = px(7.);
 /// A nested card, and a bar panel on the canvas.
 pub const RADIUS_CARD: Pixels = px(8.);
@@ -321,10 +338,18 @@ pub const HEADER_KNOB_MARK: Pixels = px(6.);
 /// A kind tile in a gesture card and in the kind menu, and in a nested card.
 pub const KIND_TILE: Pixels = px(20.);
 pub const KIND_TILE_NESTED: Pixels = px(18.);
+/// A kind tile in a library row (section 11).
+pub const KIND_TILE_LIBRARY: Pixels = px(24.);
+/// A row of the library (section 11).
+pub const HEIGHT_LIBRARY_ROW: Pixels = px(34.);
+/// A search field of a panel, for example in the library (section 11).
+pub const HEIGHT_SEARCH_FIELD: Pixels = px(30.);
 /// The width of a menu that the window draws.
 pub const MENU_WIDTH: Pixels = px(240.);
-/// The highest menu. A longer menu scrolls.
-pub const MENU_MAX_HEIGHT: Pixels = px(420.);
+/// The highest menu. A longer menu, or a menu that is higher than the
+/// window, scrolls. The kind menu with the group titles of the library is
+/// approximately 465 high.
+pub const MENU_MAX_HEIGHT: Pixels = px(520.);
 /// The height of a row of a menu that the window draws.
 pub const HEIGHT_MENU_ROW: Pixels = px(28.);
 /// The space between a popup button and its menu, and between the menu and
@@ -366,6 +391,8 @@ pub const DEVICE_MARGIN: f32 = 24.;
 pub const ICON_SMALL: Pixels = px(12.);
 /// An icon in a square button and in a message row.
 pub const ICON_BUTTON: Pixels = px(14.);
+/// The icon of a search field of a panel.
+pub const ICON_SEARCH: Pixels = px(14.);
 /// An icon in a message row.
 pub const ICON_MESSAGE: Pixels = px(14.);
 /// An icon in a sidebar row.
@@ -542,6 +569,7 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     Pencil,
     Plus,
     Redo2,
+    Search,
     Settings,
     ShieldAlert,
     ShieldCheck,

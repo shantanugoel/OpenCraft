@@ -52,6 +52,7 @@ impl Handler for CountHandler {
             kind: KIND.into(),
             name: "Count".into(),
             fields: Vec::new(),
+            ..Default::default()
         }]
     }
 

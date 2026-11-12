@@ -7,7 +7,7 @@ use gpui_kit::{
     anchored,
     assets::IconName,
     component::{
-        input::{AnyInputState, Input, Textarea},
+        input::{AnyInputState, Input, InputState, Textarea},
         tooltip::Tooltip,
         Icon, Sizable,
     },
@@ -418,7 +418,9 @@ impl MenuPlace {
 
 /// A menu that the window draws, below its popup button: put it in a
 /// `relative` parent that holds the button. If the menu does not fit below
-/// the button, it shows above the button. A layer below the menu covers the
+/// the button, it shows above the button. If it fits at neither place, it
+/// moves up until it fits in the window, and covers the button, as a menu
+/// of macOS does. A layer below the menu covers the
 /// window: a click on it calls `close` and does nothing else. Make the rows
 /// with [`menu_row`] and [`menu_separator`].
 pub(super) fn popup_menu(
@@ -478,7 +480,10 @@ pub(super) fn popup_menu(
                                 .debug_selector(move || menu_id.to_string())
                                 .occlude()
                                 .w(place.width)
-                                .max_h(theme::MENU_MAX_HEIGHT)
+                                .max_h(theme::MENU_MAX_HEIGHT.min(
+                                    viewport.height
+                                        - (theme::MENU_OFFSET + theme::MENU_WINDOW_MARGIN) * 2.,
+                                ))
                                 .overflow_y_scroll()
                                 .flex()
                                 .flex_col()
@@ -519,6 +524,69 @@ pub(super) fn menu_row(id: impl Into<SharedString>) -> Stateful<Div> {
         .cursor_pointer()
         .hover(|d| d.bg(theme::HOVER_ROW))
         .active(|d| d.bg(theme::PRESSED))
+}
+
+/// The title of a group of rows, in the library and in a menu (decision
+/// 0029, section 11): padding 4 6, the text in `section`, `text-tertiary`,
+/// in capital letters.
+pub(super) fn group_title(title: impl Into<SharedString>) -> Div {
+    let title: SharedString = title.into();
+    div()
+        .flex_shrink_0()
+        .py(theme::SPACE_4)
+        .px(theme::SPACE_6)
+        .text_size(theme::TEXT_SECTION)
+        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+        .text_color(theme::TEXT_TERTIARY)
+        .child(title.to_uppercase())
+}
+
+/// A search field of a panel (decision 0029, section 11): `height`, padding
+/// 0 8, radius 7, `bg-field`, the border `border-field` and `accent-line`
+/// with the focus, a search icon 14 in `text-tertiary`, and the text in
+/// `control`. The placeholder is the placeholder of `input`.
+pub(super) fn search_field(
+    id: &'static str,
+    input: &gpui_kit::Entity<InputState>,
+    height: Pixels,
+    window: &Window,
+    cx: &App,
+) -> Stateful<Div> {
+    let focused = gpui_kit::Focusable::focus_handle(input.read(cx), cx).is_focused(window);
+    div()
+        .id(id)
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .w_full()
+        .h(height)
+        .px(theme::SPACE_8)
+        .flex()
+        .items_center()
+        .gap(theme::SPACE_8)
+        .rounded(theme::RADIUS_TRACK)
+        .bg(theme::BG_FIELD)
+        .border_1()
+        .border_color(if focused {
+            theme::ACCENT_LINE
+        } else {
+            theme::BORDER_FIELD
+        })
+        .text_size(theme::TEXT_CONTROL)
+        .text_color(theme::TEXT_PRIMARY)
+        .child(
+            Icon::new(IconName::Search)
+                .size(theme::ICON_SEARCH)
+                .text_color(theme::TEXT_TERTIARY),
+        )
+        .child(
+            Input::new(input)
+                .appearance(false)
+                .flex_1()
+                .h(height - px(2.))
+                .px_0()
+                .py_0()
+                .text_size(theme::TEXT_CONTROL),
+        )
 }
 
 /// A line between two groups of rows of a menu.
