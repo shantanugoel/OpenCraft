@@ -78,6 +78,36 @@ The owner used the application and the device on 2026-11-12.
 | A label and a colour from the window showed on the device at once, and the small text was good to read | Measured: owner |
 | The cable was disconnected for 3 seconds and connected again, while the owner moved the window. The window stayed responsive, and the device showed the profile again after approximately 7 seconds. | Measured: owner |
 
+## Phase 3
+
+The application is the program `opencraft` of Phase 3: the engine, the
+built-in action handlers, and one window, in one process. The build, the
+computer, and the procedure are the same as in [Phase 2](#phase-2). The
+profile had content on 7 surfaces and 9 bindings. One binding had the kind
+`opencraft.volume`, thus the volume handler read the sound volume one time
+each 2 seconds. No person used the device or the window during a measurement.
+
+| Measurement | Window open | Application hidden | Confidence |
+|---|---|---|---|
+| Processes | 1 | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 43.8, 43.8, 44.3 MiB | 43.8, 43.8, 43.8 MiB | Measured |
+| Resident size, median | 107.4 MiB | 107.2 MiB | Measured |
+| Processor time in 300 seconds | 0.53 s | 0.21 s | Measured |
+| Processor use, mean (100 % is one core) | 0.18 % | 0.07 % | Measured |
+| Processor use, maximum of a sample | 0.4 % | 0.2 % | Measured |
+| Threads, with the application hidden | 10 | | Measured: `ps -M` |
+
+- The handlers add 2 threads and 0.10 seconds of processor time in 300
+  seconds, with the application hidden. The cause of the processor time is
+  the volume handler, which reads the sound volume one time each 2 seconds.
+  (Inference from the two phases)
+- The footprint is 55 % of the target of 80 MB. The processor use is below
+  the target of 0.5 % of one core. (Inference from the measured values)
+- The footprint is not larger than in Phase 2. The difference of 2.5 MiB is
+  in the range that a different profile can cause. (Inference)
+- The release binary has 21 441 440 bytes. (Measured)
+- The start time was not measured again in this phase.
+
 ## Not known
 
 - The start time after a start of the computer, when the files of the
