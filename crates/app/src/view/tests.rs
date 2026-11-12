@@ -233,6 +233,7 @@ mod canvas;
 mod device;
 mod history;
 mod nested;
+mod page_inspector;
 mod pages;
 mod panes;
 mod sidebar;

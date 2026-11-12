@@ -733,8 +733,10 @@ impl DeviceView {
     }
 
     /// The "◀ Touch bar ▶" control (section 8.2). The touch bar has no
-    /// surface, so this control selects it. It is centred on the display,
-    /// between the key faces and the bar panels.
+    /// surface, so this control selects it: it selects the page, which has
+    /// the swipe gestures (section 10.6). It looks selected while the page is
+    /// the selection. It is centred on the display, between the key faces
+    /// and the bar panels.
     fn touch_bar(
         &self,
         layout: &DeviceLayout,
@@ -810,7 +812,7 @@ impl DeviceView {
                         .child(arrow(Gesture::SwipeRight, IconName::ChevronRight))
                         .on_click(cx.listener(move |view, _, window, cx| {
                             cx.stop_propagation();
-                            view.select_control(id, window, cx)
+                            view.select_page_swipes(window, cx)
                         })),
                 )
                 .into_any_element(),

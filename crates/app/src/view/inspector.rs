@@ -3,8 +3,10 @@
 //!
 //! The inspector of a key face or a bar panel has the header, the
 //! "Appearance" section, and the "Gestures" section with one gesture card
-//! for each gesture (`actions`). A knob and the touch bar have the header
-//! and the "Gestures" section. The parts are in `form` and `gesture_card`.
+//! for each gesture (`actions`). A knob has the header and the "Gestures"
+//! section. The page, with the swipes of the touch bar, has its own
+//! inspector (`page_inspector`). The parts are in `form` and
+//! `gesture_card`.
 
 use super::*;
 use gpui_kit::{component::input::AnyInputState, rgb, Rgba};
@@ -159,9 +161,8 @@ impl DeviceView {
     /// The inspector of the selected control (section 10.1).
     fn control_inspector(&self, window: &Window, cx: &mut Context<Self>) -> Stateful<Div> {
         let editor = div().id("editor").debug_selector(|| "editor".into());
-        // Until #181, the inspector shows nothing for the page.
         if self.state.page_selected {
-            return editor;
+            return self.page_inspector(editor, window, cx);
         }
         let control = self.state.selected_control.and_then(|id| {
             let layout = self.state.layout.as_ref()?;
