@@ -276,7 +276,7 @@ commands. It is not in the repository.
 | After `DC` and `DIS`, the colour command sets the colours as usual. All 4 colours black give the default effect. | Measured |
 | The knob light brightness 0 stays after `DC` and `DIS`: the lights stayed off | Measured: 2 times |
 | When the device stops the USB connection and starts again, the colours and the knob light brightness are not kept. The next `DIS` gives the default effect at full brightness. | Measured: 2 times |
-| When the host is killed, the lights stay on until the device stops the USB connection. Then they go off. | Measured |
+| When the host is killed, the lights stay on until the device stops the USB connection. Then they go off. | Measured. See [streamdock-protocol.md](streamdock-protocol.md#keep-alive-and-stop). |
 | `DC` and `HAN` switch off the lights. The lights stay off until the next `DIS`. | Measured. See [streamdock-protocol.md](streamdock-protocol.md#keep-alive-and-stop). |
 
 Thus a host must send the colours and the knob light brightness after each
@@ -358,7 +358,7 @@ Phase 1 did not answer these questions. Each question has a reason.
 | What the command `DELED` does | No surface or control needs it. |
 | What the haptic feedback command changes on the device, and what the other settings in "Device settings" do | The haptic feedback needs a person: see [streamdock-protocol.md](streamdock-protocol.md#not-known). No feature needs the other settings. |
 | Why the knob lights show red after `DC` and `DIS` | OpenCraft sends the colours after each `DIS`, so the cause has no effect. |
-| Whether the device keeps its images when the computer sleeps and wakes | The owner deferred this check on 2026-11-11. It is issue [#43](https://github.com/shantanugoel/OpenCraft/issues/43), in Phase 5. Rule 10 of the architecture makes the engine draw all surfaces again after a wake, so no earlier phase depends on the answer. |
+| Whether the device keeps its images when the computer sleeps and wakes | The owner deferred this check on 2026-11-11. It is issue [#43](https://github.com/shantanugoel/OpenCraft/issues/43). The engine draws all surfaces again after each wake ([decision 0023](../decisions/0023-wake-from-the-sleep-time-of-the-clocks.md)), so the engine does not depend on the answer. |
 
 ## Sources
 

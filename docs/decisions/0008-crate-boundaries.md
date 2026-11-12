@@ -44,7 +44,9 @@ The workspace has four crates.
 - The engine tests build with no GUI toolkit. They are quick, and they run on
   a computer with no display.
 - Each message contains data only. Thus the engine can go to a different
-  process in Phase 5 with no change to the shell logic.
+  process in Phase 5 with no change to the shell logic. Note (2026-11-12):
+  [decision 0019](0019-engine-in-the-gui-process.md) keeps the engine in the
+  process of the GUI application.
 - A built-in action of Phase 3 starts as a module of the engine. Look at this
   decision again when the handler interface of Phase 3 is made, and when the
   plug-in host is designed.

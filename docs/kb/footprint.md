@@ -213,7 +213,7 @@ built-in action handlers, the menu bar item, and the window, in one process
 is the release profile of the workspace at commit `836b202`. The computer is
 the same as in [Phase 2](#phase-2). The profiles directory was a copy of the
 profiles directory of [Phase 4](#phase-4): 2 profiles, and the active profile
-had 2 pages, content on 22 surfaces, and 16 bindings. The configuration
+had 2 pages, content on 22 surfaces, and 16 bindings. The profiles
 directory had no file `device-settings.toml`, thus the engine used the
 default device settings. The device was connected. No person used the device
 or the window during a measurement.

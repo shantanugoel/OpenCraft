@@ -95,7 +95,9 @@ colors = ["#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF"]
   until the user changes a setting.
 - The engine keeps the tables of other models when it writes the file.
 - The engine writes the file after the same delay as a profile
-  (`SAVE_DELAY`), and at the stop.
+  (`SAVE_DELAY`), and at the stop. Note (2026-11-12): the engine also writes
+  the file before a change of the model of the device, as it does for the
+  profile (`change_model` in `crates/engine/src/engine.rs`).
 
 ### The layers
 
@@ -111,6 +113,9 @@ colors = ["#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF"]
   commands: one command with the full settings, and one event with the full
   settings at the start and after each change. The layout tells the shell
   which settings the model has. The shell has no device logic (rule 12).
+  Note (2026-11-12): while the user moves a slider, the window sends one
+  command each 50 ms at most, and then the last value (`SETTINGS_INTERVAL`
+  in `crates/app/src/view/device.rs`).
 
 The engine operates with no window (rule 3), so the engine, not the shell,
 keeps and applies the settings.
@@ -153,7 +158,9 @@ The stop sequence is:
 - The engine sends the sequence when it gets `Command::Stop`, and when each
   sender of commands is gone. The shell sends `Command::Stop` and waits for
   the engine at each quit: from the menu, from Cmd-Q, and at the signals
-  `SIGTERM`, `SIGINT`, and `SIGHUP`.
+  `SIGTERM`, `SIGINT`, and `SIGHUP`. Note (2026-11-12): the wait has a
+  time limit. See the note in
+  [decision 0020](0020-menu-bar-item-and-dock-icon.md#results).
 - The next start of OpenCraft needs only the usual start sequence. Its
   brightness command wakes the displays, and its `DIS` starts a new timer
   (measured).
@@ -177,7 +184,10 @@ connection, the device can still stop it one time. The link then connects
 again in 7 to 8 seconds (measured), and the engine draws again.
 
 A panic in the engine thread is the same as a crash, unless the
-implementation can send the stop sequence with no risk.
+implementation can send the stop sequence with no risk. Note (2026-11-12):
+the implementation sends no stop sequence after a panic. A panic can occur
+in the middle of an image transfer, and then the device would read the stop
+sequence as image data (`crates/engine/src/runtime.rs`).
 
 ## Rejected alternatives
 

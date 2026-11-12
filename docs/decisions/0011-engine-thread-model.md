@@ -58,7 +58,11 @@ delay input. An action handler of Phase 3 that can block must have its own
 thread.
 
 **The stop.** When the handle goes away, or the shell sends the stop command,
-the engine thread writes the profile if it changed, and stops.
+the engine thread writes the profile if it changed, and stops. Note
+(2026-11-12): [decision 0022](0022-device-settings-and-stop-state.md#the-device-state-at-a-normal-stop)
+adds the device settings file and the stop sequence to the stop. The wait of
+the handle has a time limit: see the note in
+[decision 0020](0020-menu-bar-item-and-dock-icon.md#results).
 
 ## Results
 
@@ -74,5 +78,9 @@ the engine thread writes the profile if it changed, and stops.
   change.
 - The engine can go to a different process in Phase 5: the channel and the
   function become a connection between two processes, and the messages stay.
+  Note (2026-11-12): [decision 0019](0019-engine-in-the-gui-process.md)
+  keeps the engine in the process of the GUI application.
 - Look at this decision again in Phase 3, when handlers can block, and in
-  Phase 5, with the measured processor use with no window.
+  Phase 5, with the measured processor use with no window. Note
+  (2026-11-12): the measured value is in
+  [kb/footprint.md](../kb/footprint.md#phase-5).

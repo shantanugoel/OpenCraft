@@ -88,6 +88,13 @@ events, also when no window is open. The window view reads the entity, thus
 a new window shows the current state immediately. The menu reads the same
 entity. The engine needs no new command.
 
+Note (2026-11-12): the implementation gives a new window a copy of the state
+of the entity. Then the window gets each event from the entity through a GPUI
+subscription (`DeviceView` in `crates/app/src/view.rs`). The window keeps its
+own copy, because it also does work for each event: the images, the text
+fields, and the changes that wait for a reply. A new window shows the current
+state immediately, as the decision says.
+
 ### The window
 
 - The application uses `QuitMode::Explicit`. A close of the window closes
@@ -131,7 +138,9 @@ Phase 4.
   missing, the value is `true`. This is not engine state: a different shell
   has different settings (rule 12). Thus the shell writes this file, and
   the comment "Only the engine ... writes files" in `crates/app/src/main.rs`
-  changes.
+  changes. Note (2026-11-12): the shell writes more files from later
+  decisions. See the note in
+  [decision 0024](0024-log-file-with-no-terminal.md#results).
 
 ### The quit path
 
@@ -142,6 +151,10 @@ All quit requests go to one path:
 - SIGTERM and SIGINT, also from `launchctl bootout`,
 - a terminate from macOS, for example at a logout or from the menu of the
   Dock icon.
+
+Note (2026-11-12): [decision 0022](0022-device-settings-and-stop-state.md)
+adds SIGHUP. The code sets the handler of "Signals" below for SIGTERM,
+SIGINT, and SIGHUP (`crates/app/src/signals.rs`).
 
 Each request calls `App::quit`. `App::quit` calls
 `NSApplication::terminate`, and then GPUI calls the `on_app_quit` closures.
@@ -175,10 +188,17 @@ SIGTERM.
   keep-alive
   ([kb/streamdock-protocol.md](../kb/streamdock-protocol.md#keep-alive-and-stop)).
 - A quit waits for the engine with no time limit. If the stop of the engine
-  can be long, issue #125 must limit it.
+  can be long, issue #125 must limit it. Note (2026-11-12): issue #125 added
+  the limit. `EngineHandle::stop` waits for `STOP_TIMEOUT` (3 seconds) at
+  most, and then the quit continues (`crates/engine/src/runtime.rs`).
 - The test program did not measure a logout, the list of Cmd-Tab, or the
   image on the button. See the "Not known" list in
   [kb/gpui.md](../kb/gpui.md#not-known). Issue
   [#123](https://github.com/shantanugoel/OpenCraft/issues/123) checks them.
+  Note (2026-11-12): issue #123 measured the list of Cmd-Tab
+  ([kb/gpui.md](../kb/gpui.md#windows-dock-icon-and-activation)) and the
+  image in the dark menu bar
+  ([kb/gpui.md](../kb/gpui.md#application-checks-of-phase-5-2026-11-12)).
+  A logout and the light menu bar stay in the "Not known" list.
 - A different platform has no `menu_bar` module. The application continues
   to build on Linux in CI with no menu bar item.

@@ -1,6 +1,8 @@
 //! The OpenCraft shell. Only the engine opens the device and writes the
-//! profiles. The shell writes only its own file `shell.toml` (decision 0020),
-//! and the log file when the process has no terminal (decision 0024).
+//! profiles. The shell writes only its own files: `shell.toml` (decision
+//! 0020), the lock file `opencraft.lock` (decision 0019), the log file when
+//! the process has no terminal (decision 0024), and on macOS the LaunchAgent
+//! file of the start at login (decision 0021).
 //!
 //! The engine and the shell operate in one process, also when no window is
 //! open (decision 0019). The menu bar item opens the window again and quits
