@@ -4,7 +4,7 @@ An action is the work that OpenCraft does when you operate a control. This
 chapter gives each action kind and its settings. The procedure to set an
 action is in [Configure a key](first-key.md#4-set-an-action).
 
-The list of action kinds in the window has this order:
+The menu of the action kinds in the window has this order:
 
 | Action kind | Needs the Accessibility permission |
 |---|---|
@@ -22,6 +22,36 @@ The list of action kinds in the window has this order:
 
 The permission is in
 [Install and first start](install.md#give-the-accessibility-permission).
+
+## The settings of an action
+
+The open card of a gesture shows the settings of its action, one setting on
+each row. The control of a setting agrees with its type:
+
+| Type of setting | Control |
+|---|---|
+| Text | A text field. Some text fields have three lines or more. |
+| Number | A small text field for digits. A number out of the range changes to the nearest permitted number. |
+| Selection | A button with the selected value. Click it, and click a value in the menu. |
+| On or off | A switch |
+| Hotkey | A field that records a hotkey. See [Send a hotkey](#send-a-hotkey). |
+| File or application | A text field and **Choose…** |
+| Action | A card in the card, with its own action kind and settings. See [Toggle](#toggle). |
+| List of actions | A list of cards. See [Sequence of actions](#sequence-of-actions). |
+
+If a setting has a long name, the name is above the control.
+
+## An action that is not available
+
+A profile can contain an action that this version of OpenCraft does not
+have, for example from a newer version. Then the button of the card shows
+**Not available**. The card shows the identifier of the action kind, and the
+text "This version of OpenCraft does not have this action. The binding
+stays in the profile."
+
+- OpenCraft keeps the action and its settings in the profile.
+- To use a different action, click **Not available**, and click an action
+  kind. To remove the action, click **Remove the action**.
 
 ## How OpenCraft saves a setting
 
@@ -72,10 +102,11 @@ macOS opens the URL in the default application for that type of URL.
 |---|---|
 | Hotkey | One key, with or without the modifier keys Control, Option, Shift, and Command |
 
-1. Click **Record hotkey…**. The button shows "Press a key… Esc cancels".
+1. Click the field **Record hotkey…**. The field gets a blue frame and shows
+   "Press a key…".
 2. Push the key combination on the keyboard of the computer, for example
    Shift-Command-4.
-3. The button shows the hotkey as text, for example `shift+cmd+4`.
+3. The field shows the hotkey as text, for example `shift+cmd+4`.
 
 To cancel the record, push Esc. To remove the hotkey, click **Clear**.
 
@@ -159,10 +190,13 @@ the state, and does the action for the new state.
 | Action for off | The action to do when the state changes to off |
 | Label for on | Optional. The label that the surface shows in the state on. |
 
-1. Below "Action for on", click **No action ▾**. Select an action kind.
-2. Set the settings of that action.
+1. Below "Action for on", click **Add an action**. Select an action kind.
+2. Set the settings of that action on its card.
 3. Do the same steps below "Action for off".
 4. Optional: type a label in "Label for on".
+
+To remove the action for on or off, click the button with its action name,
+and click **Remove the action**.
 
 - A toggle starts in the state off. Thus the first operation does the
   action for on.
@@ -184,11 +218,11 @@ A sequence does a list of actions, one after the other.
 | Actions | The list of actions, in their order |
 | Delay between two actions, in milliseconds | From 0 to 10000. The default is 100. |
 
-1. Click **Add action ▾**. Select an action kind.
-2. Set the settings of that action.
+1. Below "Actions", click **Add an action**. Select an action kind.
+2. Set the settings of that action on its card.
 3. Do steps 1 and 2 again for each action.
-4. To change the order, click **↑** or **↓** on an action. To remove an
-   action, click **Remove**.
+4. To change the order, click **↑** or **↓** above an action. To remove an
+   action, click **Remove** above it.
 
 - The sequence does not wait until an action is complete. The delay is the
   only wait. For an action that needs time, for example the start of an

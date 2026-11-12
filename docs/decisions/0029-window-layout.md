@@ -687,7 +687,9 @@ The content follows the selection.
 **Form.** A grid of two columns: the label column (64 wide; 72 in the page
 and the device inspector; 110 in a sheet) and the value column (the rest).
 Gap 10 between columns and between rows. Rows are centred vertically.
-Labels: `label`, `text-secondary`.
+Labels: `label`, `text-secondary`. A label that is wider than the label
+column is above its control, gap 6, so that it does not break into short
+lines (#179).
 
 **Text field.** Height 28, padding 0 8, radius 6, background `bg-field`
 (`bg-bar` in a gesture card), border `border-field`, `body` weight 400.
@@ -702,7 +704,7 @@ order:
 | "Title" | A text field with the label text | #179 |
 | "Position" | A segmented control in a track with border `border-field`, segments 22 high: "Top", "Middle", "Bottom", "None" | #189 |
 | "Text" | A popup button with the size, for example "12 pt"; a colour button 28 × 28 that shows the text colour; a toggle button "B" 28 × 28 (`body` weight 700) for bold, on = `bg-segment-on` with border `#5A5C63` | #189 |
-| "Fill" | The fill samples (section 3.2), 22 × 22, radius 5, gap 6, the row wraps. The selected sample has the look of section 3.7. The last sample is "Other colour": dashed border `#5A5C63`, the text "+". It opens a popover with a field for `#RRGGBB`. | #179 |
+| "Fill" | The fill samples (section 3.2), 22 × 22, radius 5, gap 6, the row wraps. The selected sample has the look of section 3.7. The first sample is "No fill", as in the wireframe: background `bg-field`, border `border-overlay`. It removes the fill colour. The last sample is "Other colour": dashed border `#5A5C63`, the text "+". It opens a popover with a field for `#RRGGBB`. | #179 |
 
 Until #190, the first row is "Image" with the buttons "Image file…" and
 "Remove" ("Remove" is disabled when the surface has no image). #190 changes

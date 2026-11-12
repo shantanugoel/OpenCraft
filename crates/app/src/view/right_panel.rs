@@ -16,9 +16,14 @@ const TABS: [(RightPanelTab, &str, &str); 2] = [
 ];
 
 impl DeviceView {
-    pub(super) fn right_panel(&self, width: Pixels, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn right_panel(
+        &self,
+        width: Pixels,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let content = match self.panes.right_panel_tab {
-            RightPanelTab::Inspector => self.inspector(cx),
+            RightPanelTab::Inspector => self.inspector(window, cx),
             RightPanelTab::Library => self.library(),
         };
         div()

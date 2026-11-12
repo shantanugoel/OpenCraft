@@ -2,9 +2,10 @@
 
 ## The gestures of each control
 
-You select a control in the device picture. Then you select a gesture below
-**Action** in the inspector, and set an action for it. Each gesture can have a
-different action.
+You select a control in the device picture. Then you set an action on the
+card of a gesture, below **Gestures** in the inspector. Each gesture has its
+own card, and each gesture can have a different action. The procedure is in
+[Configure a key](first-key.md#4-set-an-action).
 
 | Control | How to select it | Gestures |
 |---|---|---|
@@ -15,10 +16,12 @@ different action.
 
 ## Knobs
 
-1. Click a knob, for example **Knob 1**.
-2. Below **Action**, click a gesture: **Turn left**, **Turn right**, or
-   **Push**. **Turn right** is selected first.
-3. Set an action for the gesture. See [Actions](actions.md).
+1. Click a knob, for example **Knob 1**. The inspector shows the cards
+   **Turn left**, **Turn right**, and **Push**. The header shows the bar
+   panel that gives the feedback of the knob, for example "Feedback on bar
+   panel 1".
+2. On the card of a gesture, click **Add an action**, and set an action.
+   See [Actions](actions.md).
 
 - Each click of a turn does the action one time. A fast turn does the action
   many times.
@@ -51,9 +54,10 @@ To set the action of a tap:
 
 To set the action of a swipe:
 
-1. Click the strip "◀ Touch bar ▶" below the bar panels.
-2. Click **Swipe left** or **Swipe right**.
-3. Set an action. A good action for a swipe is "Change the page".
+1. Click the strip "◀ Touch bar ▶" below the bar panels. The inspector
+   shows the cards **Swipe left** and **Swipe right**.
+2. On one of the cards, click **Add an action**, and set an action. A good
+   action for a swipe is "Change the page".
 
 Sometimes the device does not identify a touch as a tap or as a swipe. Then
 nothing occurs. Touch again.

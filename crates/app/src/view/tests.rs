@@ -153,6 +153,38 @@ fn clicks_select_surfaces_and_send_colour_commands(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn other_colour_takes_a_value_in_hex(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    click(cx, "other-colour");
+    assert!(cx.debug_bounds("other-colour-popover").is_some());
+    // The field has the focus. An incomplete value does nothing.
+    cx.simulate_input("#12345");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(sent.borrow().is_empty());
+    assert!(cx.debug_bounds("other-colour-popover").is_some());
+    cx.simulate_input("6");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        sent.borrow().as_slice(),
+        &[Command::SetColor {
+            surface: key(),
+            color: Some(colour(0x123456))
+        }]
+    );
+    assert!(cx.debug_bounds("other-colour-popover").is_none());
+    // Escape closes the popover with no change.
+    click(cx, "other-colour");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    click(cx, "no-colour");
+    assert!(cx.debug_bounds("other-colour-popover").is_none());
+    assert_eq!(sent.borrow().len(), 2);
+}
+
+#[gpui_kit::test]
 fn label_replies_do_not_overwrite_typing_and_empty_text_removes_label(cx: &mut TestAppContext) {
     let (view, cx, tx, sent) = window(cx);
     click(cx, "surface-key face 2");

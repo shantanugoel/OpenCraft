@@ -202,6 +202,7 @@ fn all_field_types_send_full_settings_and_keep_unknown_keys(cx: &mut TestAppCont
     expect_change(&sent, &mut expected, "integer", Value::Integer(10));
     type_field(&view, cx, "integer", "-999");
     expect_change(&sent, &mut expected, "integer", Value::Integer(-5));
+    click(cx, "choice-3");
     click(cx, "choice-3-1");
     expect_change(&sent, &mut expected, "choice", Value::Text("b".into()));
     click(cx, "toggle-4");
@@ -261,56 +262,125 @@ fn all_field_types_send_full_settings_and_keep_unknown_keys(cx: &mut TestAppCont
     });
 }
 
-#[gpui_kit::test]
-fn kinds_defaults_no_action_gestures_and_control_selection(cx: &mut TestAppContext) {
-    let (view, cx, tx, sent) = window(cx);
-    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
-    cx.run_until_parked();
-    click(cx, "surface-key face 2");
-    // A focus in the label field does not stay after a click in the list.
-    cx.update(|window, cx| {
-        let input = view.read(cx).input.clone();
-        window.focus(&input.focus_handle(cx), cx);
-    });
-    cx.run_until_parked();
-    click(cx, "action-kind");
-    click(cx, "kind-0");
-    cx.update(|window, cx| {
-        let input = view.read(cx).input.clone();
-        assert!(!input.focus_handle(cx).is_focused(window));
-    });
-    let defaults = Action {
+/// The action of `kind()` with the default value of each field.
+fn defaults() -> Action {
+    Action {
         kind: "test.kind".into(),
         settings: kind()
             .fields
             .iter()
             .map(|f| (f.key.clone(), f.default.clone().unwrap()))
             .collect(),
-    };
-    assert_eq!(
-        sent.borrow().last(),
-        Some(&Command::SetBinding {
-            binding: binding(GestureKind::Press),
-            action: Some(defaults.clone())
-        })
-    );
-    cx.update(|_, cx| assert!(view.read(cx).state.bindings.is_empty()));
-    tx.try_send(event(binding(GestureKind::Press), defaults, true))
-        .unwrap();
+    }
+}
+
+fn open_card(view: &Entity<DeviceView>, cx: &mut VisualTestContext) -> Option<GestureKind> {
+    cx.update(|_, cx| view.read(cx).state.gesture)
+}
+
+#[gpui_kit::test]
+fn cards_open_set_a_kind_change_a_setting_and_clear_an_action(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(2400.)));
+    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
     cx.run_until_parked();
-    click(cx, "gesture-Release");
-    click(cx, "action-kind");
-    click(cx, "kind-none");
+    click(cx, "surface-key face 2");
+    // A key has the cards "Press" and "Release". With no action, no card is
+    // open, and each card is a dashed card "Add an action".
+    for (kind, head) in [
+        ("gesture-Press-kind", "gesture-Press-head"),
+        ("gesture-Release-kind", "gesture-Release-head"),
+    ] {
+        assert!(cx.debug_bounds(kind).is_some());
+        assert!(cx.debug_bounds(head).is_none());
+    }
+    assert_eq!(open_card(&view, cx), None);
+    assert!(
+        cx.debug_bounds("gesture-Press").unwrap().bottom()
+            < cx.debug_bounds("gesture-Release").unwrap().top()
+    );
+
+    // Set a kind: a click on the empty card opens the kind menu. A focus in
+    // the title field does not stay after a click in the menu.
+    cx.update(|window, cx| {
+        let input = view.read(cx).input.clone();
+        window.focus(&input.focus_handle(cx), cx);
+    });
+    cx.run_until_parked();
+    click(cx, "gesture-Release-kind");
+    assert!(cx.debug_bounds("kind-menu").is_some());
+    assert!(cx.debug_bounds("kind-remove").is_none());
+    click(cx, "kind-0");
+    assert!(cx.debug_bounds("kind-menu").is_none());
+    cx.update(|window, cx| {
+        let input = view.read(cx).input.clone();
+        assert!(!input.focus_handle(cx).is_focused(window));
+    });
     assert_eq!(
         sent.borrow().last(),
         Some(&Command::SetBinding {
             binding: binding(GestureKind::Release),
-            action: None
+            action: Some(defaults())
         })
     );
-    click(cx, "gesture-Press");
-    click(cx, "action-kind");
-    click(cx, "kind-none");
+    // The choice opens the card. The engine event is the source of truth.
+    assert_eq!(open_card(&view, cx), Some(GestureKind::Release));
+    cx.update(|_, cx| assert!(view.read(cx).state.bindings.is_empty()));
+    tx.try_send(event(binding(GestureKind::Release), defaults(), true))
+        .unwrap();
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("gesture-Release-head").is_some());
+    assert!(cx.debug_bounds("field-0").is_some());
+
+    // Change a setting of the open card.
+    type_field(&view, cx, "text", "changed");
+    let mut changed = defaults();
+    changed
+        .settings
+        .insert("text".into(), Value::Text("changed".into()));
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&Command::SetBinding {
+            binding: binding(GestureKind::Release),
+            action: Some(changed.clone())
+        })
+    );
+    tx.try_send(event(binding(GestureKind::Release), changed, true))
+        .unwrap();
+
+    // One card is open at a time: a click on the head of a closed card
+    // opens it and closes the open card. A second click closes it.
+    tx.try_send(event(binding(GestureKind::Press), defaults(), true))
+        .unwrap();
+    cx.run_until_parked();
+    assert_eq!(open_card(&view, cx), Some(GestureKind::Release));
+    let count = sent.borrow().len();
+    click(cx, "gesture-Press-name");
+    assert_eq!(open_card(&view, cx), Some(GestureKind::Press));
+    assert_eq!(input_text(&view, cx, &top("text")), "start");
+    click(cx, "gesture-Press-name");
+    assert_eq!(open_card(&view, cx), None);
+    assert!(cx.debug_bounds("field-0").is_none());
+    click(cx, "gesture-Release-name");
+    assert_eq!(input_text(&view, cx, &top("text")), "changed");
+    assert_eq!(sent.borrow().len(), count, "A card opens with no command");
+
+    // The inspector remembers the open card of each control.
+    click(cx, "surface-bar panel 3");
+    assert_eq!(open_card(&view, cx), None);
+    click(cx, "surface-key face 2");
+    assert_eq!(open_card(&view, cx), Some(GestureKind::Release));
+
+    // A closed card with an action has its popup: the same kind opens the
+    // card and keeps the settings.
+    click(cx, "gesture-Press-kind");
+    click(cx, "kind-0");
+    assert_eq!(sent.borrow().len(), count);
+    assert_eq!(open_card(&view, cx), Some(GestureKind::Press));
+
+    // Clear an action: "Remove the action" in the menu of the card.
+    click(cx, "gesture-Press-kind");
+    click(cx, "kind-remove");
     assert_eq!(
         sent.borrow().last(),
         Some(&Command::SetBinding {
@@ -318,13 +388,7 @@ fn kinds_defaults_no_action_gestures_and_control_selection(cx: &mut TestAppConte
             action: None
         })
     );
-    cx.update(|_, cx| {
-        assert!(view
-            .read(cx)
-            .state
-            .bindings
-            .contains_key(&binding(GestureKind::Press)))
-    });
+    assert_eq!(open_card(&view, cx), None);
     tx.try_send(Event::Binding(BindingState {
         binding: binding(GestureKind::Press),
         action: None,
@@ -332,18 +396,19 @@ fn kinds_defaults_no_action_gestures_and_control_selection(cx: &mut TestAppConte
     }))
     .unwrap();
     cx.run_until_parked();
+    assert!(cx.debug_bounds("gesture-Press-head").is_none());
+    assert!(cx.debug_bounds("gesture-Release-head").is_some());
+
+    // A knob has the cards of its gestures. The old gesture buttons are
+    // gone.
     click(cx, "control-knob 2");
-    cx.update(|_, cx| {
-        assert_eq!(
-            view.read(cx).state.binding_id().unwrap().gesture,
-            GestureKind::TurnRight
-        )
-    });
-    assert!(cx.debug_bounds("gesture-TurnLeft").is_some());
-    assert!(cx.debug_bounds("gesture-Push").is_some());
-    click(cx, "gesture-TurnLeft");
-    click(cx, "action-kind");
-    click(cx, "kind-none");
+    for id in ["gesture-TurnLeft", "gesture-TurnRight", "gesture-Push"] {
+        assert!(cx.debug_bounds(id).is_some(), "{id}");
+    }
+    assert!(cx.debug_bounds("gesture-Press").is_none());
+    assert!(cx.debug_bounds("choose-image").is_none());
+    click(cx, "gesture-TurnLeft-kind");
+    click(cx, "kind-0");
     assert!(matches!(
         sent.borrow().last(),
         Some(Command::SetBinding {
@@ -355,11 +420,45 @@ fn kinds_defaults_no_action_gestures_and_control_selection(cx: &mut TestAppConte
                 },
                 ..
             },
-            action: None
+            action: Some(_)
         })
     ));
     click(cx, "surface-bar panel 3");
     assert!(cx.debug_bounds("choose-image").is_some());
+    assert!(cx.debug_bounds("gesture-Tap").is_some());
+}
+
+#[gpui_kit::test]
+fn a_menu_closes_with_escape_and_with_a_click_out_of_it(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(2400.)));
+    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
+    tx.try_send(event(binding(GestureKind::Press), defaults(), true))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    let count = sent.borrow().len();
+    click(cx, "gesture-Release-kind");
+    assert!(cx.debug_bounds("kind-menu").is_some());
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("kind-menu").is_none());
+    // A click out of the menu closes it, and the element below does not
+    // get the click.
+    click(cx, "choice-3");
+    assert!(cx.debug_bounds("choice-3-menu").is_some());
+    click(cx, "gesture-Press-name");
+    assert!(cx.debug_bounds("choice-3-menu").is_none());
+    assert!(cx.debug_bounds("field-0").is_some());
+    // One menu is open at a time.
+    click(cx, "gesture-Release-kind");
+    click(cx, "gesture-Press-kind");
+    assert!(cx.debug_bounds("kind-menu").is_none());
+    click(cx, "gesture-Press-kind");
+    assert!(cx.debug_bounds("kind-remove").is_some());
+    click(cx, "gesture-Press-kind");
+    assert!(cx.debug_bounds("kind-menu").is_none());
+    assert_eq!(sent.borrow().len(), count);
 }
 
 #[gpui_kit::test]
@@ -411,8 +510,12 @@ fn unavailable_binding_and_status_are_kept_until_engine_events(cx: &mut TestAppC
             ["The handler reports a problem."]
         )
     });
-    click(cx, "action-kind");
-    click(cx, "kind-none");
+    // The card of a kind with no handler has the kinds and "Remove the
+    // action" in its menu.
+    assert!(cx.debug_bounds("gesture-Press-head").is_some());
+    click(cx, "gesture-Press-kind");
+    assert!(cx.debug_bounds("kind-menu").is_some());
+    click(cx, "kind-remove");
     assert_eq!(
         sent.borrow().last(),
         Some(&Command::SetBinding {
@@ -501,7 +604,7 @@ fn old_replies_keep_later_edits_and_new_events_replace_the_form(cx: &mut TestApp
     assert_eq!(input_text(&view, cx, &top("text")), "engine value");
     let count = sent.borrow().len();
     // Selecting the same kind must not reset its settings to defaults.
-    click(cx, "action-kind");
+    click(cx, "gesture-Press-kind");
     click(cx, "kind-0");
     assert_eq!(sent.borrow().len(), count);
     tx.try_send(Event::Binding(BindingState {
