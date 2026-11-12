@@ -126,6 +126,41 @@ permission.
 
 ## Phase 4
 
+### Memory and processor use (2026-11-12)
+
+The application is the program `opencraft` of Phase 4: the engine, the
+built-in action handlers, and one window, in one process. The build, the
+computer, and the procedure are the same as in [Phase 2](#phase-2). The
+profiles directory had 2 profiles. The active profile had 2 pages, content
+on 22 surfaces, and 16 bindings. Two bindings had the kind
+`opencraft.volume`. No person used the device or the window during a
+measurement.
+
+| Measurement | Window open | Application hidden | Confidence |
+|---|---|---|---|
+| Processes | 1 | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 47.5, 47.5, 47.5 MiB | 45.0, 45.0, 45.0 MiB | Measured |
+| Resident size, median | 108.1 MiB | 108.3 MiB | Measured |
+| Processor time in 300 seconds | 0.62 s | 0.31 s | Measured |
+| Processor use, mean (100 % is one core) | 0.21 % | 0.10 % | Measured |
+| Processor use, maximum of a sample | 1.6 % | 0.2 % | Measured |
+| Threads, with the application hidden | 14 | | Measured: `ps -M` |
+
+- The footprint is 59 % of the target of 80 MB with the window open. The
+  mean processor use is below the target of 0.5 % of one core. (Inference
+  from the measured values)
+- One sample of 5 seconds with the window open had 1.6 %. The cause is not
+  known. Each other sample had 0.4 % or less.
+- The footprint is 1.2 to 3.7 MiB larger than in [Phase 3](#phase-3), and
+  the application has 4 more threads. The 4 new action kinds are in 3 new
+  handlers, and each handler has one thread. The cause of the fourth thread
+  is not known. (Inference from the two phases and the code)
+- The engine holds only the active profile and the images of the active
+  page. Thus the count of profiles and pages does not change the footprint
+  much. (Inference: decisions 0016 and 0018. Not measured with many pages.)
+- The release binary has 21 758 368 bytes. (Measured)
+- The start time was not measured again in this phase.
+
 ### Time of a page change (2026-11-12)
 
 A test program, not in the repository, used the engine logic with the real
