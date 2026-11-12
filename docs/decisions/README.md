@@ -37,6 +37,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0019](0019-engine-in-the-gui-process.md) | The engine stays in the process of the GUI application | Accepted |
 | [0020](0020-menu-bar-item-and-dock-icon.md) | The shell makes the menu bar item with AppKit, and has one quit path | Accepted |
 | [0021](0021-start-at-login.md) | A LaunchAgent file starts OpenCraft at login, with the argument `--login` | Accepted |
+| [0022](0022-device-settings-and-stop-state.md) | Device settings are for each device model, outside the profile, and the device goes dark at the stop | Accepted |
 
 ## Template
 

@@ -261,6 +261,27 @@ A camera recorded these facts on 2026-11-11. The commands are in
 | The lights are off when no host operates the device, and after the sleep command | Measured |
 | The command `DELED` ("reset the LED colour" in the SDK) changed nothing that the camera saw, after the lights were white | Measured: 1 time |
 
+A camera recorded these facts on 2026-11-12. A test program sent the
+commands. It is not in the repository.
+
+| Fact | Confidence |
+|---|---|
+| Each value of the knob light brightness command from 50 down to 1 gave less light: 50, 30, 20, 10, 5, 3, 2, 1. 1 is dim, but the camera saw it. 0 is off. 75 and 100 gave almost the same picture. | Measured: green on all knobs |
+| A colour value less than 255 gives a darker light. Green 64 and green 16 gave less light than green 255. | Measured |
+| The knob light brightness stays when the colour command changes the colours | Measured |
+| The knob light brightness also changes the default effect. 0 switches it off. | Measured |
+| The default effect changed from magenta through blue, cyan, and green to orange in approximately 12 seconds | Measured: 1 time |
+| After `DC` and `DIS`, the colours are not kept. All knobs show one red that does not change. This was the result after blue, after green, and after 4 different colours. | Measured: 5 times |
+| After the default effect, `DC` and `DIS` give the default effect again | Measured: 1 time |
+| After `DC` and `DIS`, the colour command sets the colours as usual. All 4 colours black give the default effect. | Measured |
+| The knob light brightness 0 stays after `DC` and `DIS`: the lights stayed off | Measured: 2 times |
+| When the device stops the USB connection and starts again, the colours and the knob light brightness are not kept. The next `DIS` gives the default effect at full brightness. | Measured: 2 times |
+| When the host is killed, the lights stay on until the device stops the USB connection. Then they go off. | Measured |
+| `DC` and `HAN` switch off the lights. The lights stay off until the next `DIS`. | Measured. See [streamdock-protocol.md](streamdock-protocol.md#keep-alive-and-stop). |
+
+Thus a host must send the colours and the knob light brightness after each
+`DIS` that starts a connection or follows `DC`. (Inference)
+
 ## The device with no host
 
 | Fact | Confidence | Source |
@@ -297,13 +318,22 @@ device for these facts.
 
 ## Device settings
 
-The SDK shows these settings. None is tested. (Source)
+The SDK has 6 device settings in one command, `QUCMD`. The command and the
+measured facts are in
+[streamdock-protocol.md](streamdock-protocol.md#device-configuration).
 
-- Haptic feedback on or off.
-- Knob light follows the key light.
-- Boot video.
-- Reset on USB report.
-- Key light on disconnection.
+| Setting in the SDK | What we know | Confidence |
+|---|---|---|
+| Haptic feedback (`EnableVibration`) | The device vibrates at a key press with its configuration at delivery. The device accepts the command for on and off. What the command changes is not known. | Measured: owner, 2026-11-11. Measured: test program, 2026-11-12. |
+| Key light on disconnection (`KeyLightOnDisconnect`) | Off: `DC` gives dark displays, not the logo | Measured, 2026-11-12 |
+| Knob light follows the key light (`LedFollowKeyLight`) | Not tested | Source |
+| USB power check (`CheckUsbPower`) | Not tested | Source |
+| Reset on USB report (`ResetUsbReport`) | Not tested | Source |
+| Boot video (`EnableBootVideo`) | Not tested | Source |
+
+The display brightness is in
+[streamdock-protocol.md](streamdock-protocol.md#brightness). The knob lights
+are in [Knob lights](#knob-lights).
 
 ## Not known
 
@@ -316,7 +346,9 @@ Phase 1 did not answer these questions. Each question has a reason.
 | The exact x coordinates at which the tap code changes from one bar panel to the next | The ranges are known: see "Controls and input codes". Each measured tap gave the code of the bar panel below the finger. The engine uses the code that the device gives, and it does not use the coordinates: see [decision 0015](../decisions/0015-four-bar-panels-and-touch-gestures.md). |
 | What the device sends for other sequences of 2 or more keys: 3 keys, keys that are not adjacent, a key and a knob | The measured cases show that the device does not report 2 keys at the same time. Thus OpenCraft has no key combination, and a binding uses one key. The bindings of Phase 3 did not need more cases. |
 | Whether the descriptors for `0x5548:0x1008` and `0x5548:0x1021` are correct | The owner does not have these models. More device models are not in a phase. |
-| What the command `DELED` does, and what each device setting in "Device settings" does | No surface or control needs them. Phase 5 has the device settings in its scope: brightness, haptic feedback, and knob lights. |
+| What the command `DELED` does | No surface or control needs it. |
+| What the haptic feedback command changes on the device, and what the other settings in "Device settings" do | The haptic feedback needs a person: see [streamdock-protocol.md](streamdock-protocol.md#not-known). No feature needs the other settings. |
+| Why the knob lights show red after `DC` and `DIS` | OpenCraft sends the colours after each `DIS`, so the cause has no effect. |
 | Whether the device keeps its images when the computer sleeps and wakes | The owner deferred this check on 2026-11-11. It is issue [#43](https://github.com/shantanugoel/OpenCraft/issues/43), in Phase 5. Rule 10 of the architecture makes the engine draw all surfaces again after a wake, so no earlier phase depends on the answer. |
 
 ## Sources

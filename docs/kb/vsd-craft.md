@@ -1,6 +1,6 @@
 # VSD Craft, the vendor software
 
-Last update: 2026-11-11
+Last update: 2026-11-12
 
 VSD Craft is the vendor software that OpenCraft replaces.
 
@@ -74,6 +74,19 @@ The size on disk was measured on the computer of the owner, on or before
 | The screen can show a dynamic background behind dynamic icons | Source | VSDinside product text |
 | The plug-in namespace of the vendor is `com.hotspot.streamdock.*` | Inference | First plan. Not examined. |
 | The profiles are folders for each device model, with `.sdPlugin` JSON files | Inference | First plan. Not examined. |
+
+## Device settings (2026-11-12)
+
+The agent read the files of VSD Craft 3.10 on the computer of the owner. It
+did not operate VSD Craft for these facts.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| VSD Craft keeps the display brightness and the knob light brightness for each device in its application configuration file, `StreamDockConfig.plist`, in the sections `DeviceBrightness` and `DeviceLightBrightness`. The key of each value names the device model and the serial number of the device. | Measured | The configuration file |
+| The same file has a screen-off time for each device (`ScreenOffTime`) | Measured | The configuration file |
+| We found no brightness value in the profile files of VSD Craft | Measured | A text search of its profile files |
+| The settings of VSD Craft include "Activate vibration", and a "Lighting control" with the choices "Light" and "Follow the software" | Source | The English text resources in the application binary |
+| The function names `addQUCMDCommand` and `sendQUCMDCommand` are in a library of VSD Craft | Source | The symbol names in `libSDLibrary` |
 
 ## Not known
 

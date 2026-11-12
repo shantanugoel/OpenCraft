@@ -1,6 +1,6 @@
 # Other software for this device family
 
-Last update: 2026-11-11
+Last update: 2026-11-12
 
 The decision that uses these facts is
 [decision 0001](../decisions/0001-native-application.md).
@@ -26,6 +26,10 @@ The decision that uses these facts is
 | It has swipe disabled, because swipe was not reliable | Source |
 | The README says for macOS: "Zero effort, no tests before release" | Source |
 | The repository had 36 stars and 22 forks on 2026-11-11 | Source |
+| It keeps its device settings in one configuration file for the plug-in (`config.toml`), not in an OpenDeck profile: haptic feedback on or off, and the knob lights (brightness, and one colour for each knob) | Source: README and `src/config.rs`, version 0.11.1, read 2026-11-12 |
+| It sends these settings at each connection. For a setting with no value, it sends no command, and the device keeps its own state. With no knob light setting, the knob lights show the default effect of the device. | Source: `src/device.rs`, README |
+| At each connection it sets the display brightness to 50. OpenDeck can change it later. | Source: `src/device.rs`, `src/main.rs` |
+| At its stop it sends `DC` and then `HAN` (the `mirajazz` function `shutdown`), with a time limit of 2 seconds | Source: `src/device.rs` |
 | We did not operate the plug-in with our device | — |
 
 ## OpenDeck issue 404
