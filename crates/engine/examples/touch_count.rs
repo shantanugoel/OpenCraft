@@ -41,7 +41,7 @@ const STEPS: [&str; 3] = [
 enum Note {
     Connected,
     Input(ControlId, Gesture),
-    Invoke(ControlId, GestureKind),
+    Invoke,
     Problem(String),
 }
 
@@ -61,10 +61,8 @@ impl Handler for CountHandler {
     fn start(&mut self, _: MessageSender) {}
 
     fn handle(&mut self, request: Request) {
-        if let Request::Invoke { binding, .. } = request {
-            let _ = self
-                .notes
-                .send(Note::Invoke(binding.control, binding.gesture));
+        if let Request::Invoke { .. } = request {
+            let _ = self.notes.send(Note::Invoke);
         }
     }
 }
@@ -105,7 +103,7 @@ fn count_step(receiver: &Receiver<Note>) -> Option<Counts> {
                     _ => {}
                 }
             }
-            Ok(Note::Invoke(..)) => counts.invokes += 1,
+            Ok(Note::Invoke) => counts.invokes += 1,
             Ok(Note::Problem(text)) => println!("problem: {text}"),
             Ok(Note::Connected) | Err(_) => {}
         }
