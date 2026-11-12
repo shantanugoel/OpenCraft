@@ -48,6 +48,9 @@ fn main() {
                 println!("[{at:8.3}] input: {} {:?}", input.control, input.gesture)
             }
             Event::Kinds(kinds) => println!("[{at:8.3}] kinds: {kinds:?}"),
+            Event::Pages { names, active } => {
+                println!("[{at:8.3}] pages: {names:?}, active {active}")
+            }
             Event::Binding(binding) => println!("[{at:8.3}] binding: {binding:?}"),
             Event::Status { kind, status } => println!("[{at:8.3}] status: {kind}: {status:?}"),
             Event::Counters(counters) => println!("[{at:8.3}] counters: {counters:?}"),

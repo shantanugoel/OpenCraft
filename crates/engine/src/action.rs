@@ -101,6 +101,42 @@ pub enum Message {
         status: Status,
     },
     Problem(String),
+    /// Ask the engine for work. The engine obeys it as it obeys the same
+    /// command from the shell.
+    Engine(EngineRequest),
+}
+
+/// Work that a handler asks the engine to do. A request names no binding: it
+/// applies to the active profile. The reasons are in
+/// `docs/decisions/0016-pages-and-engine-requests-from-a-handler.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineRequest {
+    /// Make a different page the active page.
+    SelectPage(PageTarget),
+}
+
+/// The page that [`EngineRequest::SelectPage`] selects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageTarget {
+    /// The page after the active page. After the last page, the first page.
+    Next,
+    /// The page before the active page. Before the first page, the last page.
+    Previous,
+    /// The page with this number. Page numbers start at 0.
+    Number(usize),
+}
+
+impl PageTarget {
+    /// The number of the target page, from the number of the active page and
+    /// the number of pages. `Number` gives its number, also when it is not a
+    /// page.
+    pub(crate) fn resolve(self, active: usize, count: usize) -> usize {
+        match self {
+            PageTarget::Next => (active + 1) % count,
+            PageTarget::Previous => (active + count - 1) % count,
+            PageTarget::Number(page) => page,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

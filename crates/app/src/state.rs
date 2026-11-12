@@ -29,6 +29,9 @@ pub struct ViewState {
     pub selected_control: Option<ControlId>,
     pub gesture: Option<GestureKind>,
     pub kinds: Vec<KindDescription>,
+    /// The page that the device shows. The commands for a binding use it.
+    pub page: usize,
+    /// The bindings of the active page only.
     pub bindings: BTreeMap<BindingId, BindingState>,
     pub statuses: BTreeMap<String, Status>,
     pub pressed: BTreeSet<ControlId>,
@@ -71,6 +74,11 @@ impl ViewState {
             Event::Problem(text) => self.problems.push(text),
             Event::Input(input) => return self.input(input, now),
             Event::Kinds(kinds) => self.kinds = kinds,
+            Event::Pages { active, .. } => {
+                // The engine sends each binding of the active page next.
+                self.page = active;
+                self.bindings.clear();
+            }
             Event::Binding(binding) => {
                 if binding.action.is_some() {
                     self.bindings.insert(binding.binding, binding);
@@ -182,7 +190,7 @@ impl ViewState {
 
     pub fn binding_id(&self) -> Option<BindingId> {
         Some(BindingId {
-            page: 0,
+            page: self.page,
             control: self.selected_control?,
             gesture: self.gesture?,
         })
@@ -386,6 +394,37 @@ pub(crate) mod tests {
         assert!(!s.bindings.contains_key(&id));
         s.apply(Event::Kinds(vec![]), now);
         assert!(s.kinds.is_empty());
+    }
+
+    #[test]
+    fn a_pages_event_removes_the_bindings_and_sets_the_page_of_an_edit() {
+        use opencraft_engine::{Action, Settings};
+        let now = Instant::now();
+        let mut s = ViewState::default();
+        s.apply(layout(), now);
+        assert!(s.select(key()));
+        let id = s.binding_id().unwrap();
+        assert_eq!(id.page, 0);
+        s.apply(
+            Event::Binding(BindingState {
+                binding: id,
+                action: Some(Action {
+                    kind: "test.kind".into(),
+                    settings: Settings::new(),
+                }),
+                available: true,
+            }),
+            now,
+        );
+        s.apply(
+            Event::Pages {
+                names: vec!["Page 1".into(), "Page 2".into()],
+                active: 1,
+            },
+            now,
+        );
+        assert!(s.bindings.is_empty());
+        assert_eq!(s.binding_id().unwrap().page, 1);
     }
 
     #[test]

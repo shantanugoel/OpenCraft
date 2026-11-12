@@ -488,7 +488,7 @@ mod tests {
     /// A profile with each part of the content in use.
     fn sample() -> Profile {
         let mut profile = Profile::default();
-        let page = profile.active_page_mut();
+        let page = profile.page_mut(0).unwrap();
         page.update(KEY_3, |c| {
             c.label = Some("Mail".into());
             c.color = Some(Color::rgb(0x1E, 0x6F, 0xD9));
@@ -596,6 +596,21 @@ image = "images/4f1c2a9be07d3356.png"
             assert!(text.contains(table), "{table} in {text}");
         }
         assert_eq!(store.load().unwrap().profile, profile);
+    }
+
+    #[test]
+    fn many_pages_save_and_load_in_their_order() {
+        let (_dir, store) = store();
+        let mut profile = sample();
+        let mut second = Page::new("Media");
+        second.update(BAR_1, |c| c.color = Some(Color::rgb(1, 2, 3)));
+        profile.add_page(second);
+        profile.add_page(Page::new("Empty"));
+        store.save(&profile).unwrap();
+        let loaded = store.load().unwrap().profile;
+        assert_eq!(loaded, profile);
+        let names: Vec<_> = loaded.pages().iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["Page 1", "Media", "Empty"]);
     }
 
     #[test]
@@ -802,9 +817,11 @@ image = "images/4f1c2a9be07d3356.png"
         let images = store.dir().join(IMAGE_DIR);
         fs::write(images.join("readme.txt"), "not a copy").unwrap();
 
-        let mut profile = Profile::default();
+        // Only the second page uses the image.
+        let mut profile = Profile::new("P", vec![Page::new("A"), Page::new("B")]);
         profile
-            .active_page_mut()
+            .page_mut(1)
+            .unwrap()
             .update(KEY_3, |c| c.image = Some(used.clone()));
 
         assert_eq!(store.remove_unused_images(&profile).unwrap(), 1);

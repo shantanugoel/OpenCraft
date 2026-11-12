@@ -110,6 +110,9 @@ impl DeviceView {
         if let Event::Binding(binding) = &event {
             self.acknowledge(binding);
         }
+        if matches!(event, Event::Pages { .. }) {
+            self.forget_pending();
+        }
         if let Event::Surface(surface) = &event {
             if let Some(old) = self
                 .images

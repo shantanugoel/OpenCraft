@@ -241,10 +241,7 @@ fn an_unavailable_kind_stays_in_the_file_and_reports_its_state() {
     rig.engine.finish();
     let mut rig = rig.restart();
     assert_eq!(
-        rig.engine
-            .profile()
-            .active_page()
-            .binding(id.control, id.gesture),
+        rig.engine.profile().pages()[0].binding(id.control, id.gesture),
         Some(&action)
     );
     assert!(rig.take_events().contains(&expected));
@@ -262,7 +259,8 @@ fn appear_and_disappear_follow_start_set_change_and_remove() {
     let first = action(kind);
     let mut profile = Profile::default();
     profile
-        .active_page_mut()
+        .page_mut(0)
+        .unwrap()
         .set_binding(id.control, id.gesture, Some(first.clone()));
     store_in(dir.path()).save(&profile).unwrap();
     let (port, requests) = port(kind);
@@ -497,9 +495,7 @@ fn a_version_one_file_waits_for_a_change_then_writes_version_two() {
     rig.poll_for(Duration::from_secs(2));
     assert_eq!(rig.profile_text().unwrap(), old);
     assert_eq!(
-        rig.engine
-            .profile()
-            .active_page()
+        rig.engine.profile().pages()[0]
             .content(KEY_3)
             .label
             .as_deref(),
@@ -540,10 +536,7 @@ fn a_version_one_file_waits_for_a_change_then_writes_version_two() {
     assert!(text.contains("[pages.bindings.key-3.press]"));
     let rig = rig.restart();
     assert_eq!(
-        rig.engine
-            .profile()
-            .active_page()
-            .binding(id.control, id.gesture),
+        rig.engine.profile().pages()[0].binding(id.control, id.gesture),
         Some(&action)
     );
 }
@@ -584,7 +577,7 @@ fn a_kind_change_routes_lifecycle_requests_to_the_correct_handlers() {
 }
 
 #[test]
-fn inactive_page_bindings_have_state_but_no_lifecycle_requests() {
+fn bindings_of_an_inactive_page_have_no_state_and_no_requests() {
     let kind = "test.inactive-page";
     let dir = TempDir::new().unwrap();
     let mut inactive = opencraft_engine::Page::new("Inactive");
@@ -599,22 +592,20 @@ fn inactive_page_bindings_have_state_but_no_lifecycle_requests() {
         .unwrap();
     let (port, requests) = port(kind);
     let mut rig = Rig::with_ports(dir, vec![port]);
-    assert!(rig.take_events().contains(&Event::Binding(BindingState {
-        binding: id,
-        action: Some(action(kind)),
-        available: true
-    })));
+    assert!(!rig
+        .take_events()
+        .iter()
+        .any(|e| matches!(e, Event::Binding(_))));
     assert!(requests.try_recv().is_err());
+
+    // A command for a binding of an inactive page changes nothing.
     set_binding(&mut rig, id, None);
-    assert_eq!(
-        rig.take_events(),
-        [Event::Binding(BindingState {
-            binding: id,
-            action: None,
-            available: false
-        })]
-    );
+    assert_eq!(problems(&rig.take_events()).len(), 1);
     assert!(requests.try_recv().is_err());
+    assert_eq!(
+        rig.engine.profile().pages()[1].binding(id.control, id.gesture),
+        Some(&action(kind))
+    );
     id.page = 10;
     set_binding(&mut rig, id, Some(action(kind)));
     assert_eq!(problems(&rig.take_events()).len(), 1);
