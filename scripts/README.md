@@ -337,7 +337,7 @@ For the first release:
 
    ```sh
    brew install --cask shantanugoel/opencraft/opencraft
-   brew audit --cask --online --strict --signing shantanugoel/opencraft/opencraft
+   brew audit --cask --online --strict shantanugoel/opencraft/opencraft
    brew style --cask shantanugoel/opencraft/opencraft
    spctl --assess --type exec --verbose /Applications/OpenCraft.app
    ```
