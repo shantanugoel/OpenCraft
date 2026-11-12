@@ -1,6 +1,6 @@
 # GPUI
 
-Last update: 2026-11-11
+Last update: 2026-11-12
 
 GPUI is the GUI toolkit of the Zed editor. The decision that uses these facts
 is [decision 0005](../decisions/0005-gpui.md).
@@ -55,6 +55,17 @@ at `gpui_kit::*`.
 | A native file dialog selected a transparent PNG. The engine read and copied it. A key face showed its label, colour, and image in the window and on the device. A bar panel also showed its label, colour, and image in both places. Removing all three parts cleared the bar panel in both places. The arrow stayed upright, with red on the left and blue on the right. | Measured | Release application; native window screenshots and USB camera pictures, kept outside the repository |
 | The native window fits at 900 × 640 content pixels. A restart shows the saved profile. Normal window close ends the process and writes the last label change. | Measured | Release application; native screenshots, process check, and test profile file, kept outside the repository |
 | The macOS platform quits with `NSApplication::terminate`; code after the run loop is not a sufficient stop hook. GPUI awaits `on_app_quit` tasks for at most 200 ms. The application also delays normal window close until a background task has stopped the engine, with no time limit on that path. | Source | `gpui-pre-macos` 0.3.12 `platform.rs`; `gpui-pre` 0.3.12 `app.rs`; `crates/app/src/main.rs` |
+
+## Window checks of Phase 4 (2026-11-12)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A second `hover` style on one element stops a debug build with the message "hover style already set". It is a `debug_assert`, so a release build keeps one of the two styles with no message. Give each element one hover style only. | Source; Measured (debug panic) | `gpui-pre` 0.3.12 `src/elements/div.rs`, `hover`; application window tests |
+| An action from `Window::dispatch_action` does not get to an input that is not in the window yet, for example an input that the same click adds. `InputState::select_all` and `InputState::focus` operate on the entity directly, and the selected text is replaced by the next typed text. | Measured | Application window tests, `crates/app/src/view/pages.rs`, `edit_name` |
+| `InputEvent::PressEnter` comes when the user presses Enter in a single-line `Input`. | Source; Measured | `gpui-base` 0.9.1 `input/base/state.rs`; application window tests |
+| `deferred(element).with_priority(n)` paints an element after all other elements, and a higher number paints later. A menu with priority 2 over a full-window layer with priority 1 operates in the window tests. Each of the two needs `occlude`: with the default hitbox, a click also gets to the elements behind. | Source; Measured | `gpui-pre` 0.3.12 `src/elements/deferred.rs` and `src/elements/div.rs`, `occlude`; application window tests |
+| `ClickEvent::click_count` gives the count of clicks of the mouse-up event. The page tabs use it for a double click. | Source | `gpui-pre` 0.3.12 `src/interactive.rs` |
+| The no-display test platform does not show the result of a double click, of a tooltip, or of the visual style. The window tests check the bounds of the elements and the commands only. | Inference | `TestAppContext` API; application window tests |
 
 ## Release measurements
 
@@ -158,6 +169,8 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   stays for Phase 5; no menu bar item was made here.
 - Full input-method and accessibility behaviour. The test covers simple text
   entry, not every input method or assistive tool.
+- Whether a double click on a page tab gives a click count of 2 in the
+  native window. The window tests do not simulate a double click.
 
 ## Sources
 

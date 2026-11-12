@@ -2,7 +2,7 @@
 
 use opencraft_engine::{
     BindingId, BindingState, ControlId, ControlKind, DeviceLayout, Event, Gesture, GestureKind,
-    InputEvent, KindDescription, Status, SurfaceId, SurfaceKind, SurfaceState,
+    InputEvent, KindDescription, ProfileEntry, Status, SurfaceId, SurfaceKind, SurfaceState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -31,6 +31,15 @@ pub struct ViewState {
     pub kinds: Vec<KindDescription>,
     /// The page that the device shows. The commands for a binding use it.
     pub page: usize,
+    /// The names of the pages of the active profile, in their order.
+    pub pages: Vec<String>,
+    /// The profiles of the device model, and the identity of the active profile.
+    pub profiles: Vec<ProfileEntry>,
+    pub profile: Option<String>,
+    /// The count of the events that can change the active page. An edit that
+    /// started at a different count is for a page that the device does not
+    /// show now, so the shell drops it.
+    pub epoch: u64,
     /// The bindings of the active page only.
     pub bindings: BTreeMap<BindingId, BindingState>,
     pub statuses: BTreeMap<String, Status>,
@@ -74,13 +83,23 @@ impl ViewState {
             Event::Problem(text) => self.problems.push(text),
             Event::Input(input) => return self.input(input, now),
             Event::Kinds(kinds) => self.kinds = kinds,
-            // The window does not show the profiles yet. The engine sends the
-            // pages and the bindings of the new profile after this event.
-            Event::Profiles { .. } => {}
-            Event::Pages { active, .. } => {
+            Event::Profiles { profiles, active } => {
+                // The engine sends the pages and the bindings of a new active
+                // profile next. Drop all that is of the old profile.
+                if self.profile.as_ref().is_some_and(|p| *p != active) {
+                    self.pages.clear();
+                    self.bindings.clear();
+                    self.epoch += 1;
+                }
+                self.profiles = profiles;
+                self.profile = Some(active);
+            }
+            Event::Pages { names, active } => {
                 // The engine sends each binding of the active page next.
                 self.page = active;
+                self.pages = names;
                 self.bindings.clear();
+                self.epoch += 1;
             }
             Event::Binding(binding) => {
                 if binding.action.is_some() {
@@ -228,11 +247,31 @@ impl ViewState {
     }
 }
 
+/// The gestures that a binding of a control of this kind can have, with
+/// their names for the user. The touch gestures are in decision 0015.
+pub fn gestures(kind: ControlKind) -> &'static [(GestureKind, &'static str)] {
+    match kind {
+        ControlKind::Key => &[
+            (GestureKind::Press, "Press"),
+            (GestureKind::Release, "Release"),
+        ],
+        ControlKind::Knob => &[
+            (GestureKind::TurnLeft, "Turn left"),
+            (GestureKind::TurnRight, "Turn right"),
+            (GestureKind::Push, "Push"),
+        ],
+        ControlKind::BarPanel => &[(GestureKind::Tap, "Tap")],
+        ControlKind::TouchBar => &[
+            (GestureKind::SwipeLeft, "Swipe left"),
+            (GestureKind::SwipeRight, "Swipe right"),
+        ],
+    }
+}
+
 fn default_gesture(kind: ControlKind) -> Option<GestureKind> {
     match kind {
-        ControlKind::Key => Some(GestureKind::Press),
         ControlKind::Knob => Some(GestureKind::TurnRight),
-        _ => None,
+        _ => gestures(kind).first().map(|&(gesture, _)| gesture),
     }
 }
 
@@ -442,7 +481,11 @@ pub(crate) mod tests {
         assert_eq!(s.selected_control, Some(control(ControlKind::Key)));
         assert_eq!(s.binding_id().unwrap().gesture, GestureKind::Press);
         assert!(s.select(bar()));
-        assert_eq!(s.binding_id(), None);
+        assert_eq!(s.selected_control, Some(control(ControlKind::BarPanel)));
+        assert_eq!(s.binding_id().unwrap().gesture, GestureKind::Tap);
+        assert!(s.select_control(control(ControlKind::TouchBar)));
+        assert_eq!(s.selected, None);
+        assert_eq!(s.binding_id().unwrap().gesture, GestureKind::SwipeLeft);
         assert!(!s.select_control(ControlId::new(ControlKind::Key, 99)));
         assert!(s.select_control(control(ControlKind::Knob)));
         let Event::Layout(mut empty) = layout() else {
