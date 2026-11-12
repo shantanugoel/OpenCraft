@@ -3,6 +3,7 @@
 use crate::hotkey::Hotkey;
 use crate::system::{self, MediaKey, Result, Volume};
 use std::process::Child;
+use std::time::Duration;
 
 /// A shell command that the handler waits for on a separate thread.
 pub trait ShellChild: Send + 'static {
@@ -29,6 +30,9 @@ pub trait System: Send + Sync + 'static {
     fn open_application(&self, application: &str) -> Result<()>;
     fn open_url(&self, url: &str) -> Result<()>;
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>>;
+    /// Wait for `duration`. A sequence waits between two actions with this
+    /// function, so that a test can control the wait.
+    fn sleep(&self, duration: Duration);
 }
 
 pub(crate) struct RealSystem;
@@ -66,5 +70,8 @@ impl System for RealSystem {
     }
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>> {
         Ok(Box::new(system::start_shell_command(command)?))
+    }
+    fn sleep(&self, duration: Duration) {
+        std::thread::sleep(duration);
     }
 }

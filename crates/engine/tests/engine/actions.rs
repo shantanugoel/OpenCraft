@@ -370,6 +370,7 @@ fn feedback(rig: &mut Rig, binding: BindingId, label: &str, level: u8) {
         feedback: Some(Feedback {
             label: Some(label.into()),
             level: Some(level),
+            state: None,
         }),
     });
 }
@@ -791,4 +792,82 @@ fn a_blocked_handler_does_not_stop_the_runtime_or_another_handler() {
     assert_eq!(starts.load(std::sync::atomic::Ordering::SeqCst), 1);
     drop(rig);
     stop.recv_timeout(Duration::from_secs(1)).unwrap();
+}
+
+// --- Requests of a handler for an action, and the state feedback --------------
+
+#[test]
+fn a_handler_asks_the_engine_to_do_an_action_with_its_own_binding() {
+    let (outer, outer_requests) = port("test.outer");
+    let (inner, inner_requests) = port("test.inner");
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![outer, inner]);
+    let id = binding(ControlKind::Key, 3, GestureKind::Press);
+    set_binding(&mut rig, id, Some(action("test.outer")));
+    outer_requests.try_iter().count();
+    rig.take_events();
+
+    let request = |action| {
+        Message::Engine(opencraft_engine::EngineRequest::Invoke {
+            binding: id,
+            action,
+        })
+    };
+    rig.engine.handler_message(request(action("test.inner")));
+    assert_eq!(
+        inner_requests.try_iter().collect::<Vec<_>>(),
+        [Request::Invoke {
+            binding: id,
+            action: action("test.inner")
+        }]
+    );
+    assert!(outer_requests.try_recv().is_err());
+    assert!(rig.take_events().is_empty());
+    // It is not input: the counters do not change.
+    assert_eq!(rig.engine.counters(), Counters::default());
+
+    // A kind with no handler is a problem for the shell.
+    rig.engine.handler_message(request(action("missing.kind")));
+    let events = rig.take_events();
+    assert_eq!(problems(&events).len(), 1, "{events:?}");
+    assert!(problems(&events)[0].contains("missing.kind"));
+    assert!(inner_requests.try_recv().is_err());
+}
+
+#[test]
+fn feedback_with_the_state_on_draws_a_frame_and_off_removes_it() {
+    let kind = "test.state";
+    let (port, _requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let id = binding(ControlKind::Key, 3, GestureKind::Press);
+    set_binding(&mut rig, id, Some(action(kind)));
+    rig.set_color(KEY_3, RED);
+    let device = rig.connect();
+    sent(&device);
+    rig.take_events();
+    let state = |rig: &mut Rig, state| {
+        rig.engine.handler_message(Message::Feedback {
+            binding: id,
+            feedback: Some(Feedback {
+                label: None,
+                level: None,
+                state: Some(state),
+            }),
+        });
+    };
+
+    state(&mut rig, opencraft_engine::FeedbackState::On);
+    let image = last_state(&rig.take_events(), KEY_3).image.clone();
+    // The frame has the colour of the label: white on red.
+    for (x, y) in [(1, 1), (56, 2), (110, 56), (56, 110)] {
+        assert_color(&image, x, y, Color::WHITE);
+    }
+    assert_color(&image, 56, 56, RED);
+    let writes = sent(&device);
+    assert_eq!(writes.len(), 2, "one image and the commit");
+    assert_same_picture(&shown_at(&writes, KEY_3_SLOT), &image);
+
+    state(&mut rig, opencraft_engine::FeedbackState::Off);
+    let image = last_state(&rig.take_events(), KEY_3).image.clone();
+    assert_color(&image, 1, 1, RED);
+    assert_color(&shown_at(&sent(&device), KEY_3_SLOT), 1, 1, RED);
 }

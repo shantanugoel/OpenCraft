@@ -140,11 +140,19 @@ pub struct SurfaceState {
     pub image: Arc<RgbImage>,
 }
 
-/// Counts since this engine starts. Reports include acknowledgements and unknown reports.
+/// Counts since this engine starts. A test of the device compares them, to
+/// find lost input.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Counters {
+    /// Each report from the device, also acknowledgements and unknown
+    /// reports.
     pub reports_received: u64,
+    /// Each input event that the engine decoded from a report.
     pub input_events: u64,
+    /// Each Invoke for a gesture of the user that the engine sent to a
+    /// handler. An Invoke that a handler asks for with
+    /// [`EngineRequest::Invoke`] is not in this count: it is not input, and
+    /// the count must agree with the input events.
     pub invokes_sent: u64,
 }
 
@@ -657,6 +665,18 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Message::Engine(EngineRequest::SelectPage(target)) => {
                 let count = self.profile.pages().len();
                 self.select_page(target.resolve(self.active, count));
+            }
+            Message::Engine(EngineRequest::Invoke { binding, action }) => {
+                // The engine does not check the binding: a sequence can ask
+                // after a page change, and the action must still occur.
+                // Feedback for a binding of a different page does nothing.
+                let kind = action.kind.clone();
+                if !self.request(&kind, Request::Invoke { binding, action }) {
+                    self.problem(format!(
+                        "OpenCraft cannot do the action '{kind}', because no handler has \
+                         this kind."
+                    ));
+                }
             }
             Message::Engine(EngineRequest::SelectProfile { name }) => {
                 // The list is in the order of the identities, so the first

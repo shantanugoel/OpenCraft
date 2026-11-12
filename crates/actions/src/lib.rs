@@ -2,8 +2,9 @@
 //!
 //! [`handlers`] gives the built-in handlers to the program that starts the
 //! engine. Each handler checks its settings and sends problems as messages.
-//! Long shell commands do not delay the next request. Helper threads stop
-//! when their handler stops. The volume helper also stops when no binding
+//! Long shell commands and sequences do not delay the next request. Helper
+//! threads stop when their handler stops. A sequence ends after its last
+//! action. The volume helper also stops when no binding
 //! remains. A shell command can continue after its handler stops.
 //! The volume handler uses field defaults for missing settings.
 //!
@@ -14,6 +15,9 @@
 //! handler test needs a device or changes the real system.
 //!
 //! - [`hotkey`]: the text form of a hotkey, for example `shift+cmd+4`.
+//! - `flow`: the kinds that ask the engine for work: change the page, select
+//!   a profile, toggle, and sequence. A sequence waits with
+//!   [`backend::System::sleep`], so a test does not wait.
 //! - [`system`]: the work that an action does on the computer: keys, text,
 //!   media keys, sound volume, applications, URLs, and shell commands.
 //!
@@ -22,6 +26,7 @@
 
 pub mod backend;
 mod descriptions;
+mod flow;
 mod handlers;
 pub mod hotkey;
 pub mod system;
