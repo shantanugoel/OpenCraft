@@ -12,7 +12,7 @@
 
 use crate::{
     app_menu::{EditMenu, OpenAbout, OpenSettings},
-    menu::MenuState,
+    menu::{Brightness, MenuState},
     settings::{self, Panes, Settings, SettingsPane},
     settings_window::{SettingsView, Snapshot},
     state::ViewState,
@@ -20,7 +20,7 @@ use crate::{
 };
 use gpui_kit::{
     point, prelude::*, px, size, ActivationPolicy, AnyWindowHandle, App, Bounds, Context,
-    EventEmitter, TitlebarOptions, WindowBounds, WindowHandle, WindowOptions,
+    EventEmitter, Task, TitlebarOptions, WindowBounds, WindowHandle, WindowOptions,
 };
 use opencraft_engine::{Command, Event};
 use std::{
@@ -34,6 +34,11 @@ use std::{
 /// activation of the application. See `docs/kb/gpui.md`, "Windows, Dock icon,
 /// and activation".
 const ACTIVATE_DELAY: Duration = Duration::from_millis(200);
+
+/// The shortest time between two brightness commands while the user moves
+/// the slider of the menu. The window uses the same value: see
+/// `SETTINGS_INTERVAL` in `view/device.rs` for the reason.
+const BRIGHTNESS_INTERVAL: Duration = Duration::from_millis(50);
 
 /// The file of the licence notices in `Contents/Resources` of the bundle.
 /// `scripts/release.sh` puts it there (decision 0026).
@@ -102,10 +107,19 @@ pub enum Place {
 
 /// A command to the shell, from the menu bar item, from a click on the Dock
 /// icon, or from a signal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ShellCommand {
     /// Open the window, or bring it to the front.
     Open,
+    /// Make the profile with this identity the active profile. The window
+    /// follows the engine events.
+    SelectProfile(String),
+    /// Make the page with this number of the active profile the active page.
+    SelectPage(usize),
+    /// Set the display brightness of the device, in percent. Only the
+    /// slider of the menu bar item (macOS) makes this command.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    SetBrightness(u8),
     /// Open the Settings window, or bring it to the front. With a pane, show
     /// that pane; with `None`, show the pane that was visible last.
     OpenSettings(Option<SettingsPane>),
@@ -155,6 +169,10 @@ pub struct Shell {
     /// shows it below its pane, because the user cannot see the messages of
     /// the main window there.
     settings_notice: Option<String>,
+    /// Holds the interval between two brightness commands.
+    brightness_throttle: Option<Task<()>>,
+    /// The last brightness of the menu that waits for the end of the interval.
+    brightness_pending: Option<u8>,
     #[cfg(target_os = "macos")]
     menu_bar: Option<crate::menu_bar::MenuBar>,
     /// The directory of the LaunchAgent file. `None` if the home directory
@@ -195,6 +213,8 @@ impl Shell {
             main_window: None,
             settings_window: None,
             settings_notice: None,
+            brightness_throttle: None,
+            brightness_pending: None,
             #[cfg(target_os = "macos")]
             menu_bar: None,
             #[cfg(target_os = "macos")]
@@ -334,6 +354,17 @@ impl Shell {
     pub fn command(&mut self, command: ShellCommand, cx: &mut Context<Self>) {
         match command {
             ShellCommand::Open => self.open_window(cx),
+            ShellCommand::SelectProfile(profile) => {
+                if self.state.profile.as_ref() != Some(&profile) {
+                    (self.send)(Command::SelectProfile { profile });
+                }
+            }
+            ShellCommand::SelectPage(page) => {
+                if self.state.page != page {
+                    (self.send)(Command::SelectPage { page });
+                }
+            }
+            ShellCommand::SetBrightness(value) => self.set_brightness(value, cx),
             ShellCommand::OpenSettings(pane) => self.open_settings(pane, cx),
             ShellCommand::ToggleDockIcon => {
                 self.set_show_dock_icon(!self.settings.show_dock_icon, cx)
@@ -411,14 +442,53 @@ impl Shell {
         let state = &self.state;
         MenuState {
             connected: state.connected,
-            profile: state.profile.as_ref().and_then(|id| {
-                state
-                    .profiles
-                    .iter()
-                    .find(|p| &p.id == id)
-                    .map(|p| p.name.clone())
+            device: state.layout.as_ref().map(|l| l.name.clone()),
+            profiles: state.profiles.clone(),
+            profile: state.profile.clone(),
+            pages: state.pages.clone(),
+            page: state.page,
+            brightness: state.device_settings.as_ref().map(|s| Brightness {
+                value: s.brightness,
+                lowest: state
+                    .layout
+                    .as_ref()
+                    .map_or(0, |l| l.settings.lowest_brightness),
             }),
         }
+    }
+
+    /// Set the display brightness from the menu bar item. While the user
+    /// moves the slider, at most one command goes to the engine in each
+    /// [`BRIGHTNESS_INTERVAL`], and the last value goes at the end of the
+    /// interval (the same rule as the device settings of the window).
+    fn set_brightness(&mut self, value: u8, cx: &mut Context<Self>) {
+        if self.brightness_throttle.is_some() {
+            self.brightness_pending = Some(value);
+            return;
+        }
+        self.send_brightness(value, cx);
+    }
+
+    fn send_brightness(&mut self, value: u8, cx: &mut Context<Self>) {
+        // The engine puts the value into the range of the model. The menu
+        // shows the value of the engine when its reply comes.
+        let Some(mut settings) = self.state.device_settings.clone() else {
+            return;
+        };
+        if settings.brightness != value {
+            settings.brightness = value;
+            self.state.device_settings = Some(settings.clone());
+            (self.send)(Command::SetDeviceSettings(settings));
+        }
+        self.brightness_throttle = Some(cx.spawn(async move |shell, cx| {
+            cx.background_executor().timer(BRIGHTNESS_INTERVAL).await;
+            let _ = shell.update(cx, |shell, cx| {
+                shell.brightness_throttle = None;
+                if let Some(next) = shell.brightness_pending.take() {
+                    shell.send_brightness(next, cx);
+                }
+            });
+        }));
     }
 
     /// The settings of the shell.
@@ -784,7 +854,7 @@ mod tests {
     use super::*;
     use crate::state::tests::{key, layout};
     use gpui_kit::{Entity, TestAppContext};
-    use opencraft_engine::{ProfileEntry, RgbImage, SurfaceContent, SurfaceState};
+    use opencraft_engine::{DeviceSettings, ProfileEntry, RgbImage, SurfaceContent, SurfaceState};
     use std::{cell::RefCell, sync::Arc};
 
     struct Fixture {
@@ -831,6 +901,14 @@ mod tests {
         }
     }
 
+    fn support() -> opencraft_engine::SettingsSupport {
+        opencraft_engine::SettingsSupport {
+            lowest_brightness: 15,
+            knob_lights: 2,
+            haptic: true,
+        }
+    }
+
     fn profiles() -> Event {
         Event::Profiles {
             profiles: vec![ProfileEntry {
@@ -870,15 +948,18 @@ mod tests {
     fn the_state_and_the_menu_follow_the_engine_with_no_window(cx: &mut TestAppContext) {
         let f = shell(cx);
         let menu = |cx: &mut TestAppContext| cx.update(|cx| f.shell.read(cx).menu_state());
-        assert_eq!(
-            menu(cx),
-            MenuState {
-                connected: false,
-                profile: None,
-            }
-        );
+        assert_eq!(menu(cx), MenuState::default());
         f.events.try_send(layout()).unwrap();
         f.events.try_send(profiles()).unwrap();
+        f.events
+            .try_send(Event::Pages {
+                names: vec!["Main".into(), "Mail".into()],
+                active: 1,
+            })
+            .unwrap();
+        f.events
+            .try_send(Event::DeviceSettings(DeviceSettings::defaults(support())))
+            .unwrap();
         f.events.try_send(Event::Connected).unwrap();
         cx.run_until_parked();
         assert!(cx.update(|cx| cx.windows().is_empty()));
@@ -886,12 +967,128 @@ mod tests {
             menu(cx),
             MenuState {
                 connected: true,
-                profile: Some("Desk".into()),
+                device: Some("Test device".into()),
+                profiles: vec![ProfileEntry {
+                    id: "desk".into(),
+                    name: "Desk".into(),
+                }],
+                profile: Some("desk".into()),
+                pages: vec!["Main".into(), "Mail".into()],
+                page: 1,
+                // The lowest value is the one of the layout.
+                brightness: Some(Brightness {
+                    value: 80,
+                    lowest: 15,
+                }),
             }
         );
         f.events.try_send(Event::Disconnected).unwrap();
         cx.run_until_parked();
         assert!(!menu(cx).connected);
+    }
+
+    #[gpui_kit::test]
+    fn a_profile_and_a_page_from_the_menu_go_to_the_engine(cx: &mut TestAppContext) {
+        let f = shell(cx);
+        f.events.try_send(layout()).unwrap();
+        f.events
+            .try_send(Event::Profiles {
+                profiles: vec![
+                    ProfileEntry {
+                        id: "desk".into(),
+                        name: "Desk".into(),
+                    },
+                    ProfileEntry {
+                        id: "video".into(),
+                        name: "Video".into(),
+                    },
+                ],
+                active: "desk".into(),
+            })
+            .unwrap();
+        f.events
+            .try_send(Event::Pages {
+                names: vec!["Main".into(), "Mail".into()],
+                active: 0,
+            })
+            .unwrap();
+        cx.run_until_parked();
+        // No window is open: the engine operates with no window.
+        f.commands
+            .try_send(ShellCommand::SelectProfile("video".into()))
+            .unwrap();
+        f.commands.try_send(ShellCommand::SelectPage(1)).unwrap();
+        // The active profile and the active page: nothing to do.
+        f.commands
+            .try_send(ShellCommand::SelectProfile("desk".into()))
+            .unwrap();
+        f.commands.try_send(ShellCommand::SelectPage(0)).unwrap();
+        cx.run_until_parked();
+        assert!(cx.update(|cx| cx.windows().is_empty()));
+        assert_eq!(
+            *f.sent.borrow(),
+            [
+                Command::SelectProfile {
+                    profile: "video".into()
+                },
+                Command::SelectPage { page: 1 },
+            ]
+        );
+    }
+
+    #[gpui_kit::test]
+    fn the_brightness_from_the_menu_goes_to_the_engine_with_the_other_settings(
+        cx: &mut TestAppContext,
+    ) {
+        let f = shell(cx);
+        let mut settings = DeviceSettings::defaults(support());
+        settings.haptic = false;
+        f.events.try_send(layout()).unwrap();
+        f.events
+            .try_send(Event::DeviceSettings(settings.clone()))
+            .unwrap();
+        cx.run_until_parked();
+        f.commands
+            .try_send(ShellCommand::SetBrightness(40))
+            .unwrap();
+        cx.run_until_parked();
+        settings.brightness = 40;
+        assert_eq!(
+            *f.sent.borrow(),
+            [Command::SetDeviceSettings(settings.clone())]
+        );
+        // While the interval runs, only the last value waits.
+        f.commands
+            .try_send(ShellCommand::SetBrightness(50))
+            .unwrap();
+        f.commands
+            .try_send(ShellCommand::SetBrightness(60))
+            .unwrap();
+        cx.run_until_parked();
+        assert_eq!(f.sent.borrow().len(), 1);
+        cx.executor().advance_clock(BRIGHTNESS_INTERVAL);
+        cx.run_until_parked();
+        settings.brightness = 60;
+        assert_eq!(
+            *f.sent.borrow(),
+            [
+                Command::SetDeviceSettings(DeviceSettings {
+                    brightness: 40,
+                    ..settings.clone()
+                }),
+                Command::SetDeviceSettings(settings.clone()),
+            ]
+        );
+    }
+
+    #[gpui_kit::test]
+    fn a_brightness_before_the_device_settings_sends_nothing(cx: &mut TestAppContext) {
+        let f = shell(cx);
+        f.commands
+            .try_send(ShellCommand::SetBrightness(40))
+            .unwrap();
+        cx.run_until_parked();
+        assert!(f.sent.borrow().is_empty());
     }
 
     #[gpui_kit::test]

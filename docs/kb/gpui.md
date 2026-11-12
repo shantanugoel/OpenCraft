@@ -176,6 +176,42 @@ result is from 1 try, if the row gives no count.
 | Cmd-Q to the active application quit it with the accessory policy. A label change 30 ms before the Cmd-Q, and a label change directly before SIGTERM, were in the profile file after the quit. The save delay of the engine is 500 ms, thus the engine wrote the file at the stop. | Measured | `CGEventPostToPid` key events; profile file |
 | A second start while the application ran printed "OpenCraft is already running." and ended with the exit status 0. This was the bare executable, before [decision 0028](../decisions/0028-second-start-opens-the-window.md). See [Second start](#second-start-2026-11-12). | Measured | Terminal output; exit status |
 
+## The menu with the brightness row (2026-11-13)
+
+**Measured.** The test was the debug build of the application, with a copy of
+the profiles directory and the real device connected. The test computer ran
+macOS 27.2. A helper program pressed the item and the menu items through the
+Accessibility API (System Settings, Privacy & Security, Accessibility), moved
+the slider with Quartz mouse events, and took a picture of the window of the
+menu only (`screencapture -l`, layer 101). A USB camera looked at the device.
+A small Swift program with a status item and a menu (not in the repository)
+gave the facts about the images of the items. Each result is from 1 try.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| An `NSMenuItem` with a `view` (a custom `NSView` with an `NSSlider`, two `NSTextField` labels, and two `NSImageView` icons) shows in the native menu. The slider moves with the mouse. The menu stays open after the user releases the mouse in the view. | Measured | Window picture; AX value of the slider |
+| The action of a continuous `NSSlider` in the view runs on each mouse move. The value that it gave was an integer after a rounding in the action. | Measured | AX value; the label "33 %" |
+| A custom view has the width that the code gives it. The menu is as wide as its widest item. If the view is narrower, it stays at the left, and the space at the right stays empty. `autoresizingMask` with `NSViewWidthSizable` on the view, `NSViewWidthSizable` on the slider, and `NSViewMinXMargin` on the value label and the right icon made the row follow the width of the menu. | Measured | Window pictures with and without the mask |
+| The AX tree shows the view as a menu item with the labels, the slider, a value indicator, and the two images. A `set value` of the slider through AX runs the action of the slider. | Measured | AX `entire contents`; value in the settings file |
+| Text of the view at 14 points from the edge of the view lines up with the check marks of the other items. The titles of the other items are at 29 points. | Measured | Window picture |
+| `NSMenuItem.image` shows nothing in this menu: not for an SF Symbol, not for a named image (`NSStatusAvailable`), not for an enabled item, and not for an item that the user cannot select. The same occurred in the Swift program. | Measured | Window pictures of both programs |
+| The image `onStateImage` with the state "on" shows in the column of the check marks. On an item that the user cannot select, a symbol with `configurationWithPaletteColors` showed grey, not green. | Measured | Window picture |
+| An `attributedTitle` with a colour for one run of text shows that colour on an item that the user cannot select. The text of the item needs the font (`NSFontAttributeName` with `NSFont::menuFontOfSize(0.0)`) and a colour for the whole range. | Measured | Window picture |
+| `NSMenuItem::sectionHeaderWithTitle:` shows a small grey title in the native style. | Measured | Window picture |
+| A submenu is part of the same window picture as its menu. The AX path of a submenu item is `menu item "x" of menu 1 of menu item "Page: y" of menu 1 of menu bar item 1 of menu bar 2`. | Measured | Window picture; AX |
+| The status item of the application is in `menu bar 2` of its process for AX. It is not in the window list at layer 25 with the owner name of the application. | Measured | AX; `CGWindowListCopyWindowInfo` |
+| The engine wrote `device-settings.toml` for each change of the slider (33, then 100, then 80). The window of the application showed the same value in "Device settings". A change in the window showed in the slider of the menu when the menu opened again. | Measured | Settings file; window pictures; AX value |
+| A change of the brightness from 33 % to 100 % was visible on the device displays (the key faces and the touch bar) in one camera frame each. The knob lights did not change. | Measured | Camera frames |
+| `menuWillOpen:` and `menuDidClose:` of an `NSMenuDelegate` tell the code that the menu is open. The code does not move the slider while the menu is open, because the slider is the source of the value then. | Inference | Not tested separately: the slider followed the window after the menu closed |
+
+### Not known
+
+- How the row looks in the light appearance and with a different accent
+  colour. Only the dark appearance was tested.
+- Whether the images of the items show on a different macOS version. The
+  test computer is the only one that was tested.
+- Whether VoiceOver reads the label "Brightness" of the slider.
+
 ## Second start (2026-11-12)
 
 **Measured.** The application is the release build in the development bundle
