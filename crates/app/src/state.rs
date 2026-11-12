@@ -48,7 +48,8 @@ pub struct ViewState {
     pub selected: Option<SurfaceId>,
     pub selected_control: Option<ControlId>,
     /// True when the page is the selection (decision 0029, section 8.3).
-    /// Then no surface and no control is selected.
+    /// Then no surface is selected, and `selected_control` is the touch bar
+    /// of the layout: the swipe gestures belong to the page (section 10.6).
     pub page_selected: bool,
     /// The gesture of the open gesture card of the selected control. The
     /// form of the inspector edits the binding of this gesture. With no open
@@ -109,6 +110,10 @@ impl ViewState {
                 self.clear_input();
                 self.knob_steps.clear();
                 self.layout = Some(layout);
+                if self.page_selected {
+                    self.selected_control = self.touch_bar();
+                    self.gesture = self.selected_control.and_then(|c| self.open_card_of(c));
+                }
                 // At the start, the selection is the first key of the layout
                 // (decision 0029, section 8.3).
                 if self.selected_control.is_none() && !self.page_selected {
@@ -268,7 +273,12 @@ impl ViewState {
         true
     }
 
+    /// Select a control. The touch bar is part of the page: its selection
+    /// is the selection of the page.
     pub fn select_control(&mut self, id: ControlId) -> bool {
+        if id.kind == ControlKind::TouchBar {
+            return self.select_page();
+        }
         if self.selected_control == Some(id) {
             return false;
         }
@@ -329,9 +339,19 @@ impl ViewState {
         }
         self.page_selected = true;
         self.selected = None;
-        self.selected_control = None;
-        self.gesture = None;
+        self.selected_control = self.touch_bar();
+        self.gesture = self.selected_control.and_then(|c| self.open_card_of(c));
         true
+    }
+
+    /// The touch bar of the layout. Its gestures are the swipes of the page.
+    pub fn touch_bar(&self) -> Option<ControlId> {
+        self.layout
+            .as_ref()?
+            .controls
+            .iter()
+            .find(|c| c.id.kind == ControlKind::TouchBar)
+            .map(|c| c.id)
     }
 
     /// The key of the top row and the first column of the layout.
@@ -710,7 +730,9 @@ pub(crate) mod tests {
             now,
         );
         assert_eq!(s.binding_id(), None);
+        // The touch bar is part of the page.
         assert!(s.select_control(control(ControlKind::TouchBar)));
+        assert!(s.page_selected);
         assert_eq!(s.selected, None);
         s.open_card(Some(GestureKind::SwipeLeft));
         assert_eq!(s.binding_id().unwrap().gesture, GestureKind::SwipeLeft);
@@ -736,13 +758,26 @@ pub(crate) mod tests {
         assert!(s.select_page());
         assert!(!s.select_page());
         assert!(s.page_selected);
+        // The swipe cards of the page edit the bindings of the touch bar.
+        let touch_bar = Some(control(ControlKind::TouchBar));
         assert_eq!(
             (s.selected, s.selected_control, s.binding_id()),
-            (None, None, None)
+            (None, touch_bar, None)
         );
         // A new layout keeps the page as the selection.
         s.apply(layout(), now);
+        assert!(s.page_selected && s.selected_control == touch_bar);
+        // A layout with no touch bar: the page has no swipe cards.
+        let Event::Layout(mut no_bar) = layout() else {
+            panic!()
+        };
+        Arc::make_mut(&mut no_bar)
+            .controls
+            .retain(|c| c.id.kind != ControlKind::TouchBar);
+        s.apply(Event::Layout(no_bar), now);
         assert!(s.page_selected && s.selected_control.is_none());
+        s.apply(layout(), now);
+        assert_eq!(s.selected_control, touch_bar);
         // A control is then the selection, and the page is not.
         assert!(s.select_control(control(ControlKind::Knob)));
         assert!(!s.page_selected);

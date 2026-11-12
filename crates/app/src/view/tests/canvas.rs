@@ -269,11 +269,13 @@ fn a_selected_knob_shows_its_bar_panel_with_a_dashed_outline(cx: &mut TestAppCon
     assert!(cx.debug_bounds("selection-bar panel 3").is_some());
     assert!(cx.debug_bounds("feedback-bar panel 3").is_none());
 
-    // The touch bar control selects the touch bar.
+    // The touch bar control selects the page, with the touch bar.
     click(cx, "control-touch bar 1");
     cx.update(|_, cx| {
+        let state = &view.read(cx).state;
+        assert!(state.page_selected);
         assert_eq!(
-            view.read(cx).state.selected_control,
+            state.selected_control,
             Some(ControlId::new(ControlKind::TouchBar, 1))
         )
     });
@@ -294,12 +296,14 @@ fn a_click_on_an_empty_part_of_the_canvas_selects_the_page(cx: &mut TestAppConte
     cx.update(|_, cx| {
         let view = view.read(cx);
         assert_eq!(view.state.selected, None);
-        assert_eq!(view.state.selected_control, None);
+        assert_eq!(
+            view.state.selected_control,
+            Some(ControlId::new(ControlKind::TouchBar, 1))
+        );
     });
-    // The inspector shows nothing for the page until #181.
-    let editor = bounds(cx, "editor");
+    // The inspector shows the page.
+    assert!(cx.debug_bounds("page-name").is_some());
     assert!(cx.debug_bounds("action-kind").is_none());
-    assert!(editor.size.height > px(0.));
 
     // A control: the page is not the selection.
     click(cx, "surface-key face 12");

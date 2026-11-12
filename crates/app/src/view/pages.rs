@@ -309,7 +309,7 @@ impl DeviceView {
     /// Ask the user to confirm the removal of `row`. The question names the
     /// profile or the page. The removal occurs only if the row is the same
     /// row when the user answers.
-    fn confirm_remove(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn confirm_remove(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
         let Some(name) = self.row_name(&row) else {
             return;
         };

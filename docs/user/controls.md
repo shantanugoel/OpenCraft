@@ -12,7 +12,7 @@ own card, and each gesture can have a different action. The procedure is in
 | Key | Click its key face | Press, Release |
 | Knob | Click the knob below the bar panels | Turn left, Turn right, Push |
 | Bar panel | Click the bar panel | Tap |
-| Touch bar | Click the small control "◀ Touch bar ▶" above the bar panels | Swipe left, Swipe right |
+| Touch bar | Click the small control "◀ Touch bar ▶" above the bar panels. This selects the page: the swipes are part of the page. | Swipe left, Swipe right |
 
 ## The device picture
 
@@ -29,12 +29,12 @@ Knob 1 is below bar panel 1.
 | A dashed border and a plus (+) on a key face | The key has no label, no colour, no image, and no action |
 | The ring of a knob | The colour of the knob light, when the knob lights are set to **Colours**. Else the ring is grey. |
 | A yellow glow | The control that you operate on the device now. A yellow dot shows where you touch the touch bar. |
-| "◀ Touch bar ▶" | The control for the swipe gestures, between the keys and the bar panels. It is blue when it is selected. |
+| "◀ Touch bar ▶" | The control for the swipe gestures, between the keys and the bar panels. It is blue when the page is selected. |
 
 ![The device picture with knob 1 selected, and the knob lights set to Colours](images/device-picture.png)
 
-Click an empty part of the canvas to select the page. In this version, the
-inspector shows nothing for the page.
+Click an empty part of the canvas to select the page. The inspector then
+shows the page. See [The page inspector](#the-page-inspector).
 
 Above the device is the page header. It shows the name of the active page
 and "Page 1 of 3", for example. At its right end are these buttons:
@@ -89,7 +89,8 @@ To set the action of a tap:
 To set the action of a swipe:
 
 1. Click the small control "◀ Touch bar ▶" above the bar panels. The
-   inspector shows the cards **Swipe left** and **Swipe right**.
+   inspector shows the page, and moves down to the cards **Swipe left** and
+   **Swipe right** below **TOUCH BAR GESTURES**.
 2. On one of the cards, click **Add an action**, and set an action. A good
    action for a swipe is "Change the page".
 
@@ -119,6 +120,34 @@ of the device picture.
 
 When you edit a name, push Escape to keep the old name. A click outside the
 name keeps the new name. A name cannot be empty.
+
+You can also do these changes in the page inspector. See
+[The page inspector](#the-page-inspector).
+
+### The page inspector
+
+The page inspector shows the settings of the active page. To show it, do
+one of these steps:
+
+- Click an empty part of the canvas.
+- Click **Page settings** in the page header.
+- Click the small control "◀ Touch bar ▶". The inspector then moves down to
+  the swipe gestures.
+
+The header shows a small picture of the page, the name of the page, and
+"Page 2 of 3 · Profile “Work”", for example.
+
+| Part | What it does |
+|---|---|
+| **Name** | The name of the page. Type a name, and push Return or click outside the field. Push Escape to keep the old name. |
+| **Order** | The arrow up moves the page up in the list. The arrow down moves the page down. An arrow is dim on the first or the last page. |
+| **Duplicate** | Adds a copy of the page |
+| **Remove…** | Asks for a confirmation, and then removes the page. It is dim when the profile has one page only. |
+| **TOUCH BAR GESTURES** | The cards **Swipe left** and **Swipe right** of this page. See [The touch bar](#the-touch-bar). |
+
+⌘Z undoes each of these changes. One edit of the name is one step.
+
+![The page inspector with an action on Swipe left](images/page-inspector.png)
 
 When you click a page, the device shows that page also. To change the
 page from the device, set the action "Change the page" on a control. Use the

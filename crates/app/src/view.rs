@@ -13,6 +13,7 @@
 //! | `status_bar` | The status bar and the messages below the canvas |
 //! | `right_panel` | The right panel and its tabs |
 //! | `inspector` | The "Inspector" tab: the editor of the selection |
+//! | `page_inspector` | The inspector of the page, with the swipe gestures of the touch bar |
 //! | `library` | The "Library" tab |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
 //! | `device`, `pages`, `hotkey` | The device settings, the changes of the pages and the profiles, the hotkey names |
@@ -56,6 +57,7 @@ mod history;
 mod hotkey;
 mod inspector;
 mod library;
+mod page_inspector;
 mod pages;
 mod panes;
 mod right_panel;
@@ -118,6 +120,7 @@ pub struct DeviceView {
     form: actions::ActionForm,
     inspector: inspector::InspectorState,
     lists: pages::Lists,
+    page_inspector: page_inspector::PageInspector,
     device: device::DevicePanel,
     /// The scroll position of the inspector. It shows a scrollbar when its
     /// content is taller than the window.
@@ -176,6 +179,7 @@ impl DeviceView {
             form: actions::ActionForm::default(),
             inspector: inspector::InspectorState::new(window, cx),
             lists: pages::Lists::new(window, cx),
+            page_inspector: page_inspector::PageInspector::new(window, cx),
             device: device::DevicePanel::new(),
             inspector_scroll: ScrollHandle::new(),
         }
@@ -195,6 +199,7 @@ impl DeviceView {
         if self.update_lists(&event) {
             self.focus_workspace(window, cx);
         }
+        self.page_event(&event, window, cx);
         if let Event::Surface(surface) = &event {
             if let Some(old) = self
                 .images
@@ -242,6 +247,7 @@ impl DeviceView {
             self.sync_device_panel(window, cx);
         }
         self.sync_form(window, cx);
+        self.sync_page_name(window, cx);
         cx.notify();
     }
 

@@ -309,6 +309,11 @@ pub const SWITCH_SETTINGS: SwitchSize = SwitchSize {
 };
 /// The picture in the inspector header.
 pub const HEADER_PICTURE: Pixels = px(64.);
+/// The page picture in the header of the page inspector (section 10.6),
+/// and the corner radius of a key face or a bar panel in it.
+pub const PAGE_PICTURE_WIDTH: Pixels = px(72.);
+pub const PAGE_PICTURE_HEIGHT: Pixels = px(44.);
+pub const RADIUS_PAGE_PICTURE_ITEM: Pixels = px(2.);
 /// The ring of the knob picture in the inspector header.
 pub const HEADER_KNOB_RING: Pixels = px(4.);
 /// The mark at the top of the knob picture in the inspector header.
@@ -521,8 +526,10 @@ pub const SETTINGS_LINE_HEIGHT: f32 = 1.25;
 // needs a new name here: a missing icon shows nothing.
 gpui_kit::assets::icon_assets!(pub WindowIcons, [
     Check,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
+    ChevronUp,
     ChevronsUpDown,
     Copy,
     Ellipsis,

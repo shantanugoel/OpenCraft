@@ -31,7 +31,7 @@ pub(super) fn send(cx: &mut VisualTestContext, tx: &async_channel::Sender<Event>
     cx.run_until_parked();
 }
 
-fn test_kind() -> KindDescription {
+pub(super) fn test_kind() -> KindDescription {
     KindDescription {
         kind: "test.kind".into(),
         name: "Test action".into(),
@@ -54,7 +54,7 @@ fn test_kind() -> KindDescription {
     }
 }
 
-fn test_action(text: &str) -> Action {
+pub(super) fn test_action(text: &str) -> Action {
     Action {
         kind: "test.kind".into(),
         settings: Settings::from([("text".into(), Value::Text(text.into()))]),

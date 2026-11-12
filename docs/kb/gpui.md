@@ -587,6 +587,22 @@ repository.
 | In a bundle with an `Info.plist`, the owner name of the windows in the Quartz window list is the bundle name (`OpenCraft`), not the name of the executable. | Measured | Window list |
 | An item of a native menu shows its key equivalent as "⌘ ," for the key `,`. | Measured | Window picture of the menu |
 
+## Page inspector in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+page inspector of
+[issue 181](https://github.com/shantanugoel/OpenCraft/issues/181), on the
+computer of [Release measurements](#release-measurements), with a copy of a
+real profile and the device connected. The window tests use the test
+platform of GPUI Kit.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `ScrollHandle::scroll_to_item(ix)` keeps the request until the scroll container has a child at `ix`. A click can set it before the frame that draws the child. The scroll is the smallest that shows the full child. | Source; Measured (window test with a short window) | `gpui-pre` 0.3.12 `src/elements/div.rs`, `scroll_to_active_item`; `crates/app/src/view/tests/page_inspector.rs` |
+| A view draws with `&self`. A request for one frame, for example "scroll to the swipe cards", can be a `Cell<bool>` that the draw code takes. | Measured | `crates/app/src/view/page_inspector.rs` |
+| A text field that sends its command only at Return or at `InputEvent::Blur` makes one step of the history with no `StartTextEdit`. A change of the pages during the edit must end the edit first: else the blur after it renames a page that has a different number now. | Measured (window test and real window: one step "Rename Page") | `crates/app/src/view/page_inspector.rs` |
+| `window.prompt` draws the question inside the window, with a dark layer on the window. A picture of the window shows the question. | Measured | Window picture |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
