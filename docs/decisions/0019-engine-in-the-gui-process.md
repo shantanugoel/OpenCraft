@@ -52,7 +52,8 @@ The reasons:
   start with no window. (Inference: the GPUI value with no window, plus the
   difference between the Phase 4 application and the GPUI test programs.
   Issue [#128](https://github.com/shantanugoel/OpenCraft/issues/128)
-  measures the real value.)
+  measures the real value.) The measured value is in
+  [kb/footprint.md](../kb/footprint.md#phase-5).
 - A second process saves only a part of the GPUI memory, because the
   process with the menu bar item also needs AppKit. (Inference)
 - A second process needs a protocol between the processes, a second
