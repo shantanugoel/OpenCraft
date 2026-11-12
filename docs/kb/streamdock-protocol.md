@@ -371,7 +371,10 @@ The device layer sends `CONNECT` each 10 seconds while a device is connected:
 other commands went to the device, because a draw does not start the timer
 again. With 10 seconds, the time between two keep-alive commands stays less
 than 15 seconds if one keep-alive is less than 5 seconds late. (Inference
-from the rule)
+from the rule) The interval uses `Instant`, which does not count the time of
+a sleep of the computer. Thus after a sleep, the link moves the next
+keep-alive earlier by the time of the sleep, or sends it at once. See
+[decision 0023](../decisions/0023-wake-from-the-sleep-time-of-the-clocks.md).
 
 ## Sleep
 

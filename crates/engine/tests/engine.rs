@@ -88,6 +88,9 @@ fn set_binding(rig: &mut Rig, binding: BindingId, action: Option<Action>) {
 /// The fake time. A read with no report, and a sleep, move it forward.
 struct World {
     now: Cell<Instant>,
+    /// The fake sleep time of the computer. A test adds to it to simulate a
+    /// sleep. `now` does not move then, as on macOS.
+    asleep: Cell<Duration>,
     /// A test can set this function. The fake transport calls it before each
     /// write, so that the test can see the order of writes and requests.
     before_write: RefCell<Option<Box<dyn FnMut()>>>,
@@ -153,6 +156,10 @@ impl Clock for FakeClock {
     fn sleep(&mut self, duration: Duration) {
         self.world.now.set(self.world.now.get() + duration);
     }
+
+    fn asleep(&self) -> Option<Duration> {
+        Some(self.world.asleep.get())
+    }
 }
 
 type Sink = Box<dyn FnMut(Event)>;
@@ -181,6 +188,7 @@ impl Rig {
     fn with_ports(dir: TempDir, ports: Vec<opencraft_engine::HandlerPort>) -> Self {
         let world = Rc::new(World {
             now: Cell::new(Instant::now()),
+            asleep: Cell::new(Duration::ZERO),
             before_write: RefCell::new(None),
         });
         let queue = Rc::new(RefCell::new(VecDeque::new()));
@@ -252,6 +260,11 @@ impl Rig {
         while self.world.now.get() < end {
             self.engine.poll(POLL_INTERVAL);
         }
+    }
+
+    /// Simulate a sleep of the computer for `duration`.
+    fn sleep_computer(&mut self, duration: Duration) {
+        self.world.asleep.set(self.world.asleep.get() + duration);
     }
 
     fn take_events(&mut self) -> Vec<Event> {
@@ -1051,4 +1064,108 @@ fn the_stop_does_not_hang_or_retry_when_the_writes_fail() {
     device.borrow_mut().clear_errors();
     rig.poll_for(Duration::from_secs(30));
     assert!(raw_writes(&device).is_empty(), "no retry, no keep-alive");
+}
+
+// --- Sleep and wake of the computer -----------------------------------------------
+
+#[test]
+fn a_wake_gives_the_start_sequence_and_a_full_draw() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    rig.set_color(KEY_3, RED);
+    rig.poll_for(Duration::from_secs(1));
+    sent(&device);
+    rig.take_events();
+
+    rig.sleep_computer(Duration::from_secs(70));
+    rig.engine.poll(POLL_INTERVAL);
+
+    // The shell drops its input marks, and gets Connected after the draw.
+    assert_eq!(rig.take_events(), [Event::Disconnected, Event::Connected]);
+    let sent_after = sent(&device);
+    assert_eq!(sent_after[0], op("CONNECT"), "the keep-alive first");
+    assert_full_draw(&sent_after[1..]);
+    assert_color(&shown_at(&sent_after, KEY_3_SLOT), 2, 2, RED);
+
+    // Then only the keep-alive, each 10 seconds from the wake.
+    rig.poll_for(Duration::from_secs(25));
+    assert_eq!(sent(&device), [op("CONNECT"), op("CONNECT")]);
+    assert!(rig.take_events().is_empty());
+}
+
+#[test]
+fn a_normal_period_gives_nothing_extra() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    sent(&device);
+    rig.take_events();
+
+    // A sleep below the limit only moves the keep-alive.
+    rig.sleep_computer(Duration::from_secs(1));
+    rig.poll_for(Duration::from_secs(120));
+    assert!(rig.take_events().is_empty());
+    assert!(sent(&device).iter().all(|s| *s == op("CONNECT")));
+}
+
+#[test]
+fn a_wake_with_failing_writes_gives_a_new_connection_and_a_full_draw() {
+    let mut rig = Rig::new();
+    let first = rig.connect();
+    sent(&first);
+    rig.take_events();
+    // The handle stays, but each write fails after the wake. The same
+    // device opens again with a new handle.
+    first
+        .borrow_mut()
+        .fail_writes("IOHIDDeviceSetReport failed");
+    let second = rig.plug();
+
+    rig.sleep_computer(Duration::from_secs(300));
+    rig.poll_for(Duration::from_secs(3));
+
+    let events = rig.take_events();
+    assert_eq!(events.first(), Some(&Event::Disconnected));
+    assert_eq!(events.last(), Some(&Event::Connected), "{events:?}");
+    assert!(rig.engine.link().is_connected());
+    assert!(sent(&first).is_empty());
+    assert_full_draw(&sent(&second));
+}
+
+#[test]
+fn a_device_restart_some_seconds_after_the_wake_also_ends_in_a_full_draw() {
+    let mut rig = Rig::new();
+    let first = rig.connect();
+    sent(&first);
+    rig.take_events();
+
+    rig.sleep_computer(Duration::from_secs(70));
+    rig.poll_for(Duration::from_secs(1));
+    assert_full_draw(&sent(&first)[1..]);
+    rig.take_events();
+
+    // The keep-alive timer of the device ran out during the sleep: the
+    // device stops the USB connection 4 seconds after the wake.
+    rig.poll_for(Duration::from_secs(3));
+    first.borrow_mut().disconnect();
+    let second = rig.plug();
+    rig.poll_for(Duration::from_secs(2));
+
+    assert_eq!(rig.take_events(), [Event::Disconnected, Event::Connected]);
+    assert_full_draw(&sent(&second));
+}
+
+#[test]
+fn a_wake_with_no_device_sends_nothing_and_keeps_the_pending_write() {
+    let mut rig = Rig::new();
+    rig.take_events();
+    // A change, and the computer sleeps before the delay of the write.
+    rig.set_color(KEY_3, RED);
+    rig.take_events();
+    rig.sleep_computer(Duration::from_secs(3600));
+    rig.engine.poll(POLL_INTERVAL);
+    assert!(rig.take_events().is_empty());
+    assert_eq!(rig.profile_text(), None, "the delay is in time awake");
+
+    rig.poll_for(SAVE_DELAY);
+    assert!(rig.profile_text().unwrap().contains("#C81E1E"));
 }

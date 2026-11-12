@@ -34,6 +34,7 @@ measurement. The other documents link to these facts and do not repeat them.
 | [macos-permissions.md](macos-permissions.md) | macOS privacy permissions that apply to OpenCraft |
 | [macos-start-at-login.md](macos-start-at-login.md) | LaunchAgent files, background items, and SMAppService for a start at login |
 | [hidapi-macos.md](hidapi-macos.md) | What `hidapi` on macOS does at a disconnection, and after an error |
+| [sleep-and-wake.md](sleep-and-wake.md) | What the clocks of a process do when the computer sleeps |
 
 ## Template
 
