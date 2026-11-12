@@ -23,7 +23,9 @@ pub(super) fn group(rows: impl IntoIterator<Item = Div>) -> Div {
 }
 
 /// A row with the name and a description at the leading side, and a control
-/// at the end.
+/// at the end. The name and the description have one line each, so that the
+/// pane keeps its height (`pane_height`): a long text, for example a long
+/// folder path, ends with "…".
 pub(super) fn row(
     name: impl Into<SharedString>,
     description: impl Into<SharedString>,
@@ -42,9 +44,10 @@ pub(super) fn row(
                 .flex()
                 .flex_col()
                 .gap(theme::SPACE_2)
-                .child(div().child(name.into()))
+                .child(div().truncate().child(name.into()))
                 .child(
                     div()
+                        .truncate()
                         .text_size(theme::TEXT_HELP)
                         .text_color(theme::TEXT_TERTIARY)
                         .child(description.into()),

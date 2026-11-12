@@ -349,9 +349,9 @@ pub const ROW_FIELD_HEIGHT: Pixels = px(22.);
 pub const ROW_FIELD_INSET: Pixels = px(5.);
 /// The leading padding of a page row and of the "Add a page" row.
 pub const SIDEBAR_PAGE_INDENT: Pixels = px(50.);
-/// The width of the previous page and the next page buttons of the page
-/// header. Their height is [`HEIGHT_SEGMENT`].
-pub const PAGE_HEADER_BUTTON_WIDTH: Pixels = px(28.);
+/// The width of a small square button, for example "Previous page" in the
+/// page header.
+pub const WIDTH_SQUARE_BUTTON: Pixels = px(28.);
 /// The space around the device drawing in the canvas.
 pub const DEVICE_MARGIN: f32 = 24.;
 
@@ -495,6 +495,21 @@ pub const SETTINGS_CONTENT_Y: Pixels = SPACE_18;
 pub const SETTINGS_CONTENT_X: Pixels = px(40.);
 /// The application icon in the pane "About".
 pub const APP_ICON: Pixels = px(64.);
+/// The height of the Settings window for each pane, in points: the title
+/// bar, the row of tabs, and the content of the pane with its padding. The
+/// content of a pane has fixed rows, thus the heights are constants. The
+/// pane "Shortcuts" adds one row height for each key command.
+pub const SETTINGS_HEIGHT_GENERAL: f32 = 480.;
+pub const SETTINGS_HEIGHT_SHORTCUTS: f32 = 132.;
+pub const SETTINGS_SHORTCUT_ROW: f32 = 37.;
+/// The pane "About" with the notices file, and with the text that tells
+/// where the notices are.
+pub const SETTINGS_HEIGHT_ABOUT: f32 = 300.;
+pub const SETTINGS_HEIGHT_ABOUT_NO_NOTICES: f32 = 332.;
+/// The height that a message adds below the content of the pane, and the
+/// highest text of the message (two lines).
+pub const SETTINGS_MESSAGE_HEIGHT: f32 = 52.;
+pub const SETTINGS_MESSAGE_TEXT_MAX: Pixels = px(32.);
 /// The line height of the Settings window, as a multiple of the text size.
 /// Each row has one or two lines, so the window does not use a taller
 /// line height.

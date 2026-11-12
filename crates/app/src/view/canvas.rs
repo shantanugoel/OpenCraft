@@ -5,7 +5,7 @@
 //! is at its position in the layout of the engine, and each knob is below
 //! its feedback surface. The shell does not check for a model (rule 4).
 
-use super::*;
+use super::{controls::square_button, *};
 use crate::settings::RightPanelTab;
 use gpui_kit::{assets::IconName, component::Icon, FontWeight, Rgba};
 use opencraft_engine::{DeviceLayout, DeviceSettings, KnobLightMode, SurfaceLayout};
@@ -142,41 +142,6 @@ fn hover_outline(group: SharedString, width: f32, height: f32, radius: f32, gap:
     .group_hover(group, |s| s.border_color(theme::ACCENT_LINE_HOVER))
 }
 
-/// A square button of the page header with one icon: 28 × 26, `bg-field`
-/// (section 8.1). A button that is not enabled shows a dim icon.
-fn header_button(
-    id: &'static str,
-    icon: IconName,
-    label: &'static str,
-    enabled: bool,
-) -> Stateful<Div> {
-    div()
-        .id(id)
-        .debug_selector(move || id.to_string())
-        .flex_shrink_0()
-        .w(theme::PAGE_HEADER_BUTTON_WIDTH)
-        .h(theme::HEIGHT_SEGMENT)
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded(theme::RADIUS_CONTROL)
-        .bg(theme::BG_FIELD)
-        .border_1()
-        .border_color(theme::BORDER_FIELD)
-        .text_color(if enabled {
-            theme::TEXT_SECONDARY
-        } else {
-            theme::TEXT_DISABLED
-        })
-        .when(enabled, |d| {
-            d.cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_CONTROL))
-                .active(|d| d.bg(theme::PRESSED))
-        })
-        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
-        .child(Icon::new(icon).size(theme::ICON_BUTTON))
-}
-
 impl DeviceView {
     /// The canvas column. `width` is the width that the panes give it.
     pub(super) fn canvas(&self, width: f32, window: &Window, cx: &mut Context<Self>) -> AnyElement {
@@ -263,11 +228,12 @@ impl DeviceView {
             )
             .child(div().flex_1())
             .child(
-                header_button(
+                square_button(
                     "previous-page",
                     IconName::ChevronLeft,
                     "Previous page",
                     previous,
+                    theme::HEIGHT_SEGMENT,
                 )
                 .when(previous, |d| {
                     d.on_click(cx.listener(move |view, _, _, _| {
@@ -276,14 +242,18 @@ impl DeviceView {
                 }),
             )
             .child(
-                header_button("next-page", IconName::ChevronRight, "Next page", next).when(
+                square_button(
+                    "next-page",
+                    IconName::ChevronRight,
+                    "Next page",
                     next,
-                    |d| {
-                        d.on_click(cx.listener(move |view, _, _, _| {
-                            (view.send)(Command::SelectPage { page: page + 1 })
-                        }))
-                    },
-                ),
+                    theme::HEIGHT_SEGMENT,
+                )
+                .when(next, |d| {
+                    d.on_click(cx.listener(move |view, _, _, _| {
+                        (view.send)(Command::SelectPage { page: page + 1 })
+                    }))
+                }),
             )
             .child(
                 small_button("page-settings", "Page settings", true)

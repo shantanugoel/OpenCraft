@@ -439,3 +439,17 @@ fn the_device_card_selects_the_device(cx: &mut TestAppContext) {
     cx.update(|_, cx| assert!(!view.read(cx).device.open));
     assert!(sent.borrow().is_empty());
 }
+
+#[gpui_kit::test]
+fn the_settings_row_opens_the_settings_window(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, sent) = sidebar_window(cx);
+    let windows = |cx: &mut VisualTestContext| cx.update(|_, cx| cx.windows().len());
+    assert_eq!(windows(cx), 1);
+    click(cx, "sidebar-settings");
+    assert_eq!(windows(cx), 2, "The Settings window opened");
+    // A second click brings the same window to the front.
+    click(cx, "sidebar-settings");
+    assert_eq!(windows(cx), 2);
+    // The row sends no command to the engine.
+    assert!(sent.borrow().is_empty(), "{:?}", sent.borrow());
+}

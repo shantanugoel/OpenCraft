@@ -50,17 +50,6 @@ pub(crate) fn small_button(
         .child(label(text))
 }
 
-/// A button for a change that removes something.
-// The window has no such button since the sidebar menus replaced the page
-// row (#177). The tasks of #173 use it again.
-#[allow(dead_code)]
-pub(super) fn danger_button(
-    id: impl Into<SharedString>,
-    text: impl Into<SharedString>,
-) -> Stateful<Div> {
-    button(id, text).text_color(theme::DESTRUCTIVE_TEXT)
-}
-
 /// A normal button.
 pub(crate) fn button(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
     button_if(id, text, true)
@@ -176,29 +165,31 @@ pub(super) fn dot(colour: gpui_kit::Rgba) -> Div {
         .bg(colour)
 }
 
-/// A square button with one icon, 28 × 28. `label` is the tooltip. A
-/// button that is not enabled shows a dim icon; the caller adds no click
-/// handler to it.
-// The page header of #178 uses it.
-#[allow(dead_code)]
+/// A small square button with one icon (sections 3.5 and 8.1): width 28,
+/// `height` [`theme::HEIGHT_CONTROL`] or [`theme::HEIGHT_SEGMENT`] (the page
+/// header), radius 6, `bg-field`, border `border-field`, icon 14. `label` is
+/// the tooltip. A button that is not enabled shows a dim icon; the caller
+/// adds no click handler to it.
 pub(super) fn square_button(
     id: &'static str,
     icon: IconName,
     label: &'static str,
     enabled: bool,
+    height: Pixels,
 ) -> Stateful<Div> {
     div()
         .id(id)
         .debug_selector(move || id.to_string())
         .flex_shrink_0()
-        .size(theme::HEIGHT_CONTROL)
+        .w(theme::WIDTH_SQUARE_BUTTON)
+        .h(height)
         .flex()
         .items_center()
         .justify_center()
         .rounded(theme::RADIUS_CONTROL)
-        .bg(theme::BG_CONTROL)
+        .bg(theme::BG_FIELD)
         .border_1()
-        .border_color(theme::BORDER_CONTROL)
+        .border_color(theme::BORDER_FIELD)
         .text_color(if enabled {
             theme::TEXT_SECONDARY
         } else {

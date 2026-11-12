@@ -84,7 +84,8 @@ OpenCraft, and quit it.
    **Press** and not **Release**. The card of a gesture with an action
    shows the name of the action.
 5. Make sure that the device shows the page that has the action. The page
-   button with the blue frame is the active page.
+   header at the top of the device picture shows the name of the active
+   page. In the sidebar, the active page is the selected row.
 6. For "Send a hotkey", "Type text", and "Media key": make sure that
    OpenCraft has the Accessibility permission. If it does not have the
    permission, these actions do nothing, and the window shows a message
