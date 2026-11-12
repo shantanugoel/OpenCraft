@@ -53,8 +53,8 @@ at `gpui_kit::*`.
 | `InputState::set_value` does not emit `InputEvent::Change`. It resets selection and undo state. The application calls it when a surface is selected, not on each engine reply. A reply during typing does not change the field or send a new command. | Source; Measured | `gpui-base` 0.9.1 `input/base/state.rs`; application window tests |
 | A Kit glob import with `test-support` also imports its `test` macro. This can make generated `#[test]` attributes expand again. Explicit imports prevent this. `debug_bounds` needs a static selector registered with `debug_selector`, not only an element ID. | Measured | Application test build and `crates/app/src/view/tests.rs` |
 | A native file dialog selected a transparent PNG. The engine read and copied it. A key face showed its label, colour, and image in the window and on the device. A bar panel also showed its label, colour, and image in both places. Removing all three parts cleared the bar panel in both places. The arrow stayed upright, with red on the left and blue on the right. | Measured | Release application; native window screenshots and USB camera pictures, kept outside the repository |
-| The native window fits at 900 × 640 content pixels. A restart shows the saved profile. Normal window close ends the process and writes the last label change. | Measured | Release application; native screenshots, process check, and test profile file, kept outside the repository |
-| The macOS platform quits with `NSApplication::terminate`; code after the run loop is not a sufficient stop hook. GPUI awaits `on_app_quit` tasks for at most 200 ms. The application also delays normal window close until a background task has stopped the engine, with no time limit on that path. | Source | `gpui-pre-macos` 0.3.12 `platform.rs`; `gpui-pre` 0.3.12 `app.rs`; `crates/app/src/main.rs` |
+| The native window fits at 900 × 640 content pixels. A restart shows the saved profile. In the application of Phases 2 to 4, a normal window close ended the process and wrote the last label change. From Phase 5, a window close does not end the process: see [Application checks of Phase 5](#application-checks-of-phase-5-2026-11-12). | Measured | Release application; native screenshots, process check, and test profile file, kept outside the repository |
+| The macOS platform quits with `NSApplication::terminate`; code after the run loop is not a sufficient stop hook. GPUI awaits `on_app_quit` tasks for at most 200 ms. | Source | `gpui-pre-macos` 0.3.12 `platform.rs`; `gpui-pre` 0.3.12 `app.rs`; `crates/app/src/main.rs` |
 
 ## Window checks of Phase 4 (2026-11-12)
 
@@ -95,7 +95,7 @@ launchd is in [macos-start-at-login.md](macos-start-at-login.md).
 | The menu bar item stays when the activation policy changes. | Measured | AX |
 | The test needs no new crate. Its `objc2` 0.6.5, `objc2-foundation` 0.3.2, and `objc2-app-kit` 0.3.2 are the versions that GPUI uses in the lock file of the workspace. | Measured | The two lock files |
 | The features of `objc2-app-kit` for the test are `std`, `NSStatusBar`, `NSStatusItem`, `NSStatusBarButton`, `NSButton`, `NSControl`, `NSView`, `NSResponder`, `NSMenu`, `NSMenuItem`, `NSCell`, `NSApplication`, and `NSRunningApplication`, with no default features. The features of `objc2-foundation` are `std`, `NSString`, `NSObject`, and `NSArray`. | Measured | Test program manifest; build |
-| The button of the test shows a text title. An image on the button was not tested. | Measured | Test program |
+| The button of the test shows a text title. The application shows an SF Symbol as a template image on the button: see [Application checks of Phase 5](#application-checks-of-phase-5-2026-11-12). | Measured | Test program |
 
 ### Windows, Dock icon, and activation
 
@@ -111,7 +111,7 @@ launchd is in [macos-start-at-login.md](macos-start-at-login.md).
 | If the application is not active at the change to the regular policy, its menu bar shows when it becomes active. | Measured | `menuBarOwningApplication` |
 | `Application::with_windowing(WindowingRequest::Headless)` sets the accessory policy before the run loop. During a start with no window, 30 checks of the Dock in the first seconds did not find the Dock icon. | Measured; Source | Dock items through AX; `gpui-pre-macos` 0.3.12 `platform.rs`, `run` |
 | `App::activate(true)` with no window did not make the application active. | Measured | `NSRunningApplication` `isActive` |
-| An accessory application does not show in the list of Cmd-Tab. | Inference | It has no Dock icon. Not measured. |
+| An accessory application does not show in the list of Cmd-Tab, also with a window open. With the regular policy, the same application shows in the list. | Measured: 1 try for each policy | The application of Phase 5; the items of the list `AXProcessSwitcherList` of the Dock process, read while Cmd-Tab showed the list |
 
 ### Quit
 
@@ -149,6 +149,31 @@ bar item and 14 small elements in its window.
   (Measured)
 - 5 more cycles of open and close added 0.6 MiB. This is a short test, not
   proof for many cycles. (Measured)
+
+## Application checks of Phase 5 (2026-11-12)
+
+**Measured.** The application is the release build of `opencraft` with the
+shell of [decision 0020](../decisions/0020-menu-bar-item-and-dock-icon.md),
+started from a shell as a bare executable. It used a copy of a real profile,
+and the device was connected. A helper program read the state through the
+Accessibility API and `CGWindowListCopyWindowInfo`, and pressed the menu
+items, the close button, and the Dock icon. The menu bar was dark. Each
+result is from 1 try, if the row gives no count.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| After the window closed, the process continued and had no window. 84 seconds after the close, the device showed the images of the profile. | Measured | Window list; process state; USB camera picture |
+| "Open OpenCraft" in the menu of the menu bar item opened a new window. 250 ms after the press, the window showed the device as connected, and the labels and the colours of the profile. | Measured | Window screenshot |
+| The menu showed "Device: connected", "Profile: Default", and the check mark of "Show the Dock icon". The text lines were not enabled. | Measured | AX titles and attributes |
+| The button shows the SF Symbol `square.grid.3x2` as a template image, in white on the dark menu bar. Its accessibility description is "OpenCraft". | Measured | Screenshot of the item only; AX description |
+| "Show the Dock icon" removed the Dock icon and set the accessory policy. The window stayed open. The application wrote `show_dock_icon = false` to `shell.toml`. | Measured | Dock items through AX; window list; file |
+| With the accessory policy, the application active, and the window open, "Show the Dock icon" showed the Dock icon. After 1.2 s, the application was active and had the menu bar. | Measured | `menuBarOwningApplication` |
+| A start with `show_dock_icon = false` opened the window with the accessory policy. 55 checks of the Dock in the first 6 seconds did not find the Dock icon. | Measured | Dock items through AX |
+| A press on the Dock icon with no window open opened a new window. | Measured | AX press on the Dock item; window list |
+| With the accessory policy and the window open behind a window of a different application, "Open OpenCraft" made the application active in 1 of 2 tries. A new window from "Open OpenCraft" made the application active in 2 of 2 tries, 1 with each policy. | Measured | `NSRunningApplication` `isActive`; window order |
+| Each quit request ended the process in less than 1 second: "Quit OpenCraft" with no window and with a window, Cmd-Q, SIGTERM, SIGINT, and SIGHUP. Each time, the application printed that the engine stopped, after `EngineHandle::stop` returned. | Measured | Process state; standard error |
+| Cmd-Q to the active application quit it with the accessory policy. A label change 30 ms before the Cmd-Q, and a label change directly before SIGTERM, were in the profile file after the quit. The save delay of the engine is 500 ms, thus the engine wrote the file at the stop. | Measured | `CGEventPostToPid` key events; profile file |
+| A second start while the application ran printed "OpenCraft is already running." and ended with the exit status 0. | Measured | Terminal output; exit status |
 
 ## Release measurements
 
@@ -248,12 +273,11 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   test bounds image replacement to 650 pairs and measures idle with no focus.
 - The work that a future snapshot update needs. One successful version does
   not predict the next API change.
-- Whether an accessory application shows in the list of Cmd-Tab.
 - What occurs at a logout. macOS asks each application to quit, and the
   Inference is that this calls `NSApplication::terminate` and the
   `on_app_quit` closures. Nobody logged out during the test.
-- Whether an image on the button of the menu bar item shows correctly in
-  the light and the dark menu bar.
+- Whether the image on the button of the menu bar item shows correctly in
+  the light menu bar. Only the dark menu bar was tested.
 - Full input-method and accessibility behaviour. The test covers simple text
   entry, not every input method or assistive tool.
 - Whether a double click on a page tab gives a click count of 2 in the

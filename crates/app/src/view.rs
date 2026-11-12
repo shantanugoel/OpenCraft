@@ -4,6 +4,7 @@
 
 use crate::{
     images,
+    shell::Shell,
     state::{ViewState, HIGHLIGHT_TIME},
 };
 use gpui_kit::{
@@ -66,8 +67,15 @@ fn surface_name(id: SurfaceId) -> String {
 }
 
 /// A small command interface lets window tests inspect commands without a device.
+///
+/// The view starts from the state of the [`Shell`], and then gets each
+/// engine event from it (decision 0020). The view keeps its own copy because
+/// it also does work for each event in the window: the images, the text
+/// fields, and the changes that wait for a reply.
 pub struct DeviceView {
     pub(crate) state: ViewState,
+    shell: Entity<Shell>,
+    _shell_subscription: Subscription,
     images: BTreeMap<SurfaceId, Arc<RenderImage>>,
     send: Rc<dyn Fn(Command)>,
     input: Entity<InputState>,
@@ -81,7 +89,8 @@ pub struct DeviceView {
 
 impl DeviceView {
     pub fn new(
-        events: async_channel::Receiver<Event>,
+        shell: &Entity<Shell>,
+        state: ViewState,
         send: Rc<dyn Fn(Command)>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -100,20 +109,19 @@ impl DeviceView {
                 }
             }
         });
-        cx.spawn_in(window, async move |view, cx| {
-            while let Ok(event) = events.recv().await {
-                if view
-                    .update_in(cx, |view, window, cx| view.receive(event, window, cx))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        })
-        .detach();
+        let shell_subscription = cx.subscribe_in(shell, window, |view, _, event, window, cx| {
+            view.receive(event.clone(), window, cx)
+        });
+        let images = state
+            .surfaces
+            .iter()
+            .map(|(id, surface)| (*id, images::from_rgb(&surface.image)))
+            .collect();
         Self {
-            state: ViewState::default(),
-            images: BTreeMap::new(),
+            state,
+            shell: shell.clone(),
+            _shell_subscription: shell_subscription,
+            images,
             send,
             input,
             label_loaded: false,
@@ -175,6 +183,16 @@ impl DeviceView {
             self.load_label(window, cx);
         }
         self.sync_form(window, cx);
+        cx.notify();
+    }
+
+    /// Close a problem in this window and in the state of the shell.
+    fn dismiss_problem(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index < self.state.problems.len() {
+            let text = self.state.problems.remove(index);
+            self.shell
+                .update(cx, |shell, _| shell.dismiss_problem(&text));
+        }
         cx.notify();
     }
 
@@ -794,10 +812,7 @@ impl Render for DeviceView {
                                             .cursor_pointer()
                                             .child("Close")
                                             .on_click(cx.listener(move |view, _, _, cx| {
-                                                if index < view.state.problems.len() {
-                                                    view.state.problems.remove(index);
-                                                }
-                                                cx.notify();
+                                                view.dismiss_problem(index, cx)
                                             })),
                                     )
                             },

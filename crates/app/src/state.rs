@@ -20,7 +20,7 @@ pub struct Highlight {
 }
 
 /// The latest engine state and the temporary marks shown in the window.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ViewState {
     pub layout: Option<Arc<DeviceLayout>>,
     pub surfaces: BTreeMap<SurfaceId, SurfaceState>,
