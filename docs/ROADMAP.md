@@ -167,10 +167,29 @@ place of the vendor software.
 - [ ] Each action kind operates from a key.
 - [ ] A knob changes the sound volume, and the bar panel shows the level.
 - [ ] No input event is lost during a fast knob turn.
-- [ ] A new action kind needs no change to the engine (rule 8).
-- [ ] Each built-in action uses the handler interface only (rule 8).
-- [ ] The engine keeps a binding that has an action kind with no handler (rule 8).
+- [x] A new action kind needs no change to the engine (rule 8).
+- [x] Each built-in action uses the handler interface only (rule 8).
+- [x] The engine keeps a binding that has an action kind with no handler (rule 8).
 - [ ] The owner uses OpenCraft as the daily driver for one week with no blocking fault.
+
+**State on 2026-11-12.** Three exit criteria are true. The proof is in tests
+that run with no device.
+
+- A new action kind: the engine test
+  `a_new_kind_dispatches_settings_without_engine_changes` uses a kind that
+  the engine code does not contain.
+- The handler interface only: the crate `opencraft-actions` depends on
+  `opencraft-engine` only, and not on `opencraft-core`. The engine code
+  contains no name of a built-in kind.
+- A kind with no handler: the engine test
+  `an_unavailable_kind_stays_in_the_file_and_reports_its_state`.
+
+The other four criteria need the owner at the device. The procedures are in
+issues [#78](https://github.com/shantanugoel/OpenCraft/issues/78),
+[#80](https://github.com/shantanugoel/OpenCraft/issues/80),
+[#81](https://github.com/shantanugoel/OpenCraft/issues/81), and
+[#83](https://github.com/shantanugoel/OpenCraft/issues/83). The measured
+footprint of this phase is in [kb/footprint.md](kb/footprint.md#phase-3).
 
 **Decisions that this phase forces.** Interface of an action handler. How an
 action changes a surface. How an action describes its settings to the GUI. Make
