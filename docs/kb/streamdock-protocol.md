@@ -400,6 +400,8 @@ A camera recorded these facts on 2026-11-11.
 
 Thus the commands to wake the device are the brightness command and `DIS`.
 
+In the dark state after `DC` and `HAN`, a key press and a knob turn changed nothing on the device: the displays and the knob lights stayed off. (Measured: owner, 2026-11-12)
+
 ## Device configuration
 
 `QUCMD` sets 6 device settings in one command. The haptic feedback is one of
@@ -423,10 +425,9 @@ person touched the device.
 | With byte 1 `0xFF`, `DC` makes the displays dark and switches off the knob lights. The device does not show the logo. With byte 1 `0x11` again, `DC` shows the logo again. | Measured: 2 times each |
 | The device keeps the configuration when it stops the USB connection and starts again. After byte 1 `0xFF` and a stop, `DC` on the new connection made the displays dark, with no new `QUCMD`. | Measured: 1 time |
 | With byte 1 `0xFF`, the device still shows the boot animation and the logo when it starts again after a stop | Measured: 1 time |
+| Byte 3 switches the vibration at a key press. With `0xFF`, the device did not vibrate at a key press. With `0x11`, it vibrated. The test program sent the bytes of `mirajazz`, and the owner pressed a key 2 times in each state. | Measured: owner, 2026-11-12 |
 | The device keeps byte 3 (vibration) in the same way, because the same command sets it | Inference |
 | At the end of the tests, the test program sent the bytes of `mirajazz` with vibration on: `0x1F 0x11 0x00 0x11 0x00 0x11` | Measured |
-
-What byte 3 changes on the device needs a person. See "Not known".
 
 ## Not known
 
@@ -440,10 +441,8 @@ Phase 1 did not answer these questions. Each question has a reason.
 | Whether an interval of exactly 15 seconds between two keep-alive commands keeps the connection | The device layer uses 10 seconds, as the vendor SDK does. 14 seconds is measured. No design needs a longer interval. |
 | What the layer argument of `BGPIC` does. Each value gave the same result. | The device layer sends layer 0 for a full background, as the SDK does. No feature needs a different layer. |
 | What `MOD` does. No program sent it to our device. | Our device operates without `MOD`. |
-| Whether byte 3 of `QUCMD` switches the vibration at a key press on and off | It needs a person, because the device vibrates only at a key press. OpenCraft sends the command at each connection, so the decision does not depend on the answer. The procedure for the owner is in issue [#124](https://github.com/shantanugoel/OpenCraft/issues/124). |
 | Whether the device keeps the `QUCMD` configuration after the cable is disconnected | It needs a person. OpenCraft sends the command at each connection. |
 | What bytes 0, 2, 4, and 5 of `QUCMD` do, and what the value `0x00` does | OpenCraft sends the bytes of `mirajazz` for them. No feature needs them. Byte 2 (`CheckUsbPower`) and byte 4 (`ResetUsbReport`) can possibly change the USB behaviour, so do not test other values without a reason. |
-| What the device does in the dark state after `DC` and `HAN` when the user presses a key or turns a knob | It needs a person. No program reads the device in that state, so a report has no effect. |
 | Which commands VSD Craft sends when it quits | `DC` and `HAN` give the same dark state. See [decision 0022](../decisions/0022-device-settings-and-stop-state.md). |
 
 ## Sources

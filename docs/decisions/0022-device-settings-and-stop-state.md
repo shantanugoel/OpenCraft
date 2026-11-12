@@ -219,5 +219,8 @@ sequence as image data (`crates/engine/src/runtime.rs`).
 - What the haptic command changes is not measured. It needs a person. If the
   command does not switch the vibration, task #124 removes the haptic
   setting from the descriptor, and this decision gets a new record.
+  Note of 2026-11-12: the owner did the check. The command switches the
+  vibration off and on, thus the haptic setting stays. See
+  [kb/streamdock-protocol.md](../kb/streamdock-protocol.md#device-configuration).
 - The stop sequence is for a quit. A sleep of the computer is a different
   case: see issue [#43](https://github.com/shantanugoel/OpenCraft/issues/43).

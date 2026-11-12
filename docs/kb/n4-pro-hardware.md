@@ -333,7 +333,7 @@ measured facts are in
 
 | Setting in the SDK | What we know | Confidence |
 |---|---|---|
-| Haptic feedback (`EnableVibration`) | The device vibrates at a key press with its configuration at delivery. The device accepts the command for on and off. What the command changes is not known. | Measured: owner, 2026-11-11. Measured: test program, 2026-11-12. |
+| Haptic feedback (`EnableVibration`) | The device vibrates at a key press with its configuration at delivery. The command switches the vibration off and on: see [streamdock-protocol.md](streamdock-protocol.md#device-configuration). | Measured: owner, 2026-11-11 and 2026-11-12 |
 | Key light on disconnection (`KeyLightOnDisconnect`) | Off: `DC` gives dark displays, not the logo | Measured, 2026-11-12 |
 | Knob light follows the key light (`LedFollowKeyLight`) | Not tested | Source |
 | USB power check (`CheckUsbPower`) | Not tested | Source |
@@ -356,7 +356,7 @@ Phase 1 did not answer these questions. Each question has a reason.
 | What the device sends for other sequences of 2 or more keys: 3 keys, keys that are not adjacent, a key and a knob | The measured cases show that the device does not report 2 keys at the same time. Thus OpenCraft has no key combination, and a binding uses one key. The bindings of Phase 3 did not need more cases. |
 | Whether the descriptors for `0x5548:0x1008` and `0x5548:0x1021` are correct | The owner does not have these models. More device models are not in a phase. |
 | What the command `DELED` does | No surface or control needs it. |
-| What the haptic feedback command changes on the device, and what the other settings in "Device settings" do | The haptic feedback needs a person: see [streamdock-protocol.md](streamdock-protocol.md#not-known). No feature needs the other settings. |
+| What the other settings in "Device settings" do | No feature needs them. |
 | Why the knob lights show red after `DC` and `DIS` | OpenCraft sends the colours after each `DIS`, so the cause has no effect. |
 | Whether the device keeps its images when the computer sleeps and wakes | The owner deferred this check on 2026-11-11. It is issue [#43](https://github.com/shantanugoel/OpenCraft/issues/43). The engine draws all surfaces again after each wake ([decision 0023](../decisions/0023-wake-from-the-sleep-time-of-the-clocks.md)), so the engine does not depend on the answer. |
 
