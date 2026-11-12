@@ -557,7 +557,7 @@ impl DeviceView {
     /// `kind`, or remove it with `None`. A new action opens the card; the
     /// removal closes it. The engine makes the new binding, so no edit is in
     /// flight after this.
-    fn choose_card(&mut self, gesture: GestureKind, kind: Option<String>) {
+    pub(super) fn choose_card(&mut self, gesture: GestureKind, kind: Option<String>) {
         let Some(control) = self.state.selected_control else {
             return;
         };
@@ -681,7 +681,7 @@ impl DeviceView {
     /// The label of the popup of `action`.
     fn kind_label(&self, action: &Action, available: bool) -> KindLabel {
         match self.kind(&action.kind) {
-            Some(kind) if available => KindLabel::new(kind.name.clone()),
+            Some(kind) if available => KindLabel::new(kind),
             _ => KindLabel::unavailable(),
         }
     }
@@ -770,23 +770,32 @@ impl DeviceView {
         if self.form.menu.as_ref() != Some(menu) {
             return None;
         }
-        // #184 adds a title for each group of the library.
-        let mut rows: Vec<AnyElement> = self
-            .state
-            .kinds
-            .iter()
-            .enumerate()
-            .map(|(index, k)| {
+        // One section for each group of the library, with the group name
+        // as its title (section 10.3).
+        let mut rows: Vec<AnyElement> = Vec::new();
+        let groups = super::library::groups(&self.state.kinds, |_| true);
+        for (number, (group, members)) in groups.into_iter().enumerate() {
+            let selector = format!("{id}-group-{number}");
+            rows.push(
+                controls::group_title(group)
+                    .debug_selector(move || selector.clone())
+                    .when(number > 0, |d| d.mt(theme::SPACE_6))
+                    .into_any_element(),
+            );
+            for index in members {
+                let k = &self.state.kinds[index];
                 let kind = k.kind.clone();
                 let menu = menu.clone();
-                controls::menu_row(format!("{id}-{index}"))
-                    .child(KindLabel::new(k.name.clone()).content(false))
-                    .on_click(cx.listener(move |view, _, window, cx| {
-                        view.choose(menu.clone(), Some(kind.clone()), window, cx)
-                    }))
-                    .into_any_element()
-            })
-            .collect();
+                rows.push(
+                    controls::menu_row(format!("{id}-{index}"))
+                        .child(KindLabel::new(k).content(false))
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            view.choose(menu.clone(), Some(kind.clone()), window, cx)
+                        }))
+                        .into_any_element(),
+                );
+            }
+        }
         if remove {
             let menu = menu.clone();
             rows.push(controls::menu_separator().into_any_element());

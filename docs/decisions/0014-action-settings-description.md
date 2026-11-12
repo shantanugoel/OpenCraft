@@ -28,7 +28,19 @@ each kind:
 |---|---|
 | Kind | The identifier, for example `opencraft.hotkey` |
 | Name | The name for the user, for example "Send a hotkey" |
+| Group | The group of the kind in the library and in the kind menu, for example "System" |
+| Help | Optional. A short text for the library row, for example "Accessibility" |
+| Needs Accessibility | Yes or no: the kind operates only with the Accessibility permission of macOS |
 | Fields | The list of the settings, in the order in which the shell shows them |
+
+Note (2026-11-13): issue
+[#184](https://github.com/shantanugoel/OpenCraft/issues/184) added the
+group, the help text, and the need for the Accessibility permission
+(decision [0029](0029-window-layout.md#20-data-that-the-shell-needs-from-the-engine)).
+The shell shows the groups in the order of their first kind in the event of
+the kinds. It gives the tile colour of a kind from its group. It names the
+kinds that need the permission in the Settings window. The shell still has
+no list of kinds and no check for a specific kind.
 
 A field has a key, a label for the user, an input type, and an optional
 default value. The key is the name of the value in the settings of the
@@ -74,8 +86,9 @@ and what to do for its input type. The text never shows the key
 When the user presses the button, the shell sends a command, and the engine
 sends the request Resolve to the handler. The handler does what is necessary,
 for example it starts the prompt of macOS for the Accessibility permission.
-This is the onboarding for a permission. The shell does not know what a
-permission is.
+This is the onboarding for a permission. The shell does not ask macOS for a
+permission. It knows only which kinds need the Accessibility permission,
+from their descriptions.
 
 ## Results
 

@@ -228,10 +228,24 @@ impl PageTarget {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The description of one kind: see
+/// `docs/decisions/0014-action-settings-description.md`. The shell makes the
+/// library, the kind menu, and the settings form from it, and has no list of
+/// kinds (rule 8).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct KindDescription {
     pub kind: String,
     pub name: String,
+    /// The group of the kind in the library and in the kind menu, for
+    /// example "System". The shell shows the groups in the order of their
+    /// first kind.
+    pub group: String,
+    /// A short help text for the library row, for example "Accessibility".
+    pub help: Option<String>,
+    /// The kind operates only with the Accessibility permission of macOS.
+    /// The shell names these kinds where it tells the user about the
+    /// permission.
+    pub needs_accessibility: bool,
     pub fields: Vec<Field>,
 }
 

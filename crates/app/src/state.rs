@@ -594,6 +594,7 @@ pub(crate) mod tests {
             kind: "test.kind".into(),
             name: "Test action".into(),
             fields: vec![],
+            ..Default::default()
         };
         s.apply(Event::Kinds(vec![kind.clone()]), now);
         assert_eq!(s.kinds, vec![kind]);

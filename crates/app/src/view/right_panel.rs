@@ -24,7 +24,7 @@ impl DeviceView {
     ) -> AnyElement {
         let content = match self.panes.right_panel_tab {
             RightPanelTab::Inspector => self.inspector(window, cx),
-            RightPanelTab::Library => self.library(),
+            RightPanelTab::Library => self.library(window, cx),
         };
         div()
             .id("right-panel")

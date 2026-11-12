@@ -603,6 +603,23 @@ platform of GPUI Kit.
 | A text field that sends its command only at Return or at `InputEvent::Blur` makes one step of the history with no `StartTextEdit`. A change of the pages during the edit must end the edit first: else the blur after it renames a page that has a different number now. | Measured (window test and real window: one step "Rename Page") | `crates/app/src/view/page_inspector.rs` |
 | `window.prompt` draws the question inside the window, with a dark layer on the window. A picture of the window shows the question. | Measured | Window picture |
 
+## Library in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+library of [issue 184](https://github.com/shantanugoel/OpenCraft/issues/184),
+on the computer of [Release measurements](#release-measurements), with a
+copy of a profile and the device connected. A helper program operated the
+real window with Quartz events and took pictures of the window only. The
+pictures are kept outside the repository. The window tests are in
+`crates/app/src/view/tests/library.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `cursor_grab()` sets `CursorStyle::OpenHand`, the open hand of section 11 of decision 0029. | Source | `gpui-pre-macros` 0.3.12 `src/styles.rs` |
+| With the default fit mode `SwitchAnchor`, `anchored()` moves an element up to the bottom edge of the window when it fits neither below nor above its anchor. The kind menu with the group titles (approximately 465 high) then covered its popup button in a window of 900, as a menu of macOS does. The menu needs a maximum height that is not more than the window, or its top goes out of the window. | Source; Measured | `gpui-pre` 0.3.12 `src/elements/anchored.rs`, `prepaint`; window picture; `crates/app/src/view/controls.rs`, `popup_menu` |
+| `InputState::set_placeholder(text, window, cx)` changes the placeholder of a field after it is made. The state of `gpui_kit::component::input` has no public method that reads the placeholder. | Source; Measured (build error) | `gpui-base` 0.9.1 `src/input/base/state.rs`; `crates/app/src/view/library.rs`, `sync_library` |
+| `input.read(cx).focus_handle(cx)` does not build: the base state has a private field `focus_handle`. `gpui_kit::Focusable::focus_handle(input.read(cx), cx)` calls the method of the trait. | Measured (build error) | `crates/app/src/view/controls.rs`, `search_field` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

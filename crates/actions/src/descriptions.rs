@@ -15,6 +15,15 @@ pub(crate) const PROFILE: &str = "opencraft.profile";
 pub(crate) const TOGGLE: &str = "opencraft.toggle";
 pub(crate) const SEQUENCE: &str = "opencraft.sequence";
 
+/// The groups of the built-in kinds in the library (decision 0029, section
+/// 11). The shell shows the groups in the order of their first kind.
+const SYSTEM: &str = "System";
+const MEDIA_GROUP: &str = "Media";
+const NAVIGATION: &str = "Navigation";
+const LOGIC: &str = "Logic";
+/// The help text of a kind that needs the Accessibility permission.
+const ACCESSIBILITY: &str = "Accessibility";
+
 /// The largest page number that the page change accepts. The user sees page
 /// numbers from 1.
 pub(crate) const PAGE_LIMIT: i64 = 100;
@@ -150,15 +159,33 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         _ => {
             return KindDescription {
                 kind: kind.into(),
-                name: String::new(),
-                fields: vec![],
+                ..KindDescription::default()
             }
         }
     };
+    let (group, help) = library_place(kind);
     KindDescription {
         kind: kind.into(),
         name: name.into(),
+        group: group.into(),
+        help: help.map(Into::into),
+        needs_accessibility: KEY_KINDS.contains(&kind),
         fields,
+    }
+}
+
+/// The group of a built-in kind in the library, and its help text
+/// (decision 0029, section 11). The kinds that send keys need the
+/// Accessibility permission, thus their help text names it.
+fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
+    match kind {
+        HOTKEY | TEXT => (SYSTEM, Some(ACCESSIBILITY)),
+        MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
+        VOLUME => (MEDIA_GROUP, Some("Knob")),
+        PAGE | PROFILE => (NAVIGATION, None),
+        TOGGLE | SEQUENCE => (LOGIC, None),
+        APPLICATION | URL | SHELL => (SYSTEM, None),
+        _ => ("", None),
     }
 }
 

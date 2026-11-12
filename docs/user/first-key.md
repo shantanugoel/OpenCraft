@@ -78,6 +78,9 @@ The action "Open a URL" does not need a permission of macOS.
 - To change the action kind, click the button with the action name, and
   click a different kind. The settings of the new kind start at their
   default values.
+- The menu of the action kinds shows the kinds in groups, for example
+  **System** and **Media**. You can also set an action from the tab
+  **Library**: see [The library](actions.md#the-library).
 - To remove the action, click the button with the action name, and click
   **Remove the action**.
 - To close a menu with no change, push Esc, or click out of the menu.

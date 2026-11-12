@@ -51,6 +51,7 @@ pub(super) fn test_kind() -> KindDescription {
                 default: None,
             },
         ],
+        ..Default::default()
     }
 }
 

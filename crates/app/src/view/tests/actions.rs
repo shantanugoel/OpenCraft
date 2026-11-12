@@ -98,6 +98,7 @@ fn kind() -> KindDescription {
             default: Some(default),
         })
         .collect(),
+        ..Default::default()
     }
 }
 

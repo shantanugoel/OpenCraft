@@ -78,6 +78,7 @@ impl Handler for Recorder {
             kind: NESTED.into(),
             name: "Nested test action".into(),
             fields: Vec::new(),
+            ..Default::default()
         }]
     }
     fn start(&mut self, _: MessageSender) {}
@@ -273,6 +274,52 @@ fn has_frame(image: &RgbImage) -> bool {
 }
 
 // --- The tests -----------------------------------------------------------------------
+
+/// The engine sends each built-in kind with its group, its help text, and
+/// its need for the Accessibility permission, in the order of the library
+/// (decision 0029, section 11). The shell has no list of kinds (rule 8): the
+/// library and the kind menu come only from this event.
+#[test]
+fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
+    let mut world = World::new();
+    let kinds = world
+        .take_events()
+        .into_iter()
+        .find_map(|e| match e {
+            Event::Kinds(kinds) => Some(kinds),
+            _ => None,
+        })
+        .expect("the kinds");
+    let library: Vec<_> = kinds
+        .iter()
+        .filter(|k| k.kind != NESTED)
+        .map(|k| {
+            (
+                k.name.as_str(),
+                k.group.as_str(),
+                k.help.as_deref(),
+                k.needs_accessibility,
+            )
+        })
+        .collect();
+    let accessibility = Some("Accessibility");
+    assert_eq!(
+        library,
+        [
+            ("Open an application", "System", None, false),
+            ("Open a URL", "System", None, false),
+            ("Run a shell command", "System", None, false),
+            ("Send a hotkey", "System", accessibility, true),
+            ("Type text", "System", accessibility, true),
+            ("Media key", "Media", accessibility, true),
+            ("Sound volume", "Media", Some("Knob"), false),
+            ("Change the page", "Navigation", None, false),
+            ("Select a profile", "Navigation", None, false),
+            ("Toggle", "Logic", None, false),
+            ("Sequence of actions", "Logic", None, false),
+        ]
+    );
+}
 
 #[test]
 fn a_toggle_on_a_key_does_its_action_and_shows_its_state_with_a_frame() {

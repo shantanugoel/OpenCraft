@@ -31,23 +31,35 @@ use gpui_kit::{
     assets::IconName, component::Icon, div, prelude::*, AnyElement, App, ClickEvent, Div,
     FontWeight, Pixels, Rgba, SharedString, Stateful, Window,
 };
+use opencraft_engine::KindDescription;
 use std::rc::Rc;
 
 type Handler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// The text and the tile of the action of a card.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct KindLabel {
     name: SharedString,
     letter: SharedString,
+    colour: Rgba,
     available: bool,
 }
 
+/// The size of a kind tile: in a nested card, in a gesture card and in the
+/// kind menu, or in a library row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TileSize {
+    Nested,
+    Card,
+    Library,
+}
+
 impl KindLabel {
-    /// The label of a kind with a handler. Until #190 gives the kind
-    /// icons, the tile shows the first letter of the name.
-    pub(super) fn new(name: impl Into<SharedString>) -> Self {
-        let name: SharedString = name.into();
+    /// The label of a kind with a handler. The tile has the colour of the
+    /// group of the kind (decision 0029, section 20). Until #190 gives the
+    /// kind icons, the tile shows the first letter of the name.
+    pub(super) fn new(kind: &KindDescription) -> Self {
+        let name: SharedString = kind.name.clone().into();
         let letter = name
             .chars()
             .next()
@@ -55,6 +67,7 @@ impl KindLabel {
         Self {
             name,
             letter: letter.into(),
+            colour: theme::kind_tile(&kind.group),
             available: true,
         }
     }
@@ -65,25 +78,30 @@ impl KindLabel {
         Self {
             name: "Not available".into(),
             letter: "?".into(),
+            colour: theme::KIND_TILE_UNAVAILABLE,
             available: false,
         }
     }
 
-    /// The tile of the kind: 20 × 20, or 18 × 18 in a nested card.
-    pub(super) fn tile(&self, nested: bool) -> Div {
-        let (size, radius, text) = if nested {
-            (
+    /// The name of the kind.
+    pub(super) fn name(&self) -> &SharedString {
+        &self.name
+    }
+
+    /// The tile of the kind: 18 × 18, 20 × 20, or 24 × 24.
+    pub(super) fn tile(&self, size: TileSize) -> Div {
+        let (size, radius, text) = match size {
+            TileSize::Nested => (
                 theme::KIND_TILE_NESTED,
                 theme::RADIUS_BADGE,
                 theme::TEXT_BADGE,
-            )
-        } else {
-            (theme::KIND_TILE, theme::RADIUS_SEGMENT, theme::TEXT_CAPTION)
-        };
-        let colour: Rgba = if self.available {
-            theme::KIND_TILE_OTHER
-        } else {
-            theme::KIND_TILE_UNAVAILABLE
+            ),
+            TileSize::Card => (theme::KIND_TILE, theme::RADIUS_SEGMENT, theme::TEXT_CAPTION),
+            TileSize::Library => (
+                theme::KIND_TILE_LIBRARY,
+                theme::RADIUS_CONTROL,
+                theme::TEXT_LABEL,
+            ),
         };
         div()
             .flex_shrink_0()
@@ -92,7 +110,7 @@ impl KindLabel {
             .items_center()
             .justify_center()
             .rounded(radius)
-            .bg(colour)
+            .bg(self.colour)
             .text_size(text)
             .font_weight(FontWeight::BOLD)
             .text_color(theme::SWITCH_KNOB_COLOUR)
@@ -107,7 +125,11 @@ impl KindLabel {
             .flex()
             .items_center()
             .gap(theme::SPACE_8)
-            .child(self.tile(nested))
+            .child(self.tile(if nested {
+                TileSize::Nested
+            } else {
+                TileSize::Card
+            }))
             .child(
                 div()
                     .flex_1()

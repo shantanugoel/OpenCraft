@@ -57,6 +57,7 @@ fn description(kind: &str) -> KindDescription {
         kind: kind.into(),
         name: "Test action".into(),
         fields: Vec::new(),
+        ..Default::default()
     }
 }
 

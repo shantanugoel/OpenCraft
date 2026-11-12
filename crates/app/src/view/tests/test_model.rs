@@ -71,6 +71,7 @@ fn kind() -> KindDescription {
         kind: "test.test-model".into(),
         name: "Test action".into(),
         fields: Vec::new(),
+        ..Default::default()
     }
 }
 
