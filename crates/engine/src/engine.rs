@@ -20,6 +20,11 @@
 //! steps of a change of the active profile are in [`Engine::select_profile`].
 //! The reasons are in `docs/decisions/0018-many-profiles.md`.
 //!
+//! The engine holds the device settings of the model of the device, and
+//! sends them to the device after each start sequence and at each change.
+//! The steps are in [`Engine::set_device_settings`]. The reasons are in
+//! `docs/decisions/0022-device-settings-and-stop-state.md`.
+//!
 //! The logic has no thread of its own. A caller calls [`Engine::command`]
 //! and [`Engine::poll`] in a loop: see [`crate::runtime`]. A test calls them
 //! directly, with a fake transport and a fake clock (rule 7). The reasons
@@ -29,6 +34,7 @@ use crate::action::{
     Action, BindingId, BindingState, EngineRequest, Feedback, GestureKind, HandlerPort,
     KindDescription, Message, Request, Status,
 };
+use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::layout::DeviceLayout;
 use crate::profile::{Color, Page, Profile, SurfaceContent, DEFAULT_PROFILE_NAME};
 use crate::profiles::{ProfileEntry, ProfilesDir};
@@ -45,14 +51,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// The time from the last change of the profile to the write of the file.
-/// Many changes in a short time, for example the letters of a label, give
-/// one write.
+/// The time from the last change of the profile, or of the device settings,
+/// to the write of the file. Many changes in a short time, for example the
+/// letters of a label, give one write.
 pub const SAVE_DELAY: Duration = Duration::from_millis(500);
-
-/// The brightness of the displays, in percent. Phase 5 adds the device
-/// settings.
-pub const DEFAULT_BRIGHTNESS: u8 = 80;
 
 /// Write one line about the device to standard error, with the time of the
 /// system clock in seconds since 1970. The engine writes a line only for an
@@ -135,13 +137,17 @@ pub enum Command {
     /// active profile, the profile after it in the list becomes the active
     /// profile. If it was the last profile, the profile before it does.
     RemoveProfile { profile: String },
+    /// Set the device settings of the model of the device. The command has
+    /// all settings. The engine puts each value into its range, and then
+    /// does the steps of [`Engine::set_device_settings`].
+    SetDeviceSettings(DeviceSettings),
     /// Ask the handler to correct the status of this kind.
     Resolve { kind: String },
     /// Send the current counters in an event.
     ReadCounters,
-    /// Stop the engine: write the profile if it changed, make the device
-    /// dark with the stop sequence, and close the device. See
-    /// [`Engine::finish`].
+    /// Stop the engine: write the profile and the device settings if they
+    /// changed, make the device dark with the stop sequence, and close the
+    /// device. See [`Engine::finish`].
     Stop,
 }
 
@@ -225,6 +231,11 @@ pub enum Event {
     Status { kind: String, status: Status },
     /// The response to `Command::ReadCounters`.
     Counters(Counters),
+    /// All device settings of the model of the device: at the start, after
+    /// each change, and after a change of the model. At the start and after
+    /// a change of the model, it comes after the bindings. The layout tells
+    /// which settings the model has: see [`DeviceLayout::settings`].
+    DeviceSettings(DeviceSettings),
     /// The state of a surface of the active page: at the start for each
     /// surface, after each change, and for each surface after a change of
     /// the active page.
@@ -281,7 +292,17 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// The text of the last problem of the link, to tell the shell one time
     /// only about a problem that stays.
     link_problem: Option<String>,
-    brightness: u8,
+    /// The device settings of the model of the device.
+    settings: DeviceSettings,
+    /// False if the settings file has an error or a newer schema version.
+    /// Then the engine does not write the file until the user changes a
+    /// setting.
+    settings_can_save: bool,
+    /// The time of the last change of the settings that is not in the file.
+    settings_changed_at: Option<Instant>,
+    /// True after a failed write of the settings, until a write is
+    /// successful.
+    settings_save_failed: bool,
     ports: Vec<HandlerPort>,
     feedback: BTreeMap<BindingId, (u64, Feedback)>,
     feedback_order: u64,
@@ -330,7 +351,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             changed_at: None,
             save_failed: false,
             link_problem: None,
-            brightness: DEFAULT_BRIGHTNESS,
+            settings: DeviceSettings::defaults(default_model.settings),
+            settings_can_save: true,
+            settings_changed_at: None,
+            settings_save_failed: false,
             ports,
             feedback: BTreeMap::new(),
             feedback_order: 0,
@@ -338,11 +362,116 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             sink,
         };
         engine.open_profiles();
+        engine.load_settings();
         engine.show_model();
         engine.send_profiles();
         engine.send_pages();
         engine.appear();
+        engine.send_settings();
         engine
+    }
+
+    /// The device settings of the model of the device.
+    pub fn device_settings(&self) -> &DeviceSettings {
+        &self.settings
+    }
+
+    /// Read the settings of the model of the device from the settings file.
+    /// A file with an error gives the defaults and a problem for the shell.
+    fn load_settings(&mut self) {
+        let support = self.descriptor.settings;
+        self.settings_changed_at = None;
+        self.settings_save_failed = false;
+        match device_settings::load(self.profiles.dir(), self.descriptor.model, support) {
+            Ok(settings) => {
+                self.settings = settings;
+                self.settings_can_save = true;
+            }
+            Err(problem) => {
+                self.settings = DeviceSettings::defaults(support);
+                self.settings_can_save = false;
+                self.problem(format!(
+                    "OpenCraft could not use the device settings file {}, because {problem}. \
+                     It uses the default device settings. It does not change the file until \
+                     you change a device setting.",
+                    device_settings::settings_path(self.profiles.dir()).display()
+                ));
+            }
+        }
+    }
+
+    fn send_settings(&mut self) {
+        (self.sink)(Event::DeviceSettings(self.settings.clone()));
+    }
+
+    /// Set the device settings. This is [`Command::SetDeviceSettings`]. The
+    /// engine puts each value into its range for the model. If the settings
+    /// are then different:
+    ///
+    /// 1. It keeps the new settings, and sends [`Event::DeviceSettings`].
+    /// 2. If a device is connected and shows all images, it sends only the
+    ///    commands of the settings that changed: `LIG`, or `SETLB` and
+    ///    `LBLIG`, or `QUCMD`. A setting that the model does not have sends
+    ///    nothing. With no device, the next start sequence sends the new
+    ///    settings.
+    /// 3. It writes the settings file after [`SAVE_DELAY`], also if the file
+    ///    had an error before.
+    pub fn set_device_settings(&mut self, settings: DeviceSettings) {
+        let support = self.descriptor.settings;
+        let settings = settings.fit(support);
+        if settings == self.settings {
+            return;
+        }
+        let before = SettingCommands::new(&self.settings, support);
+        let after = SettingCommands::new(&settings, support);
+        self.settings = settings;
+        self.settings_can_save = true;
+        self.settings_changed_at = Some(self.now());
+        self.send_settings();
+        let changes: Vec<Vec<u8>> = before.changes(&after).into_iter().cloned().collect();
+        if changes.is_empty() || !self.link.is_connected() || self.needs_draw {
+            return;
+        }
+        let result = self.link.with_device(|device| {
+            for command in changes {
+                device.send(command)?;
+            }
+            Ok(())
+        });
+        match result {
+            Ok(()) | Err(DeviceError::Disconnected) => {}
+            Err(e) => {
+                // The state of the device is not known. Draw all again, with
+                // all settings.
+                self.link_error(&e);
+                self.needs_draw = true;
+            }
+        }
+    }
+
+    /// Write the settings file now, if the settings changed.
+    fn save_settings(&mut self, now: Instant) {
+        if self.settings_changed_at.is_none() {
+            return;
+        }
+        if !self.settings_can_save {
+            self.settings_changed_at = None;
+            return;
+        }
+        match device_settings::save(self.profiles.dir(), self.descriptor.model, &self.settings) {
+            Ok(()) => {
+                self.settings_changed_at = None;
+                self.settings_save_failed = false;
+            }
+            Err(e) => {
+                // Try again after the delay. Tell the shell one time.
+                self.settings_changed_at = Some(now);
+                if !self.settings_save_failed {
+                    self.settings_save_failed = true;
+                    self.problem(format!("OpenCraft could not save the device settings: {e}"));
+                }
+            }
+        }
     }
 
     /// The active profile in memory.
@@ -1125,6 +1254,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Command::AddProfile { name, copy_of } => self.add_profile(name, copy_of),
             Command::RenameProfile { profile, name } => self.rename_profile(profile, name),
             Command::RemoveProfile { profile } => self.remove_profile(profile),
+            Command::SetDeviceSettings(settings) => self.set_device_settings(settings),
             Command::Resolve { kind } => {
                 self.request(&kind, Request::Resolve { kind: kind.clone() });
             }
@@ -1158,7 +1288,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     /// Wait up to `timeout` for the next event of the link, and do the work
-    /// for it. Then write the profile if a write is due.
+    /// for it. Then write the profile and the device settings if a write is
+    /// due.
     ///
     /// Call this function in a loop. It sends the keep-alive (through the
     /// link), so the time between two calls must be short.
@@ -1222,9 +1353,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     /// Use the descriptor of a device that connected. If its model
-    /// identifier is different, select the profiles of that model, as at the
-    /// start: see [`Event::Layout`]. The old profile is written first if it
-    /// changed. The caller draws all surfaces next.
+    /// identifier is different, select the profiles and the device settings
+    /// of that model, as at the start: see [`Event::Layout`]. The old
+    /// profile and the old settings are written first if they changed. The
+    /// caller draws all surfaces next.
     fn change_model(&mut self, descriptor: &'static Descriptor) {
         let new_model = descriptor.model != self.descriptor.model;
         if new_model {
@@ -1233,22 +1365,31 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             if let Err(e) = self.write_now() {
                 self.problem(format!("OpenCraft could not save the profile: {e}"));
             }
+            let now = self.now();
+            self.save_settings(now);
             self.disappear();
         }
         self.descriptor = descriptor;
         if new_model {
             self.open_profiles();
+            self.load_settings();
         }
         self.show_model();
         if new_model {
             self.send_profiles();
             self.send_pages();
             self.appear();
+            self.send_settings();
         }
     }
 
-    /// Send the start sequence and the image of each surface to the device
-    /// (rule 10).
+    /// Send the start sequence, the device settings, and the image of each
+    /// surface to the device (rule 10). The order is that of decision 0022:
+    /// `DIS`, `LIG` with the brightness setting, `CLE 0xFF`, `STP`, then the
+    /// knob light commands (`SETLB` and `LBLIG`, or `LBLIG 0` only), then
+    /// `QUCMD`, then the images, then `STP`. The device keeps no setting
+    /// after a USB restart, and not the knob light colours after `DC`
+    /// (measured), so each full draw sends all settings.
     fn draw_all(&mut self) {
         let mut encoded = Vec::with_capacity(self.images.len());
         for surface in self.descriptor.slot_surfaces() {
@@ -1256,9 +1397,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 encoded.push(data);
             }
         }
-        let brightness = self.brightness;
+        let brightness = self.settings.brightness;
+        let commands = SettingCommands::new(&self.settings, self.descriptor.settings);
         let result = self.link.with_device(|device| {
             device.start(brightness)?;
+            for command in commands.after_start() {
+                device.send(command.clone())?;
+            }
             for (slot, data) in &encoded {
                 device.send_image(*slot, data)?;
             }
@@ -1321,21 +1466,25 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
-    /// Write the profile if it changed and no change came for
-    /// [`SAVE_DELAY`].
+    /// Write the profile and the device settings, each if it changed and no
+    /// change came for [`SAVE_DELAY`].
     fn save_if_due(&mut self) {
-        let Some(changed_at) = self.changed_at else {
-            return;
-        };
         let now = self.now();
-        if now.saturating_duration_since(changed_at) >= SAVE_DELAY {
+        let due = |at: Option<Instant>| {
+            at.is_some_and(|at| now.saturating_duration_since(at) >= SAVE_DELAY)
+        };
+        if due(self.changed_at) {
             self.save(now);
+        }
+        if due(self.settings_changed_at) {
+            self.save_settings(now);
         }
     }
 
     /// The stop of the engine, in the order of decision 0022:
     ///
-    /// 1. Write the profile now, if it has a change that is not in the file.
+    /// 1. Write the profile and the device settings now, each if it has a
+    ///    change that is not in the file.
     /// 2. If a device is connected, send the stop sequence (`DC`, then
     ///    `HAN`): the displays become dark, and the knob lights go off.
     /// 3. Close the device.
@@ -1345,10 +1494,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// time, when the engine stops. [`crate::runtime`] calls it at
     /// [`Command::Stop`] and when each sender of commands is gone.
     pub fn finish(&mut self) {
+        let now = self.now();
         if self.changed_at.is_some() {
-            let now = self.now();
             self.save(now);
         }
+        self.save_settings(now);
         match self.link.stop() {
             Ok(true) => log("stop: sent DC and HAN, the device is dark"),
             Ok(false) => log("stop: no device is connected, sent nothing"),

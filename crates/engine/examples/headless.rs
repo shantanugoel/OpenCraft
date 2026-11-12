@@ -19,15 +19,57 @@
 //! color bar-panel-1
 //! image key-face-1 /path/to/file.png
 //! image key-face-1
+//! brightness 40
+//! haptic off
+//! knobs colors
+//! knob-brightness 50
+//! knob-colors #FF0000 #00FF00 #0000FF #FFFFFF
 //! quit
 //! ```
+//!
+//! The device setting commands change one setting, and send all settings to
+//! the engine. `knobs` takes `effect`, `colors`, or `off`.
 
 use opencraft_engine::profile::parse_surface_key;
-use opencraft_engine::{spawn, Command, Config, Event};
+use opencraft_engine::{spawn, Color, Command, Config, DeviceSettings, Event, KnobLightMode};
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::mpsc::RecvTimeoutError;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+/// Change one device setting in `settings`, from the words `name` and
+/// `value`. `None` if the line is not a setting command.
+fn change_setting(settings: &mut DeviceSettings, name: &str, value: &str) -> Option<()> {
+    let number = || value.parse::<u8>().ok();
+    match name {
+        "brightness" => settings.brightness = number()?,
+        "haptic" => {
+            settings.haptic = match value {
+                "on" => true,
+                "off" => false,
+                _ => return None,
+            }
+        }
+        "knobs" => {
+            settings.knob_lights.mode = match value {
+                "effect" => KnobLightMode::Effect,
+                "colors" => KnobLightMode::Colors,
+                "off" => KnobLightMode::Off,
+                _ => return None,
+            }
+        }
+        "knob-brightness" => settings.knob_lights.brightness = number()?,
+        "knob-colors" => {
+            settings.knob_lights.colors = value
+                .split_whitespace()
+                .map(|c| c.parse::<Color>().ok())
+                .collect::<Option<Vec<_>>>()?
+        }
+        _ => return None,
+    }
+    Some(())
+}
 
 fn main() {
     let Some(profiles_dir) = std::env::args().nth(1).map(PathBuf::from) else {
@@ -35,6 +77,9 @@ fn main() {
         std::process::exit(2);
     };
     let start = Instant::now();
+    // The last device settings of the engine. A setting command changes them.
+    let settings: Arc<Mutex<Option<DeviceSettings>>> = Arc::default();
+    let latest = Arc::clone(&settings);
     let sink = move |event: Event| {
         let at = start.elapsed().as_secs_f64();
         match event {
@@ -58,6 +103,10 @@ fn main() {
             Event::Status { kind, status } => println!("[{at:8.3}] status: {kind}: {status:?}"),
             Event::Counters(counters) => println!("[{at:8.3}] counters: {counters:?}"),
             Event::Problem(text) => println!("[{at:8.3}] problem: {text}"),
+            Event::DeviceSettings(settings) => {
+                println!("[{at:8.3}] device settings: {settings:?}");
+                *latest.lock().unwrap() = Some(settings);
+            }
         }
     };
     let engine =
@@ -82,6 +131,17 @@ fn main() {
             let (name, surface, value) = (parts.next().unwrap_or(""), parts.next(), parts.next());
             if name == "quit" {
                 break;
+            }
+            let rest = line.trim().split_once(' ').map_or("", |(_, rest)| rest);
+            let current = settings.lock().unwrap().clone();
+            if let Some(mut current) = current {
+                if change_setting(&mut current, name, rest).is_some() {
+                    // The next line changes these settings, also before
+                    // the event of the engine comes.
+                    *settings.lock().unwrap() = Some(current.clone());
+                    engine.send(Command::SetDeviceSettings(current));
+                    continue;
+                }
             }
             let Some(surface) = surface.and_then(parse_surface_key) else {
                 eprintln!("not a command: {line}");

@@ -485,6 +485,11 @@ fn full_layout() -> Event {
         display_height: 480,
         surfaces,
         controls,
+        settings: opencraft_engine::SettingsSupport {
+            lowest_brightness: 15,
+            knob_lights: 4,
+            haptic: true,
+        },
     }))
 }
 

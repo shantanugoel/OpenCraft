@@ -23,6 +23,7 @@ use opencraft_engine::{
 use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Instant};
 
 mod actions;
+mod device;
 mod hotkey;
 mod pages;
 
@@ -85,6 +86,7 @@ pub struct DeviceView {
     highlight_tasks: BTreeMap<ControlId, Task<()>>,
     form: actions::ActionForm,
     lists: pages::Lists,
+    device: device::DevicePanel,
 }
 
 impl DeviceView {
@@ -129,6 +131,7 @@ impl DeviceView {
             highlight_tasks: BTreeMap::new(),
             form: actions::ActionForm::default(),
             lists: pages::Lists::new(window, cx),
+            device: device::DevicePanel::new(),
         }
     }
 
@@ -169,6 +172,7 @@ impl DeviceView {
         if matches!(event, Event::Disconnected) {
             self.highlight_tasks.clear();
         }
+        let settings = matches!(event, Event::Layout(_) | Event::DeviceSettings(_));
         if let Some((control, deadline)) = self.state.apply(event, Instant::now()) {
             let task = cx.spawn_in(window, async move |view, cx| {
                 cx.background_executor().timer(HIGHLIGHT_TIME).await;
@@ -181,6 +185,9 @@ impl DeviceView {
         }
         if !self.label_loaded {
             self.load_label(window, cx);
+        }
+        if settings {
+            self.sync_device_panel(window, cx);
         }
         self.sync_form(window, cx);
         cx.notify();
@@ -210,6 +217,9 @@ impl DeviceView {
     }
 
     fn select(&mut self, id: SurfaceId, window: &mut Window, cx: &mut Context<Self>) {
+        if std::mem::take(&mut self.device.open) {
+            cx.notify();
+        }
         if self.state.select(id) {
             self.close_kinds();
             self.load_label(window, cx);
@@ -503,6 +513,9 @@ impl DeviceView {
     }
 
     fn select_control(&mut self, id: ControlId, window: &mut Window, cx: &mut Context<Self>) {
+        if std::mem::take(&mut self.device.open) {
+            cx.notify();
+        }
         if self.state.select_control(id) {
             self.close_kinds();
             self.sync_form(window, cx);
@@ -512,6 +525,9 @@ impl DeviceView {
     }
 
     fn editor(&self, cx: &mut Context<Self>) -> AnyElement {
+        if self.device.open {
+            return self.device_editor(cx);
+        }
         let mut editor = div()
             .id("editor")
             .debug_selector(|| "editor".into())
@@ -745,6 +761,15 @@ impl Render for DeviceView {
                             .flex()
                             .items_center()
                             .gap_5()
+                            .child(
+                                small_button("open-device-settings", "Device settings", true)
+                                    .when(self.device.open, |d| {
+                                        d.border_color(rgb(SELECTED)).text_color(rgb(SELECTED))
+                                    })
+                                    .on_click(cx.listener(|view, _, window, cx| {
+                                        view.toggle_device_panel(window, cx)
+                                    })),
+                            )
                             .child(self.profile_control(cx))
                             .child(
                                 div()

@@ -30,21 +30,26 @@ pub fn commit() -> Vec<u8> {
     cmd(b"STP")
 }
 
-/// Screen brightness, 0-100.
+/// Display brightness, 0 to 100 percent. A value below
+/// [`crate::SettingsSupport::lowest_brightness`] gives the same light as that
+/// value (measured), and a value above 100 gives 100.
 pub fn set_brightness(percent: u8) -> Vec<u8> {
     let mut v = cmd(b"LIG");
     v.extend_from_slice(&[0x00, 0x00, percent.min(100)]);
     v
 }
 
-/// Knob LED ring brightness, 0-100.
+/// Knob light brightness, 0 to 100 percent. 0 switches the knob lights off,
+/// also the default effect (measured).
 pub fn set_led_brightness(percent: u8) -> Vec<u8> {
     let mut v = cmd(b"LBLIG");
     v.push(percent.min(100));
     v
 }
 
-/// Per-knob LED colours, one `[r, g, b]` per knob.
+/// Knob light colours: one `[r, g, b]` for each knob light, knob 1 first. A
+/// black knob is off if a different knob has a colour. If all colours are
+/// black, the knob lights show the default effect (measured).
 pub fn set_led_colors(colors: &[[u8; 3]]) -> Vec<u8> {
     let mut v = cmd(b"SETLB");
     for [r, g, b] in colors {
@@ -92,8 +97,11 @@ pub fn set_mode(mode: u8) -> Vec<u8> {
     v
 }
 
-/// Haptic feedback. The SDK has this command for the N4 Pro. The descriptor
-/// does not say which models have haptic feedback.
+/// Haptic feedback: the device configuration command `QUCMD` with the bytes
+/// of `mirajazz`. Byte 3 is `0x11` (on) or `0xFF` (off). The other 5 bytes
+/// are the same each time. See "Device configuration" in
+/// `docs/kb/streamdock-protocol.md`. Send it only to a model with
+/// [`crate::SettingsSupport::haptic`].
 pub fn set_vibration(enabled: bool) -> Vec<u8> {
     let vib = if enabled { 0x11 } else { 0xFF };
     let mut v = cmd(b"QUCMD");

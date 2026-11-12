@@ -168,6 +168,15 @@ green in the area of the key faces and in the area of the touch bar.
 | After the device stops the USB connection and starts again, the brightness is not kept. After `LIG` 10 and a stop, `DIS` with no `LIG` gave a display approximately as bright as with `LIG` 100. | Measured: 2 times, 2026-11-12 |
 | The brightness command wakes the displays after `HAN` | Measured. See "Sleep". |
 
+The engine sent these commands on 2026-11-12, with white on the 10 key faces.
+The camera measured the mean light in the area of the key faces, minus the
+mean light of the dark device.
+
+| Fact | Confidence |
+|---|---|
+| `LIG` 15 gave 87 to 98 in 4 measurements. `LIG` 50 gave 138. `LIG` 100 gave 153 to 154 in 3 measurements. Thus the lowest value of the setting (15) is clearly darker than the highest. | Measured: camera, 2026-11-12 |
+| 86 brightness commands in 0.86 seconds, one each 10 ms from 15 to 100, gave no write error and no disconnection. 1.5 seconds later, the display showed the brightness 100. | Measured: camera, 1 time, 2026-11-12 |
+
 ## Input reports
 
 All rows are measured on 2026-11-11, from 999 recorded reports. The input

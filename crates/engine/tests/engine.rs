@@ -13,8 +13,8 @@ use opencraft_engine::engine::SAVE_DELAY;
 use opencraft_engine::runtime::{self, POLL_INTERVAL};
 use opencraft_engine::store::{PROFILE_FILE, SCHEMA_VERSION};
 use opencraft_engine::{
-    Action, BindingId, BindingState, Color, Command, Counters, Engine, Event, Feedback,
-    GestureKind, Handler, HandlerPort, KindDescription, Message, MessageSender, Profile,
+    Action, BindingId, BindingState, Color, Command, Counters, DeviceSettings, Engine, Event,
+    Feedback, GestureKind, Handler, HandlerPort, KindDescription, Message, MessageSender, Profile,
     ProfileEntry, ProfileStore, ProfilesDir, Request, Settings, Status, SurfaceState, Value,
 };
 use std::cell::{Cell, RefCell};
@@ -28,6 +28,8 @@ use tempfile::TempDir;
 
 #[path = "engine/actions.rs"]
 mod actions;
+#[path = "engine/device_settings.rs"]
+mod device_settings;
 #[path = "engine/pages.rs"]
 mod pages;
 #[path = "engine/profiles.rs"]
@@ -407,15 +409,20 @@ fn assert_color(image: &RgbImage, x: u32, y: u32, want: Color) {
     assert!(near, "pixel {x}, {y} is {got:?}, not {want}");
 }
 
-/// The full draw after a connection: the start sequence, 14 images, and the
-/// commit.
+/// The full draw after a connection: the start sequence, the device
+/// settings, 14 images, and the commit.
 fn assert_full_draw(sent: &[Sent]) {
     assert_eq!(
         &sent[..4],
         [op("DIS"), op("LIG"), op("CLE"), op("STP")],
         "the start sequence"
     );
-    let slots: Vec<u8> = sent[4..sent.len() - 1]
+    assert_eq!(
+        &sent[4..7],
+        [op("SETLB"), op("LBLIG"), op("QUCMD")],
+        "the device settings after the start sequence"
+    );
+    let slots: Vec<u8> = sent[7..sent.len() - 1]
         .iter()
         .map(|s| match s {
             Sent::Image { slot, .. } => *slot,
@@ -452,7 +459,7 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
     // pages come last.
     let states = surfaces(&events);
     assert_eq!(states.len(), 14);
-    assert_eq!(events.len(), 18);
+    assert_eq!(events.len(), 19);
     assert_eq!(events[1], Event::Kinds(Vec::new()));
     assert_eq!(
         events[16],
@@ -470,6 +477,10 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
             names: vec!["Page 1".into()],
             active: 0
         }
+    );
+    assert_eq!(
+        events[18],
+        Event::DeviceSettings(DeviceSettings::defaults(DESCRIPTORS[0].settings))
     );
     for state in states {
         let surface = DESCRIPTORS[0].surface(state.id).unwrap();

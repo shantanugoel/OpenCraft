@@ -719,6 +719,11 @@ static INVENTED: Descriptor = Descriptor {
     surfaces: INVENTED_SURFACES,
     controls: INVENTED_CONTROLS,
     required_mode: None,
+    settings: opencraft_core::SettingsSupport {
+        lowest_brightness: 0,
+        knob_lights: 0,
+        haptic: false,
+    },
 };
 
 fn invented(report: &[u8]) -> Decoded {

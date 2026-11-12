@@ -37,11 +37,12 @@ pub struct Config {
 
 /// The longest time that [`EngineHandle::stop`] waits for the engine thread.
 ///
-/// The engine thread writes the profile, sends 2 reports to the device, and
-/// closes it. That is much less than 1 second. A device write has no time
-/// limit in the transport, so a write that blocks could stop the quit of the
-/// shell with no limit. After this time, the handle does not wait more. The
-/// profile is written before the device writes.
+/// The engine thread writes the profile and the device settings, sends 2
+/// reports to the device, and closes it. That is much less than 1 second. A
+/// device write has no time limit in the transport, so a write that blocks
+/// could stop the quit of the shell with no limit. After this time, the
+/// handle does not wait more. The files are written before the device
+/// writes.
 pub const STOP_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// The connection of a shell to the engine thread. When the handle goes
@@ -63,8 +64,9 @@ impl EngineHandle {
         let _ = self.commands.send(command);
     }
 
-    /// Stop the engine, and wait until the engine thread wrote the profile,
-    /// made the device dark, and ended. See [`Engine::finish`].
+    /// Stop the engine, and wait until the engine thread wrote the profile and
+    /// the device settings, made the device dark, and ended. See
+    /// [`Engine::finish`].
     ///
     /// The call waits for [`STOP_TIMEOUT`] at most. If the engine thread did
     /// not end in that time, the call returns, and the thread continues
@@ -152,8 +154,8 @@ fn start_thread(
 /// The loop of the engine thread: obey commands, then wait
 /// for the device for [`POLL_INTERVAL`]. The loop ends at the stop command,
 /// or when each sender of `commands` is gone. Then the engine stops with
-/// [`Engine::finish`]: it writes the profile if it changed, and makes the
-/// device dark.
+/// [`Engine::finish`]: it writes the profile and the device settings if they
+/// changed, and makes the device dark.
 ///
 /// A panic in the engine thread ends the thread with no stop sequence. A
 /// panic can occur in the middle of an image transfer, and then the device
