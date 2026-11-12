@@ -47,6 +47,9 @@ engine. The operating system removes the lock when the process stops.
 Note (2026-11-12): if the application cannot open or lock the file for a
 different reason, it writes a message and continues with no lock
 (`lock_or_stop` in `crates/app/src/main.rs`).
+Note (2026-11-12): [decision 0028](0028-second-start-opens-the-window.md)
+changes what a second start does. Before it stops, it asks the process that
+runs to open its window.
 
 The reasons:
 
@@ -82,3 +85,6 @@ The reasons:
   process that runs, and macOS starts no second process. (Inference: this
   is the normal behaviour of macOS for an application bundle. Not
   measured.) A second start from a terminal stops with the message.
+  Note (2026-11-12): measured. See
+  [kb/gpui.md](../kb/gpui.md#second-start-2026-11-12) and
+  [decision 0028](0028-second-start-opens-the-window.md).

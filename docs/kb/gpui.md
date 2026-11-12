@@ -173,7 +173,28 @@ result is from 1 try, if the row gives no count.
 | With the accessory policy and the window open behind a window of a different application, "Open OpenCraft" made the application active in 1 of 2 tries. A new window from "Open OpenCraft" made the application active in 2 of 2 tries, 1 with each policy. | Measured | `NSRunningApplication` `isActive`; window order |
 | Each quit request ended the process in less than 1 second: "Quit OpenCraft" with no window and with a window, Cmd-Q, SIGTERM, SIGINT, and SIGHUP. Each time, the application printed that the engine stopped, after `EngineHandle::stop` returned. | Measured | Process state; standard error |
 | Cmd-Q to the active application quit it with the accessory policy. A label change 30 ms before the Cmd-Q, and a label change directly before SIGTERM, were in the profile file after the quit. The save delay of the engine is 500 ms, thus the engine wrote the file at the stop. | Measured | `CGEventPostToPid` key events; profile file |
-| A second start while the application ran printed "OpenCraft is already running." and ended with the exit status 0. | Measured | Terminal output; exit status |
+| A second start while the application ran printed "OpenCraft is already running." and ended with the exit status 0. This was the bare executable, before [decision 0028](../decisions/0028-second-start-opens-the-window.md). See [Second start](#second-start-2026-11-12). | Measured | Terminal output; exit status |
+
+## Second start (2026-11-12)
+
+**Measured.** The application is the release build in the development bundle
+of `scripts/sign-dev.sh` (identifier `opencraft-dev`), with the change of
+[decision 0028](../decisions/0028-second-start-opens-the-window.md). The
+device was connected. A helper program read the window list with
+`CGWindowListCopyWindowInfo`, and closed the window with a click on its close
+button. After each second start, it read the process list each 0.25 s for
+2 s, to find a second process. Each result is from 1 try.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| GPUI answers `applicationShouldHandleReopen:hasVisibleWindows:` with YES. It calls the `on_reopen` closure only when `hasVisibleWindows` is NO. | Source | `gpui-pre-macos` 0.3.12, `src/platform.rs`, `should_handle_reopen` |
+| `open OpenCraft.app` while the bundle ran, with its window closed, started no second process. The window of the process that ran opened. The log file had no line about a signal, thus the reopen event opened the window. | Measured | Process list; window list; log file |
+| `open --env NAME=value` to a bundle that runs prints "was already running and so the additional environment variables could not be set", and starts no second process | Measured | Terminal output |
+| The same occurred with the Dock icon hidden (`show_dock_icon = false`, accessory policy) | Measured | Process list; window list |
+| A click on the Dock icon, with the window closed, opened the window | Measured | AX press on the Dock item; window list |
+| The executable in the bundle, started from a terminal, counts as the running bundle for macOS. A later `open OpenCraft.app` started no second process, and the window opened. | Measured | Process list; window list |
+| A start of the executable from a terminal while OpenCraft ran started a second process. That process stopped at the lock, sent SIGUSR1, and wrote "OpenCraft is already running. It shows its window now.". The first process wrote that it got the signal, and its window opened. This was the same with the bundle and with the debug build. | Measured | Terminal output; log file; window list |
+| A start with `--login` while OpenCraft ran stopped at the lock, sent no signal, and opened no window | Measured | Terminal output; window list |
 
 ## Device settings area (2026-11-12)
 

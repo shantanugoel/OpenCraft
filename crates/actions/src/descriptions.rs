@@ -23,6 +23,9 @@ pub(crate) const DELAY_LIMIT: i64 = 10_000;
 /// The delay of a sequence with no delay in its settings, in milliseconds.
 pub(crate) const DEFAULT_DELAY: i64 = 100;
 
+/// The label of the button that asks for the Accessibility permission.
+pub(crate) const PERMISSION_BUTTON: &str = "Give the permission";
+
 fn field(key: &str, label: &str, input: InputType) -> Field {
     Field {
         key: key.into(),
@@ -157,4 +160,35 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         name: name.into(),
         fields,
     }
+}
+
+/// The text for the user when a handler cannot use the setting `key` of an
+/// action of `kind`. The text gives the name of the kind and the label of the
+/// field, as the editor shows them, and what to do. It never shows the key.
+///
+/// The text comes only from the description of the kind. Thus each handler
+/// uses this function, and a new kind gets a correct text with no more code.
+pub(crate) fn setting_problem(kind: &str, key: &str) -> String {
+    let description = description(kind);
+    let field = description.fields.iter().find(|f| f.key == key);
+    let label = field.map_or("", |f| f.label.as_str());
+    let what = match field.map(|f| &f.input) {
+        None => "correct the settings".to_string(),
+        Some(InputType::Integer { min, max }) => {
+            format!("set the field \"{label}\" to a number from {min} to {max}")
+        }
+        Some(InputType::Choice { .. }) => format!("select a value in the field \"{label}\""),
+        Some(InputType::Toggle) => format!("set the field \"{label}\" to On or Off"),
+        Some(InputType::Hotkey) => format!("record a hotkey in the field \"{label}\""),
+        Some(InputType::Action | InputType::ActionList) => {
+            format!("select the action in the field \"{label}\" again")
+        }
+        Some(_) => format!("type a value in the field \"{label}\""),
+    };
+    let name = if description.name.is_empty() {
+        "This action"
+    } else {
+        description.name.as_str()
+    };
+    format!("{name}: {what}.")
 }

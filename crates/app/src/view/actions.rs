@@ -676,9 +676,11 @@ impl DeviceView {
     ) -> Div {
         let id = prefix(path);
         let kind = action.and_then(|a| self.kind(&a.kind));
+        // A kind with no description, for example from a newer version of
+        // OpenCraft, has no name. Its identifier shows below the button.
         let name = action.map_or_else(
             || "No action".to_string(),
-            |a| kind.map_or_else(|| a.kind.clone(), |k| k.name.clone()),
+            |_| kind.map_or_else(|| "Unknown action".to_string(), |k| k.name.clone()),
         );
         let menu = KindMenu::Replace(path.to_vec());
         let open = self.form.menu.as_ref() == Some(&menu);
@@ -706,9 +708,21 @@ impl DeviceView {
                 div()
                     .id(format!("{id}unavailable"))
                     .debug_selector(move || format!("{id}unavailable"))
+                    .flex()
+                    .flex_col()
+                    .gap_1()
                     .text_sm()
                     .text_color(rgb(MUTED))
-                    .child(format!("{}: This action is not available.", action.kind)),
+                    .child(
+                        "This version of OpenCraft does not have this action. It keeps the \
+                         action in the profile. Select a different action, or use a newer \
+                         version of OpenCraft.",
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .child(format!("Action identifier: {}", action.kind)),
+                    ),
             );
         } else if let Some(kind) = kind {
             for (index, field) in kind.fields.iter().enumerate() {

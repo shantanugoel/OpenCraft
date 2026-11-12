@@ -1,8 +1,9 @@
 //! The OpenCraft shell. Only the engine opens the device and writes the
 //! profiles. The shell writes only its own files: `shell.toml` (decision
-//! 0020), the lock file `opencraft.lock` (decision 0019), the log file when
-//! the process has no terminal (decision 0024), and on macOS the LaunchAgent
-//! file of the start at login (decision 0021).
+//! 0020), the lock file `opencraft.lock` with the process number (decisions
+//! 0019 and 0028), the log file when the process has no terminal (decision
+//! 0024), and on macOS the LaunchAgent file of the start at login (decision
+//! 0021).
 //!
 //! The engine and the shell operate in one process, also when no window is
 //! open (decision 0019). The menu bar item opens the window again and quits
@@ -86,14 +87,27 @@ fn start_engine(profiles_dir: PathBuf) -> (EngineHandle, async_channel::Receiver
     (engine, receiver)
 }
 
-/// Stop if a different OpenCraft process runs (decision 0019). The caller
-/// keeps the result until the process stops.
+/// Stop if a different OpenCraft process runs (decisions 0019 and 0028).
+/// Before the stop, ask that process to open its window, except for a start
+/// at login. The caller keeps the result until the process stops.
 #[cfg(unix)]
-fn lock_or_stop(config_dir: &Path) -> Option<std::fs::File> {
+fn lock_or_stop(config_dir: &Path, login: bool) -> Option<std::fs::File> {
     match lock::acquire(config_dir) {
         Ok(Some(file)) => Some(file),
         Ok(None) => {
-            eprintln!("OpenCraft is already running.");
+            let holder = lock::holder(config_dir).filter(|_| !login);
+            // SAFETY: `kill` only sends a signal. The process is OpenCraft,
+            // which has a handler for this signal.
+            let asked =
+                holder.is_some_and(|pid| unsafe { libc::kill(pid, signals::OPEN_SIGNAL) } == 0);
+            if asked {
+                eprintln!("OpenCraft is already running. It shows its window now.");
+            } else {
+                eprintln!(
+                    "OpenCraft is already running. To open its window, click the OpenCraft \
+                     item in the menu bar, and then Open OpenCraft."
+                );
+            }
             std::process::exit(0);
         }
         Err(error) => {
@@ -136,8 +150,18 @@ fn main() {
     }
     let profiles_dir = profiles_dir();
     let config_dir = settings::config_dir(&profiles_dir);
+    let login = login_start(std::env::args_os().skip(1));
+    // All quit requests go to one path: the commands of the shell. The
+    // signal handlers come before the lock: the lock file then gets the
+    // number of this process, and a second start can send the signal that
+    // opens the window at once.
+    let (commands, command_receiver) = async_channel::unbounded();
     #[cfg(unix)]
-    let _lock = lock_or_stop(&config_dir);
+    if let Err(error) = signals::forward(commands.clone()) {
+        eprintln!("OpenCraft cannot set the signal handlers: {error}");
+    }
+    #[cfg(unix)]
+    let _lock = lock_or_stop(&config_dir, login);
     // After the lock, so that only one process writes and renames the log
     // file. A start through launchd or the Finder has no terminal, and the
     // messages then go to the log file.
@@ -148,13 +172,6 @@ fn main() {
         }
         log_file::write_start_line();
     }
-    // All quit requests go to one path: the commands of the shell.
-    let (commands, command_receiver) = async_channel::unbounded();
-    #[cfg(unix)]
-    if let Err(error) = signals::forward(commands.clone()) {
-        eprintln!("OpenCraft cannot set the signal handlers: {error}");
-    }
-    let login = login_start(std::env::args_os().skip(1));
     // Only macOS has a menu bar item that opens the window later.
     #[cfg(target_os = "macos")]
     let open_window = !login;
