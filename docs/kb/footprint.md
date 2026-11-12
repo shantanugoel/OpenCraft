@@ -345,15 +345,214 @@ the first full draw. Each time is from the start of the process.
 | Cold start to a ready device: less than 300 ms | 52 ms for a repeated start; 589 ms for the first start of a new executable file; not measured after a start of the computer | Met for a repeated start only. Issue [#143](https://github.com/shantanugoel/OpenCraft/issues/143). |
 | Lost input events: none | Not measured again in Phase 5. The counts of Phase 3 and Phase 4 used the engine examples `knob_count` and `touch_count`, which have no window. The window does not change the input path of the engine. | Met in Phase 3 and Phase 4, with no window. Not measured with the Phase 5 application. |
 
+## Phase 6
+
+### The release bundle (2026-11-12)
+
+The application is the bundle `OpenCraft.app` of `scripts/release.sh`, from
+the commit `096d30b`: a Developer ID signature, the hardened runtime, and
+the identifier `com.shantanugoel.opencraft`
+([decision 0025](../decisions/0025-release-form.md)). It is not notarized.
+The executable has 22 016 160 bytes. The computer is the same as in
+[Phase 2](#phase-2).
+
+- `open -n <bundle> --env OPENCRAFT_PROFILES_DIR=<directory>` started each
+  process, with `--args --login` for a start with no window. Thus launchd
+  started the process (the parent was process 1), with no terminal, and
+  the messages went to the log file
+  ([decision 0024](../decisions/0024-log-file-with-no-terminal.md)).
+- The profiles directory was a new directory, not a copy of the Phase 4
+  directory. It had 2 profiles. The active profile had 2 pages, content on
+  22 surfaces (labels and colours, and 4 image files: 3 on the first page),
+  and 16 bindings of 9 action kinds. Two bindings had the kind
+  `opencraft.volume`. The directory had no file `device-settings.toml` and
+  no file `shell.toml`, thus the Dock icon showed. The Phase 5 profile had
+  the same numbers of profiles, pages, surfaces, bindings, and volume
+  bindings, but different content.
+- The device was connected. A camera picture 10 seconds after each start of
+  a measurement showed the profile on the device.
+- To compare the signature, a copy of the same bundle got an ad-hoc
+  signature with no hardened runtime (`codesign --force --deep -s -`). The
+  code of the executable stayed the same. `open` started it in the same
+  way.
+- No person used the device or the window during a measurement. The owner
+  used the computer for other work, and a second OpenCraft process, with a
+  different profiles directory, ran at some times. It did not hold the device during a measurement. The script
+  measures only the given process.
+
+### Memory and processor use (2026-11-12)
+
+`scripts/measure-footprint.sh --pid` made one sample each 5 seconds for 300
+seconds, as in [Phase 5](#phase-5). The script got the process ID and not
+the name of the application, because a second copy of `OpenCraft.app` was in
+`/Applications`, and the name finds that copy first. Each measurement
+started 60 seconds after the start of the application. For "Window closed",
+the close button of the window got a click through the Accessibility API 60
+seconds after the start, and the measurement started 30 seconds after that.
+Each column is a new process.
+
+| Measurement | Window open | Window closed | Start with `--login` | Start with `--login`, ad-hoc signature | Confidence |
+|---|---|---|---|---|---|
+| Processes | 1 | 1 | 1 | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 50.5, 50.5, 50.5 MiB | 32.8, 35.0, 35.0 MiB | 24.2, 24.2, 24.2 MiB | 23.9, 24.0, 24.1 MiB | Measured |
+| Resident size, median | 110.8 MiB | 112.3 MiB | 93.5 MiB | 95.1 MiB | Measured |
+| Processor time in 300 seconds | 0.65 s | 0.65 s | 0.69 s | 0.68 s | Measured |
+| Processor use, mean (100 % is one core) | 0.22 % | 0.22 % | 0.23 % | 0.23 % | Measured |
+| Processor use, maximum of a sample | 0.4 % | 0.4 % | 0.4 % | 1.6 % | Measured |
+| Threads at the start and at the end of the measurement | 15, 15 | 14, 15 | 13, 14 | 13, 13 | Measured: `ps -M` |
+
+- With no window, the footprint is 24.2 MiB (25.4 MB) after a start with
+  `--login`, and 35.0 MiB (36.7 MB) after the window closed. With the window
+  open, it is 50.5 MiB (53.0 MB). All are below the target of 80 MB.
+  (Inference from the measured values)
+- The mean processor use is 0.22 to 0.23 % of one core, with and with no
+  window. This is below the target of 0.5 %. (Inference from the measured
+  values)
+- The bundle with the Developer ID signature and the hardened runtime and
+  the copy with the ad-hoc signature gave the same values in the start with
+  `--login`: 0.2 MiB difference in the footprint, and 0.01 s difference in
+  the processor time. Thus the signature and the hardened runtime do not
+  change the footprint or the processor use. (Inference from Measured)
+- Compared with [Phase 5](#phase-5), the footprint is 3.5 MiB more with the
+  window open, 3.6 MiB more after the window closed, and 3.6 MiB more after
+  a start with `--login`. The processor use is 0.05 to 0.10 % of one core
+  more. The A/B test above shows that the signature is not the cause. The
+  code changed between the two builds (commits `836b202` and `096d30b`), the
+  profile is different, and the process starts through launchd. Which of
+  these is the cause is not known. (Inference)
+- In the starts with `--login`, the engine thread used 0.54 s (Developer ID)
+  and 0.47 s (ad-hoc) in the 300 seconds, and the volume handler used
+  0.14 s in each. In Phase 5, they used 0.31 to 0.38 s and 0.10 s. The main
+  thread used 0.00 and 0.02 s. (Measured: `ps -M` at the start and at the
+  end of the measurement. Thread names: Inference, as in Phase 5)
+- After the window closed, the footprint was 35.0 MiB in samples 1 to 34
+  (approximately 3 minutes after the close), and 32.8 MiB from sample 35 to
+  the end. In Phase 5 the maximum was also 1.5 MiB above the minimum.
+  (Measured)
+- One sample of the copy with the ad-hoc signature had 1.6 %: 0.08 s in 5
+  seconds, 265 seconds after the start of the measurement, with no window.
+  `sample` did not run, thus the cause is not known. The other 239 samples
+  with a processor value in the 4 measurements had 0.4 % or less.
+
+### Start time (2026-11-12)
+
+The procedure is different from Phase 5. The bundle must start through
+`open` and not from a terminal, and with no terminal the line of
+`OPENCRAFT_START_TRACE` in the function `main` goes to the null device.
+Thus the times come from the log file:
+
+- The first line of each start gives the time of the system clock and the
+  time from the start of the process to that line ("main began *N* ms").
+  The shell writes this line after the signal handlers, the lock, and the
+  log file, thus a short time after `main` starts. The start of the process
+  is the time of the line minus *N*.
+- The engine lines `connected` (the device is open) and `full draw done`
+  (the last write of the first draw), and, with `OPENCRAFT_START_TRACE` in
+  the environment of `open`, the lines `start-trace device ready` (the
+  event `Connected`) and `start-trace first frame`.
+- The engine lines have a resolution of 1 ms.
+
+A script started the bundle, waited for the last line, stopped the process
+with the signal TERM, and waited 3 seconds. A repeated start is the start of
+a file that started before. A first start is the first start of a new copy
+of the bundle, made with `ditto` from the same bundle, or the first start of
+the bundle file in `target/release-bundle` in this test. Each time is from
+the start of the process.
+
+| Step | First start: 4 starts with the Developer ID signature | Repeated start with a window: 6 starts, minimum, median, maximum | Repeated start with `--login`: 6 starts, minimum, median, maximum | Confidence |
+|---|---|---|---|---|
+| The start line ("main began") | 575, 537, 271, 246 ms | 36, 40, 47 ms | 39, 40, 45 ms | Measured |
+| `connected` in the engine log | 610, 571, 305, 279 ms | 69, 77, 97 ms | 71, 75, 86 ms | Measured |
+| `full draw done` in the engine log | 639, 596, 333, 305 ms | 94, 103, 125 ms | 96, 101, 113 ms | Measured |
+| The device is ready (the event `Connected`) | Not recorded, 596, 333, 305 ms | 94, 103, 125 ms | 96, 101, 114 ms | Measured |
+| The first frame of the window | Not recorded, 1119, 628 ms, no window | 375, 395, 406 ms | No window | Measured |
+
+- The first start in the table: the bundle file in `target/release-bundle`
+  (with a window, with no `OPENCRAFT_START_TRACE`), then new copies 1 and 2
+  (with a window), then new copy 3 (with `--login`).
+- For a repeated start, the device is ready 94 to 125 ms after the start of
+  the process, and the median of the 12 starts is 101 ms. This meets the
+  target of 300 ms. (Measured)
+- The first start of a new file does not meet the target: 305 to 639 ms to
+  the ready device. Most of this time is before the start line: 246 to 575
+  ms. (Measured)
+- From the start line to the ready device, the time was 56 to 78 ms in the
+  12 repeated starts: approximately 35 ms to `connected`, and 25 ms for the
+  first draw. In Phase 5, from `main` to the ready device was 44 to 51 ms.
+  (Measured)
+- From the `open` command to the start of the process, the time was 21 to
+  32 ms in a repeated start, and 47 to 74 ms in a first start. This time is
+  not in the table. A user starts OpenCraft through the Finder, the Dock, or
+  launchd, and that time is also before the start of the process. (Measured)
+- The copy with the ad-hoc signature gave the same times. First start of a
+  new copy: 550 ms to the start line and 619 ms to the ready device. 6
+  repeated starts with a window: 38 to 47 ms to the start line, and 101 to
+  111 ms to the ready device. 6 repeated starts with `--login`: 34 to 42 ms
+  and 96 to 107 ms. Thus the Developer ID signature and the hardened runtime
+  do not change the start time. (Inference from Measured)
+- In Phase 5, a repeated start had 6 to 8 ms before `main`. Now it has 34 to
+  47 ms before the start line. The signature is not the cause (the row
+  above). The process now starts through `open` and launchd, and the start
+  line comes after the lock and the log file. The share of each is not
+  known. (Inference)
+- The first start of a new file is the nearest value to the first start
+  after an installation. A copy from the notarized disk image also has the
+  quarantine attribute, and Gatekeeper checks it at the first start. That
+  start is not measured.
+
+### Lost input events (2026-11-12)
+
+Not measured with the bundle: nobody turned a knob. The counts of
+[Phase 3](#phase-3) and [Phase 4](#phase-4) came from the engine examples
+`knob_count` (commit `757e400`) and `touch_count` (commit `d1d436a`).
+
+- In `crates/engine/src/engine.rs`, the branch for an input report (count
+  the report, decode it, send the event to the shell, and start the bound
+  action) has not changed since commit `aa5cb65` (#88), before the count of
+  Phase 3. The decoder in `crates/core/src/events.rs` has not changed since
+  commit `f58ac34`. (Measured: `git log`)
+- The read of the link (`next_event` in `crates/core/src/link.rs`) changed
+  after the counts: commit `9af8370` added a check of the clock for a wake
+  before each read. The read of a report itself did not change. (Measured:
+  `git log` and the code)
+- The bundle uses the same engine crate as the examples, and the window
+  gets the events from the engine. Thus the input path of the bundle is the
+  path that the counts measured, with the wake check added. (Inference)
+
+### Product targets with the release bundle (2026-11-12)
+
+| Target | Value with the release bundle | Result |
+|---|---|---|
+| Memory in the steady state: less than 80 MB | 25.4 MB after a start with `--login`, 36.7 MB after the window closed, 53.0 MB with the window open | Met |
+| Processor use when idle: less than 0.5 % of one core | 0.22 to 0.23 % mean, with and with no window. No sample of 5 seconds above 0.4 % with the Developer ID bundle; one sample of 1.6 % with the ad-hoc copy. | Met |
+| Cold start to a ready device: less than 300 ms | 101 ms median (94 to 125 ms) for a repeated start; 305 to 639 ms for the first start of a new file; not measured for the first start of the notarized bundle and after a start of the computer | Met for a repeated start only. Not met for the first start of a new file. Issue [#143](https://github.com/shantanugoel/OpenCraft/issues/143) and issue [#151](https://github.com/shantanugoel/OpenCraft/issues/151). |
+| Lost input events: none | Not measured with the bundle. The input path is the path of the Phase 3 and Phase 4 counts. | Met in Phase 3 and Phase 4. Not measured with the bundle. |
+
 ## Not known
 
 - The start time after a start of the computer, when the files of the
   application are not in the memory of the operating system. Issue
   [#143](https://github.com/shantanugoel/OpenCraft/issues/143) measures it.
-  Start 1 of [Phase 2](#phase-2) and of [Phase 5](#phase-5) are the nearest
-  values.
+  Start 1 of [Phase 2](#phase-2) and of [Phase 5](#phase-5), and the first
+  starts of new files in [Phase 6](#start-time-2026-11-12-1), are the
+  nearest values. A restart of the computer is necessary to empty the file
+  cache: `purge` needs `sudo`, and no agent used it.
+- The first start of the notarized bundle from the disk image, with the
+  quarantine attribute: the time of the Gatekeeper check. This needs the
+  notarization, and the notary credentials of the owner
+  ([decision 0025](../decisions/0025-release-form.md)). Issue
+  [#151](https://github.com/shantanugoel/OpenCraft/issues/151).
+- Why a start through `open` has 34 to 47 ms before the start line, and a
+  start from a terminal in Phase 5 had 6 to 8 ms before `main`. The
+  signature is not the cause. See
+  [Start time](#start-time-2026-11-12-1) of Phase 6.
+- Why the release bundle uses 3.5 MiB more memory and 0.05 to 0.10 % of one
+  core more than the build of Phase 5. The signature is not the cause. See
+  [Memory and processor use](#memory-and-processor-use-2026-11-12-2) of
+  Phase 6.
 - The cause of the samples with 1.2 % and 1.6 % of one core: see
-  [Samples with high processor use](#samples-with-high-processor-use-2026-11-12).
+  [Samples with high processor use](#samples-with-high-processor-use-2026-11-12),
+  and the sample with 1.6 % in Phase 6.
 - Why the engine thread uses more processor time than the full application
   of Phase 2 (0.11 s in 300 seconds, hidden). The engine thread of Phase 5
   uses 0.31 to 0.38 s. Phases 2 to 4 did not measure each thread.
