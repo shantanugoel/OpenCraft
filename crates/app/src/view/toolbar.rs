@@ -1,17 +1,17 @@
 //! The toolbar above the canvas and the right panel (decision 0029,
 //! section 5).
 //!
-//! The items, from the leading side: the title block, the button "Device
-//! settings" (until #180), a flexible space, the live state pill, and the
-//! button that hides the right panel. The places of
-//! undo and redo (#186) are after the title block, and the place of the
-//! search field (#192) is after the pill.
+//! The items, from the leading side: the title block, Undo and Redo, the
+//! button "Device settings" (until #180), a flexible space, the live state
+//! pill, and the button that hides the right panel. The place of the search
+//! field (#192) is after the pill.
 
 use super::{
-    controls::{dot, icon_button},
+    controls::{dot, icon_button, toolbar_button},
     pages::page_title,
     *,
 };
+use crate::app_menu::{redo_title, undo_title};
 use gpui_kit::{assets::IconName, FontWeight, MouseButton, MouseDownEvent, MouseMoveEvent};
 
 /// The text below the page name: the profile and the number of pages.
@@ -81,6 +81,8 @@ impl DeviceView {
                 )
             })
             .child(self.title_block(cx))
+            .child(self.history_button(true, cx))
+            .child(self.history_button(false, cx))
             .child(
                 small_button("open-device-settings", "Device settings", true)
                     .when(self.device.open, |d| {
@@ -105,6 +107,32 @@ impl DeviceView {
                 )
                 .on_click(cx.listener(|view, _, window, cx| view.toggle_inspector(window, cx))),
             )
+            .into_any_element()
+    }
+
+    /// The button Undo (`undo`) or Redo (decision 0030). The tooltip names
+    /// the step. With an empty list, the button is disabled.
+    fn history_button(&self, undo: bool, cx: &mut Context<Self>) -> AnyElement {
+        let (id, icon, step) = if undo {
+            ("undo", IconName::Undo2, &self.state.undo)
+        } else {
+            ("redo", IconName::Redo2, &self.state.redo)
+        };
+        let title = if undo {
+            undo_title(step.as_deref())
+        } else {
+            redo_title(step.as_deref())
+        };
+        let enabled = step.is_some();
+        toolbar_button(id, icon, title, enabled)
+            .when(enabled, |d| {
+                d.on_click(cx.listener(move |view, _, window, cx| {
+                    // The edit of a focused text field ends here: the step
+                    // of the field is complete before the undo.
+                    view.focus_workspace(window, cx);
+                    view.history(undo, window, cx);
+                }))
+            })
             .into_any_element()
     }
 

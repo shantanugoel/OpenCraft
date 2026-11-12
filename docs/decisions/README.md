@@ -45,6 +45,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0027](0027-homebrew-cask.md) | Homebrew installs OpenCraft with a cask in a tap of the owner | Accepted |
 | [0028](0028-second-start-opens-the-window.md) | A second start opens the window of the OpenCraft that runs | Accepted |
 | [0029](0029-window-layout.md) | The main window has a sidebar, a canvas, and a right panel, and each new feature has one place in it | Accepted. It is the text specification of the UI overhaul, thus it is longer than the other records. |
+| [0030](0030-undo-and-redo-in-the-engine.md) | The engine keeps the history of undo and redo, as copies of the pages | Accepted |
 
 ## Template
 

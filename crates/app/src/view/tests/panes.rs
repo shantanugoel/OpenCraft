@@ -336,11 +336,9 @@ fn the_panes_are_kept_for_the_next_window_and_the_next_start(cx: &mut TestAppCon
     assert!(!kept.sidebar_visible && !kept.inspector_visible);
     assert_eq!(kept.sidebar_width, 300.);
     assert_eq!(kept.right_panel_tab, RightPanelTab::Library);
-    assert_eq!(
-        cx.update(|cx| cx.get_menus()).unwrap()[1].items.len(),
-        2,
-        "The View menu has two items"
-    );
+    let menus = cx.update(|cx| cx.get_menus()).unwrap();
+    let view_items = menus.iter().find(|m| m.name.as_ref() == "View").unwrap();
+    assert_eq!(view_items.items.len(), 2, "The View menu has two items");
 
     // A new window of the same process.
     cx.update(|cx| {
@@ -377,7 +375,10 @@ fn a_new_start_reads_the_panes_of_shell_toml(cx: &mut TestAppContext) {
     let view = window_view(cx);
     cx.update(|cx| assert_eq!(view.read(cx).panes, panes));
     let menus = cx.update(|cx| cx.get_menus()).unwrap();
-    let titles: Vec<String> = menus[1]
+    let titles: Vec<String> = menus
+        .iter()
+        .find(|m| m.name.as_ref() == "View")
+        .expect("a View menu")
         .items
         .iter()
         .filter_map(|item| match item {

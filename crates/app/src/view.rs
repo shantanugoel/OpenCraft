@@ -18,11 +18,12 @@
 //! | `device`, `pages`, `hotkey` | The device settings, the changes of the pages and the profiles, the hotkey names |
 //! | `form` | The parts of an inspector: the header, a section, the rows of a form |
 //! | `gesture_card` | The gesture card |
+//! | `history` | Undo and redo, and the text edits for the history |
 //! | `controls` | Controls that more than one part uses |
 //! | `theme` | The visual constants |
 
 use crate::{
-    app_menu::{ToggleInspector, ToggleSidebar, WORKSPACE},
+    app_menu::{Redo, ToggleInspector, ToggleSidebar, Undo, WORKSPACE},
     images,
     settings::Panes,
     shell::Shell,
@@ -37,7 +38,7 @@ use gpui_kit::{
     },
     div, img,
     prelude::*,
-    px, AnyElement, ClickEvent, Context, Div, Entity, FocusHandle, PathPromptOptions, Render,
+    px, AnyElement, App, ClickEvent, Context, Div, Entity, FocusHandle, PathPromptOptions, Render,
     RenderImage, ScrollHandle, SharedString, Stateful, Subscription, Task, Window,
 };
 use opencraft_engine::{
@@ -51,6 +52,7 @@ mod controls;
 mod device;
 mod form;
 mod gesture_card;
+mod history;
 mod hotkey;
 mod inspector;
 mod library;
@@ -101,6 +103,9 @@ pub struct DeviceView {
     input: Entity<InputState>,
     /// A label is initialized once per selection, or on its first surface event.
     label_loaded: bool,
+    /// The text field of the open text edit (decision 0030). `None` when no
+    /// text field that edits the profile has the focus.
+    text_edit: Option<gpui_kit::EntityId>,
     _input_subscription: Subscription,
     highlight_tasks: BTreeMap<ControlId, Task<()>>,
     /// The timer that changes "now" to the time of the last input.
@@ -130,6 +135,7 @@ impl DeviceView {
     ) -> Self {
         let input = cx.new(|cx| InputState::new(window, cx).placeholder("Label"));
         let subscription = cx.subscribe_in(&input, window, |view, input, event, _, cx| {
+            view.text_edit_event(input.entity_id(), event, cx);
             if matches!(event, TextEvent::Change) {
                 if let Some(surface) = view.state.selected {
                     let label = input.read(cx).value().to_string();
@@ -161,6 +167,7 @@ impl DeviceView {
             focus,
             input,
             label_loaded: false,
+            text_edit: None,
             _input_subscription: subscription,
             highlight_tasks: BTreeMap::new(),
             input_timer: None,
@@ -240,7 +247,8 @@ impl DeviceView {
 
     /// Give the focus back to the root element, for example after a click
     /// that ends an edit in a text field.
-    fn focus_workspace(&self, window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.end_text_edit(cx);
         window.focus(&self.focus, cx);
     }
 
@@ -331,6 +339,17 @@ impl Render for DeviceView {
                 view.toggle_inspector(window, cx)
             }))
             .map(|root| self.sidebar_actions(root, cx))
+            // With no handler, macOS disables the Edit menu item.
+            .when(self.can_history(true, window, cx), |d| {
+                d.on_action(
+                    cx.listener(|view, _: &Undo, window, cx| view.history(true, window, cx)),
+                )
+            })
+            .when(self.can_history(false, window, cx), |d| {
+                d.on_action(
+                    cx.listener(|view, _: &Redo, window, cx| view.history(false, window, cx)),
+                )
+            })
             .relative()
             .size_full()
             .bg(theme::BG_CANVAS)

@@ -130,6 +130,43 @@ pub(super) fn icon_button(
         .child(Icon::new(icon).size(theme::ICON_PANE))
 }
 
+/// A transparent toolbar button with one icon: 30 × 28, icon 16, for
+/// example Undo (decision 0029, section 5). `label` is the tooltip. A button
+/// that is not enabled shows a dim icon, with no hover and no pointer; the
+/// caller adds no click handler to it. The element ID contains the label:
+/// a tooltip that shows does not change its text, thus a new label must
+/// make a new element.
+pub(super) fn toolbar_button(
+    id: &'static str,
+    icon: IconName,
+    label: impl Into<SharedString>,
+    enabled: bool,
+) -> Stateful<Div> {
+    let label: SharedString = label.into();
+    div()
+        .id(SharedString::from(format!("{id}:{label}")))
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .w(theme::WIDTH_ICON_BUTTON)
+        .h(theme::HEIGHT_CONTROL)
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(theme::RADIUS_CONTROL)
+        .text_color(if enabled {
+            theme::TEXT_SECONDARY
+        } else {
+            theme::TEXT_DISABLED
+        })
+        .when(enabled, |d| {
+            d.cursor_pointer()
+                .hover(|d| d.bg(theme::HOVER_ICON))
+                .active(|d| d.bg(theme::PRESSED))
+        })
+        .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
+        .child(Icon::new(icon).size(theme::ICON_TOOLBAR))
+}
+
 /// A dot of 6 for a state, for example the connection.
 pub(super) fn dot(colour: gpui_kit::Rgba) -> Div {
     div()

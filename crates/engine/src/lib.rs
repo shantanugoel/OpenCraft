@@ -14,6 +14,7 @@
 //! - [`device_settings`]: the device settings of each model, and their file.
 //! - [`layout`]: the layout of the device, as a message for a shell.
 //! - [`engine`]: the engine logic, with the commands and the events.
+//! - [`history`]: the undo and redo history of the active profile.
 //! - [`runtime`]: the engine thread.
 //!
 //! A shell uses only this crate, and not the device layer. Thus the crate
@@ -23,6 +24,7 @@ pub mod action;
 pub mod device_settings;
 pub mod engine;
 pub mod error;
+pub mod history;
 pub mod label;
 pub mod layout;
 pub mod profile;

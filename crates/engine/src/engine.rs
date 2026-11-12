@@ -25,6 +25,11 @@
 //! The steps are in [`Engine::set_device_settings`]. The reasons are in
 //! `docs/decisions/0022-device-settings-and-stop-state.md`.
 //!
+//! The engine keeps the undo and redo history of the active profile. Each
+//! command that changes the pages is one step: see `step_of` and
+//! [`Engine::undo`]. The reasons are in
+//! `docs/decisions/0030-undo-and-redo-in-the-engine.md`.
+//!
 //! The logic has no thread of its own. A caller calls [`Engine::command`]
 //! and [`Engine::poll`] in a loop: see [`crate::runtime`]. A test calls them
 //! directly, with a fake transport and a fake clock (rule 7). The reasons
@@ -35,6 +40,7 @@ use crate::action::{
     KindDescription, Message, Request, Status,
 };
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
+use crate::history::{History, Target};
 use crate::layout::DeviceLayout;
 use crate::profile::{Color, Page, Profile, SurfaceContent, DEFAULT_PROFILE_NAME};
 use crate::profiles::{ProfileEntry, ProfilesDir};
@@ -160,6 +166,26 @@ pub enum Command {
     /// active profile, the profile after it in the list becomes the active
     /// profile. If it was the last profile, the profile before it does.
     RemoveProfile { profile: String },
+    /// Undo the last step of the history: put the pages back as they were
+    /// before it, and make the page that was active before it the active
+    /// page. See [`Engine::undo`]. With an empty undo list, nothing occurs.
+    Undo,
+    /// Do the last undone step again. With an empty redo list, nothing
+    /// occurs.
+    Redo,
+    /// A text field of the shell got the focus. Until
+    /// [`Command::EndTextEdit`], the changes of one target, for example the
+    /// label of one surface, are one step of the history.
+    StartTextEdit,
+    /// The text field lost the focus, or the user pressed Return.
+    EndTextEdit,
+    /// Obey `commands` in their order as one step of the history, with the
+    /// name `name`, for example "Drop Action". If no command changes the
+    /// pages, the history does not change.
+    Group {
+        name: String,
+        commands: Vec<Command>,
+    },
     /// Set the device settings of the model of the device. The command has
     /// all settings. The engine puts each value into its range, and then
     /// does the steps of [`Engine::set_device_settings`].
@@ -172,6 +198,58 @@ pub enum Command {
     /// changed, make the device dark with the stop sequence, and close the
     /// device. See [`Engine::finish`].
     Stop,
+}
+
+/// The name of the step of the history that `command` makes, and the
+/// target that a later change in the same text edit can join (decision
+/// 0030). `active` is the number of the active page. `None`: the command
+/// changes no page, and makes no step.
+///
+/// Each command has one line here. A new command that changes the pages
+/// gets its name here, and then the history covers it with no more work.
+/// The match has no wildcard, thus the compiler asks for the line.
+fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)> {
+    let step = |name: &str, target| Some((name.to_string(), target));
+    match command {
+        Command::SetLabel { surface, .. } => step(
+            "Set Title",
+            Some(Target::Label {
+                page: active,
+                surface: *surface,
+            }),
+        ),
+        Command::SetColor { .. } => step("Set Fill", None),
+        Command::SetImage { path: Some(_), .. } => step("Set Image", None),
+        Command::SetImage { path: None, .. } => step("Remove the Image", None),
+        Command::SetBinding {
+            binding,
+            action: Some(_),
+        } => step("Set Action", Some(Target::Binding(*binding))),
+        Command::SetBinding { action: None, .. } => step("Remove the Action", None),
+        Command::AddPage { copy_of: None } => step("Add Page", None),
+        Command::AddPage { copy_of: Some(_) } => step("Duplicate Page", None),
+        Command::RenamePage { page, .. } => {
+            step("Rename Page", Some(Target::PageName { page: *page }))
+        }
+        Command::MovePage { .. } => step("Move Page", None),
+        Command::RemovePage { .. } => step("Remove Page", None),
+        Command::Group { name, .. } => step(name, None),
+        // These commands change no page. A change of the active profile
+        // empties the history.
+        Command::SelectPage { .. }
+        | Command::SelectProfile { .. }
+        | Command::AddProfile { .. }
+        | Command::RenameProfile { .. }
+        | Command::RemoveProfile { .. }
+        | Command::SetDeviceSettings(_)
+        | Command::Undo
+        | Command::Redo
+        | Command::StartTextEdit
+        | Command::EndTextEdit
+        | Command::Resolve { .. }
+        | Command::ReadCounters
+        | Command::Stop => None,
+    }
 }
 
 /// The state of one surface: its content in the profile, and the image that
@@ -250,6 +328,16 @@ pub enum Event {
     /// a change of the binding. An unavailable kind stays. A state with no
     /// action tells that the binding is gone.
     Binding(BindingState),
+    /// The names of the steps of the history: the step that an undo
+    /// undoes, and the step that a redo does again, for example "Set Title".
+    /// `None` is an empty list. The engine sends this event after each
+    /// change of the history. At the start, and after a change of the
+    /// active profile, which empties the history, it comes after the
+    /// bindings. See `docs/decisions/0030-undo-and-redo-in-the-engine.md`.
+    History {
+        undo: Option<String>,
+        redo: Option<String>,
+    },
     /// The latest status that a handler sends for a kind.
     Status { kind: String, status: Status },
     /// The response to `Command::ReadCounters`.
@@ -326,6 +414,8 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// True after a failed write of the settings, until a write is
     /// successful.
     settings_save_failed: bool,
+    /// The undo and redo history of the active profile (decision 0030).
+    history: History,
     ports: Vec<HandlerPort>,
     feedback: BTreeMap<BindingId, (u64, Feedback)>,
     feedback_order: u64,
@@ -378,6 +468,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             settings_can_save: true,
             settings_changed_at: None,
             settings_save_failed: false,
+            history: History::default(),
             ports,
             feedback: BTreeMap::new(),
             feedback_order: 0,
@@ -389,6 +480,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         engine.show_model();
         engine.send_profiles();
         engine.send_pages();
+        engine.send_history();
         engine.appear();
         engine.send_settings();
         engine
@@ -582,13 +674,14 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// [`Self::select_page`]. `change` changes the pages, for example it adds
     /// a page, after step 1. Thus a handler never holds a binding with an old
     /// page number.
-    fn change_page<R>(&mut self, change: impl FnOnce(&mut Profile) -> R, page: usize) {
+    fn change_page<R>(&mut self, change: impl FnOnce(&mut Profile) -> R, page: usize) -> R {
         self.disappear();
-        change(&mut self.profile);
+        let result = change(&mut self.profile);
         self.active = page;
         self.redraw();
         self.send_pages();
         self.appear();
+        result
     }
 
     /// Make the image of each surface for the active page, and write to the
@@ -957,6 +1050,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.can_save = can_save;
         self.changed_at = None;
         self.save_failed = false;
+        // The steps are for the pages of the old profile.
+        self.history.clear();
         self.update_entry();
     }
 
@@ -1059,6 +1154,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.redraw();
         self.send_profiles();
         self.send_pages();
+        self.send_history();
         self.appear();
         if let Err(e) = self
             .profiles
@@ -1249,8 +1345,83 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }));
     }
 
-    /// Obey one command. Return false if the engine must stop.
+    /// Obey one command. Return false if the engine must stop. A command
+    /// that changes the pages is one step of the history: see `step_of`.
     pub fn command(&mut self, command: Command) -> bool {
+        match step_of(&command, self.active) {
+            Some((name, target)) => self.step(name, target, command),
+            None => self.obey(command),
+        }
+    }
+
+    /// Obey `command` as one step of the history with the name `name`
+    /// (decision 0030). In a text edit, a change of the same `target` as
+    /// the last step joins that step. Else the engine keeps a copy of the
+    /// pages before the command, and makes a step if the pages changed.
+    fn step(&mut self, name: String, target: Option<Target>, command: Command) -> bool {
+        if self.history.joins(target) {
+            let names = self.history.names();
+            let go_on = self.obey(command);
+            self.history.joined(self.profile.pages(), self.active);
+            if self.history.names() != names {
+                self.send_history();
+            }
+            return go_on;
+        }
+        let before = self.profile.pages().to_vec();
+        let undo_page = self.active;
+        let go_on = self.obey(command);
+        if self.profile.pages() != before.as_slice() {
+            self.history
+                .push(name, target, before, undo_page, self.active);
+            self.send_history();
+        }
+        go_on
+    }
+
+    /// Send the names of the steps of the history. See [`Event::History`].
+    fn send_history(&mut self) {
+        let (undo, redo) = self.history.names();
+        (self.sink)(Event::History { undo, redo });
+    }
+
+    /// Undo the last step of the history. This is [`Command::Undo`]. The
+    /// engine puts back the pages from before the step, and makes the page
+    /// that was active before the step the active page. It does this with
+    /// the steps of a page change of [`Self::select_page`], thus the device
+    /// and the shell show the result. The file is written after
+    /// [`SAVE_DELAY`], as after each change.
+    pub fn undo(&mut self) {
+        let mut history = std::mem::take(&mut self.history);
+        let done = history.undo(|pages, page| self.swap_pages(pages, page));
+        self.history = history;
+        if done {
+            self.send_history();
+        }
+    }
+
+    /// Do the last undone step again. This is [`Command::Redo`]. The steps
+    /// are those of [`Self::undo`], with the page that was active after
+    /// the step.
+    pub fn redo(&mut self) {
+        let mut history = std::mem::take(&mut self.history);
+        let done = history.redo(|pages, page| self.swap_pages(pages, page));
+        self.history = history;
+        if done {
+            self.send_history();
+        }
+    }
+
+    /// Put `pages` in place of the pages of the profile, with `page` as the
+    /// active page, and return the pages that were there.
+    fn swap_pages(&mut self, pages: Vec<Page>, page: usize) -> Vec<Page> {
+        self.changed_at = Some(self.now());
+        self.change_page(|profile| profile.replace_pages(pages), page)
+    }
+
+    /// Obey one command with no step of the history. Return false if the
+    /// engine must stop.
+    fn obey(&mut self, command: Command) -> bool {
         match command {
             Command::SetLabel { surface, label } => self.change(surface, |c| c.label = label),
             Command::SetColor { surface, color } => self.change(surface, |c| c.color = color),
@@ -1277,6 +1448,26 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Command::AddProfile { name, copy_of } => self.add_profile(name, copy_of),
             Command::RenameProfile { profile, name } => self.rename_profile(profile, name),
             Command::RemoveProfile { profile } => self.remove_profile(profile),
+            Command::Undo => self.undo(),
+            Command::Redo => self.redo(),
+            Command::StartTextEdit => self.history.start_text_edit(),
+            Command::EndTextEdit => self.history.end_text_edit(),
+            Command::Group { commands, .. } => {
+                let mut go_on = true;
+                // A command for the history has no meaning in a step.
+                for command in commands.into_iter().filter(|c| {
+                    !matches!(
+                        c,
+                        Command::Undo
+                            | Command::Redo
+                            | Command::StartTextEdit
+                            | Command::EndTextEdit
+                    )
+                }) {
+                    go_on &= self.obey(command);
+                }
+                return go_on;
+            }
             Command::SetDeviceSettings(settings) => self.set_device_settings(settings),
             Command::Resolve { kind } => {
                 self.request(&kind, Request::Resolve { kind: kind.clone() });
@@ -1401,6 +1592,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if new_model {
             self.send_profiles();
             self.send_pages();
+            self.send_history();
             self.appear();
             self.send_settings();
         }

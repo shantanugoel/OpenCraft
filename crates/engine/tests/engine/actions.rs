@@ -235,8 +235,14 @@ fn an_unavailable_kind_stays_in_the_file_and_reports_its_state() {
         available: false,
     });
     assert_eq!(
-        rig.take_events().as_slice(),
-        std::slice::from_ref(&expected)
+        rig.take_events(),
+        [
+            expected.clone(),
+            Event::History {
+                undo: Some("Set Action".into()),
+                redo: None
+            }
+        ]
     );
     rig.engine.finish();
     let mut rig = rig.restart();

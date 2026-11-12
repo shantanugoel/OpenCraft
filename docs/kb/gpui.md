@@ -537,6 +537,26 @@ key faces, the bar panels, and the knobs, and the colours of the knob lights.
 | `group(name)` on a control and `group_hover(name, ..)` on an outline element outside the bounds of the control show the outline while the pointer is on the control. | Measured | Real window picture |
 | An outline outside a control is an absolute child with negative `left` and `top`. The parent has no border: the drawing puts each border on a separate layer of `size_full`, so that the positions of the children start at the edge of the parent. | Measured | `crates/app/src/view/canvas.rs`, `outline` |
 
+## Undo and redo in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with undo
+and redo of
+[issue 186](https://github.com/shantanugoel/OpenCraft/issues/186), on the
+computer of [Release measurements](#release-measurements), with a copy of a
+real profile and the device connected. A helper program operated the real
+window with Quartz events, read and clicked the Edit menu through System
+Events, and took pictures of the window only. The pictures are kept outside
+the repository. The design is in
+[decision 0030](../decisions/0030-undo-and-redo-in-the-engine.md).
+
+| Fact | Confidence | Source |
+|---|---|---|
+| macOS asks the application if a menu item is enabled (`validateMenuItem:`). GPUI answers with `App::is_action_available`: true only if an element in the focused path has a handler for the action. A view that adds the handler only when its list has a step makes a disabled Edit menu item. | Source; Measured (AX `enabled` false with an empty list, true with a step) | `gpui-pre-macos` 0.3.12 `src/platform.rs`, `validate_menu_item`; `gpui-pre` 0.3.12 `src/platform/app_menu.rs`, `init_app_menus`; `crates/app/src/view.rs` |
+| macOS adds the items "AutoFill", "Start Dictation…", and "Emoji & Symbols" at the end of a menu with the name "Edit". The application does not make them. | Measured | AX menu item names |
+| `InputState` sends `InputEvent::Focus` and `InputEvent::Blur` in the real window. With them, the letters of one edit of a field were one step of the history. | Measured | Profile file after each step; `crates/app/src/view/history.rs` |
+| A click on the Edit menu item "Undo" while a text field had the focus undid the typing of the field, and not a step of the profile. This agrees with the window layout test. | Measured | Profile file; window picture |
+| A GPUI tooltip that shows does not change its text when the element gives a new text. After a click on Undo, the tooltip still showed the name of the old step. An element ID that contains the text removes the old tooltip. | Measured | Window pictures; `crates/app/src/view/controls.rs`, `toolbar_button` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

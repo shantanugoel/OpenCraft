@@ -100,6 +100,33 @@ OpenCraft saves each change immediately. The window has no "Save" button.
 You can close the window at any time. You can also make changes when no
 device is connected.
 
+## Undo a change
+
+You can undo each change to the pages of the profile, and then do it again.
+
+![The Undo and Redo buttons in the toolbar, with the tooltip "Undo Set Fill"](images/undo.png)
+
+| To do this | Do one of these |
+|---|---|
+| Undo the last change | Click the arrow to the left in the toolbar, after the page name. Or select **Edit > Undo**. Or push Command-Z. |
+| Do the change again | Click the arrow to the right in the toolbar. Or select **Edit > Redo**. Or push Shift-Command-Z. |
+
+- The menu item and the tooltip of the button show the name of the change,
+  for example **Undo Set Title**. If there is no change to undo, the button
+  is dim and does nothing.
+- An undo shows the page of the change. The device shows the result
+  immediately, and OpenCraft saves it.
+- All the text that you type in one field is one change: from the first
+  letter to the Return key, or to a click in a different part of the window.
+- When a text field has the cursor, Command-Z and **Edit > Undo** undo the
+  typing in that field only. The toolbar button undoes the last change of
+  the profile.
+- The undo covers the label, the colour, the image, the actions, and the
+  add, rename, move, duplicate, and removal of a page.
+- The undo does not cover the profiles and the device settings. When you
+  select a different profile, or when you quit OpenCraft, the list of changes
+  becomes empty.
+
 ## If the key does nothing
 
 - Look above the status bar. If a message shows, read it. See
