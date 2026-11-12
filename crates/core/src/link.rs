@@ -134,6 +134,9 @@ pub struct Link<C: Connector, K: Clock = SystemClock> {
     errors: u32,
     /// When the next keep-alive goes to the device.
     keep_alive: KeepAlive,
+    /// True after [`Link::stop`]. The link then sends nothing and does not
+    /// connect again.
+    stopped: bool,
 }
 
 /// The keep-alive policy. All decisions about the keep-alive are here.
@@ -207,7 +210,45 @@ impl<C: Connector, K: Clock> Link<C, K> {
             next_try: None,
             errors: 0,
             keep_alive: KeepAlive::new(),
+            stopped: false,
         }
+    }
+
+    /// Stop the use of the device: send the stop sequence of
+    /// [`Device::stop`] (`DC`, then `HAN`) if a device is connected, and
+    /// close the device.
+    ///
+    /// After this call, the link sends no keep-alive and no other command,
+    /// and it does not connect again. [`Self::next_event`] then waits for its
+    /// time limit and gives [`LinkEvent::Timeout`], and
+    /// [`Self::with_device`] gives [`Error::Disconnected`].
+    ///
+    /// The function writes 2 reports, and it does not retry. If the device is
+    /// gone, the first write fails at once. A write that blocks blocks this
+    /// call: the transport has no time limit for a write. A caller that must
+    /// not wait for a long time puts its own limit around the thread that
+    /// calls this function.
+    ///
+    /// Returns `Ok(true)` if the stop sequence went to the device, `Ok(false)`
+    /// if no device was connected, and the write error if a write failed.
+    /// The device is closed in each case. A second call gives `Ok(false)`.
+    pub fn stop(&mut self) -> Result<bool> {
+        self.stopped = true;
+        self.pending = None;
+        self.keep_alive.stop();
+        let Some(mut device) = self.device.take() else {
+            return Ok(false);
+        };
+        let result = device.stop();
+        // Close the device after the writes. On macOS, `hid_close` is safe
+        // also after a disconnection (kb: hidapi-macos.md).
+        drop(device);
+        result.map(|()| true)
+    }
+
+    /// True after [`Self::stop`].
+    pub fn is_stopped(&self) -> bool {
+        self.stopped
     }
 
     /// Change the keep-alive interval. `None` or zero stops the keep-alive. The
@@ -291,6 +332,11 @@ impl<C: Connector, K: Clock> Link<C, K> {
     /// - An error from the connector: the device is present but did not open.
     ///   The link tries again after [`RETRY_INTERVAL`].
     pub fn next_event(&mut self, timeout: Duration) -> Result<LinkEvent> {
+        if self.stopped {
+            // No busy loop for a caller that continues after the stop.
+            self.clock.sleep(timeout);
+            return Ok(LinkEvent::Timeout);
+        }
         if let Some(event) = self.pending.take() {
             return Ok(event);
         }
@@ -1045,6 +1091,86 @@ mod tests {
             LinkEvent::Disconnected
         );
         assert_eq!(link.next_event(Duration::ZERO).unwrap(), LinkEvent::Timeout);
+    }
+
+    /// The full report of `payload`, as the device gets it.
+    fn report(payload: Vec<u8>) -> Vec<u8> {
+        let mut report = payload;
+        report.resize(1 + DESCRIPTORS[0].packet_size, 0);
+        report
+    }
+
+    #[test]
+    fn stop_sends_dc_then_han_and_then_nothing() {
+        let mut link = connected_link(vec![Some(FakeTransport::new())]);
+        run_until(&mut link, secs(12));
+        assert_eq!(world(&link).keep_alive_times(), vec![secs(10)]);
+
+        assert!(link.stop().unwrap());
+        assert!(!link.is_connected());
+        assert!(link.is_stopped());
+
+        // The keep-alive is due at 20 s. The link sends it no more, and it
+        // does not connect to the device that is present.
+        let got = run_until(&mut link, secs(60));
+        assert!(got.is_empty(), "{got:?}");
+        assert_eq!(link.connector().tries, 1);
+        let writes: Vec<Vec<u8>> = world(&link)
+            .writes
+            .borrow()
+            .iter()
+            .map(|(_, r)| r.clone())
+            .collect();
+        assert_eq!(
+            writes,
+            vec![
+                report(protocol::keep_alive()),
+                report(protocol::disconnected()),
+                report(protocol::sleep()),
+            ]
+        );
+        // The two commands of the stop go out with no pause between them.
+        let times: Vec<Duration> = world(&link).writes.borrow().iter().map(|w| w.0).collect();
+        assert_eq!(times[1], times[2]);
+        assert!(matches!(
+            link.with_device(|d| d.keep_alive()),
+            Err(Error::Disconnected)
+        ));
+        assert!(!link.stop().unwrap(), "a second stop sends nothing");
+        assert_eq!(world(&link).writes.borrow().len(), 3);
+    }
+
+    #[test]
+    fn stop_with_no_device_sends_nothing() {
+        let mut link = link(vec![]);
+        assert_eq!(link.next_event(STEP).unwrap(), LinkEvent::Timeout);
+        assert!(!link.stop().unwrap());
+        assert!(world(&link).writes.borrow().is_empty());
+
+        // The device is gone, and the link did not see it yet.
+        let mut link = connected_link(vec![]);
+        disconnect(&mut link);
+        assert!(matches!(link.stop(), Err(Error::Disconnected)));
+        assert!(!link.is_connected());
+        assert_eq!(world(&link).writes.borrow().len(), 1, "one try of DC");
+        let got = run_until(&mut link, secs(30));
+        assert!(got.is_empty(), "no Disconnected after the stop: {got:?}");
+    }
+
+    #[test]
+    fn stop_does_not_wait_or_retry_when_writes_fail() {
+        let mut link = connected_link(vec![]);
+        link.with_device(|d| {
+            d.transport_mut().fail_writes("broken handle");
+            Ok(())
+        })
+        .unwrap();
+        let before = world(&link).elapsed();
+        assert!(matches!(link.stop(), Err(Error::Transport(_))));
+        assert_eq!(world(&link).elapsed(), before, "no pause");
+        assert_eq!(world(&link).writes.borrow().len(), 1, "no HAN after DC");
+        assert!(link.clock().sleeps.is_empty());
+        assert!(!link.is_connected());
     }
 
     #[test]

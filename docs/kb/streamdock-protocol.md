@@ -54,8 +54,8 @@ correct position. (Measured, and Source)
 The SDK transport library has one more command that starts with `CLE`:
 `CLE`, `0x00 0x00`, `"DC"`. The SDK function is `Transport::disconnected`, and
 the SDK sends it when it closes a device. (Source) This document calls it
-`DC`. Its effect is in "Keep-alive and stop". (Measured) The device layer has
-no builder for it.
+`DC`. Its effect is in "Keep-alive and stop". (Measured) The device layer
+builder is `protocol::disconnected`.
 
 ## Image transfer
 
@@ -359,6 +359,11 @@ images, the knob light commands, and `CONNECT` each 10 seconds.
 
 The state that OpenCraft gives the device at its stop is in
 [decision 0022](../decisions/0022-device-settings-and-stop-state.md).
+`Device::stop` in `crates/core/src/connection.rs` sends `DC` and then `HAN`.
+`Link::stop` in `crates/core/src/link.rs` sends them, closes the device, and
+then sends no keep-alive and no other command. The engine calls it at its
+stop. The probe command `test` sends the same sequence at its end, but not
+with `--keep`.
 
 The device layer sends `CONNECT` each 10 seconds while a device is connected:
 `Link::next_event` in `crates/core/src/link.rs` sends it, and the constant

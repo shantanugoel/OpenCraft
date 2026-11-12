@@ -927,3 +927,128 @@ fn the_loop_stops_when_the_shell_is_gone() {
     runtime::run(&mut rig.engine, &receiver);
     assert!(rig.profile_text().unwrap().contains("#C81E1E"));
 }
+
+// --- The stop --------------------------------------------------------------------
+
+/// The full report of the command `payload`, as the device gets it.
+fn full_report(payload: Vec<u8>) -> Vec<u8> {
+    let mut report = payload;
+    report.resize(1025, 0);
+    report
+}
+
+/// Each write of the fake transport, as full reports. The record is taken.
+fn raw_writes(fake: &Rc<RefCell<FakeTransport>>) -> Vec<Vec<u8>> {
+    fake.borrow_mut().take_writes()
+}
+
+fn stop_sequence() -> Vec<Vec<u8>> {
+    vec![
+        full_report(opencraft_core::protocol::disconnected()),
+        full_report(opencraft_core::protocol::sleep()),
+    ]
+}
+
+#[test]
+fn the_stop_writes_the_profile_then_sends_dc_and_han_and_then_nothing() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    raw_writes(&device);
+    rig.take_events();
+
+    // The profile file must be written before the first write of the stop.
+    let profile_at_write = Rc::new(RefCell::new(Vec::new()));
+    let path = store_in(rig.dir.path()).profile_path();
+    let seen = Rc::clone(&profile_at_write);
+    *rig.world.before_write.borrow_mut() = Some(Box::new(move || {
+        seen.borrow_mut().push(fs::read_to_string(&path).ok());
+    }));
+
+    // The change comes just before the stop: the delay of the write is not
+    // over.
+    let (commands, receiver) = mpsc::channel();
+    commands
+        .send(Command::SetColor {
+            surface: KEY_3,
+            color: Some(RED),
+        })
+        .unwrap();
+    commands.send(Command::Stop).unwrap();
+    runtime::run(&mut rig.engine, &receiver);
+
+    let writes = raw_writes(&device);
+    // The image of the change and its commit, then the stop sequence.
+    assert_eq!(&writes[writes.len() - 2..], stop_sequence().as_slice());
+    let seen = profile_at_write.borrow();
+    let at_dc = seen[seen.len() - 2]
+        .as_deref()
+        .expect("the file exists at DC");
+    assert!(at_dc.contains("#C81E1E"), "the change is in the file at DC");
+    assert!(!rig.engine.link().is_connected());
+
+    // After the stop, nothing goes to the device: no keep-alive, and no new
+    // connection to a device that is present.
+    *rig.world.before_write.borrow_mut() = None;
+    let other = rig.plug();
+    rig.poll_for(Duration::from_secs(60));
+    assert!(
+        raw_writes(&device).is_empty(),
+        "no keep-alive after the stop"
+    );
+    assert!(raw_writes(&other).is_empty(), "no new connection");
+    assert!(!rig.engine.link().is_connected());
+}
+
+#[test]
+fn the_stop_comes_also_when_each_sender_of_commands_is_gone() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    raw_writes(&device);
+    let (commands, receiver) = mpsc::channel::<Command>();
+    drop(commands);
+
+    runtime::run(&mut rig.engine, &receiver);
+    assert_eq!(raw_writes(&device), stop_sequence());
+}
+
+#[test]
+fn the_stop_with_no_device_sends_nothing_and_writes_the_profile() {
+    let mut rig = Rig::new();
+    let device = rig.plug();
+    rig.set_color(KEY_3, RED);
+    rig.engine.finish();
+    assert!(rig.profile_text().unwrap().contains("#C81E1E"));
+    assert!(raw_writes(&device).is_empty());
+
+    // A device that went away, and the engine did not see it yet: one try,
+    // no wait.
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    raw_writes(&device);
+    device.borrow_mut().disconnect();
+    let before = rig.world.now.get();
+    rig.engine.finish();
+    assert_eq!(rig.world.now.get(), before, "the stop does not wait");
+    assert!(!rig.engine.link().is_connected());
+}
+
+#[test]
+fn the_stop_does_not_hang_or_retry_when_the_writes_fail() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    raw_writes(&device);
+    rig.set_color(KEY_3, RED);
+    raw_writes(&device);
+    device.borrow_mut().fail_writes("the write failed");
+
+    let before = rig.world.now.get();
+    rig.engine.finish();
+    assert_eq!(rig.world.now.get(), before, "the stop does not wait");
+    assert!(raw_writes(&device).is_empty());
+    assert!(rig.profile_text().unwrap().contains("#C81E1E"));
+    assert!(!rig.engine.link().is_connected());
+
+    device.borrow_mut().clear_errors();
+    rig.poll_for(Duration::from_secs(30));
+    assert!(raw_writes(&device).is_empty(), "no retry, no keep-alive");
+}
