@@ -9,6 +9,7 @@ Each document has one job. Each fact is in one place only.
 | [CONTRIBUTING.md](CONTRIBUTING.md) | The rules for work on an issue, and how the issues are organized | The process changes |
 | [decisions/](decisions/README.md) | One record for each design decision | You make a decision |
 | [kb/](kb/README.md) | Knowledge base: facts from research and from measurement | You learn a fact |
+| [user/](user/README.md) | The user guide: install, configure, operate, and correct faults | The application changes in a way that a user can see |
 
 ## Where the status is
 
