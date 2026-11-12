@@ -53,6 +53,17 @@ pub const SAVE_DELAY: Duration = Duration::from_millis(500);
 /// settings.
 pub const DEFAULT_BRIGHTNESS: u8 = 80;
 
+/// Write one line about the device to standard error, with the time of the
+/// system clock in seconds since 1970. The engine writes a line only for an
+/// event that is not frequent: a connection, a disconnection, and the stop.
+/// A person can read the result of a test on the device from a log file.
+fn log(text: &str) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    eprintln!("opencraft-engine {:.3} {text}", now.as_secs_f64());
+}
+
 /// A command from a shell to the engine.
 ///
 /// The commands for a surface and for a binding change the active page.
@@ -126,7 +137,9 @@ pub enum Command {
     Resolve { kind: String },
     /// Send the current counters in an event.
     ReadCounters,
-    /// Write the profile if it changed, and stop the engine.
+    /// Stop the engine: write the profile if it changed, make the device
+    /// dark with the stop sequence, and close the device. See
+    /// [`Engine::finish`].
     Stop,
 }
 
@@ -1154,10 +1167,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 }
                 // The event comes after the draw: a shell can use it as "the
                 // device is ready".
+                log("connected");
                 self.draw_all();
                 (self.sink)(Event::Connected);
             }
             Ok(LinkEvent::Disconnected) => {
+                log("disconnected");
                 self.needs_draw = false;
                 (self.sink)(Event::Disconnected);
             }
@@ -1220,6 +1235,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         });
         self.needs_draw = match result {
             Ok(()) => {
+                log(&format!("full draw done: {} surfaces", encoded.len()));
                 self.link_problem = None;
                 false
             }
@@ -1286,12 +1302,26 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
-    /// Write the profile now, if it has a change that is not in the file.
-    /// Call this before the engine stops.
+    /// The stop of the engine, in the order of decision 0022:
+    ///
+    /// 1. Write the profile now, if it has a change that is not in the file.
+    /// 2. If a device is connected, send the stop sequence (`DC`, then
+    ///    `HAN`): the displays become dark, and the knob lights go off.
+    /// 3. Close the device.
+    ///
+    /// After this call, the engine sends nothing to the device: the link does
+    /// not send the keep-alive, and it does not connect again. Call this one
+    /// time, when the engine stops. [`crate::runtime`] calls it at
+    /// [`Command::Stop`] and when each sender of commands is gone.
     pub fn finish(&mut self) {
         if self.changed_at.is_some() {
             let now = self.now();
             self.save(now);
+        }
+        match self.link.stop() {
+            Ok(true) => log("stop: sent DC and HAN, the device is dark"),
+            Ok(false) => log("stop: no device is connected, sent nothing"),
+            Err(e) => log(&format!("stop: the stop sequence failed: {e}")),
         }
     }
 

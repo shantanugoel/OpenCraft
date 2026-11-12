@@ -177,6 +177,20 @@ impl<T: Transport> Device<T> {
     pub fn keep_alive(&mut self) -> Result<()> {
         self.send(protocol::keep_alive())
     }
+
+    /// Send the stop sequence: `DC`, then `HAN`, with no pause between them.
+    /// The displays become dark, the knob lights go off, and the device stays
+    /// on the USB bus with no keep-alive timer (measured). Send nothing to
+    /// the device after this, other than a start sequence of a later program.
+    /// The sequence stops at the first write that fails.
+    ///
+    /// Use [`crate::link::Link::stop`] when a link holds the device: it also
+    /// makes sure that no keep-alive goes out after the sequence. The reasons
+    /// are in `docs/decisions/0022-device-settings-and-stop-state.md`.
+    pub fn stop(&mut self) -> Result<()> {
+        self.send(protocol::disconnected())?;
+        self.send(protocol::sleep())
+    }
 }
 
 /// The length of image data for the 4-byte length field of an image header.
@@ -352,6 +366,28 @@ mod tests {
         assert_report(&writes[0], b"CRT\x00\x00DIS");
         assert_report(&writes[1], b"CRT\x00\x00LIG\x00\x00\x50");
         assert_report(&writes[2], b"CRT\x00\x00CONNECT");
+    }
+
+    #[test]
+    fn stop_sends_dc_then_han_and_nothing_else() {
+        let mut dev = fake_device();
+        dev.stop().unwrap();
+        let writes = dev.into_transport().take_writes();
+        assert_eq!(writes.len(), 2);
+        assert_report(&writes[0], b"CRT\x00\x00CLE\x00\x00DC");
+        assert_report(&writes[1], b"CRT\x00\x00HAN");
+    }
+
+    #[test]
+    fn stop_sends_no_han_after_a_failed_dc() {
+        let transport = FailAt {
+            fake: FakeTransport::new(),
+            at: 0,
+            attempts: 0,
+        };
+        let mut dev = Device::new(transport, &DESCRIPTORS[0]);
+        assert!(matches!(dev.stop(), Err(Error::Transport(_))));
+        assert_eq!(dev.transport().attempts, 1);
     }
 
     /// Image data of `len` bytes with no zero byte, so that the padding is

@@ -69,6 +69,17 @@ pub fn sleep() -> Vec<u8> {
     cmd(b"HAN")
 }
 
+/// "Disconnected" (`DC`): `CLE`, `0x00 0x00`, `"DC"`. The SDK sends it when it
+/// closes a device (`Transport::disconnected`). It stops the keep-alive timer
+/// of the device, so the device does not stop the USB connection (measured).
+/// Alone, it shows the logo. See [`crate::Device::stop`] for the stop
+/// sequence, and "Keep-alive and stop" in `docs/kb/streamdock-protocol.md`.
+pub fn disconnected() -> Vec<u8> {
+    let mut v = cmd(b"CLE");
+    v.extend_from_slice(&[0x00, 0x00, b'D', b'C']);
+    v
+}
+
 /// Heartbeat; devices drop the link without it.
 pub fn keep_alive() -> Vec<u8> {
     cmd(b"CONNECT")
@@ -239,6 +250,17 @@ mod tests {
     #[test]
     fn sleep_bytes() {
         assert_eq!(sleep(), command(b"HAN"));
+    }
+
+    #[test]
+    fn disconnected_bytes() {
+        // `CLE`, `0x00 0x00`, `"DC"`. The same bytes as the SDK
+        // (`Transport::disconnected`) and as `mirajazz` (`shutdown`).
+        assert_eq!(disconnected(), command(b"CLE\x00\x00DC"));
+        assert_eq!(
+            disconnected(),
+            [0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x43, 0x4C, 0x45, 0x00, 0x00, 0x44, 0x43]
+        );
     }
 
     #[test]

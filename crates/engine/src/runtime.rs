@@ -13,7 +13,8 @@ use opencraft_core::device::DESCRIPTORS;
 use opencraft_core::{Clock, Connector, HidConnector, Link};
 use std::io;
 use std::path::PathBuf;
-use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -34,11 +35,25 @@ pub struct Config {
     pub profiles_dir: PathBuf,
 }
 
+/// The longest time that [`EngineHandle::stop`] waits for the engine thread.
+///
+/// The engine thread writes the profile, sends 2 reports to the device, and
+/// closes it. That is much less than 1 second. A device write has no time
+/// limit in the transport, so a write that blocks could stop the quit of the
+/// shell with no limit. After this time, the handle does not wait more. The
+/// profile is written before the device writes.
+pub const STOP_TIMEOUT: Duration = Duration::from_secs(3);
+
 /// The connection of a shell to the engine thread. When the handle goes
-/// away, the engine writes the profile and stops.
+/// away, the engine stops as for [`EngineHandle::stop`].
 pub struct EngineHandle {
     commands: Sender<Command>,
     thread: Option<JoinHandle<()>>,
+    /// The engine thread holds the sender. The receiver sees the end of the
+    /// thread when the sender goes away, also after a panic. The mutex keeps
+    /// the handle `Sync`, so that a shell can share it between threads.
+    ended: Mutex<Receiver<()>>,
+    stop_timeout: Duration,
 }
 
 impl EngineHandle {
@@ -48,16 +63,34 @@ impl EngineHandle {
         let _ = self.commands.send(command);
     }
 
-    /// Stop the engine, and wait until the engine thread wrote the profile
-    /// and ended.
+    /// Stop the engine, and wait until the engine thread wrote the profile,
+    /// made the device dark, and ended. See [`Engine::finish`].
+    ///
+    /// The call waits for [`STOP_TIMEOUT`] at most. If the engine thread did
+    /// not end in that time, the call returns, and the thread continues
+    /// until the process exits.
     pub fn stop(mut self) {
         self.stop_and_join();
     }
 
     fn stop_and_join(&mut self) {
-        if let Some(thread) = self.thread.take() {
-            self.send(Command::Stop);
-            let _ = thread.join();
+        let Some(thread) = self.thread.take() else {
+            return;
+        };
+        self.send(Command::Stop);
+        let ended = match self.ended.get_mut() {
+            Ok(ended) => ended,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        match ended.recv_timeout(self.stop_timeout) {
+            Err(RecvTimeoutError::Timeout) => eprintln!(
+                "opencraft-engine: the engine did not stop in {:.1} s; OpenCraft does not wait more",
+                self.stop_timeout.as_secs_f64()
+            ),
+            // The thread ended, or it is about to end.
+            Ok(()) | Err(RecvTimeoutError::Disconnected) => {
+                let _ = thread.join();
+            }
         }
     }
 }
@@ -81,30 +114,52 @@ pub fn spawn(
     sink: impl FnMut(Event) + Send + 'static,
 ) -> io::Result<EngineHandle> {
     let (ports, messages) = start_handlers(handlers)?;
+    start_thread(STOP_TIMEOUT, move |commands| {
+        let mut engine = Engine::with_handlers(
+            Link::new(HidConnector),
+            ProfilesDir::new(config.profiles_dir),
+            // The layout until a device connects.
+            &DESCRIPTORS[0],
+            ports,
+            sink,
+        );
+        run_with_handlers(&mut engine, commands, &messages);
+    })
+}
+
+/// Start the engine thread with the body `body`, and give the handle.
+fn start_thread(
+    stop_timeout: Duration,
+    body: impl FnOnce(&Receiver<Command>) + Send + 'static,
+) -> io::Result<EngineHandle> {
     let (commands, receiver) = mpsc::channel();
+    let (end, ended) = mpsc::channel::<()>();
     let thread = thread::Builder::new()
         .name("opencraft-engine".to_string())
         .spawn(move || {
-            let mut engine = Engine::with_handlers(
-                Link::new(HidConnector),
-                ProfilesDir::new(config.profiles_dir),
-                // The layout until a device connects.
-                &DESCRIPTORS[0],
-                ports,
-                sink,
-            );
-            run_with_handlers(&mut engine, &receiver, &messages);
+            // Dropped at the end of the thread, also at a panic.
+            let _end = end;
+            body(&receiver);
         })?;
     Ok(EngineHandle {
         commands,
         thread: Some(thread),
+        ended: Mutex::new(ended),
+        stop_timeout,
     })
 }
 
 /// The loop of the engine thread: obey commands, then wait
 /// for the device for [`POLL_INTERVAL`]. The loop ends at the stop command,
-/// or when each sender of `commands` is gone. Then the engine writes the
-/// profile if it changed.
+/// or when each sender of `commands` is gone. Then the engine stops with
+/// [`Engine::finish`]: it writes the profile if it changed, and makes the
+/// device dark.
+///
+/// A panic in the engine thread ends the thread with no stop sequence. A
+/// panic can occur in the middle of an image transfer, and then the device
+/// would read the stop sequence as image data. Thus a panic is the same as a
+/// crash for the device (decision 0022): the images stay, and the device
+/// shows its logo after 20 to 35 seconds.
 pub fn run<C: Connector, S: FnMut(Event), K: Clock>(
     engine: &mut Engine<C, S, K>,
     commands: &Receiver<Command>,
@@ -178,4 +233,53 @@ pub fn run_with_handlers<C: Connector, S: FnMut(Event), K: Clock>(
         engine.poll(POLL_INTERVAL);
     }
     engine.finish();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+
+    #[test]
+    fn stop_waits_for_the_engine_thread() {
+        let (done, finished) = mpsc::channel();
+        let handle = start_thread(Duration::from_secs(10), move |commands| {
+            while !matches!(commands.recv(), Ok(Command::Stop) | Err(_)) {}
+            thread::sleep(Duration::from_millis(50));
+            done.send(()).unwrap();
+        })
+        .unwrap();
+        handle.stop();
+        assert!(finished.try_recv().is_ok(), "stop returned before the end");
+    }
+
+    #[test]
+    fn stop_does_not_wait_longer_than_the_limit_for_a_thread_that_blocks() {
+        // The body does not look at the commands: it is like a device write
+        // that blocks.
+        let handle = start_thread(Duration::from_millis(100), |_| {
+            thread::sleep(Duration::from_secs(5));
+        })
+        .unwrap();
+        let start = Instant::now();
+        handle.stop();
+        assert!(
+            start.elapsed() < Duration::from_secs(2),
+            "{:?}",
+            start.elapsed()
+        );
+    }
+
+    #[test]
+    fn stop_returns_at_once_after_a_panic_in_the_engine_thread() {
+        let handle = start_thread(Duration::from_secs(10), |_| panic!("test panic")).unwrap();
+        thread::sleep(Duration::from_millis(50));
+        let start = Instant::now();
+        drop(handle);
+        assert!(
+            start.elapsed() < Duration::from_secs(2),
+            "{:?}",
+            start.elapsed()
+        );
+    }
 }

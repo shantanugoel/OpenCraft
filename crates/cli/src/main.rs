@@ -106,7 +106,10 @@ OPTIONS:
     --seconds <n>        How long to listen (default: 30 for test, 15 for listen)
     --brightness <0-100> Display brightness for 'test' (default: 80)
     --mode <0-9>         Send a MODE command first (some rebrands need it)
-    --keep               Leave the test pattern on screen when exiting
+    --keep               For 'test': send nothing at the end. The test pattern
+                         stays until the device stops the connection. Without
+                         it, 'test' ends with the stop sequence of OpenCraft
+                         (DC, then HAN): the displays become dark.
     --verbose            Also print the acknowledgements
     --keep-alive <n>     For 'test', 'listen' and 'raw'. Not necessary: the
                          device layer sends the keep-alive each 10 seconds.
@@ -367,15 +370,15 @@ fn cmd_test(rest: &[String]) -> AnyResult {
     )?;
 
     if keep {
+        // The kb measurements of the stop states use this: no command at the
+        // end, as after a kill.
         println!("\nLeaving the test pattern on screen.");
-    } else if link.is_connected() {
-        println!("\nRestoring: clearing all slots.");
-        link.with_device(|d| {
-            d.set_brightness(60)?;
-            d.clear_all()
-        })?;
+    } else if link.stop()? {
+        // The stop of OpenCraft (decision 0022): the device stays dark and
+        // does not show its logo.
+        println!("\nStopping: sent DC and HAN. The displays are dark.");
     } else {
-        println!("\nThe device is not connected. Nothing to restore.");
+        println!("\nThe device is not connected. Nothing to send.");
     }
     Ok(())
 }
