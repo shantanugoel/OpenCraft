@@ -11,8 +11,10 @@ The decision that uses these facts is
 Date: 2026-11-12. The computer and macOS are the same as in
 [gpui.md](gpui.md#release-measurements): Apple silicon, macOS 27.2. The
 computer has no Rosetta. The login keychain has one "Developer ID
-Application" identity. The computer has no notary credentials, thus no
-notarization is measured.
+Application" identity. For the first facts, the computer had no notary
+credentials. Later on the same day, the owner gave an app-specific password,
+and `notarytool store-credentials` put a profile in the login keychain. The
+rows of the notarization that have the label "Measured" are from that run.
 
 ## The bundle and the signature
 
@@ -98,7 +100,11 @@ number.
 | `notarytool log <id>` gives the log of a submission as JSON. | Source | [notarytool] |
 | Apple tells developers to sign each item from the inside to the outside. | Source | [Packaging Mac Software] |
 | A ticket that is stapled to a disk image does not go with the application when the user copies it out. If the application has no stapled ticket, Gatekeeper checks it on the network at the first start. A computer with no network then cannot check it. | Source | [Apple forum: offline]; [Apple forum: staple in dmg] |
-| A stapled ticket changes the file. Thus the checksum of a disk image is correct only after `stapler staple`. | Inference | `stapler` adds the ticket to the file |
+| A stapled ticket changes the file. Thus the checksum of a disk image is correct only after `stapler staple`. | Measured | The SHA-256 of the disk image before and after `scripts/release.sh --notarize-only` |
+| `notarytool store-credentials` with an Apple ID, the team ID of the Developer ID certificate, and an app-specific password checked the credentials and saved the profile. | Measured | `notarytool store-credentials` |
+| The notary service accepted the zip file of the bundle and the disk image of version 0.1.0. The bundle has the hardened runtime and no entitlements. `notarytool history` shows the status "Accepted" for the two submissions. | Measured | `scripts/release.sh --notarize-only`; `notarytool history` |
+| The two submissions, the two `stapler staple` calls, and the new disk image between them took less than 20 minutes in total. The service accepted the zip file of the bundle in less than 9 minutes. | Measured | The time of the run, and `createdDate` in `notarytool history` |
+| After notarization and `stapler staple`, `spctl --assess --type exec` accepts the bundle, and `spctl --assess --type open --context context:primary-signature` accepts the disk image. Both give `source=Notarized Developer ID`. `stapler validate` passes for both. | Measured | `spctl`; `stapler validate` |
 
 ## Where the application runs from
 
