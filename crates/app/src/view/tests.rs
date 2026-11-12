@@ -25,31 +25,45 @@ fn window(
     cx.update(|cx| {
         gpui_kit::init(cx);
         Theme::change(ThemeMode::Dark, None, cx);
+        crate::app_menu::install(cx, &Panes::default());
     });
     let (tx, rx) = async_channel::unbounded();
     let sent: Commands = Default::default();
     let commands = sent.clone();
-    let send: Rc<dyn Fn(Command)> = Rc::new(move |c| commands.borrow_mut().push(c));
+    // The shell writes `shell.toml` here. The command function keeps the
+    // directory until the window and the shell go away.
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().to_path_buf();
+    let send: Rc<dyn Fn(Command)> = Rc::new(move |c| {
+        let _ = &dir;
+        commands.borrow_mut().push(c)
+    });
     let shell_send = send.clone();
     // The events go through the shell entity, as in the application.
     let shell = cx.update(|cx| {
         cx.new(|cx| {
-            let mut shell = Shell::new(
-                std::path::PathBuf::from("not-written"),
-                crate::settings::Settings::default(),
-                shell_send,
-            );
+            let mut shell = Shell::new(config, crate::settings::Settings::default(), shell_send);
             shell.listen(rx, async_channel::unbounded().1, cx);
             shell
         })
     });
     let mut child = None;
     let (_, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| DeviceView::new(&shell, ViewState::default(), send, window, cx));
+        let view = cx.new(|cx| {
+            DeviceView::new(
+                &shell,
+                ViewState::default(),
+                Panes::default(),
+                send,
+                window,
+                cx,
+            )
+        });
         child = Some(view.clone());
         gpui_kit::base::Root::new(view, window, cx)
     });
-    cx.simulate_resize(size(px(1120.), px(760.)));
+    let (width, height) = theme::WINDOW_SIZE;
+    cx.simulate_resize(size(px(width), px(height)));
     tx.try_send(layout()).unwrap();
     tx.try_send(surface(key(), "Mail")).unwrap();
     tx.try_send(surface(bar(), "Sound")).unwrap();
@@ -186,4 +200,5 @@ mod actions;
 mod device;
 mod nested;
 mod pages;
+mod panes;
 mod test_model;

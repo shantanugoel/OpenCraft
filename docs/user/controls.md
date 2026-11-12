@@ -3,7 +3,7 @@
 ## The gestures of each control
 
 You select a control in the device picture. Then you select a gesture below
-**Action** in the editor, and set an action for it. Each gesture can have a
+**Action** in the inspector, and set an action for it. Each gesture can have a
 different action.
 
 | Control | How to select it | Gestures |
@@ -63,17 +63,18 @@ nothing occurs. Touch again.
 A page is one full set of key faces, bar panels, and bindings. The device
 shows one page at a time. A profile has one page or more.
 
-The page row is below the top of the window. The button of the active page
-has a blue frame.
+The page row is at the top of the device picture. The button of the active
+page has a blue frame. At the right end of the row are five buttons for the
+active page. Put the pointer on a button to see its name.
 
 | To do this | Do this |
 |---|---|
 | Show a different page on the device | Click the button of the page |
 | Add an empty page | Click **+ Page**. The new page becomes the active page. |
-| Copy the active page | Click **Duplicate** |
-| Give the active page a name | Click **Rename**, or double-click the page button. Type the name, and push Return or click **Save**. |
-| Move the active page | Click **◀** or **▶** |
-| Remove the active page | Click **Remove**, and then **Remove** again. A profile keeps one page at the minimum. |
+| Copy the active page | Click the button with two squares (**Duplicate the page**) |
+| Give the active page a name | Click the button with the pencil (**Rename the page**), or double-click the page button. Type the name, and push Return or click **Save**. |
+| Move the active page | Click the button with the arrow to the left or to the right |
+| Remove the active page | Click the button with the bin (**Remove the page…**), and then **Remove**. A profile keeps one page at the minimum. |
 
 When you click a page button, the device shows that page also. To change the
 page from the device, set the action "Change the page" on a control. Use the
@@ -89,7 +90,7 @@ A profile is a named set of pages. You can use one profile for each type of
 work, for example one for video calls and one for photos. The device shows
 the active profile.
 
-Click the profile button at the top right, next to "Profile". The menu shows
+Click the profile button in the toolbar, next to "Profile". The menu shows
 all profiles. The active profile has a check mark.
 
 | To do this | Do this in the menu |
@@ -112,12 +113,12 @@ all profiles. The active profile has a check mark.
 The device settings are for the device, not for a profile. A change of the
 profile or of the page does not change them.
 
-1. Click **Device settings** at the top right. The editor shows the device
-   settings. No control has the blue frame.
+1. Click **Device settings** in the toolbar. The **Inspector** tab of the
+   right panel shows the device settings. No control has the blue frame.
 2. Change a setting. To change a brightness, drag its slider. The number
    to the right of the setting name shows the value. The device shows the
    change immediately.
-3. To go back to the editor of a control, click a control in the device
+3. To go back to the settings of a control, click a control in the device
    picture.
 
 ![The device settings](images/device-settings.png)

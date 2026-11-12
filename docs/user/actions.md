@@ -29,7 +29,7 @@ The permission is in
   for an action.
 - OpenCraft does not check a setting when you type it. It checks the
   setting when you operate the control. If OpenCraft cannot use a setting,
-  the window shows a message at the bottom. See
+  the window shows a message above the status bar. See
   [Messages in the window](faults.md#messages-in-the-window).
 
 ## Open an application

@@ -496,7 +496,8 @@ fn full_layout() -> Event {
 #[gpui_kit::test]
 fn the_window_shows_all_controls_at_the_minimum_size(cx: &mut TestAppContext) {
     let (_, cx, tx, _) = window(cx);
-    cx.simulate_resize(size(px(900.), px(640.)));
+    let (width, height) = theme::WINDOW_MIN;
+    cx.simulate_resize(size(px(width), px(height)));
     send(cx, &tx, full_layout());
     send(
         cx,
@@ -506,21 +507,37 @@ fn the_window_shows_all_controls_at_the_minimum_size(cx: &mut TestAppContext) {
     let names: Vec<String> = (1..=8).map(|n| format!("Page {n}")).collect();
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     send(cx, &tx, pages(&names, 0));
-    let inside = |cx: &mut VisualTestContext, id: &'static str| {
+    let within = |cx: &mut VisualTestContext, id: &'static str, area: &'static str| {
         let bounds = cx
             .debug_bounds(id)
             .unwrap_or_else(|| panic!("No element: {id}"));
+        let area = cx.debug_bounds(area).unwrap();
         assert!(
-            bounds.left() >= px(0.)
-                && bounds.top() >= px(0.)
-                && bounds.right() <= px(900.)
-                && bounds.bottom() <= px(640.),
-            "{id} is outside the window: {bounds:?}"
+            bounds.left() >= area.left()
+                && bounds.top() >= area.top()
+                && bounds.right() <= area.right()
+                && bounds.bottom() <= area.bottom(),
+            "{id} is outside {area:?}: {bounds:?}"
         );
         bounds
     };
+    for id in ["sidebar", "toolbar", "canvas", "right-panel", "status-bar"] {
+        let bounds = cx.debug_bounds(id).unwrap();
+        assert!(
+            bounds.right() <= px(width) && bounds.bottom() <= px(height),
+            "{id} is outside the window: {bounds:?}"
+        );
+    }
     for id in [
+        "toolbar-title",
         "profile-menu",
+        "open-device-settings",
+        "connection",
+        "toggle-inspector",
+    ] {
+        within(cx, id, "toolbar");
+    }
+    for id in [
         "page-0",
         "page-rename",
         "page-left",
@@ -529,22 +546,27 @@ fn the_window_shows_all_controls_at_the_minimum_size(cx: &mut TestAppContext) {
         "page-remove",
         "surface-key face 1",
         "control-knob 1",
-        "editor",
     ] {
-        inside(cx, id);
+        within(cx, id, "canvas");
     }
-    let panel = inside(cx, "surface-bar panel 4");
-    let strip = inside(cx, "control-touch bar 1");
-    let knob = inside(cx, "control-knob 4");
+    within(cx, "editor", "right-panel");
+    within(cx, "device-card", "sidebar");
+    let panel = within(cx, "surface-bar panel 4", "canvas");
+    let strip = within(cx, "control-touch bar 1", "canvas");
+    let knob = within(cx, "control-knob 4", "canvas");
     assert!(panel.bottom() <= strip.top() && strip.bottom() <= knob.top());
     // The tabs and the page buttons do not overlap.
-    assert!(inside(cx, "page-remove").left() > cx.debug_bounds("page-tabs").unwrap().right());
+    assert!(
+        cx.debug_bounds("page-remove").unwrap().left()
+            > cx.debug_bounds("page-tabs").unwrap().right()
+    );
     click(cx, "profile-menu");
-    inside(cx, "profiles");
+    let menu = cx.debug_bounds("profiles").unwrap();
+    assert!(menu.left() >= px(0.) && menu.right() <= px(width) && menu.bottom() <= px(height));
     // While the menu is open, a click outside it only closes it.
     click(cx, "control-touch bar 1");
     assert!(cx.debug_bounds("profiles").is_none());
     assert!(cx.debug_bounds("gesture-SwipeRight").is_none());
     click(cx, "control-touch bar 1");
-    inside(cx, "gesture-SwipeRight");
+    within(cx, "gesture-SwipeRight", "right-panel");
 }

@@ -59,29 +59,49 @@ VSD Craft, or in System Settings > General > Login Items.
 
 OpenCraft opens its window. If you have no profile, OpenCraft makes the
 profile "Default" with one empty page. The key faces and the bar panels are
-black. No control is selected. Thus the editor at the right shows only the
+black. No control is selected. Thus the inspector at the right shows only the
 text "Click a key, a knob, a bar panel, or the touch bar in the device
-picture." The knob
-lights on the device show colours that change slowly. This is the default of
-the [device settings](controls.md#device-settings).
+picture." The knob lights on the device show colours that change slowly. This
+is the default of the [device settings](controls.md#device-settings).
 
 ![The OpenCraft window at the first start, with no control selected](images/first-start.png)
 
-The window has these parts:
+The window has three panes: the sidebar at the left, the device picture in
+the middle, and the right panel. The parts:
 
 | Part | Position | What it shows |
 |---|---|---|
-| Device name | Top left | The model of the device, for example "VSD StreamDock N4 Pro" |
-| **Device settings** | Top right | Opens the device settings. See [Device settings](controls.md#device-settings). |
-| **Profile** | Top right | The active profile, and a menu for the profiles |
-| Connection | Top right | "● Connected", or "○ Not connected" |
-| Page row | Below the top | One button for each page, **+ Page**, and the tools for the active page |
+| Sidebar | Left | The model of the device, for example "VSD StreamDock N4 Pro", and "Connected" or "Not connected" |
+| Toolbar | Top, above the device picture and the right panel | The name of the active page, the active profile and its number of pages, the **Profile** menu, **Device settings**, and the connection |
+| Connection | Toolbar, right | "Live on the device", or "Not connected" |
+| Page row | Top of the device picture | One button for each page, **+ Page**, and the buttons for the active page |
 | Device picture | Middle | The 10 key faces, the 4 bar panels, the touch bar, and the 4 knobs. Each key face and bar panel shows the same image as the device. |
-| Editor | Right | The settings of the control that you selected |
-| Input line | Bottom left | The last gesture on the device, for example "key 3: press" |
+| Right panel | Right | Two tabs. **Inspector** shows the settings of the control that you selected. **Library** is empty in this version. |
+| Status bar | Bottom of the device picture | At the left, the last gesture on the device, for example "Key 3 · Press · now". At the right, "All changes saved". |
 
 When you push a key, turn a knob, or touch the touch bar, the device picture
-shows it.
+shows it. The status bar shows "now" for 10 seconds after a gesture, and then
+the time of the gesture. If you do the same gesture again in less than one
+second, it shows the number, for example "Knob 1 · Turn right × 3 · now".
+
+### Show and hide the side panes
+
+You can hide the sidebar and the right panel. The device picture then gets
+more space.
+
+| To do this | Do one of these |
+|---|---|
+| Hide or show the sidebar | Click the button at the top right of the sidebar, or the first button of the toolbar when the sidebar is hidden. Or select **View > Hide Sidebar** (**Show Sidebar**). Or push Control-Command-S. |
+| Hide or show the right panel | Click the button at the right end of the toolbar. Or select **View > Hide Inspector** (**Show Inspector**). Or push Option-Command-I. |
+| Make a side pane wider or narrower | Drag the line between the pane and the device picture |
+
+OpenCraft keeps the panes, their widths, and the tab of the right panel for
+the next start. The sidebar can be 200 to 320 points wide, and the right
+panel 320 to 480 points.
+
+To move the window, drag an empty part of the toolbar or of the top of the
+sidebar. A double-click there does the double-click action of the title bar
+that you set in System Settings.
 
 ### Keys and bar panels: the numbers
 
@@ -94,7 +114,7 @@ shows it.
 ### When no device is connected
 
 The window opens also with no device. The connection shows
-"○ Not connected". Put the pointer on it to see what to do. You can change
+"Not connected". Put the pointer on it to see what to do. You can change
 all settings. OpenCraft
 saves them, and the device shows them when you connect it. OpenCraft looks
 for the device each second. You do not have to start OpenCraft again.
@@ -109,11 +129,12 @@ hotkey", "Type text", and "Media key". These actions send keys to other
 applications. The other action kinds do not need a permission. OpenCraft
 also does not need the Input Monitoring permission.
 
-If OpenCraft does not have the permission, the editor shows this text below
+If OpenCraft does not have the permission, the inspector shows this text below
 each action of these kinds: "OpenCraft needs the Accessibility permission to
 send keys." Then the action does nothing. When you do the action on the
 device, the window shows the message "OpenCraft did not send the keys,
-because it does not have the Accessibility permission." at the bottom.
+because it does not have the Accessibility permission." above the status
+bar.
 
 To give the permission:
 
@@ -126,7 +147,7 @@ To give the permission:
    OpenCraft.
 
 OpenCraft checks the permission each second for 10 minutes after you click
-the button. When it has the permission, the text in the editor goes away. It
+the button. When it has the permission, the text in the inspector goes away. It
 also checks the permission each time that you do one of these actions.
 
 You can also give the permission before the first use: in System Settings >

@@ -5,9 +5,15 @@
 //! engine: when an action on the device changes the page, the tabs follow.
 //! The commands are in decisions 0016 and 0018.
 
-use super::*;
-use gpui_kit::{deferred, KeyDownEvent};
+use super::{controls::square_button, *};
+use gpui_kit::{assets::IconName, deferred, KeyDownEvent};
 use opencraft_engine::ProfileEntry;
+
+/// The width of the field for the name of a page.
+const PAGE_NAME_WIDTH: f32 = 180.;
+/// The width of the profile menu, and the highest height of its list.
+const MENU_WIDTH: f32 = 300.;
+const MENU_LIST_MAX: f32 = 220.;
 
 /// A change of a page that needs more input from the user.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -63,7 +69,7 @@ impl Lists {
 }
 
 /// The name of a page for the user. A page with no name has its number.
-fn page_title(names: &[String], page: usize) -> String {
+pub(super) fn page_title(names: &[String], page: usize) -> String {
     match names.get(page) {
         Some(name) if !name.trim().is_empty() => name.clone(),
         _ => format!("Page {}", page + 1),
@@ -139,13 +145,13 @@ impl DeviceView {
             (self.send)(Command::RenamePage { page, name });
         }
         self.lists.page_edit = None;
-        window.blur(cx);
+        self.focus_workspace(window, cx);
         cx.notify();
     }
 
     fn cancel_page_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.lists.page_edit = None;
-        window.blur(cx);
+        self.focus_workspace(window, cx);
         cx.notify();
     }
 
@@ -203,14 +209,14 @@ impl DeviceView {
                 return;
             }
         }
-        window.blur(cx);
+        self.focus_workspace(window, cx);
         cx.notify();
     }
 
     fn close_profiles(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.lists.profiles_open = false;
         self.lists.profile_edit = None;
-        window.blur(cx);
+        self.focus_workspace(window, cx);
         cx.notify();
     }
 
@@ -229,7 +235,7 @@ impl DeviceView {
             .min_w_0()
             .flex()
             .items_center()
-            .gap_1()
+            .gap(theme::SPACE_4)
             .overflow_x_scroll();
         for page in 0..count {
             if self.lists.page_edit == Some(PageEdit::Rename(page)) {
@@ -238,8 +244,8 @@ impl DeviceView {
                         .id("page-name")
                         .debug_selector(|| "page-name".into())
                         .flex_shrink_0()
-                        .w(px(180.))
-                        .text_color(rgb(TEXT))
+                        .w(px(PAGE_NAME_WIDTH))
+                        .text_color(theme::TEXT_PRIMARY)
                         .capture_key_down(cx.listener(Self::escape_page()))
                         .child(Input::new(&self.lists.page_name)),
                 );
@@ -248,10 +254,10 @@ impl DeviceView {
             let selected = page == active;
             tabs = tabs.child(
                 button(format!("page-{page}"), page_title(names, page))
-                    .max_w(px(200.))
+                    .max_w(theme::PAGE_BUTTON_MAX)
                     .truncate()
                     .when(selected, |d| {
-                        d.border_color(rgb(SELECTED)).bg(rgb(0x2c3442))
+                        d.border_color(theme::ACCENT_LINE).bg(theme::ACCENT_TINT)
                     })
                     .on_click(cx.listener(move |view, event: &ClickEvent, window, cx| {
                         if page != view.state.page {
@@ -264,101 +270,112 @@ impl DeviceView {
         }
         tabs = tabs.child(
             button("page-add", "+ Page")
-                .text_color(rgb(MUTED))
+                .text_color(theme::TEXT_TERTIARY)
                 .on_click(
                     cx.listener(|view, _, _, _| (view.send)(Command::AddPage { copy_of: None })),
                 ),
         );
-        let tools =
-            match self.lists.page_edit {
-                Some(PageEdit::Rename(_)) => div()
+        let tools = match self.lists.page_edit {
+            Some(PageEdit::Rename(_)) => {
+                div()
                     .flex()
-                    .gap_1()
+                    .gap(theme::SPACE_4)
                     .child(button("page-name-save", "Save").on_click(
                         cx.listener(|view, _, window, cx| view.save_page_name(window, cx)),
                     ))
                     .child(button("page-name-cancel", "Cancel").on_click(
                         cx.listener(|view, _, window, cx| view.cancel_page_edit(window, cx)),
+                    ))
+            }
+            Some(PageEdit::Remove(page)) => div()
+                .flex()
+                .items_center()
+                .gap(theme::SPACE_8)
+                .child(div().text_size(theme::TEXT_LABEL).child(format!(
+                    "Remove “{}” and all its content?",
+                    page_title(names, page)
+                )))
+                .child(
+                    danger_button("page-remove-confirm", "Remove").on_click(cx.listener(
+                        move |view, _, _, cx| {
+                            (view.send)(Command::RemovePage { page });
+                            view.lists.page_edit = None;
+                            cx.notify();
+                        },
                     )),
-                Some(PageEdit::Remove(page)) => {
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap_2()
-                        .child(div().text_sm().child(format!(
-                            "Remove “{}” and all its content?",
-                            page_title(names, page)
-                        )))
-                        .child(danger_button("page-remove-confirm", "Remove").on_click(
-                            cx.listener(move |view, _, _, cx| {
-                                (view.send)(Command::RemovePage { page });
-                                view.lists.page_edit = None;
-                                cx.notify();
-                            }),
-                        ))
-                        .child(button("page-remove-cancel", "Cancel").on_click(
-                            cx.listener(|view, _, window, cx| view.cancel_page_edit(window, cx)),
-                        ))
-                }
-                None => div()
+                )
+                .child(button("page-remove-cancel", "Cancel").on_click(
+                    cx.listener(|view, _, window, cx| view.cancel_page_edit(window, cx)),
+                )),
+            None => {
+                let left = active > 0;
+                let right = active + 1 < count;
+                let remove = count > 1;
+                div()
                     .flex()
-                    .gap_1()
-                    .child(button("page-rename", "Rename").on_click(cx.listener(
-                        move |view, _, window, cx| {
-                            view.start_page_edit(PageEdit::Rename(active), window, cx)
-                        },
-                    )))
+                    .gap(theme::SPACE_4)
                     .child(
-                        small_button("page-left", "◀", active > 0)
-                            .py_2()
-                            .tooltip(|window, cx| {
-                                Tooltip::new("Move the page to the left").build(window, cx)
-                            })
-                            .when(active > 0, |d| {
-                                d.on_click(cx.listener(move |view, _, _, _| {
-                                    (view.send)(Command::MovePage {
-                                        page: active,
-                                        to: active - 1,
-                                    })
-                                }))
-                            }),
+                        square_button("page-rename", IconName::Pencil, "Rename the page", true)
+                            .on_click(cx.listener(move |view, _, window, cx| {
+                                view.start_page_edit(PageEdit::Rename(active), window, cx)
+                            })),
                     )
                     .child(
-                        small_button("page-right", "▶", active + 1 < count)
-                            .py_2()
-                            .tooltip(|window, cx| {
-                                Tooltip::new("Move the page to the right").build(window, cx)
-                            })
-                            .when(active + 1 < count, |d| {
-                                d.on_click(cx.listener(move |view, _, _, _| {
-                                    (view.send)(Command::MovePage {
-                                        page: active,
-                                        to: active + 1,
-                                    })
-                                }))
-                            }),
+                        square_button(
+                            "page-left",
+                            IconName::ChevronLeft,
+                            "Move the page to the left",
+                            left,
+                        )
+                        .when(left, |d| {
+                            d.on_click(cx.listener(move |view, _, _, _| {
+                                (view.send)(Command::MovePage {
+                                    page: active,
+                                    to: active - 1,
+                                })
+                            }))
+                        }),
                     )
-                    .child(button("page-duplicate", "Duplicate").on_click(cx.listener(
-                        move |view, _, _, _| {
-                            (view.send)(Command::AddPage {
-                                copy_of: Some(active),
-                            })
-                        },
-                    )))
                     .child(
-                        small_button("page-remove", "Remove", count > 1)
-                            .py_2()
-                            .when(count > 1, |d| {
+                        square_button(
+                            "page-right",
+                            IconName::ChevronRight,
+                            "Move the page to the right",
+                            right,
+                        )
+                        .when(right, |d| {
+                            d.on_click(cx.listener(move |view, _, _, _| {
+                                (view.send)(Command::MovePage {
+                                    page: active,
+                                    to: active + 1,
+                                })
+                            }))
+                        }),
+                    )
+                    .child(
+                        square_button("page-duplicate", IconName::Copy, "Duplicate the page", true)
+                            .on_click(cx.listener(move |view, _, _, _| {
+                                (view.send)(Command::AddPage {
+                                    copy_of: Some(active),
+                                })
+                            })),
+                    )
+                    .child(
+                        square_button("page-remove", IconName::Trash, "Remove the page…", remove)
+                            .when(remove, |d| {
                                 d.on_click(cx.listener(move |view, _, window, cx| {
                                     view.start_page_edit(PageEdit::Remove(active), window, cx)
                                 }))
                             }),
-                    ),
-            };
+                    )
+            }
+        };
         div()
+            .flex_1()
+            .min_w_0()
             .flex()
             .items_center()
-            .gap_3()
+            .gap(theme::SPACE_12)
             .child(tabs)
             .child(div().flex_shrink_0().child(tools))
             .into_any_element()
@@ -382,7 +399,7 @@ impl DeviceView {
             if event.keystroke.key == "escape" {
                 cx.stop_propagation();
                 view.lists.profile_edit = None;
-                window.blur(cx);
+                view.focus_workspace(window, cx);
                 cx.notify();
             }
         }
@@ -397,13 +414,20 @@ impl DeviceView {
             .relative()
             .flex()
             .items_center()
-            .gap_2()
-            .child(div().text_sm().text_color(rgb(MUTED)).child("Profile"));
+            .gap(theme::SPACE_8)
+            .child(
+                div()
+                    .text_size(theme::TEXT_LABEL)
+                    .text_color(theme::TEXT_TERTIARY)
+                    .child("Profile"),
+            );
         control = control.child(
             button("profile-menu", format!("{} ▾", active.name))
-                .max_w(px(220.))
+                .max_w(theme::PAGE_BUTTON_MAX)
                 .truncate()
-                .when(self.lists.profiles_open, |d| d.border_color(rgb(SELECTED)))
+                .when(self.lists.profiles_open, |d| {
+                    d.border_color(theme::ACCENT_LINE)
+                })
                 .on_click(cx.listener(|view, _, window, cx| {
                     if view.lists.profiles_open {
                         view.close_profiles(window, cx);
@@ -447,27 +471,32 @@ impl DeviceView {
             .debug_selector(|| "profiles".into())
             .occlude()
             .absolute()
-            .top(px(44.))
-            .right_0()
-            .w(px(300.))
+            .top(theme::HEIGHT_CONTROL + theme::SPACE_6)
+            .left_0()
+            .w(px(MENU_WIDTH))
             .flex()
             .flex_col()
-            .gap_2()
-            .p_3()
-            .rounded_lg()
+            .gap(theme::SPACE_8)
+            .p(theme::SPACE_12)
+            .rounded(theme::RADIUS_POPOVER)
             .border_1()
-            .border_color(rgb(BORDER))
-            .bg(rgb(PANEL))
-            .shadow_lg()
-            .child(div().text_sm().text_color(rgb(MUTED)).child("Profiles"))
+            .border_color(theme::BORDER_OVERLAY)
+            .bg(theme::BG_CARD)
+            .shadow(theme::popover_shadow())
+            .child(
+                div()
+                    .text_size(theme::TEXT_LABEL)
+                    .text_color(theme::TEXT_TERTIARY)
+                    .child("Profiles"),
+            )
             .child(
                 div()
                     .id("profile-list")
-                    .max_h(px(220.))
+                    .max_h(px(MENU_LIST_MAX))
                     .overflow_y_scroll()
                     .flex()
                     .flex_col()
-                    .gap_1()
+                    .gap(theme::SPACE_4)
                     .children(self.state.profiles.iter().enumerate().map(|(index, p)| {
                         let selected = p.id == active.id;
                         let profile = p.id.clone();
@@ -476,7 +505,7 @@ impl DeviceView {
                             format!("{}{}", p.name, if selected { " ✓" } else { "" }),
                         )
                         .truncate()
-                        .when(selected, |d| d.border_color(rgb(SELECTED)))
+                        .when(selected, |d| d.border_color(theme::ACCENT_LINE))
                         .on_click(cx.listener(
                             move |view, _, window, cx| {
                                 if view.state.profile.as_ref() != Some(&profile) {
@@ -489,25 +518,25 @@ impl DeviceView {
                         ))
                     })),
             )
-            .child(div().h(px(1.)).bg(rgb(BORDER)));
+            .child(div().h(theme::SPACE_1).bg(theme::LINE_SECTION));
         let name_form = |label: String, save: &'static str, cx: &mut Context<Self>| {
             div()
                 .flex()
                 .flex_col()
-                .gap_2()
-                .child(div().text_sm().child(label))
+                .gap(theme::SPACE_8)
+                .child(div().text_size(theme::TEXT_LABEL).child(label))
                 .child(
                     div()
                         .id("profile-name")
                         .debug_selector(|| "profile-name".into())
-                        .text_color(rgb(TEXT))
+                        .text_color(theme::TEXT_PRIMARY)
                         .capture_key_down(cx.listener(Self::escape_profile()))
                         .child(Input::new(&self.lists.profile_name)),
                 )
                 .child(
                     div()
                         .flex()
-                        .gap_1()
+                        .gap(theme::SPACE_4)
                         .child(button("profile-name-save", save).on_click(
                             cx.listener(|view, _, window, cx| view.save_profile_name(window, cx)),
                         ))
@@ -515,7 +544,7 @@ impl DeviceView {
                             button("profile-edit-cancel", "Cancel").on_click(cx.listener(
                                 |view, _, window, cx| {
                                     view.lists.profile_edit = None;
-                                    window.blur(cx);
+                                    view.focus_workspace(window, cx);
                                     cx.notify();
                                 },
                             )),
@@ -527,7 +556,7 @@ impl DeviceView {
                 div()
                     .flex()
                     .flex_wrap()
-                    .gap_1()
+                    .gap(theme::SPACE_4)
                     .child(button("profile-add", "New").on_click(cx.listener(
                         |view, _, window, cx| view.start_profile_edit(ProfileEdit::Add, window, cx),
                     )))
@@ -551,14 +580,19 @@ impl DeviceView {
                             },
                         ))
                     })
-                    .child(small_button("profile-remove", "Remove", !only).py_2().when(
-                        !only,
-                        |d| {
-                            d.on_click(cx.listener(move |view, _, window, cx| {
-                                view.start_profile_edit(ProfileEdit::Remove(id.clone()), window, cx)
-                            }))
-                        },
-                    )),
+                    .child(
+                        small_button("profile-remove", "Remove", !only)
+                            .h(theme::HEIGHT_CONTROL)
+                            .when(!only, |d| {
+                                d.on_click(cx.listener(move |view, _, window, cx| {
+                                    view.start_profile_edit(
+                                        ProfileEdit::Remove(id.clone()),
+                                        window,
+                                        cx,
+                                    )
+                                }))
+                            }),
+                    ),
             ),
             Some(ProfileEdit::Add) => {
                 menu.child(name_form("Name of the new profile".into(), "Add", cx))
@@ -585,20 +619,25 @@ impl DeviceView {
                     div()
                         .flex()
                         .flex_col()
-                        .gap_2()
+                        .gap(theme::SPACE_8)
                         .child(
                             div()
-                                .text_sm()
+                                .text_size(theme::TEXT_LABEL)
                                 .child(format!("Remove the profile “{name}”?")),
                         )
-                        .child(div().text_xs().text_color(rgb(MUTED)).child(
-                            "OpenCraft does not delete it. It moves the profile to the \
+                        .child(
+                            div()
+                                .text_size(theme::TEXT_HELP)
+                                .text_color(theme::TEXT_TERTIARY)
+                                .child(
+                                    "OpenCraft does not delete it. It moves the profile to the \
                              folder “removed” in the profiles folder.",
-                        ))
+                                ),
+                        )
                         .child(
                             div()
                                 .flex()
-                                .gap_1()
+                                .gap(theme::SPACE_4)
                                 .child(danger_button("profile-remove-confirm", "Remove").on_click(
                                     cx.listener(move |view, _, window, cx| {
                                         (view.send)(Command::RemoveProfile {

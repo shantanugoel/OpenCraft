@@ -1,9 +1,9 @@
 //! The OpenCraft shell. Only the engine opens the device and writes the
-//! profiles. The shell writes only its own files: `shell.toml` (decision
-//! 0020), the lock file `opencraft.lock` with the process number (decisions
-//! 0019 and 0028), the log file when the process has no terminal (decision
-//! 0024), and on macOS the LaunchAgent file of the start at login (decision
-//! 0021).
+//! profiles. The shell writes only its own files: `shell.toml` (decisions
+//! 0020 and 0029), the lock file `opencraft.lock` with the process number
+//! (decisions 0019 and 0028), the log file when the process has no terminal
+//! (decision 0024), and on macOS the LaunchAgent file of the start at login
+//! (decision 0021).
 //!
 //! The engine and the shell operate in one process, also when no window is
 //! open (decision 0019). The menu bar item opens the window again and quits
@@ -12,6 +12,7 @@
 //! The argument `--login` starts the application with no window, for the
 //! start at login (decision 0021).
 
+mod app_menu;
 mod images;
 #[cfg(unix)]
 mod lock;
@@ -29,7 +30,7 @@ mod signals;
 mod state;
 mod view;
 
-use gpui_kit::{actions, prelude::*, App, KeyBinding, Menu, MenuItem, QuitMode};
+use gpui_kit::{prelude::*, QuitMode};
 use opencraft_engine::{Command, Config, EngineHandle, Event};
 use shell::{Shell, ShellCommand};
 use std::{
@@ -37,8 +38,6 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
 };
-
-actions!(opencraft, [Quit]);
 
 /// The shell entity lives until the process stops.
 struct ShellHandle(#[allow(dead_code)] gpui_kit::Entity<Shell>);
@@ -137,13 +136,6 @@ fn trace_now(step: &str) {
     eprintln!("start-trace {step} {:.3}", now.as_secs_f64() * 1000.0);
 }
 
-/// The application menu, and Cmd-Q. Both start the quit path (decision 0020).
-fn add_application_menu(cx: &mut App) {
-    cx.on_action(|_: &Quit, cx| cx.quit());
-    cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
-    cx.set_menus([Menu::new("OpenCraft").items([MenuItem::action("Quit OpenCraft", Quit)])]);
-}
-
 fn main() {
     if start_trace() {
         trace_now("main");
@@ -199,7 +191,10 @@ fn main() {
     });
 
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-    let mut application = gpui_kit::platform::application().with_quit_mode(QuitMode::Explicit);
+    // The window embeds only the icons that it uses (decision 0029, section 3.6).
+    let mut application = gpui_kit::platform::application()
+        .with_assets(view::theme::WindowIcons)
+        .with_quit_mode(QuitMode::Explicit);
     // With the Dock icon hidden, the icon must not show during the start.
     // On Linux, "headless" means no display server, thus macOS only.
     #[cfg(target_os = "macos")]
@@ -226,7 +221,7 @@ fn main() {
         })
         .detach();
         gpui_kit::component::Theme::change(gpui_kit::component::ThemeMode::Dark, None, cx);
-        add_application_menu(cx);
+        app_menu::install(cx, &settings.panes);
         let shell = cx.new(|cx| {
             let mut shell = Shell::new(config_dir, settings, send);
             shell.listen(events, command_receiver, cx);

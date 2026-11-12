@@ -8,7 +8,7 @@ use opencraft_engine::{
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 pub const HIGHLIGHT_TIME: Duration = Duration::from_millis(280);
@@ -18,6 +18,25 @@ pub const HIGHLIGHT_TIME: Duration = Duration::from_millis(280);
 pub struct Highlight {
     pub gesture: Gesture,
     pub until: Instant,
+}
+
+/// The time in which the same gesture on the same control counts as one
+/// more of the last input (decision 0029, section 6.1).
+pub const REPEAT_TIME: Duration = Duration::from_secs(1);
+
+/// The last input from the device, for the status bar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LastInput {
+    pub control: ControlId,
+    /// The name of the gesture, as `Gesture::name` gives it.
+    pub gesture: &'static str,
+    /// The number of the same gestures, each less than [`REPEAT_TIME`] after
+    /// the one before.
+    pub count: u32,
+    /// The time of the last of these gestures.
+    pub at: Instant,
+    /// The same time, on the clock of the system.
+    pub time: SystemTime,
 }
 
 /// The latest engine state and the temporary marks shown in the window.
@@ -53,7 +72,7 @@ pub struct ViewState {
     pub knob_steps: BTreeMap<ControlId, i32>,
     pub touch: Option<(u16, u16)>,
     pub highlights: BTreeMap<ControlId, Highlight>,
-    pub last_input: Option<String>,
+    pub last_input: Option<LastInput>,
     pub problems: Vec<String>,
 }
 
@@ -136,7 +155,23 @@ impl ViewState {
 
     fn input(&mut self, input: InputEvent, now: Instant) -> Option<(ControlId, Instant)> {
         let InputEvent { control, gesture } = input;
-        self.last_input = Some(format!("{control}: {}", gesture.name()));
+        let count = match self.last_input {
+            Some(last)
+                if last.control == control
+                    && last.gesture == gesture.name()
+                    && now.saturating_duration_since(last.at) <= REPEAT_TIME =>
+            {
+                last.count + 1
+            }
+            _ => 1,
+        };
+        self.last_input = Some(LastInput {
+            control,
+            gesture: gesture.name(),
+            count,
+            at: now,
+            time: SystemTime::now(),
+        });
         match gesture {
             Gesture::Press => {
                 self.pressed.insert(control);
@@ -367,6 +402,53 @@ pub(crate) mod tests {
             }),
             now,
         );
+    }
+
+    #[test]
+    fn the_same_gesture_within_one_second_counts_as_one_more() {
+        let now = Instant::now();
+        let mut s = ViewState::default();
+        input(&mut s, ControlKind::Knob, Gesture::TurnRight, now);
+        input(
+            &mut s,
+            ControlKind::Knob,
+            Gesture::TurnRight,
+            now + REPEAT_TIME,
+        );
+        input(
+            &mut s,
+            ControlKind::Knob,
+            Gesture::TurnRight,
+            now + 2 * REPEAT_TIME,
+        );
+        let last = s.last_input.unwrap();
+        assert_eq!(
+            (last.control, last.gesture, last.count),
+            (control(ControlKind::Knob), "turn right", 3)
+        );
+        assert_eq!(last.at, now + 2 * REPEAT_TIME);
+        // A different gesture, a different control, or a later time starts
+        // again at 1.
+        input(
+            &mut s,
+            ControlKind::Knob,
+            Gesture::TurnLeft,
+            now + 2 * REPEAT_TIME,
+        );
+        assert_eq!(s.last_input.unwrap().count, 1);
+        input(
+            &mut s,
+            ControlKind::Key,
+            Gesture::Press,
+            now + 2 * REPEAT_TIME,
+        );
+        input(
+            &mut s,
+            ControlKind::Key,
+            Gesture::Press,
+            now + 4 * REPEAT_TIME,
+        );
+        assert_eq!(s.last_input.unwrap().count, 1);
     }
 
     #[test]
