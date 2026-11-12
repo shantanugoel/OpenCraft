@@ -2,3 +2,5 @@
 .cargo-home
 *.dylib
 .DS_Store
+# Worktrees of agents
+.claude/

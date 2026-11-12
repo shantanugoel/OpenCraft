@@ -3,6 +3,7 @@
 ## What you need
 
 - A Mac with Apple silicon.
+- macOS 12 or later. The project tested OpenCraft on macOS 27 only.
 - A VSD StreamDock N4 Pro. See [The supported device](faults.md#the-supported-device).
 - A USB cable from the device to the Mac.
 
@@ -31,6 +32,9 @@ Homebrew puts `OpenCraft.app` in the Applications folder.
 2. Download the file `OpenCraft-<version>-arm64.dmg` of the newest version.
 3. Open the downloaded file.
 4. Move OpenCraft to the Applications folder.
+
+Do not start OpenCraft from the downloaded file. Start it from the
+Applications folder.
 
 ## Quit the vendor software first
 
