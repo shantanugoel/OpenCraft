@@ -108,14 +108,30 @@ each 2 seconds. No person used the device or the window during a measurement.
 - The release binary has 21 441 440 bytes. (Measured)
 - The start time was not measured again in this phase.
 
+### Checks by the owner
+
+The owner used the application and the device on 2026-11-12. The application
+was the bundle from `scripts/sign-dev.sh --release`, with the Accessibility
+permission.
+
+| Fact | Confidence |
+|---|---|
+| Each of the 7 built-in action kinds operated: 6 kinds from a key press, and the sound volume from a knob | Measured: owner |
+| A turn of knob 1 changed the sound volume, a push muted the sound, and bar panel 1 showed the level | Measured: owner |
+| During fast turns and pushes of the knobs, no input event was lost, and the order was the same: the engine example `knob_count` compared the input events that the shell got with the requests that a handler got | Measured: owner |
+
+- `knob_count` also reads the counters of the engine: reports received, input
+  events, and requests sent. The owner recorded the result line of the
+  program and not the counts.
+
 ## Not known
 
 - The start time after a start of the computer, when the files of the
   application are not in the memory of the operating system. Start 1 above
   is the nearest value.
-- Lost input events. No measurement counted the gestures of a person and the
-  events of the engine. Phase 3 has the exit criterion "No input event is
-  lost during a fast knob turn".
+- Lost input events between the hand and the device report. The measurement
+  of Phase 3 starts at the reports that the device sends. No measurement
+  counted the detents of a knob that a person turned.
 - The footprint with no device connected. The engine then looks for the
   device one time each second.
 - The footprint after many hours.
