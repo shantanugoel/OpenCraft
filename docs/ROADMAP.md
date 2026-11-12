@@ -223,9 +223,12 @@ record of the checks.
 **Exit criteria.**
 
 - [ ] A page change repaints the device in a time that the owner accepts. Write the time in `kb/`.
-- [ ] Swipe and tap operate reliably, or the knowledge base gives the limit.
+- [x] Swipe and tap operate reliably, or the knowledge base gives the limit.
 - [ ] A toggle shows its state on the key face.
-- [ ] The owner uses OpenCraft as the daily driver for one week with no blocking fault. This criterion came from Phase 3.
+
+This phase had one more exit criterion, which came from Phase 3: the owner
+uses OpenCraft as the daily driver for one week with no blocking fault. On
+2026-11-12 the owner removed it.
 
 **Decisions that this phase forces.** One image across the full touch bar, or
 four bar panels only. The answer is four bar panels only. See

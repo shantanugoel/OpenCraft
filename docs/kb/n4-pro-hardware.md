@@ -235,6 +235,12 @@ Touch bar:
   (Measured)
 - Swipe is reliable on this firmware: 20 swipes to the left gave 20 times
   `0x39`, and 20 swipes to the right gave 20 times `0x38`. (Measured)
+- Tap and swipe are reliable through the engine: the owner did 20 taps (5 on
+  each bar panel), 10 swipes to the left, and 13 swipes to the right. The
+  device identified each touch as the correct gesture, on the correct bar
+  panel for a tap. No touch ended with no gesture. A handler got one Invoke
+  for each gesture. (Measured: owner, 2026-11-12, the engine example
+  `touch_count`)
 - `0xB2` came after a move from the top edge to the bottom edge, and after one
   quick move to the left. Its meaning is not known.
 - `0x40` to `0x43` are not keys adjacent to the knobs. The first plan was
