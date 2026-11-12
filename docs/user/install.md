@@ -131,13 +131,18 @@ Applications folder.
 3. Remove the application. Use the procedure that agrees with the
    installation:
 
-   - Homebrew: type `brew uninstall --cask opencraft`. To also remove the
-     files of OpenCraft, type `brew uninstall --zap --cask opencraft`.
+   - Homebrew: type `brew uninstall --cask opencraft`. This removes only the
+     application. To also move your profiles, your settings, and the other
+     files of OpenCraft to the Trash, type
+     `brew uninstall --zap --cask opencraft`. Make a copy of the folder
+     `~/Library/Application Support/OpenCraft` first if you want to keep
+     your profiles.
    - By hand: move OpenCraft from the Applications folder to the Trash.
 
-4. Optional: to remove your profiles and settings, remove the folder
-   `~/Library/Application Support/OpenCraft`. Make a copy first if you want
-   to keep your profiles. See [The files of OpenCraft](background.md#the-files-of-opencraft).
+4. Optional: if you did not use `--zap`, remove the folder
+   `~/Library/Application Support/OpenCraft` to remove your profiles and
+   settings. Make a copy first if you want to keep your profiles. See
+   [The files of OpenCraft](background.md#the-files-of-opencraft).
 5. Optional: in System Settings > Privacy & Security > Accessibility, select
    OpenCraft and click **−**.
 
