@@ -27,6 +27,7 @@ measurement. The other documents link to these facts and do not repeat them.
 | [n4-pro-hardware.md](n4-pro-hardware.md) | The VSD N4 Pro: identity, layout, surfaces, controls |
 | [streamdock-protocol.md](streamdock-protocol.md) | The StreamDock USB protocol, version 3 |
 | [prior-art.md](prior-art.md) | Other software for this device family |
+| [ui-research.md](ui-research.md) | The layouts of other controller software, the Apple Human Interface Guidelines, and the icon set of the GUI toolkit |
 | [gpui.md](gpui.md) | The GPUI toolkit and its crates |
 | [text-rendering.md](text-rendering.md) | Text libraries, label samples, and image resize cost |
 | [vsd-craft.md](vsd-craft.md) | The vendor software: footprint and behaviour |

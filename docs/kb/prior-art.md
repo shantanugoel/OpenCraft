@@ -3,7 +3,8 @@
 Last update: 2026-11-12
 
 The decision that uses these facts is
-[decision 0001](../decisions/0001-native-application.md).
+[decision 0001](../decisions/0001-native-application.md). The facts about the
+window layouts of other software are in [ui-research.md](ui-research.md).
 
 ## Projects
 
