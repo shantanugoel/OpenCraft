@@ -1,5 +1,6 @@
-//! The "Device settings" area: the controls, the commands, the throttle of
-//! the commands, and the settings that the model has (decision 0022).
+//! The device inspector: the selection of the device, the controls, the
+//! commands, the throttle of the commands, and the settings that the model
+//! has (decisions 0022 and 0029, section 10.7).
 
 use super::super::device::{KNOB_COLOURS, SETTINGS_INTERVAL};
 use super::*;
@@ -35,7 +36,7 @@ fn sent_settings(sent: &Commands) -> Vec<DeviceSettings> {
         .collect()
 }
 
-/// A window with the settings `settings` and the area open.
+/// A window with the settings `settings` and the device selected.
 fn open(
     cx: &mut TestAppContext,
     settings: DeviceSettings,
@@ -47,7 +48,7 @@ fn open(
 ) {
     let (view, cx, tx, sent) = window(cx);
     send(cx, &tx, Event::DeviceSettings(settings));
-    click(cx, "open-device-settings");
+    click(cx, "device-card");
     (view, cx, tx, sent)
 }
 
@@ -58,36 +59,45 @@ fn wait_interval(cx: &mut VisualTestContext) {
 }
 
 #[gpui_kit::test]
-fn the_area_shows_the_engine_settings_and_works_with_no_device(cx: &mut TestAppContext) {
+fn the_inspector_shows_the_engine_settings_and_works_with_no_device(cx: &mut TestAppContext) {
     let (view, cx, tx, sent) = window(cx);
-    click(cx, "open-device-settings");
+    click(cx, "device-card");
     assert!(cx.debug_bounds("device-settings").is_some());
-    // No settings from the engine yet: no control.
+    // No settings from the engine yet: the header, and no control.
+    assert!(cx.debug_bounds("inspector-header").is_some());
     assert!(cx.debug_bounds("brightness-slider").is_none());
     send(cx, &tx, Event::DeviceSettings(defaults()));
     cx.update(|_, cx| assert!(!view.read(cx).state.connected));
     for id in [
         "brightness-slider",
         "brightness-value",
-        "haptic-on",
-        "haptic-off",
+        "display",
+        "feedback",
+        "haptic-switch",
+        "knob-lights",
         "knob-effect",
         "knob-colours",
         "knob-off",
         "knob-brightness-slider",
+        "knob-brightness-value",
+        "device-note",
     ] {
         assert!(cx.debug_bounds(id).is_some(), "No element: {id}");
     }
     // The colours show only in the mode "colours".
-    assert!(cx.debug_bounds("knob-1-colour-0").is_none());
-    assert!(sent.borrow().is_empty(), "Opening the area sends nothing");
+    assert!(cx.debug_bounds("knob-1-colour").is_none());
+    assert!(sent.borrow().is_empty(), "Selecting sends nothing");
 
-    // The surface editor comes back when the user selects a surface.
+    // The toolbar has no button for the device settings.
+    assert!(cx.debug_bounds("open-device-settings").is_none());
+    cx.update(|_, cx| assert!(view.read(cx).device.open));
+
+    // The editor of a control comes back when the user selects a surface.
     click(cx, "surface-key face 2");
     assert!(cx.debug_bounds("device-settings").is_none());
     cx.update(|_, cx| assert_eq!(view.read(cx).framed_surface(), Some(key())));
-    // While the device settings show, the selected key has no frame.
-    click(cx, "open-device-settings");
+    // While the device is the selection, the selected key has no frame.
+    click(cx, "device-card");
     cx.update(|_, cx| {
         assert_eq!(view.read(cx).framed_surface(), None);
         assert_eq!(view.read(cx).framed_control(), None);
@@ -99,12 +109,70 @@ fn the_area_shows_the_engine_settings_and_works_with_no_device(cx: &mut TestAppC
 }
 
 #[gpui_kit::test]
-fn the_buttons_send_all_settings_with_one_change(cx: &mut TestAppContext) {
-    let (view, cx, tx, sent) = open(cx, defaults());
-    click(cx, "haptic-off");
+fn the_header_shows_the_model_and_the_connection(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = open(cx, defaults());
+    assert!(!cx.update(|_, cx| view.read(cx).state.connected));
+    let header = cx.debug_bounds("inspector-header").unwrap();
+    let state = cx.debug_bounds("device-header-state").unwrap();
+    assert!(state.top() >= header.top() && state.bottom() <= header.bottom());
+    send(cx, &tx, Event::Connected);
+    assert!(cx.update(|_, cx| view.read(cx).state.connected));
+    // The inspector keeps the settings and the header after the event.
+    assert!(cx.debug_bounds("device-header-state").is_some());
+    assert!(cx.debug_bounds("brightness-slider").is_some());
+}
+
+#[gpui_kit::test]
+fn the_body_of_the_device_selects_the_device(cx: &mut TestAppContext) {
+    let (view, cx, _tx, sent) = window(cx);
+    let device = |cx: &mut VisualTestContext| cx.update(|_, cx| view.read(cx).device.open);
+    click(cx, "surface-key face 2");
+    assert!(!device(cx));
+    // A click at the margin of the body, outside the display.
+    let body = cx.debug_bounds("device-body").unwrap();
+    let point = gpui_kit::point(body.left() + px(6.), body.center().y);
+    cx.simulate_mouse_move(point, None, Modifiers::default());
+    cx.simulate_click(point, Modifiers::default());
+    cx.run_until_parked();
+    assert!(device(cx));
+    assert!(cx.debug_bounds("device-settings").is_some());
+    // The device has the outline of the selection, and no control has it.
+    cx.update(|_, cx| assert_eq!(view.read(cx).framed_surface(), None));
+    // A key or a knob takes the selection back.
+    click(cx, "control-knob 2");
+    assert!(!device(cx));
+    cx.update(|_, cx| {
+        assert_eq!(
+            view.read(cx).framed_control(),
+            Some(ControlId::new(ControlKind::Knob, 2))
+        )
+    });
+    // A click on an empty part of the display selects the page, not the device.
+    click(cx, "device-card");
+    assert!(device(cx));
+    let display = cx.debug_bounds("display").unwrap();
+    let point = gpui_kit::point(display.left() + px(1.), display.top() + px(1.));
+    cx.simulate_mouse_move(point, None, Modifiers::default());
+    cx.simulate_click(point, Modifiers::default());
+    cx.run_until_parked();
+    assert!(!device(cx));
+    cx.update(|_, cx| assert!(view.read(cx).state.page_selected));
+    assert!(sent.borrow().is_empty());
+}
+
+#[gpui_kit::test]
+fn the_controls_send_all_settings_with_one_change(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = open(cx, defaults());
+    // The switch changes the haptic feedback.
+    click(cx, "haptic-switch");
     let mut want = defaults();
     want.haptic = false;
     assert_eq!(sent_settings(&sent), [want.clone()]);
+    wait_interval(cx);
+    send(cx, &tx, Event::DeviceSettings(want.clone()));
+    click(cx, "haptic-switch");
+    want.haptic = true;
+    assert_eq!(sent_settings(&sent).last(), Some(&want));
     wait_interval(cx);
     send(cx, &tx, Event::DeviceSettings(want.clone()));
 
@@ -114,16 +182,18 @@ fn the_buttons_send_all_settings_with_one_change(cx: &mut TestAppContext) {
     wait_interval(cx);
     send(cx, &tx, Event::DeviceSettings(want.clone()));
 
-    // A colour button sets the colour of its knob and the text of its field.
+    // A colour sample of the popover sets the colour of its knob.
+    click(cx, "knob-2-colour");
+    assert!(cx.debug_bounds("knob-colour-popover").is_some());
     click(cx, "knob-2-colour-1");
     want.knob_lights.colors[1] = colour(KNOB_COLOURS[1]);
     assert_eq!(sent_settings(&sent).last(), Some(&want));
-    cx.update(|_, cx| {
-        let input = view.read(cx).device.colours[1].clone();
-        assert_eq!(input.read(cx).value().as_ref(), "#FF0000");
-    });
     wait_interval(cx);
     send(cx, &tx, Event::DeviceSettings(want.clone()));
+    // Escape closes the popover. The colour stays.
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("knob-colour-popover").is_none());
 
     click(cx, "knob-off");
     want.knob_lights.mode = KnobLightMode::Off;
@@ -133,10 +203,91 @@ fn the_buttons_send_all_settings_with_one_change(cx: &mut TestAppContext) {
     send(cx, &tx, Event::DeviceSettings(want.clone()));
     let count = sent_settings(&sent).len();
     click(cx, "knob-off");
-    click(cx, "haptic-off");
     assert_eq!(sent_settings(&sent).len(), count);
     // No other command.
     assert_eq!(sent.borrow().len(), count);
+
+    click(cx, "knob-effect");
+    want.knob_lights.mode = KnobLightMode::Effect;
+    assert_eq!(sent_settings(&sent).last(), Some(&want));
+}
+
+#[gpui_kit::test]
+fn the_colour_buttons_show_the_knob_and_the_hex_value(cx: &mut TestAppContext) {
+    let mut settings = defaults();
+    settings.knob_lights.mode = KnobLightMode::Colors;
+    settings.knob_lights.colors = vec![Color::rgb(0x14, 0xb8, 0xa6), Color::WHITE];
+    let (view, cx, _tx, sent) = open(cx, settings);
+    // One button for each knob light, in a grid of four columns.
+    let first = cx.debug_bounds("knob-1-colour").unwrap();
+    let second = cx.debug_bounds("knob-2-colour").unwrap();
+    assert!((first.size.width - second.size.width).abs() < px(1.));
+    assert_eq!(first.size.height, second.size.height);
+    assert_eq!(first.top(), second.top());
+    assert!(second.left() > first.right());
+    let grid = cx.debug_bounds("knob-colour-grid").unwrap();
+    assert!(second.right() < grid.right() - first.size.width);
+    assert!(cx.debug_bounds("knob-1-colour-hex").is_some());
+    assert!(cx.debug_bounds("knob-colour-popover").is_none());
+    // The popover has the nine samples and the field.
+    click(cx, "knob-1-colour");
+    for id in [
+        "knob-1-colour-0",
+        "knob-1-colour-1",
+        "knob-1-colour-2",
+        "knob-1-colour-3",
+        "knob-1-colour-4",
+        "knob-1-colour-5",
+        "knob-1-colour-6",
+        "knob-1-colour-7",
+        "knob-1-colour-8",
+        "knob-colour-field",
+    ] {
+        assert!(cx.debug_bounds(id).is_some(), "No element: {id}");
+    }
+    assert_eq!(KNOB_COLOURS.len(), 9);
+    cx.update(|_, cx| {
+        let input = view.read(cx).device.colour_input.clone();
+        assert_eq!(input.read(cx).value().as_ref(), "#14B8A6");
+    });
+    // Escape closes the popover with no change.
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("knob-colour-popover").is_none());
+    // A second click on the button closes it too.
+    click(cx, "knob-2-colour");
+    assert!(cx.debug_bounds("knob-colour-popover").is_some());
+    click(cx, "knob-2-colour");
+    assert!(cx.debug_bounds("knob-colour-popover").is_none());
+    assert!(sent_settings(&sent).is_empty());
+}
+
+#[gpui_kit::test]
+fn the_light_brightness_control_is_off_in_the_mode_off(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = open(cx, defaults());
+    let mut settings = defaults();
+    settings.knob_lights.mode = KnobLightMode::Off;
+    send(cx, &tx, Event::DeviceSettings(settings));
+    // A click on the slider changes nothing, and the value stays.
+    let bounds = cx.debug_bounds("knob-brightness-slider").unwrap();
+    cx.simulate_click(
+        gpui_kit::point(bounds.left() + px(1.), bounds.center().y),
+        Modifiers::default(),
+    );
+    cx.run_until_parked();
+    wait_interval(cx);
+    assert!(sent_settings(&sent).is_empty());
+    cx.update(|_, cx| {
+        assert_eq!(
+            view.read(cx)
+                .shown_settings()
+                .unwrap()
+                .knob_lights
+                .brightness,
+            100
+        )
+    });
+    assert!(cx.debug_bounds("knob-brightness-value").is_some());
 }
 
 #[gpui_kit::test]
@@ -198,12 +349,12 @@ fn a_colour_field_sends_only_a_complete_colour(cx: &mut TestAppContext) {
     let mut settings = defaults();
     settings.knob_lights.mode = KnobLightMode::Colors;
     let (view, cx, tx, sent) = open(cx, settings.clone());
-    cx.update(|window, cx| {
-        let input = view.read(cx).device.colours[0].clone();
+    click(cx, "knob-1-colour");
+    cx.update(|_, cx| {
+        let input = view.read(cx).device.colour_input.clone();
         assert_eq!(input.read(cx).value().as_ref(), "#FFFFFF");
-        window.focus(&input.focus_handle(cx), cx);
     });
-    cx.run_until_parked();
+    // The field has the focus.
     cx.update(|window, cx| {
         window.dispatch_action(Box::new(gpui_kit::component::input::SelectAll), cx);
     });
@@ -220,13 +371,18 @@ fn a_colour_field_sends_only_a_complete_colour(cx: &mut TestAppContext) {
     wait_interval(cx);
     send(cx, &tx, Event::DeviceSettings(settings));
     cx.update(|_, cx| {
-        let input = view.read(cx).device.colours[0].clone();
+        let input = view.read(cx).device.colour_input.clone();
         assert_eq!(input.read(cx).value().as_ref(), "#00ff00");
     });
+    // Return closes the popover. The colour stays.
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("knob-colour-popover").is_none());
+    assert_eq!(sent_settings(&sent).len(), 1);
 }
 
 #[gpui_kit::test]
-fn the_area_shows_only_the_settings_that_the_model_has(cx: &mut TestAppContext) {
+fn the_inspector_shows_only_the_settings_that_the_model_has(cx: &mut TestAppContext) {
     let (_view, cx, tx, _sent) = open(cx, defaults());
     let Event::Layout(layout) = crate::state::tests::layout() else {
         panic!()
@@ -244,7 +400,14 @@ fn the_area_shows_only_the_settings_that_the_model_has(cx: &mut TestAppContext) 
     settings.knob_lights.colors.clear();
     send(cx, &tx, Event::DeviceSettings(settings));
     assert!(cx.debug_bounds("brightness-slider").is_some());
-    for id in ["haptic-on", "knob-effect", "knob-brightness-slider"] {
+    assert!(cx.debug_bounds("display").is_some());
+    for id in [
+        "haptic-switch",
+        "feedback",
+        "knob-lights",
+        "knob-effect",
+        "knob-brightness-slider",
+    ] {
         assert!(cx.debug_bounds(id).is_none(), "{id} shows");
     }
 }

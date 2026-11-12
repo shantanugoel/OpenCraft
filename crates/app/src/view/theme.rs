@@ -366,6 +366,25 @@ pub const WIDTH_COLOUR_POPOVER: Pixels = px(200.);
 pub const SAMPLE: Pixels = px(22.);
 /// The icon tile of the device card.
 pub const DEVICE_TILE: Pixels = px(32.);
+/// The icon tile in the header of the device inspector (section 10.7).
+pub const DEVICE_HEADER_TILE: Pixels = px(48.);
+/// The corner radius of that tile.
+pub const RADIUS_HEADER_TILE: Pixels = px(11.);
+/// The device icon in that tile.
+pub const ICON_HEADER_DEVICE: Pixels = px(26.);
+/// A segment of a segmented control in an inspector.
+pub const HEIGHT_SEGMENT_INSPECTOR: Pixels = px(22.);
+/// The button of one knob light in the device inspector. The height is fixed,
+/// so that the popover of the button has its place.
+pub const HEIGHT_KNOB_LIGHT_BUTTON: Pixels = px(80.);
+/// The ring of the knob light colour in that button.
+pub const KNOB_LIGHT_RING: Pixels = px(26.);
+/// The width of the colour of that ring.
+pub const KNOB_LIGHT_RING_WIDTH: Pixels = px(4.);
+/// The popover of a knob light: nine samples in one row, and a field.
+pub const WIDTH_KNOB_POPOVER: Pixels = px(250.);
+/// The line height of the note at the bottom of the device inspector.
+pub const NOTE_LINE_HEIGHT: f32 = 1.45;
 /// The widest title block in the toolbar. A longer page name ends with "…".
 pub const TOOLBAR_TITLE_MAX: Pixels = px(220.);
 /// The height of the page header at the top of the canvas (section 8.1).

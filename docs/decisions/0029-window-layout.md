@@ -437,8 +437,8 @@ card is a button of full width: padding 8, radius 9, gap 10.
 | Not selected | `bg-field` | `border-device-card` | `text-primary`; state in `text-secondary` |
 | Selected (the device is the selection) | `accent` | `accent-line` | `text-on-accent` |
 
-A click on the card selects the device (section 10.1). Until #180, the
-inspector then shows the current device settings panel. Accessible label:
+A click on the card selects the device (section 10.1). The inspector then
+shows the device settings (section 10.7). Accessible label:
 "Device VSD N4 Pro, connected. Select to show the device settings."
 
 #### 7.3 The "Profiles" section

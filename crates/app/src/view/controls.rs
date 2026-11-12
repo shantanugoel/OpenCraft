@@ -1,6 +1,6 @@
 //! Controls that more than one part of the window uses (decision 0029,
 //! sections 3.5 and 3.7): buttons, a popup button and its menu, a switch,
-//! a text field, and a colour sample.
+//! a segmented control, a slider, a text field, and a colour sample.
 
 use super::theme;
 use gpui_kit::{
@@ -8,13 +8,14 @@ use gpui_kit::{
     assets::IconName,
     component::{
         input::{AnyInputState, Input, InputState, Textarea},
+        slider::{Slider, SliderState},
         tooltip::Tooltip,
         Icon, Sizable,
     },
     deferred, div, point,
     prelude::*,
-    px, Anchor, AnyElement, App, Div, MouseButton, MouseDownEvent, Pixels, Rgba, SharedString,
-    Stateful, Window,
+    px, Anchor, AnyElement, App, Div, Entity, MouseButton, MouseDownEvent, Pixels, Rgba,
+    SharedString, Stateful, Window,
 };
 
 /// A button with a small padding. A button that is not enabled shows dim
@@ -293,6 +294,74 @@ pub(crate) fn switch(
                 .rounded_full()
                 .bg(theme::SWITCH_KNOB_COLOUR),
         )
+}
+
+/// A segmented control (section 3.7): a track of `bg-field` with the
+/// `segments` in one row. Make a segment with [`segment`] and add its click
+/// handler.
+pub(crate) fn segmented(
+    id: impl Into<SharedString>,
+    segments: Vec<Stateful<Div>>,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .flex()
+        .p(theme::SPACE_2)
+        .rounded(theme::RADIUS_TRACK)
+        .bg(theme::BG_FIELD)
+        .children(segments)
+}
+
+/// A segment of a [`segmented`] control: it shares the free width with the
+/// other segments. The selected segment is `bg-segment-on` with
+/// `text-on-accent`; the other segments are transparent with
+/// `text-secondary`. `height` is [`theme::HEIGHT_SEGMENT`] or
+/// [`theme::HEIGHT_SEGMENT_INSPECTOR`].
+pub(crate) fn segment(
+    id: impl Into<SharedString>,
+    text: impl Into<SharedString>,
+    selected: bool,
+    height: Pixels,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_1()
+        .h(height)
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(theme::RADIUS_SEGMENT)
+        .text_size(theme::TEXT_LABEL)
+        .font_weight(gpui_kit::FontWeight::MEDIUM)
+        .when(selected, |d| {
+            d.bg(theme::BG_SEGMENT_ON).text_color(theme::TEXT_ON_ACCENT)
+        })
+        .when(!selected, |d| {
+            d.text_color(theme::TEXT_SECONDARY)
+                .cursor_pointer()
+                .hover(|d| d.bg(theme::HOVER_ROW))
+        })
+        .child(text.into())
+}
+
+/// A slider (section 10.7): the filled part of the track is `accent`, and
+/// the thumb is white. A disabled slider has no thumb, and the filled part
+/// is `bg-segment-on`. `label` is the accessible label.
+pub(super) fn slider(state: &Entity<SliderState>, label: &'static str, disabled: bool) -> Slider {
+    Slider::new(state)
+        .accessibility_label(label)
+        .disabled(disabled)
+        .bg(if disabled {
+            theme::BG_SEGMENT_ON
+        } else {
+            theme::ACCENT
+        })
+        .text_color(theme::SWITCH_KNOB_COLOUR)
 }
 
 /// A text field (section 10.2): height 28, radius 6, `body` text, the

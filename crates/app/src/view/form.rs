@@ -15,12 +15,12 @@ use gpui_kit::{
 };
 
 /// The header of an inspector: a picture of 64 at the start, the name and
-/// the second line, and at the end an optional button, for example the
+/// the second line (a text, or an element such as a state with a dot), and at the end an optional button, for example the
 /// "⋯" button of a control. Padding 16, gap 12.
 pub(super) fn header(
     picture: Option<AnyElement>,
     name: impl Into<SharedString>,
-    second_line: impl Into<SharedString>,
+    second_line: impl IntoElement,
     end: Option<AnyElement>,
 ) -> Stateful<Div> {
     div()
@@ -51,7 +51,7 @@ pub(super) fn header(
                     div()
                         .text_size(theme::TEXT_LABEL)
                         .text_color(theme::TEXT_TERTIARY)
-                        .child(second_line.into()),
+                        .child(second_line),
                 ),
         )
         .children(end)

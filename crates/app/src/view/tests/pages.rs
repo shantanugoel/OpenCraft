@@ -315,12 +315,7 @@ fn the_window_shows_all_controls_at_the_minimum_size(cx: &mut TestAppContext) {
             "{id} is outside the window: {bounds:?}"
         );
     }
-    for id in [
-        "toolbar-title",
-        "open-device-settings",
-        "connection",
-        "toggle-inspector",
-    ] {
+    for id in ["toolbar-title", "connection", "toggle-inspector"] {
         within(cx, id, "toolbar");
     }
     for id in ["page-header", "surface-key face 1", "control-knob 1"] {

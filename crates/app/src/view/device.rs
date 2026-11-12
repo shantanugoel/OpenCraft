@@ -1,15 +1,16 @@
-//! The "Device settings" area of the window: the display brightness, the
-//! haptic feedback, and the knob lights (decision 0022).
+//! The state of the device inspector: the display brightness, the haptic
+//! feedback, and the knob lights (decision 0022). The inspector itself is
+//! in `device_inspector`.
 //!
-//! The area shows only the settings that the layout gives for the model. It
-//! changes the settings only with [`Command::SetDeviceSettings`], with all
-//! settings. The engine keeps and applies them, also with no device and no
-//! window.
+//! The inspector shows only the settings that the layout gives for the
+//! model. It changes the settings only with [`Command::SetDeviceSettings`],
+//! with all settings. The engine keeps and applies them, also with no device
+//! and no window.
 
 use super::*;
-use gpui_kit::component::slider::{Slider, SliderEvent, SliderState};
+use gpui_kit::component::slider::{SliderEvent, SliderState};
 use gpui_kit::Focusable;
-use opencraft_engine::{DeviceSettings, KnobLightMode, SettingsSupport};
+use opencraft_engine::{DeviceSettings, SettingsSupport};
 use std::time::Duration;
 
 /// The shortest time between two settings commands while the user moves a
@@ -31,14 +32,17 @@ pub(super) const KNOB_COLOURS: [u32; 9] = [
     0xffffff, 0xff0000, 0xff8000, 0xffff00, 0x00ff00, 0x00ffff, 0x0000ff, 0xff00ff, 0x000000,
 ];
 
-/// The controls of the area, and the throttle of the commands.
+/// The controls of the inspector, and the throttle of the commands.
 pub(super) struct DevicePanel {
-    /// True while the window shows the area in place of the surface editor.
+    /// True while the device is the selection: the inspector then shows the
+    /// device settings, and no control has the frame of the selection.
     pub open: bool,
     pub(super) brightness: Option<Entity<SliderState>>,
-    knob_brightness: Option<Entity<SliderState>>,
-    /// One text field for each knob light, with the colour as `#RRGGBB`.
-    pub(super) colours: Vec<Entity<InputState>>,
+    pub(super) knob_brightness: Option<Entity<SliderState>>,
+    /// The knob light whose colour popover is open.
+    pub(super) colour_open: Option<usize>,
+    /// The field for `#RRGGBB` in that popover.
+    pub(super) colour_input: Entity<InputState>,
     /// The settings support that the controls are for.
     support: Option<SettingsSupport>,
     /// The last settings that the user chose. They show until the throttle
@@ -49,20 +53,40 @@ pub(super) struct DevicePanel {
     pending: Option<DeviceSettings>,
     throttle: Option<Task<()>>,
     subscriptions: Vec<Subscription>,
+    _colour_subscription: Subscription,
 }
 
 impl DevicePanel {
-    pub fn new() -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<DeviceView>) -> Self {
+        let colour_input = cx.new(|cx| InputState::new(window, cx).placeholder("#RRGGBB"));
+        let subscription =
+            cx.subscribe_in(&colour_input, window, |view, input, event, window, cx| {
+                match event {
+                    // A text that is not a colour yet sends nothing.
+                    TextEvent::Change => {
+                        if let (Some(index), Some(colour)) = (
+                            view.device.colour_open,
+                            super::inspector::parse_colour(&input.read(cx).value()),
+                        ) {
+                            view.set_knob_colour(index, colour, window, cx);
+                        }
+                    }
+                    TextEvent::PressEnter { .. } => view.close_knob_colour(window, cx),
+                    _ => {}
+                }
+            });
         Self {
             open: false,
             brightness: None,
             knob_brightness: None,
-            colours: Vec::new(),
+            colour_open: None,
+            colour_input,
             support: None,
             chosen: None,
             pending: None,
             throttle: None,
             subscriptions: Vec::new(),
+            _colour_subscription: subscription,
         }
     }
 }
@@ -82,7 +106,7 @@ fn percent(value: f32) -> u8 {
 }
 
 impl DeviceView {
-    /// The settings that the area shows: the last choice of the user while
+    /// The settings that the inspector shows: the last choice of the user while
     /// the throttle time runs, else the settings of the engine.
     pub(super) fn shown_settings(&self) -> Option<&DeviceSettings> {
         self.device
@@ -91,12 +115,47 @@ impl DeviceView {
             .or(self.state.device_settings.as_ref())
     }
 
-    pub(super) fn toggle_device_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.device.open = !self.device.open;
-        if self.device.open {
-            self.close_kinds();
-            self.sync_device_panel(window, cx);
+    /// Make the device the selection. The inspector then shows the device
+    /// settings (decision 0029, sections 8.3 and 10.7).
+    pub(super) fn select_device(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_kinds();
+        self.device.open = true;
+        self.sync_device_panel(window, cx);
+        self.focus_workspace(window, cx);
+        cx.notify();
+    }
+
+    /// Open the popover of the colour of knob light `index`, or close it if
+    /// it is open.
+    pub(super) fn toggle_knob_colour(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let open = self.device.colour_open != Some(index);
+        self.close_kinds();
+        if open {
+            self.device.colour_open = Some(index);
+            let text = self
+                .shown_settings()
+                .and_then(|s| s.knob_lights.colors.get(index))
+                .map(Color::to_string)
+                .unwrap_or_default();
+            let input = self.device.colour_input.clone();
+            input.update(cx, |input, cx| {
+                input.set_value(text, window, cx);
+                input.focus(window, cx);
+            });
+        } else {
+            self.focus_workspace(window, cx);
         }
+        cx.notify();
+    }
+
+    /// Close the popover of a knob light colour. The colour stays.
+    pub(super) fn close_knob_colour(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_kinds();
         self.focus_workspace(window, cx);
         cx.notify();
     }
@@ -132,10 +191,12 @@ impl DeviceView {
                 }
             });
         }
-        for (input, colour) in self.device.colours.iter().zip(&settings.knob_lights.colors) {
+        if let Some(index) = self.device.colour_open {
+            let input = self.device.colour_input.clone();
+            let colour = settings.knob_lights.colors.get(index).copied();
             let focused = input.focus_handle(cx).is_focused(window);
-            let same = input.read(cx).value().parse::<Color>().ok() == Some(*colour);
-            if !focused && !same {
+            let same = super::inspector::parse_colour(&input.read(cx).value()) == colour;
+            if let (false, false, Some(colour)) = (focused, same, colour) {
                 input.update(cx, |input, cx| {
                     input.set_value(colour.to_string(), window, cx)
                 });
@@ -155,7 +216,7 @@ impl DeviceView {
         panel.subscriptions.clear();
         let brightness = slider(support.lowest_brightness, settings.brightness, cx);
         let knob = slider(LOWEST_KNOB_PERCENT, settings.knob_lights.brightness, cx);
-        let mut subscriptions = vec![
+        let subscriptions = vec![
             cx.subscribe_in(&brightness, window, |view, _, event, window, cx| {
                 let (SliderEvent::Change(value) | SliderEvent::Release(value)) = event;
                 let value = percent(value.end());
@@ -167,58 +228,20 @@ impl DeviceView {
                 view.change_settings(|s| s.knob_lights.brightness = value, window, cx);
             }),
         ];
-        let mut colours = Vec::new();
-        for index in 0..usize::from(support.knob_lights) {
-            let text = settings
-                .knob_lights
-                .colors
-                .get(index)
-                .map(Color::to_string)
-                .unwrap_or_default();
-            let input = cx.new(|cx| {
-                let mut input = InputState::new(window, cx).placeholder("#RRGGBB");
-                input.set_value(text, window, cx);
-                input
-            });
-            subscriptions.push(cx.subscribe_in(
-                &input,
-                window,
-                move |view, input, event, window, cx| {
-                    if !matches!(event, TextEvent::Change) {
-                        return;
-                    }
-                    // A text that is not a colour yet sends nothing.
-                    if let Ok(colour) = input.read(cx).value().trim().parse::<Color>() {
-                        view.set_knob_colour(index, colour, false, window, cx);
-                    }
-                },
-            ));
-            colours.push(input);
-        }
         let panel = &mut self.device;
         panel.brightness = Some(brightness);
         panel.knob_brightness = Some(knob);
-        panel.colours = colours;
         panel.subscriptions = subscriptions;
     }
 
-    /// Set the colour of knob light `index`. With `show`, the text field
-    /// shows the new colour.
+    /// Set the colour of knob light `index`.
     pub(super) fn set_knob_colour(
         &mut self,
         index: usize,
         colour: Color,
-        show: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if show {
-            if let Some(input) = self.device.colours.get(index) {
-                input.update(cx, |input, cx| {
-                    input.set_value(colour.to_string(), window, cx)
-                });
-            }
-        }
         self.change_settings(
             |s| {
                 if let Some(slot) = s.knob_lights.colors.get_mut(index) {
@@ -230,7 +253,7 @@ impl DeviceView {
         );
     }
 
-    /// Change the settings that the area shows, and send all settings to the
+    /// Change the settings that the inspector shows, and send all settings to the
     /// engine. While the user moves a control, at most one command goes to
     /// the engine in each [`SETTINGS_INTERVAL`], and the last value goes at
     /// the end of the interval.
@@ -278,204 +301,4 @@ impl DeviceView {
             });
         }));
     }
-
-    /// The area in place of the surface editor.
-    pub(super) fn device_editor(&self, cx: &mut Context<Self>) -> Stateful<Div> {
-        let mut editor = div()
-            .id("device-settings")
-            .debug_selector(|| "device-settings".into())
-            .child(
-                div()
-                    .text_size(theme::TEXT_HEADING)
-                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-                    .child("Device settings"),
-            );
-        let support = self.state.layout.as_ref().map(|l| l.settings);
-        let (Some(support), Some(settings)) = (support, self.shown_settings()) else {
-            return editor.child(
-                div()
-                    .text_color(theme::TEXT_TERTIARY)
-                    .child("The device settings are not available yet."),
-            );
-        };
-        if let Some(slider) = &self.device.brightness {
-            editor = editor.child(slider_row(
-                "brightness",
-                "Display brightness",
-                settings.brightness,
-                slider,
-            ));
-        }
-        if support.haptic {
-            editor = editor.child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(theme::SPACE_8)
-                    .child("Haptic feedback")
-                    .child(
-                        div()
-                            .flex()
-                            .gap(theme::SPACE_8)
-                            .child(choice("haptic-on", "On", settings.haptic).on_click(
-                                cx.listener(|view, _, window, cx| {
-                                    view.change_settings(|s| s.haptic = true, window, cx)
-                                }),
-                            ))
-                            .child(choice("haptic-off", "Off", !settings.haptic).on_click(
-                                cx.listener(|view, _, window, cx| {
-                                    view.change_settings(|s| s.haptic = false, window, cx)
-                                }),
-                            )),
-                    ),
-            );
-        }
-        if support.knob_lights > 0 {
-            editor = editor.child(self.knob_lights(settings, cx));
-        }
-        editor.child(div().text_size(theme::TEXT_HELP).text_color(theme::TEXT_TERTIARY).child(
-            "These settings are for all devices of this model. OpenCraft sends them to the \
-                 device each time that it connects.",
-        ))
-    }
-
-    fn knob_lights(&self, settings: &DeviceSettings, cx: &mut Context<Self>) -> AnyElement {
-        let lights = &settings.knob_lights;
-        let mode = lights.mode;
-        let mode_button = |id: &'static str, text: &'static str, value: KnobLightMode| {
-            choice(id, text, mode == value).on_click(cx.listener(move |view, _, window, cx| {
-                view.change_settings(|s| s.knob_lights.mode = value, window, cx)
-            }))
-        };
-        let mut area = div().flex().flex_col().gap(theme::SPACE_16).child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(theme::SPACE_8)
-                .child("Knob lights")
-                .child(
-                    div()
-                        .flex()
-                        .gap(theme::SPACE_8)
-                        .child(mode_button("knob-effect", "Effect", KnobLightMode::Effect))
-                        .child(mode_button(
-                            "knob-colours",
-                            "Colours",
-                            KnobLightMode::Colors,
-                        ))
-                        .child(mode_button("knob-off", "Off", KnobLightMode::Off)),
-                ),
-        );
-        if let Some(slider) = &self.device.knob_brightness {
-            area = area.child(slider_row(
-                "knob-brightness",
-                "Knob light brightness",
-                lights.brightness,
-                slider,
-            ));
-        }
-        if mode == KnobLightMode::Colors {
-            for (index, input) in self.device.colours.iter().enumerate() {
-                let current = lights.colors.get(index).copied();
-                area = area.child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(theme::SPACE_8)
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(theme::SPACE_8)
-                                .child(
-                                    div()
-                                        .size(theme::SAMPLE)
-                                        .rounded_full()
-                                        .border_1()
-                                        .border_color(theme::BORDER_FIELD)
-                                        .bg(gpui_kit::rgb(current.map_or(0, |c| {
-                                            u32::from(c.0[0]) << 16
-                                                | u32::from(c.0[1]) << 8
-                                                | u32::from(c.0[2])
-                                        }))),
-                                )
-                                .child(
-                                    div()
-                                        .w(theme::FORM_LABEL)
-                                        .child(format!("Knob {}", index + 1)),
-                                )
-                                .child(div().flex_1().child(Input::new(input))),
-                        )
-                        .child(div().flex().flex_wrap().gap(theme::SPACE_4).children(
-                            KNOB_COLOURS.into_iter().enumerate().map(|(n, value)| {
-                                let id = format!("knob-{}-colour-{n}", index + 1);
-                                div()
-                                    .id(SharedString::from(id.clone()))
-                                    .debug_selector(move || id.clone())
-                                    .size(theme::SAMPLE)
-                                    .rounded(theme::RADIUS_CONTROL)
-                                    .bg(gpui_kit::rgb(value))
-                                    .border_2()
-                                    .border_color(if current == Some(colour(value)) {
-                                        theme::ACCENT_LINE
-                                    } else {
-                                        theme::BORDER_FIELD
-                                    })
-                                    .cursor_pointer()
-                                    .on_click(cx.listener(move |view, _, window, cx| {
-                                        view.set_knob_colour(index, colour(value), true, window, cx)
-                                    }))
-                            }),
-                        )),
-                );
-            }
-            area = area.child(
-                div()
-                    .text_size(theme::TEXT_HELP)
-                    .text_color(theme::TEXT_TERTIARY)
-                    .child("A black knob is off. If all knobs are black, the knob lights are off."),
-            );
-        }
-        area.into_any_element()
-    }
-}
-
-/// A label with the value in percent, and the slider below it.
-fn slider_row(
-    id: &'static str,
-    text: &'static str,
-    value: u8,
-    slider: &Entity<SliderState>,
-) -> AnyElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap(theme::SPACE_8)
-        .child(
-            div().flex().justify_between().child(text).child(
-                div()
-                    .id(id)
-                    .debug_selector(move || format!("{id}-value"))
-                    .text_color(theme::TEXT_TERTIARY)
-                    .child(format!("{value} %")),
-            ),
-        )
-        .child(
-            div()
-                .id(SharedString::from(format!("{id}-slider")))
-                .debug_selector(move || format!("{id}-slider"))
-                .py(theme::SPACE_4)
-                .child(Slider::new(slider).accessibility_label(text)),
-        )
-        .into_any_element()
-}
-
-/// One button of a group of choices. The chosen button has the selected
-/// border.
-fn choice(id: &'static str, text: &'static str, chosen: bool) -> Stateful<Div> {
-    small_button(id, text, true).when(chosen, |d| {
-        d.border_color(theme::ACCENT_LINE)
-            .bg(theme::ACCENT_TINT)
-            .text_color(theme::TEXT_PRIMARY)
-    })
 }

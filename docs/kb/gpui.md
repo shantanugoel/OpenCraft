@@ -620,6 +620,37 @@ pictures are kept outside the repository. The window tests are in
 | `InputState::set_placeholder(text, window, cx)` changes the placeholder of a field after it is made. The state of `gpui_kit::component::input` has no public method that reads the placeholder. | Source; Measured (build error) | `gpui-base` 0.9.1 `src/input/base/state.rs`; `crates/app/src/view/library.rs`, `sync_library` |
 | `input.read(cx).focus_handle(cx)` does not build: the base state has a private field `focus_handle`. `gpui_kit::Focusable::focus_handle(input.read(cx), cx)` calls the method of the trait. | Measured (build error) | `crates/app/src/view/controls.rs`, `search_field` |
 
+## Device inspector in the application (2026-11-13)
+
+Facts from the work on the device inspector (#180). Each one is **Measured**
+in the real window unless the text says other.
+
+- **Click on the body of the device.** The body has `on_click`, and each
+  control on it (display, key face, knob, touch bar) calls
+  `cx.stop_propagation()` in its own `on_click`. A click on the body outside
+  these parts reaches the body only. The display needs its own handler,
+  because its empty part is inside the body.
+- **Slider style.** The Kit `Slider` takes the colour of the filled track
+  from `.bg(...)` and the colour of the thumb from `.text_color(...)`. The
+  track colour (the empty part) comes from the theme of the Kit. A disabled
+  slider has no thumb.
+- **Slider thumb.** The thumb is 16 wide and its centre is on the end of the
+  track. At 100 % half of the thumb is outside the track. The caller gives
+  the slider a side padding of 8, or the thumb goes into the padding of the
+  section.
+- **Tooltip and popover.** A tooltip of a button shows over the popover of
+  that button when the pointer stays on the button. Give a button with an
+  open popover no tooltip.
+- **Grid.** `div().grid().grid_cols(n)` gives columns of equal width. The
+  widths are fractions of a point, thus a test compares them with a margin.
+- **Popover and a click outside.** The backdrop of `controls::popup_menu`
+  takes the first click outside. That click closes the popover and does not
+  reach the control below. A test closes the popover with the Escape key.
+- **Camera check.** The first frame of the USB camera (`ffmpeg -f
+  avfoundation`) can be older than the last change of the device. Use
+  `-vf "select=eq(n\,45)"` to take frame 45 (1.5 s). The knob lights and the
+  display brightness changed in the frames after the commands.
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

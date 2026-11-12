@@ -16,7 +16,8 @@
 //! | `page_inspector` | The inspector of the page, with the swipe gestures of the touch bar |
 //! | `library` | The "Library" tab: the action kinds in their groups |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
-//! | `device`, `pages`, `hotkey` | The device settings, the changes of the pages and the profiles, the hotkey names |
+//! | `device`, `pages`, `hotkey` | The state of the device settings, the changes of the pages and the profiles, the hotkey names |
+//! | `device_inspector` | The inspector of the device: the header and the sections of the device settings |
 //! | `form` | The parts of an inspector: the header, a section, the rows of a form |
 //! | `gesture_card` | The gesture card |
 //! | `history` | Undo and redo, and the text edits for the history |
@@ -51,6 +52,7 @@ mod actions;
 mod canvas;
 pub(crate) mod controls;
 mod device;
+mod device_inspector;
 mod form;
 mod gesture_card;
 mod history;
@@ -188,7 +190,7 @@ impl DeviceView {
             inspector: inspector::InspectorState::new(window, cx),
             lists: pages::Lists::new(window, cx),
             page_inspector: page_inspector::PageInspector::new(window, cx),
-            device: device::DevicePanel::new(),
+            device: device::DevicePanel::new(window, cx),
             library,
             inspector_scroll: ScrollHandle::new(),
         }

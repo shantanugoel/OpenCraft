@@ -174,10 +174,10 @@ fn the_device_settings_of_the_test_model_have_one_knob_light_and_no_haptic_feedb
             },
         }),
     );
-    click(cx, "open-device-settings");
+    click(cx, "device-card");
     assert!(cx.debug_bounds("brightness-slider").is_some());
-    assert!(cx.debug_bounds("knob-1-colour-0").is_some());
-    for id in ["knob-2-colour-0", "haptic-on", "haptic-off"] {
+    assert!(cx.debug_bounds("knob-1-colour").is_some());
+    for id in ["knob-2-colour", "haptic-switch", "feedback"] {
         assert!(cx.debug_bounds(id).is_none(), "{id} shows");
     }
 }
