@@ -20,7 +20,7 @@ application that other persons can adopt.
 | 1 | Device layer foundation | Complete |
 | 2 | First GUI: see and paint the device | Complete |
 | 3 | Actions for keys and knobs | Complete |
-| 4 | Pages and the touch bar | In work |
+| 4 | Pages and the touch bar | Complete |
 | 5 | Background operation | Not started |
 | 6 | First public release | Not started |
 
@@ -208,7 +208,7 @@ record of the checks.
   moved it to Phase 4, so that the work on Phase 4 can start during that
   week. The week started on 2026-11-12.
 
-## Phase 4: Pages and the touch bar
+## Phase 4: Pages and the touch bar (complete)
 
 **Goal.** The profile has more than one page, and the touch bar is a full control.
 
@@ -222,9 +222,9 @@ record of the checks.
 
 **Exit criteria.**
 
-- [ ] A page change repaints the device in a time that the owner accepts. Write the time in `kb/`.
+- [x] A page change repaints the device in a time that the owner accepts. Write the time in `kb/`.
 - [x] Swipe and tap operate reliably, or the knowledge base gives the limit.
-- [ ] A toggle shows its state on the key face.
+- [x] A toggle shows its state on the key face.
 
 This phase had one more exit criterion, which came from Phase 3: the owner
 uses OpenCraft as the daily driver for one week with no blocking fault. On
@@ -237,6 +237,27 @@ other decisions of the phase are
 [0016](decisions/0016-pages-and-engine-requests-from-a-handler.md),
 [0017](decisions/0017-toggle-and-sequence-actions.md), and
 [0018](decisions/0018-many-profiles.md).
+
+**Result.** All exit criteria are true on 2026-11-12, and the
+[checks for each phase](#checks-for-each-phase) are done.
+[Issue #108](https://github.com/shantanugoel/OpenCraft/issues/108) has the
+record of the checks.
+
+- The owner did the last checks on the device: taps and swipes through the
+  engine, the page change, the toggle from a key and from a bar panel, a
+  sequence, and a change of the profile. The record is in
+  [kb/footprint.md](kb/footprint.md#checks-by-the-owner-2).
+- The time of a page change is in
+  [kb/footprint.md](kb/footprint.md#time-of-a-page-change-2026-11-12): the
+  camera showed a new page less than 0.2 seconds after the start of the
+  change.
+- Tap and swipe were reliable in the count of the owner. See "Touch bar" in
+  [kb/n4-pro-hardware.md](kb/n4-pro-hardware.md#controls-and-input-codes).
+- The measured footprint is in [kb/footprint.md](kb/footprint.md#phase-4).
+  The memory and the mean processor use are below their targets.
+- The toggle, the sequence, the page change, and the selection of a profile
+  are handlers in `opencraft-actions`. The engine contains no name of a
+  built-in kind (rule 8).
 
 ## Phase 5: Background operation
 
