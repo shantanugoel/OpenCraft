@@ -67,17 +67,25 @@ owner, who ran development bundles and the release bundle.
 | `Library/Preferences/com.shantanugoel.opencraft.plist` | The file exists after a start of the release bundle. It holds one key, `NSAutoFillHeuristicControllerEnabled`. AppKit makes it, not the code of OpenCraft. The development bundles have a file with their own identifier. | Measured | `defaults read` |
 | `Library/Saved Application State/` | No item for OpenCraft exists after the starts of all bundles. | Measured | `ls` |
 
+## The published cask
+
+Date: 2026-11-12, after the repository became public. Homebrew 7.0.13,
+macOS 27.2.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `brew install --cask shantanugoel/opencraft/opencraft` got the disk image of the release `v0.1.0` and put `OpenCraft.app` in the Applications directory. It needed no step before it to trust the tap. It showed the caveats of the cask. | Measured | `brew install --cask` |
+| The installed bundle passes `codesign --verify --deep --strict`. `spctl --assess --type exec` accepts it with `source=Notarized Developer ID`. The bundle has the attribute `com.apple.quarantine` with the flags `0181`. | Measured | `codesign`; `spctl`; `xattr` |
+| `brew audit --cask --online --strict` found no offence for the published cask. | Measured | `brew audit` |
+| Homebrew 7.0.13 does not accept the option `--signing` of `brew audit`: "Calling the `--[no-]signing` switch is disabled! There is no replacement." | Measured | `brew audit --cask --online --strict --signing` |
+| The SHA-256 of the disk image that the release page gives is the SHA-256 that `scripts/release.sh` printed after the notarization. | Measured | `curl` and `shasum -a 256` |
+
 ## Not known
 
 - `quit:` and `launchctl:` with a running OpenCraft. This needs a start of
   OpenCraft. A real device is connected, and the test must not use it.
 - `brew upgrade` from one released version to the next one. The tests have
   only one version.
-- The result of `brew install --cask shantanugoel/opencraft/opencraft` with
-  the real URL. The repository is private, and no release exists.
-- Whether the cask passes `brew audit --cask --online --strict --signing`.
-  The audit needs the public repository and the release. `brew style` and
-  `brew audit --cask --strict` found no offence offline.
 - `brew audit --new` is not for a tap. It checks the numbers of stars of
   the repository against the rules of `homebrew/cask`.
 
