@@ -190,17 +190,42 @@ fn each_media_key_has_the_correct_system_key() {
 
 #[test]
 fn missing_empty_and_wrong_type_text_settings_are_problems_without_work() {
-    for (kind, key) in [
-        ("open-application", "application"),
-        ("open-url", "url"),
-        ("hotkey", "hotkey"),
-        ("type-text", "text"),
-        ("media-key", "key"),
-        ("shell-command", "command"),
+    // The text names the action and the field as the editor shows them.
+    for (kind, key, text) in [
+        (
+            "open-application",
+            "application",
+            "Open an application: type a value in the field \"Application\".",
+        ),
+        (
+            "open-url",
+            "url",
+            "Open a URL: type a value in the field \"URL\".",
+        ),
+        (
+            "hotkey",
+            "hotkey",
+            "Send a hotkey: record a hotkey in the field \"Hotkey\".",
+        ),
+        (
+            "type-text",
+            "text",
+            "Type text: type a value in the field \"Text\".",
+        ),
+        (
+            "media-key",
+            "key",
+            "Media key: select a value in the field \"Key\".",
+        ),
+        (
+            "shell-command",
+            "command",
+            "Run a shell command: type a value in the field \"Command\".",
+        ),
     ] {
         let mut rig = Rig::new(kind, true);
         rig.invoke(action(kind, &[]));
-        rig.problem(key);
+        assert_eq!(rig.recv(), Message::Problem(text.into()));
         for bad in [
             Value::Text("".into()),
             Value::Integer(3),
@@ -209,7 +234,7 @@ fn missing_empty_and_wrong_type_text_settings_are_problems_without_work() {
             Value::Table(Settings::new()),
         ] {
             rig.invoke(action(kind, &[(key, bad)]));
-            rig.problem(key);
+            assert_eq!(rig.recv(), Message::Problem(text.into()));
         }
         assert!(rig.system.calls().is_empty(), "{kind}");
     }
@@ -217,17 +242,17 @@ fn missing_empty_and_wrong_type_text_settings_are_problems_without_work() {
 
 #[test]
 fn incorrect_choices_hotkeys_and_blank_open_or_command_settings_do_no_work() {
-    for (kind, key, bad) in [
-        ("media-key", "key", "play"),
-        ("hotkey", "hotkey", "cmd+unknown"),
-        ("hotkey", "hotkey", "cmd"),
-        ("open-application", "application", "  "),
-        ("open-url", "url", "\n"),
-        ("shell-command", "command", " \n "),
+    for (kind, key, bad, label) in [
+        ("media-key", "key", "play", "Key"),
+        ("hotkey", "hotkey", "cmd+unknown", "Hotkey"),
+        ("hotkey", "hotkey", "cmd", "Hotkey"),
+        ("open-application", "application", "  ", "Application"),
+        ("open-url", "url", "\n", "URL"),
+        ("shell-command", "command", " \n ", "Command"),
     ] {
         let mut rig = Rig::new(kind, true);
         rig.invoke(text_action(kind, key, bad));
-        rig.problem("");
+        rig.problem(&format!("the field \"{label}\""));
         assert!(rig.system.calls().is_empty());
     }
 }
@@ -284,19 +309,21 @@ fn volume_defaults_are_up_and_five_and_invoke_sends_feedback_without_appear() {
 #[test]
 fn incorrect_volume_settings_are_problems_without_changes() {
     let mut rig = Rig::new("volume", true);
-    for (key, bad) in [
-        ("operation", Value::Text("sideways".into())),
-        ("operation", Value::Text("".into())),
-        ("operation", Value::Integer(1)),
-        ("step", Value::Text("5".into())),
-        ("step", Value::Boolean(true)),
-        ("step", Value::Integer(0)),
-        ("step", Value::Integer(26)),
-        ("step", Value::Integer(i64::MIN)),
-        ("step", Value::Integer(i64::MAX)),
+    let operation = "Sound volume: select a value in the field \"Operation\".";
+    let step = "Sound volume: set the field \"Step\" to a number from 1 to 25.";
+    for (key, bad, text) in [
+        ("operation", Value::Text("sideways".into()), operation),
+        ("operation", Value::Text("".into()), operation),
+        ("operation", Value::Integer(1), operation),
+        ("step", Value::Text("5".into()), step),
+        ("step", Value::Boolean(true), step),
+        ("step", Value::Integer(0), step),
+        ("step", Value::Integer(26), step),
+        ("step", Value::Integer(i64::MIN), step),
+        ("step", Value::Integer(i64::MAX), step),
     ] {
         rig.invoke(action("volume", &[(key, bad)]));
-        rig.problem("volume");
+        assert_eq!(rig.recv(), Message::Problem(text.into()));
         rig.feedback(1, 50, false);
         assert!(rig.system.calls().is_empty());
     }
@@ -412,6 +439,12 @@ fn permission_is_checked_at_each_invoke_and_missing_permission_sends_no_keys() {
     ] {
         rig.invoke(text_action(kind, key, value));
         statuses((0..3).map(|_| rig.recv()).collect(), false);
+        // The user sees the cause at the time of the gesture. The three kinds
+        // send one text, so that the shell shows it one time.
+        assert_eq!(
+            rig.recv(),
+            Message::Problem(crate::handlers::no_permission())
+        );
     }
     assert!(rig.system.calls().is_empty());
     rig.system.permission.store(true, Ordering::SeqCst);
@@ -421,6 +454,7 @@ fn permission_is_checked_at_each_invoke_and_missing_permission_sends_no_keys() {
     rig.system.permission.store(false, Ordering::SeqCst);
     rig.invoke(text_action("hotkey", "hotkey", "cmd+a"));
     statuses((0..3).map(|_| rig.recv()).collect(), false);
+    rig.problem("Accessibility permission");
     assert_eq!(rig.system.calls().len(), 1);
     assert!(rig.messages.try_recv().is_err());
 }
@@ -724,4 +758,23 @@ fn production_intervals_match_the_specification() {
     assert_eq!(intervals.volume, Duration::from_secs(2));
     assert_eq!(intervals.permission, Duration::from_secs(1));
     assert_eq!(intervals.permission_limit, Duration::from_secs(600));
+}
+
+#[test]
+fn each_setting_problem_names_the_action_and_the_field_as_the_editor_shows_them() {
+    for description in handlers().iter().flat_map(|h| h.kinds()) {
+        for field in &description.fields {
+            let text = crate::descriptions::setting_problem(&description.kind, &field.key);
+            assert!(
+                text.starts_with(&format!("{}: ", description.name)),
+                "{text}"
+            );
+            assert!(text.contains(&format!("\"{}\"", field.label)), "{text}");
+            assert!(text.ends_with('.'), "{text}");
+            // A key with an underscore is not a word for the user.
+            if field.key.contains('_') {
+                assert!(!text.contains(&field.key), "{text}");
+            }
+        }
+    }
 }

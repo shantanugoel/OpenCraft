@@ -76,10 +76,13 @@ goes away.
 ## One OpenCraft at a time
 
 Only one OpenCraft can run at a time. If OpenCraft already runs, a second
-start does not open a second OpenCraft. A second start from the Terminal
-writes "OpenCraft is already running." and stops.
+start does not open a second OpenCraft. The OpenCraft that runs opens its
+window. This occurs for a start from the Finder, from the Dock, and from the
+Terminal. A second start from the Terminal also writes "OpenCraft is
+already running." and stops.
 
-To open the window of the OpenCraft that runs, use the menu bar item.
+A start at login does not open the window. You can also open the window of
+the OpenCraft that runs with the menu bar item.
 
 ## The files of OpenCraft
 
@@ -97,7 +100,7 @@ click Go > Go to Folder, and type the path.
 | `shell.toml` | The option for the Dock icon |
 | `opencraft.log` | The log file. See below. |
 | `opencraft.log.1` | The previous log file |
-| `opencraft.lock` | The file that prevents a second OpenCraft |
+| `opencraft.lock` | The file that prevents a second OpenCraft. It contains the process number of the OpenCraft that runs. |
 
 - The name of a profile folder comes from the name of the profile when you
   make it. It does not change when you rename the profile.
@@ -113,7 +116,8 @@ click Go > Go to Folder, and type the path.
 When OpenCraft starts from the Finder, from the Dock, or at login, it writes
 its messages to `opencraft.log`. The file contains the time of each start,
 each connection and disconnection of the device, and each message that the
-window shows. It does not contain the gestures that you do on the device.
+window shows. For a problem with the device, it also contains the technical
+cause. It does not contain the gestures that you do on the device.
 
 When the file is larger than 1 MiB at a start, OpenCraft renames it to
 `opencraft.log.1` and starts a new file.

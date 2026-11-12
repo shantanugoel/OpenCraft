@@ -11,7 +11,8 @@ Before you start, do the steps in [Install and first start](install.md).
 
 The key face gets a blue frame. The editor at the right shows "Key face 1".
 It has these parts, from the top: **Action**, **Label**, **Colour**, and
-**Image**. If the editor is not tall enough, scroll it.
+**Image**. If the editor is not tall enough, it shows a scrollbar at the
+right. Scroll the editor to see the other parts.
 
 ## 2. Set the label and the colour
 
@@ -22,8 +23,8 @@ The key face in the window and key 1 on the device show the label on the
 colour. OpenCraft selects black or white for the text, so that you can read
 it on the colour.
 
-To remove the colour, click **No colour**. To remove the label, delete the
-text in the field.
+To remove the colour, click **No colour** to the right of **Colour**. To
+remove the label, delete the text in the field.
 
 ## 3. Set an image (optional)
 

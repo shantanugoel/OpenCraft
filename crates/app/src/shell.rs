@@ -307,7 +307,10 @@ impl Shell {
         let shell = cx.entity();
         let state = self.window_state();
         let send = self.send.clone();
-        let bounds = Bounds::centered(None, size(px(1120.), px(760.)), cx);
+        // With the title bar, the window is less than 850 points high. It
+        // fits on a small display, and the editor shows all its sections for
+        // a simple action.
+        let bounds = Bounds::centered(None, size(px(1120.), px(816.)), cx);
         let opened = cx.open_window(
             WindowOptions {
                 titlebar: Some(TitlebarOptions {
