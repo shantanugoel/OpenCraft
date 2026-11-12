@@ -42,12 +42,12 @@ The device layer function `computer_sleep_time` in
   the device and adds it again, and whether the device keeps its images.
   See [hidapi-macos.md](hidapi-macos.md#not-known) and
   [n4-pro-hardware.md](n4-pro-hardware.md#not-known). The check is issue
-  [#43](https://github.com/shantanugoel/OpenCraft/issues/43).
+  [#143](https://github.com/shantanugoel/OpenCraft/issues/143).
 - Whether the process operates for a short time during a sleep (for
   example Power Nap), and what the device gets then.
 - The value of `CLOCK_MONOTONIC_RAW` minus `CLOCK_UPTIME_RAW` after a real
   sleep. The check of issue
-  [#127](https://github.com/shantanugoel/OpenCraft/issues/127) gives it in
+  [#143](https://github.com/shantanugoel/OpenCraft/issues/143) gives it in
   the log line `wake detected`.
 
 ## Sources

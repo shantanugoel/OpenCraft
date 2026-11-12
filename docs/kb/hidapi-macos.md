@@ -62,7 +62,7 @@ a short time. Then it closes the handle and opens the device again.
 - Whether a write can block for a long time when the device does not answer.
 - Whether macOS removes the device and adds it again when the computer sleeps
   and wakes. If it does not, the device layer sees no disconnection. The
-  check is issue [#43](https://github.com/shantanugoel/OpenCraft/issues/43).
+  check is issue [#143](https://github.com/shantanugoel/OpenCraft/issues/143).
   See [n4-pro-hardware.md](n4-pro-hardware.md#not-known) for what the device
   shows after a wake.
 
