@@ -93,7 +93,7 @@ pub const DESTRUCTIVE_TEXT: Rgba = hex(0xff8a80);
 pub const DESTRUCTIVE_TINT: Rgba = hex_alpha(0xff8a80, 0.12);
 /// The line at the top of a message row (section 6.2).
 pub const DESTRUCTIVE_LINE: Rgba = hex_alpha(0xff8a80, 0.35);
-/// The icon of a warning.
+/// The icon of a warning, and a warning text in a gesture card.
 pub const WARNING: Rgba = hex(0xf5b65c);
 /// A control that the user operates on the device glows in this colour.
 pub const INPUT_GLOW: Rgba = hex(0xffce73);
@@ -108,6 +108,15 @@ pub const HOVER_ROW: Rgba = hex_alpha(0xffffff, 0.05);
 pub const PRESSED: Rgba = hex(0x42444b);
 /// The background of the live state pill when no device is connected.
 pub const NEUTRAL_TINT: Rgba = hex_alpha(0xffffff, 0.06);
+/// The dashed border of the fill sample "Other colour" (section 10.2).
+pub const BORDER_SAMPLE_OTHER: Rgba = hex(0x5a5c63);
+/// The white knob of a switch, and the text on a kind tile.
+pub const SWITCH_KNOB_COLOUR: Rgba = hex(0xffffff);
+/// The tile of a kind of a group that is not in the table of section 20.
+/// Until #184 gives the groups, all kinds use it.
+pub const KIND_TILE_OTHER: Rgba = hex(0x4b3b7a);
+/// The tile of an action kind that has no handler (rule 8).
+pub const KIND_TILE_UNAVAILABLE: Rgba = hex(0x3a3c42);
 
 /// The body of the device.
 pub const DEVICE_BODY: Rgba = hex(0x0b0c0e);
@@ -154,6 +163,9 @@ pub const TEXT_CONTROL: Pixels = px(12.5);
 pub const TEXT_BODY: Pixels = px(13.);
 /// The name in the inspector header.
 pub const TEXT_HEADING: Pixels = px(15.);
+/// A section header, in capital letters, weight 600. GPUI has no letter
+/// spacing, thus the header has the normal spacing of the font.
+pub const TEXT_SECTION: Pixels = px(11.);
 
 // MARK: Spacing steps (section 3.3)
 //
@@ -181,6 +193,15 @@ pub const GAP_ITEMS: Pixels = SPACE_6;
 pub const SECTION_PADDING_TOP: Pixels = SPACE_14;
 pub const SECTION_PADDING_SIDE: Pixels = SPACE_16;
 pub const SECTION_PADDING_BOTTOM: Pixels = SPACE_16;
+/// The space below a section header, and below a header with a hint.
+pub const SECTION_HEADER_GAP: Pixels = SPACE_12;
+pub const SECTION_HINT_GAP: Pixels = SPACE_4;
+/// The gap between the columns of a form and between its rows; in a
+/// gesture card.
+pub const FORM_GAP: Pixels = SPACE_10;
+pub const CARD_FORM_GAP: Pixels = SPACE_8;
+/// The gap between two gesture cards.
+pub const CARD_GAP: Pixels = SPACE_8;
 
 // MARK: Corner radii (section 3.4)
 
@@ -196,7 +217,8 @@ pub const RADIUS_TRACK: Pixels = px(7.);
 pub const RADIUS_CARD: Pixels = px(8.);
 /// A gesture card, and the device card.
 pub const RADIUS_DEVICE_CARD: Pixels = px(9.);
-/// A popover, a menu, and a key face on the canvas.
+pub const RADIUS_GESTURE_CARD: Pixels = RADIUS_DEVICE_CARD;
+/// A popover, a menu, a key face on the canvas and in the inspector header.
 pub const RADIUS_POPOVER: Pixels = px(12.);
 
 // MARK: Control heights (section 3.5)
@@ -213,8 +235,51 @@ pub const WIDTH_ICON_BUTTON: Pixels = px(30.);
 pub const DOT: Pixels = px(6.);
 /// The space above the text of an empty state in a pane.
 pub const EMPTY_STATE_TOP: Pixels = px(40.);
-/// The label column of a form.
+/// The label column of a form, and the gesture name of a gesture card.
 pub const FORM_LABEL: Pixels = px(64.);
+/// The label column of a form in the page and the device inspector.
+pub const FORM_LABEL_WIDE: Pixels = px(72.);
+/// The gesture name of a swipe card (section 10.6).
+pub const GESTURE_NAME_WIDE: Pixels = px(84.);
+/// The action popup of a gesture card.
+pub const HEIGHT_ACTION_POPUP: Pixels = px(30.);
+/// A gesture card with no action.
+pub const HEIGHT_EMPTY_CARD: Pixels = px(40.);
+/// A nested card with no action, and a closed nested card (section 10.5).
+pub const HEIGHT_EMPTY_NESTED: Pixels = px(32.);
+/// A text field of three lines.
+pub const HEIGHT_LONG_TEXT: Pixels = px(60.);
+/// The text field of an integer.
+pub const WIDTH_INTEGER_FIELD: Pixels = px(56.);
+/// A switch in the inspector: width, height, and the diameter of its knob.
+pub const SWITCH_WIDTH: Pixels = px(30.);
+pub const SWITCH_HEIGHT: Pixels = px(18.);
+pub const SWITCH_KNOB: Pixels = px(14.);
+/// The picture in the inspector header.
+pub const HEADER_PICTURE: Pixels = px(64.);
+/// The ring of the knob picture in the inspector header.
+pub const HEADER_KNOB_RING: Pixels = px(4.);
+/// The mark at the top of the knob picture in the inspector header.
+pub const HEADER_KNOB_MARK: Pixels = px(6.);
+/// A kind tile in a gesture card and in the kind menu, and in a nested card.
+pub const KIND_TILE: Pixels = px(20.);
+pub const KIND_TILE_NESTED: Pixels = px(18.);
+/// The width of a menu that the window draws.
+pub const MENU_WIDTH: Pixels = px(240.);
+/// The highest menu. A longer menu scrolls.
+pub const MENU_MAX_HEIGHT: Pixels = px(420.);
+/// The height of a row of a menu that the window draws.
+pub const HEIGHT_MENU_ROW: Pixels = px(28.);
+/// The space between a popup button and its menu, and between the menu and
+/// the edge of the window.
+pub const MENU_OFFSET: Pixels = SPACE_4;
+pub const MENU_WINDOW_MARGIN: Pixels = SPACE_8;
+/// The selection outline of a fill sample: its width, and the space
+/// between the outline and the sample (section 3.7).
+pub const SAMPLE_OUTLINE: Pixels = px(2.);
+pub const SAMPLE_OUTLINE_GAP: Pixels = px(2.);
+/// The popover of "Other colour", with its field for `#RRGGBB`.
+pub const WIDTH_COLOUR_POPOVER: Pixels = px(200.);
 /// A fill sample.
 pub const SAMPLE: Pixels = px(22.);
 /// The icon tile of the device card.
@@ -241,6 +306,13 @@ pub const ICON_MESSAGE: Pixels = px(14.);
 pub const ICON_PANE: Pixels = px(17.);
 /// The device icon of the device card.
 pub const ICON_DEVICE: Pixels = px(18.);
+/// The "⋯" icon of the inspector header.
+pub const ICON_MORE: Pixels = px(16.);
+/// The kind icon in a kind tile of 20, and of 18.
+pub const ICON_KIND: Pixels = px(13.);
+pub const ICON_KIND_NESTED: Pixels = px(11.);
+/// The play icon of "Test the action" (#188).
+pub const ICON_PLAY: Pixels = px(11.);
 
 // MARK: The window and the panes (section 4)
 
@@ -283,13 +355,17 @@ pub const DEVICE_SCALE_MAX: f32 = 1.0;
 // The window embeds only the icons in this list. A new icon in the window
 // needs a new name here: a missing icon shows nothing.
 gpui_kit::assets::icon_assets!(pub WindowIcons, [
+    Check,
     ChevronLeft,
     ChevronRight,
+    ChevronsUpDown,
     Copy,
+    Ellipsis,
     Grid3x2,
     PanelLeft,
     PanelRight,
     Pencil,
+    Plus,
     Trash,
     TriangleAlert,
 ]);

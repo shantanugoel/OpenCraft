@@ -130,7 +130,7 @@ fn the_window_shows_each_control_of_the_test_model_and_no_other(cx: &mut TestApp
 
     // A binding for key 6 and for knob 1 of the test model.
     click(cx, "surface-key face 6");
-    click(cx, "action-kind");
+    click(cx, "gesture-Press-kind");
     click(cx, "kind-0");
     assert_eq!(
         last_binding(&sent),
@@ -142,7 +142,7 @@ fn the_window_shows_each_control_of_the_test_model_and_no_other(cx: &mut TestApp
     );
     click(cx, "control-knob 1");
     cx.update(|_, cx| assert_eq!(view.read(cx).state.selected, None));
-    click(cx, "action-kind");
+    click(cx, "gesture-TurnRight-kind");
     click(cx, "kind-0");
     assert_eq!(
         last_binding(&sent),

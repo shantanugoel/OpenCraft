@@ -1,0 +1,399 @@
+//! The gesture card (decision 0029, section 10.3): the part of the
+//! inspector for one gesture of a control.
+//!
+//! The card is a component with no state. The caller keeps the state (which
+//! card is open, which menu is open) and gives the body rows and the click
+//! handlers. Thus each inspector uses the same card:
+//!
+//! - A card of a key, a bar panel, or a knob: [`GestureCard::new`] with the
+//!   gesture name, and [`GestureCard::action`] when the gesture has an
+//!   action.
+//! - A swipe card of the page (#181): the same, with
+//!   [`GestureCard::name_width`] [`theme::GESTURE_NAME_WIDE`].
+//! - The "Turn" card of a knob (#182): the same, with the rows of the
+//!   direction and of the link as body rows.
+//! - A nested card of a toggle or a sequence (#183):
+//!   [`GestureCard::nested`], with an empty name.
+//! - The button "Test the action" (#188): the last body row,
+//!   [`super::form::end_row`].
+//!
+//! The element identifiers come from the `id` of the card:
+//!
+//! | Identifier | Element |
+//! |---|---|
+//! | `{id}` | The card |
+//! | `{id}-head` | The head row. A click out of the popup opens or closes the card. |
+//! | `{id}-name` | The gesture name in the head row |
+//! | `{id}-kind` | The action popup, or the full card with no action. A click opens the kind menu. |
+
+use super::{controls, form, theme};
+use gpui_kit::{
+    assets::IconName, component::Icon, div, prelude::*, AnyElement, App, ClickEvent, Div,
+    FontWeight, Pixels, Rgba, SharedString, Stateful, Window,
+};
+use std::rc::Rc;
+
+type Handler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+
+/// The text and the tile of the action of a card.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct KindLabel {
+    name: SharedString,
+    letter: SharedString,
+    available: bool,
+}
+
+impl KindLabel {
+    /// The label of a kind with a handler. Until #190 gives the kind
+    /// icons, the tile shows the first letter of the name.
+    pub(super) fn new(name: impl Into<SharedString>) -> Self {
+        let name: SharedString = name.into();
+        let letter = name
+            .chars()
+            .next()
+            .map_or_else(|| "?".to_string(), |c| c.to_uppercase().to_string());
+        Self {
+            name,
+            letter: letter.into(),
+            available: true,
+        }
+    }
+
+    /// The label of a kind with no handler (rule 8): "Not available" and a
+    /// question mark.
+    pub(super) fn unavailable() -> Self {
+        Self {
+            name: "Not available".into(),
+            letter: "?".into(),
+            available: false,
+        }
+    }
+
+    /// The tile of the kind: 20 × 20, or 18 × 18 in a nested card.
+    pub(super) fn tile(&self, nested: bool) -> Div {
+        let (size, radius, text) = if nested {
+            (
+                theme::KIND_TILE_NESTED,
+                theme::RADIUS_BADGE,
+                theme::TEXT_BADGE,
+            )
+        } else {
+            (theme::KIND_TILE, theme::RADIUS_SEGMENT, theme::TEXT_CAPTION)
+        };
+        let colour: Rgba = if self.available {
+            theme::KIND_TILE_OTHER
+        } else {
+            theme::KIND_TILE_UNAVAILABLE
+        };
+        div()
+            .flex_shrink_0()
+            .size(size)
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(radius)
+            .bg(colour)
+            .text_size(text)
+            .font_weight(FontWeight::BOLD)
+            .text_color(theme::SWITCH_KNOB_COLOUR)
+            .child(self.letter.clone())
+    }
+
+    /// The tile and the name, as in the popup and in the kind menu.
+    pub(super) fn content(&self, nested: bool) -> Div {
+        div()
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_8)
+            .child(self.tile(nested))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .when(!self.available, |d| d.text_color(theme::TEXT_TERTIARY))
+                    .child(self.name.clone()),
+            )
+    }
+}
+
+/// The height of the element that opens the kind menu of a card: the
+/// popup of a card with an action, or the card with no action. The menu of
+/// [`controls::popup_menu`] needs it.
+pub(super) fn menu_button_height(action: bool, nested: bool) -> Pixels {
+    match (action, nested) {
+        (true, false) => theme::HEIGHT_ACTION_POPUP,
+        (true, true) => theme::HEIGHT_CONTROL,
+        (false, false) => theme::HEIGHT_EMPTY_CARD,
+        (false, true) => theme::HEIGHT_EMPTY_NESTED,
+    }
+}
+
+/// One card. Make it with [`GestureCard::new`], and add the body rows with
+/// `child`. The body shows only when the card has an action and is open.
+#[derive(IntoElement)]
+pub(super) struct GestureCard {
+    id: SharedString,
+    name: SharedString,
+    name_width: Pixels,
+    action: Option<KindLabel>,
+    open: bool,
+    nested: bool,
+    menu_open: bool,
+    menu: Option<AnyElement>,
+    body: Vec<AnyElement>,
+    on_toggle: Option<Handler>,
+    on_menu: Option<Handler>,
+}
+
+impl GestureCard {
+    /// A closed card with no action. `name` is the gesture name, for
+    /// example "Press". A nested card has an empty name.
+    pub(super) fn new(id: impl Into<SharedString>, name: impl Into<SharedString>) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            name_width: theme::FORM_LABEL,
+            action: None,
+            open: false,
+            nested: false,
+            menu_open: false,
+            menu: None,
+            body: Vec::new(),
+            on_toggle: None,
+            on_menu: None,
+        }
+    }
+
+    /// The width of the gesture name: 64, or 84 for a swipe.
+    pub(super) fn name_width(mut self, width: Pixels) -> Self {
+        self.name_width = width;
+        self
+    }
+
+    /// The gesture has an action. The popup shows `label`.
+    pub(super) fn action(mut self, label: KindLabel) -> Self {
+        self.action = Some(label);
+        self
+    }
+
+    /// The card shows its body. A card with no action has no body.
+    pub(super) fn open(mut self, open: bool) -> Self {
+        self.open = open;
+        self
+    }
+
+    /// The look of a card inside a card (section 10.5): radius 8, the
+    /// background `bg-panel`, a smaller padding and tile.
+    pub(super) fn nested(mut self) -> Self {
+        self.nested = true;
+        self
+    }
+
+    /// The kind menu of this card is open. `menu` is the menu, from
+    /// [`controls::popup_menu`]. The card draws it below the popup, or below
+    /// the card with no action.
+    pub(super) fn menu(mut self, menu: Option<AnyElement>) -> Self {
+        self.menu_open = menu.is_some();
+        self.menu = menu;
+        self
+    }
+
+    /// A click on the head row, out of the popup: open or close the card.
+    pub(super) fn on_toggle(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_toggle = Some(Rc::new(handler));
+        self
+    }
+
+    /// A click on the popup, or on the card with no action: open or close
+    /// the kind menu.
+    pub(super) fn on_menu(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_menu = Some(Rc::new(handler));
+        self
+    }
+
+    fn name_cell(&self) -> Option<Stateful<Div>> {
+        (!self.name.is_empty()).then(|| {
+            let id = SharedString::from(format!("{}-name", self.id));
+            let selector = id.clone();
+            div()
+                .id(id)
+                .debug_selector(move || selector.to_string())
+                .flex_shrink_0()
+                .w(self.name_width)
+                .text_size(theme::TEXT_LABEL)
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(theme::TEXT_PRIMARY)
+                .child(self.name.clone())
+        })
+    }
+
+    /// The card with no action: a dashed button of full width.
+    fn empty(self) -> AnyElement {
+        let id = self.id.clone();
+        let kind_id = SharedString::from(format!("{id}-kind"));
+        let selector = kind_id.clone();
+        let on_menu = self.on_menu.clone();
+        let height = menu_button_height(false, self.nested);
+        let (radius, padding) = if self.nested {
+            (theme::RADIUS_CARD, theme::SPACE_8)
+        } else {
+            (theme::RADIUS_GESTURE_CARD, theme::SPACE_10)
+        };
+        div()
+            .id(id.clone())
+            .debug_selector(move || id.to_string())
+            .relative()
+            .flex_shrink_0()
+            .w_full()
+            .child(
+                div()
+                    .id(kind_id)
+                    .debug_selector(move || selector.to_string())
+                    .h(height)
+                    .px(padding)
+                    .flex()
+                    .items_center()
+                    .gap(theme::SPACE_8)
+                    .rounded(radius)
+                    .border_1()
+                    .border_dashed()
+                    .border_color(if self.menu_open {
+                        theme::ACCENT_LINE
+                    } else {
+                        theme::BORDER_OVERLAY
+                    })
+                    .cursor_pointer()
+                    .hover(|d| d.bg(theme::HOVER_ROW))
+                    .children(self.name_cell())
+                    .child(
+                        Icon::new(IconName::Plus)
+                            .size(theme::ICON_SMALL)
+                            .text_color(theme::TEXT_SECONDARY),
+                    )
+                    .child(
+                        div()
+                            .text_size(theme::TEXT_LABEL)
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(theme::TEXT_SECONDARY)
+                            .child("Add an action"),
+                    )
+                    .when_some(on_menu, |d, on_menu| {
+                        d.on_click(move |event, window, cx| on_menu(event, window, cx))
+                    }),
+            )
+            .children(self.menu)
+            .into_any_element()
+    }
+}
+
+impl RenderOnce for GestureCard {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+        let Some(action) = self.action.clone() else {
+            return self.empty();
+        };
+        let id = self.id.clone();
+        let head_id = SharedString::from(format!("{id}-head"));
+        let head_selector = head_id.clone();
+        let kind_id = format!("{id}-kind");
+        let popup_height = menu_button_height(true, self.nested);
+        let (radius, background, head_x, head_y) = if self.nested {
+            (
+                theme::RADIUS_CARD,
+                theme::BG_PANEL,
+                theme::SPACE_8,
+                theme::SPACE_6,
+            )
+        } else {
+            (
+                theme::RADIUS_GESTURE_CARD,
+                theme::BG_CARD,
+                theme::SPACE_10,
+                theme::SPACE_8,
+            )
+        };
+        let on_menu = self.on_menu.clone();
+        let on_toggle = self.on_toggle.clone();
+        let open = self.open;
+        let name = self.name_cell();
+        let popup = div()
+            .relative()
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .child(
+                controls::popup_button(
+                    kind_id,
+                    popup_height,
+                    self.menu_open,
+                    action.content(self.nested),
+                )
+                .when_some(on_menu, |d, on_menu| {
+                    d.on_click(move |event, window, cx| {
+                        // The click opens the menu, and does not open or
+                        // close the card.
+                        cx.stop_propagation();
+                        on_menu(event, window, cx)
+                    })
+                }),
+            )
+            .children(self.menu);
+        let head = div()
+            .id(head_id)
+            .debug_selector(move || head_selector.to_string())
+            .px(head_x)
+            .py(head_y)
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_8)
+            .when(on_toggle.is_some(), |d| d.cursor_pointer())
+            .children(name)
+            .child(popup)
+            .when_some(on_toggle, |d, on_toggle| {
+                d.on_click(move |event, window, cx| on_toggle(event, window, cx))
+            });
+        let body_padding = if self.nested {
+            theme::SPACE_8
+        } else {
+            theme::SPACE_10
+        };
+        div()
+            .id(id.clone())
+            .debug_selector(move || id.to_string())
+            .flex_shrink_0()
+            .w_full()
+            .flex()
+            .flex_col()
+            .rounded(radius)
+            .border_1()
+            .border_color(theme::BORDER_FIELD)
+            .bg(background)
+            .child(head)
+            .when(open && !self.body.is_empty(), |d| {
+                d.child(
+                    form::form(theme::CARD_FORM_GAP)
+                        .pt(body_padding)
+                        .px(body_padding)
+                        .pb(theme::SPACE_12)
+                        .border_t_1()
+                        .border_color(theme::LINE_PANE)
+                        .children(self.body),
+                )
+            })
+            .into_any_element()
+    }
+}
+
+impl ParentElement for GestureCard {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.body.extend(elements);
+    }
+}

@@ -299,7 +299,7 @@ fn a_bar_panel_offers_tap_and_the_touch_bar_offers_the_swipes(cx: &mut TestAppCo
     for id in ["gesture-Press", "gesture-SwipeLeft", "gesture-TurnLeft"] {
         assert!(cx.debug_bounds(id).is_none(), "{id}");
     }
-    click(cx, "action-kind");
+    click(cx, "gesture-Tap-kind");
     click(cx, "kind-0");
     let tap = BindingId {
         page: 0,
@@ -325,7 +325,7 @@ fn a_bar_panel_offers_tap_and_the_touch_bar_offers_the_swipes(cx: &mut TestAppCo
         control: ControlId::new(ControlKind::TouchBar, 2),
         gesture,
     };
-    click(cx, "action-kind");
+    click(cx, "gesture-SwipeLeft-kind");
     click(cx, "kind-0");
     assert_eq!(
         sent.borrow().last(),
@@ -334,8 +334,7 @@ fn a_bar_panel_offers_tap_and_the_touch_bar_offers_the_swipes(cx: &mut TestAppCo
             action: Some(test_action("start"))
         })
     );
-    click(cx, "gesture-SwipeRight");
-    click(cx, "action-kind");
+    click(cx, "gesture-SwipeRight-kind");
     click(cx, "kind-0");
     assert_eq!(
         sent.borrow().last(),

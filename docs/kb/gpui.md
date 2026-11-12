@@ -476,6 +476,28 @@ only. The pictures are kept outside the repository.
 | A key binding in the key context `"Workspace"` does nothing when no element has the focus. The application focuses the root element when the window opens, and after a click that takes the focus from a text field, in place of `Window::blur`. | Inference; Measured (the window tests with the focus in the root element) | `gpui-pre` 0.3.12 `src/window.rs`, dispatch path; `crates/app/src/view.rs`, `focus_workspace` |
 | `TestPlatform::get_menus` gives the menus of `set_menus`, thus a window test can read the titles of the View menu. | Source; Measured | `gpui-pre` 0.3.12 `src/platform/test/platform.rs`; `view/tests/panes.rs` |
 
+## Gesture cards in the inspector (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+gesture cards of
+[issue 179](https://github.com/shantanugoel/OpenCraft/issues/179), on the
+computer of [Release measurements](#release-measurements), with a copy of a
+real profile and the device connected. A helper program operated the real
+window with Quartz events and took pictures of the window only. The
+pictures are kept outside the repository.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The text style of GPUI has no letter spacing. A section header of decision 0029 (letter spacing 0.06 em) has the normal spacing of the font. | Source | `gpui-pre` 0.3.12 `src/style.rs`, `TextStyle` |
+| `Input::new(&state).appearance(false)` draws no background, no border, and no focus ring of the kit. A frame element around it can draw the field with the sizes and colours of the window, and the frame gets the focus border when `state.focus_handle(cx).is_focused(window)`. | Source; Measured | `gpui-component` 0.9.1 `src/input/input.rs`, `render`; `crates/app/src/view/controls.rs`, `text_field`; window picture |
+| The single-line input keeps the vertical padding of its size after `.h(..)`. With `.h(px(26.))` and no `.py_0()`, the text was approximately 3 below the centre of a field of 28. With `.py_0()` and a frame with `items_center`, the text was in the centre. | Measured | Window pictures |
+| `Textarea::new(&state).small()` has the editor padding 8 at the sides and 2 at the top and the bottom. A padding on the element adds to it. | Source; Measured | `gpui-component` 0.9.1 `src/sizing.rs`, `input_px` and `input_py`; window picture |
+| `anchored()` with no position uses its own place in the layout as the anchor. With `.offset(point(px(0.), h))` from the top of a button of height `h`, the element shows below the button. If it does not fit below, the default fit mode `SwitchAnchor` uses the other corner at the anchor and drops the offset, so the element shows above the button and does not cover it. With `SnapToWindowWithMargin`, the element moved up and covered the button. | Source; Measured | `gpui-pre` 0.3.12 `src/elements/anchored.rs`, `prepaint`; window pictures |
+| A menu in `deferred(anchored()..)` inside the scrolled inspector moves with the scroll position of its button. A second `deferred` element at the window origin, of the size of the viewport, with `occlude()` and `on_mouse_down`, closes the menu on a click out of it. The element below does not get the click. | Measured | `crates/app/src/view/controls.rs`, `popup_menu`; `a_menu_closes_with_escape_and_with_a_click_out_of_it`; window pictures |
+| `window.text_system().shape_line(text, size, &[run], None).width` gives the width of a label before the layout. The inspector uses it to put a label that is wider than the label column above its control. | Source; Measured | `gpui-pre` 0.3.12 `src/text_system.rs`; `crates/app/src/view/form.rs`, `fitted_row`; window picture |
+| `cx.debug_bounds(id)` of `VisualTestContext` takes a `&'static str`. A test cannot give it an identifier from `format!`. | Source | Build error in `view/tests/actions.rs` |
+| In a window test, a click goes to the centre of the element. The centre of the head row of a gesture card is on its popup button, so the test clicks the gesture name (`{id}-name`) to open the card. | Measured | `cards_open_set_a_kind_change_a_setting_and_clear_an_action` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

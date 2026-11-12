@@ -81,7 +81,8 @@ OpenCraft, and quit it.
    status bar does not show the gesture with "now", OpenCraft does not get
    the gesture. See [The device is not found](#the-device-is-not-found).
 4. Make sure that the action is on the correct gesture, for example
-   **Press** and not **Release**. A gesture with an action shows a dot.
+   **Press** and not **Release**. The card of a gesture with an action
+   shows the name of the action.
 5. Make sure that the device shows the page that has the action. The page
    button with the blue frame is the active page.
 6. For "Send a hotkey", "Type text", and "Media key": make sure that
@@ -89,11 +90,12 @@ OpenCraft, and quit it.
    permission, these actions do nothing, and the window shows a message
    above the status bar. See
    [Give the Accessibility permission](install.md#give-the-accessibility-permission).
-7. If the action button shows **Unknown action**, this version of OpenCraft
-   does not have the action kind. A newer version of OpenCraft made the
-   action. OpenCraft keeps the action in the profile. Select a different
-   action kind, or use a newer version of OpenCraft. The small text "Action
-   identifier" gives the name of the action kind in the profile file.
+7. If the button of the card shows **Not available**, this version of
+   OpenCraft does not have the action kind. A newer version of OpenCraft
+   made the action. OpenCraft keeps the action in the profile. Select a
+   different action kind, or use a newer version of OpenCraft. The card
+   shows the identifier of the action kind in the profile file. See
+   [An action that is not available](actions.md#an-action-that-is-not-available).
 
 If a hotkey operates in some applications only, the application in front can
 ignore that hotkey. Try the hotkey on the keyboard of the computer.

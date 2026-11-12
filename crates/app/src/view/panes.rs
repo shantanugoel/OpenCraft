@@ -179,7 +179,7 @@ impl DeviceView {
                             .flex()
                             .child(self.canvas(canvas_width, window, cx))
                             .when(shown.inspector > 0., |d| {
-                                d.child(self.right_panel(px(shown.inspector), cx))
+                                d.child(self.right_panel(px(shown.inspector), window, cx))
                             }),
                     ),
             )

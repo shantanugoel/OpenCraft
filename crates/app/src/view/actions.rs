@@ -1,4 +1,6 @@
-//! A settings form made only from engine descriptions.
+//! The gesture cards of the selected control, and the settings form of the
+//! open card, made only from engine descriptions (decision 0029, section
+//! 10.3).
 //!
 //! A field of the input type Action or Action list contains actions. The form
 //! shows each contained action with the same code as the action of the
@@ -6,13 +8,20 @@
 //! reads and writes the value of a contained action only with the functions
 //! of the engine: see [`Action::from_value`].
 
+use super::gesture_card::{menu_button_height, GestureCard, KindLabel};
 use super::*;
 use crate::state::gestures;
 use gpui_kit::{
-    component::input::{AnyInputState, Textarea, TextareaState},
-    KeyDownEvent,
+    assets::IconName,
+    component::{
+        input::{AnyInputState, TextareaState},
+        Icon,
+    },
+    KeyDownEvent, Pixels,
 };
-use opencraft_engine::{Action, BindingId, Field, InputType, KindDescription, Status, Value};
+use opencraft_engine::{
+    Action, BindingId, Field, GestureKind, InputType, KindDescription, Status, Value,
+};
 
 /// One step from an action to an action that it contains: the key of a
 /// field, and for an action list, the position in the list.
@@ -41,14 +50,19 @@ pub(super) struct FieldInput {
     _subscription: Subscription,
 }
 
-/// The kind list that is open.
+/// The menu that is open in the gesture cards.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum KindMenu {
-    /// Replace the action at the path.
+enum Menu {
+    /// The kind menu of the gesture card of this gesture.
+    Card(GestureKind),
+    /// The kind menu of the contained action at the path. The path is not
+    /// empty.
     Replace(ActionPath),
-    /// Add an action at the end of the list in the field `key` of the action
-    /// at the path.
+    /// The kind menu that adds an action at the end of the list in the field
+    /// `key` of the action at the path.
     Add(ActionPath, String),
+    /// The options of the choice field at the path.
+    Choice(FieldPath),
 }
 
 /// A change to the list of actions in a field.
@@ -67,7 +81,7 @@ pub(super) struct ActionForm {
     // These are edits in flight, not confirmed bindings. Only events change ViewState.
     pending: BTreeMap<BindingId, Vec<Action>>,
     recording: Option<FieldPath>,
-    menu: Option<KindMenu>,
+    menu: Option<Menu>,
 }
 
 /// The text form of a path for the identifiers of the elements. It is empty
@@ -406,10 +420,33 @@ impl DeviceView {
         });
     }
 
-    /// Select a kind in the open kind list. `None` is "No action".
+    /// Open or close a menu of the cards. The focus goes back to the root
+    /// element, so that Escape closes the menu.
+    fn toggle_menu(&mut self, menu: Menu, window: &mut Window, cx: &mut Context<Self>) {
+        let open = self.form.menu.as_ref() != Some(&menu);
+        self.close_kinds();
+        if open {
+            self.form.menu = Some(menu);
+        }
+        self.focus_workspace(window, cx);
+        cx.notify();
+    }
+
+    /// Open or close the gesture card of `gesture`. The card that was open
+    /// closes.
+    fn toggle_card(&mut self, gesture: GestureKind, window: &mut Window, cx: &mut Context<Self>) {
+        let open = self.state.gesture != Some(gesture);
+        self.state.open_card(open.then_some(gesture));
+        self.close_kinds();
+        self.sync_form(window, cx);
+        self.focus_workspace(window, cx);
+        cx.notify();
+    }
+
+    /// Select a kind in the open kind menu. `None` is "Remove the action".
     fn choose(
         &mut self,
-        menu: KindMenu,
+        menu: Menu,
         kind: Option<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -418,15 +455,16 @@ impl DeviceView {
         self.choose_in(menu, kind);
         // A contained action can have new text fields now.
         self.sync_form(window, cx);
-        // The click was on the list, thus no text field keeps the focus.
+        // The click was on the menu, thus no text field keeps the focus.
         self.focus_workspace(window, cx);
         cx.notify();
     }
 
-    fn choose_in(&mut self, menu: KindMenu, kind: Option<String>) {
+    fn choose_in(&mut self, menu: Menu, kind: Option<String>) {
         match menu {
-            KindMenu::Replace(path) if path.is_empty() => self.choose_kind(kind),
-            KindMenu::Replace(path) => {
+            Menu::Card(gesture) => self.choose_card(gesture, kind),
+            Menu::Choice(_) => {}
+            Menu::Replace(path) => {
                 let Some(binding) = self.form_binding() else {
                     return;
                 };
@@ -436,7 +474,9 @@ impl DeviceView {
                     return;
                 }
                 let new = kind.and_then(|kind| self.default_action(&kind));
-                let (slot, parent) = path.split_last().expect("a contained action");
+                let Some((slot, parent)) = path.split_last() else {
+                    return;
+                };
                 self.edit(binding, |root| {
                     change(root, parent, |action| match slot.item {
                         None => {
@@ -459,7 +499,7 @@ impl DeviceView {
                     })
                 });
             }
-            KindMenu::Add(path, key) => {
+            Menu::Add(path, key) => {
                 let Some(binding) = self.form_binding() else {
                     return;
                 };
@@ -511,19 +551,32 @@ impl DeviceView {
         });
     }
 
-    /// Replace the action of the binding. The engine makes the new binding,
-    /// so no edit is in flight after this.
-    fn choose_kind(&mut self, kind: Option<String>) {
-        let Some(binding) = self.state.binding_id() else {
+    /// Set the action of the gesture card of `gesture` to a new action of
+    /// `kind`, or remove it with `None`. A new action opens the card; the
+    /// removal closes it. The engine makes the new binding, so no edit is in
+    /// flight after this.
+    fn choose_card(&mut self, gesture: GestureKind, kind: Option<String>) {
+        let Some(control) = self.state.selected_control else {
             return;
         };
-        if kind.as_deref().is_some_and(|kind| {
-            self.state
-                .bindings
-                .get(&binding)
-                .and_then(|b| b.action.as_ref())
-                .is_some_and(|a| a.kind == kind)
-        }) {
+        let binding = BindingId {
+            page: self.state.page,
+            control,
+            gesture,
+        };
+        self.state.open_card(kind.is_some().then_some(gesture));
+        let current = self
+            .state
+            .bindings
+            .get(&binding)
+            .and_then(|b| b.action.as_ref());
+        // The same kind keeps its settings.
+        let same = match (&kind, current) {
+            (Some(kind), Some(current)) => current.kind == *kind,
+            (None, None) => true,
+            _ => false,
+        };
+        if same {
             return;
         }
         let action = kind.and_then(|kind| self.default_action(&kind));
@@ -594,6 +647,14 @@ impl DeviceView {
         if !self.focus.is_focused(window) {
             return;
         }
+        let escape = event.keystroke.key == "escape"
+            && event.keystroke.modifiers == gpui_kit::Modifiers::default();
+        if escape && (self.form.menu.is_some() || self.inspector.colour_open) {
+            cx.stop_propagation();
+            self.close_kinds();
+            cx.notify();
+            return;
+        }
         let Some(path) = self.form.recording.clone() else {
             return;
         };
@@ -603,132 +664,192 @@ impl DeviceView {
                 self.set_field(binding, &path, Value::Text(value));
             }
             self.form.recording = None;
-        } else if event.keystroke.key == "escape"
-            && event.keystroke.modifiers == gpui_kit::Modifiers::default()
-        {
+        } else if escape {
             self.form.recording = None;
         }
         cx.notify();
     }
 
-    /// Close the open kind list.
+    /// Close the open menu of the cards, and the popover of "Other colour".
     pub(super) fn close_kinds(&mut self) {
         self.form.menu = None;
+        self.inspector.colour_open = false;
     }
 
-    pub(super) fn action_editor(&self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(binding) = self.state.binding_id() else {
-            return div().into_any_element();
-        };
-        let section = div()
-            .flex_shrink_0()
-            .flex()
-            .flex_col()
-            .gap(theme::SPACE_8)
-            .child(super::inspector::label("Action"))
-            .child(
-                div().flex().flex_wrap().gap(theme::SPACE_4).children(
-                    gestures(binding.control.kind)
-                        .iter()
-                        .map(|&(gesture, name)| {
-                            let bound = self
-                                .state
-                                .bindings
-                                .contains_key(&BindingId { gesture, ..binding });
-                            button(
-                                format!("gesture-{gesture:?}"),
-                                format!("{name}{}", if bound { " •" } else { "" }),
-                            )
-                            .when(binding.gesture == gesture, |d| {
-                                d.border_color(theme::ACCENT_LINE).bg(theme::ACCENT_TINT)
-                            })
-                            .on_click(cx.listener(
-                                move |view, _, window, cx| {
-                                    view.state.gesture = Some(gesture);
-                                    view.form.menu = None;
-                                    view.sync_form(window, cx);
-                                    view.focus_workspace(window, cx);
-                                    cx.notify();
-                                },
-                            ))
+    /// The label of the popup of `action`.
+    fn kind_label(&self, action: &Action, available: bool) -> KindLabel {
+        match self.kind(&action.kind) {
+            Some(kind) if available => KindLabel::new(kind.name.clone()),
+            _ => KindLabel::unavailable(),
+        }
+    }
+
+    /// One gesture card for each gesture of `control`, in the order of
+    /// `state::gestures`. The open card shows the form of its action.
+    pub(super) fn gesture_cards(
+        &self,
+        control: ControlId,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        gestures(control.kind)
+            .iter()
+            .map(|&(gesture, name)| {
+                let binding = BindingId {
+                    page: self.state.page,
+                    control,
+                    gesture,
+                };
+                let menu = Menu::Card(gesture);
+                let current = self.state.bindings.get(&binding);
+                let toggle = menu.clone();
+                // A swipe has the wider name column of section 10.6.
+                let name_width = if control.kind == ControlKind::TouchBar {
+                    theme::GESTURE_NAME_WIDE
+                } else {
+                    theme::FORM_LABEL
+                };
+                let card = GestureCard::new(format!("gesture-{gesture:?}"), name)
+                    .name_width(name_width)
+                    .menu(self.kind_menu(
+                        "kind",
+                        &menu,
+                        current.is_some(),
+                        menu_button_height(current.is_some(), false),
+                        window,
+                        cx,
+                    ))
+                    .on_menu(cx.listener(move |view, _, window, cx| {
+                        view.toggle_menu(toggle.clone(), window, cx)
+                    }));
+                let Some(current) = current else {
+                    return card.into_any_element();
+                };
+                let open = self.state.gesture == Some(gesture);
+                // The open card shows the edits in flight.
+                let action = if open {
+                    self.edit_action(binding)
+                } else {
+                    current.action.clone()
+                };
+                let Some(action) = action else {
+                    return card.into_any_element();
+                };
+                let rows = if open {
+                    self.action_rows(&[], &action, current.available, window, cx)
+                } else {
+                    Vec::new()
+                };
+                card.action(self.kind_label(&action, current.available))
+                    .open(open)
+                    .on_toggle(
+                        cx.listener(move |view, _, window, cx| {
+                            view.toggle_card(gesture, window, cx)
                         }),
-                ),
-            );
-        let current = self.state.bindings.get(&binding);
-        let action = current.and_then(|_| self.edit_action(binding));
-        let available = current.is_some_and(|b| b.available);
-        section
-            .child(self.action_body(&[], action.as_ref(), available, true, cx))
-            .into_any_element()
+                    )
+                    .children(rows)
+                    .into_any_element()
+            })
+            .collect()
     }
 
-    /// The kind button, the kind list, and the fields of the action at
-    /// `path`. With `none`, the kind list has "No action".
-    fn action_body(
+    /// The kind menu `menu`, if it is open: one row for each kind, and with
+    /// `remove`, "Remove the action". `id` is the start of the identifier of
+    /// each row.
+    fn kind_menu(
+        &self,
+        id: &str,
+        menu: &Menu,
+        remove: bool,
+        button_height: Pixels,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if self.form.menu.as_ref() != Some(menu) {
+            return None;
+        }
+        // #184 adds a title for each group of the library.
+        let mut rows: Vec<AnyElement> = self
+            .state
+            .kinds
+            .iter()
+            .enumerate()
+            .map(|(index, k)| {
+                let kind = k.kind.clone();
+                let menu = menu.clone();
+                controls::menu_row(format!("{id}-{index}"))
+                    .child(KindLabel::new(k.name.clone()).content(false))
+                    .on_click(cx.listener(move |view, _, window, cx| {
+                        view.choose(menu.clone(), Some(kind.clone()), window, cx)
+                    }))
+                    .into_any_element()
+            })
+            .collect();
+        if remove {
+            let menu = menu.clone();
+            rows.push(controls::menu_separator().into_any_element());
+            rows.push(
+                controls::menu_row(format!("{id}-remove"))
+                    .child("Remove the action")
+                    .on_click(cx.listener(move |view, _, window, cx| {
+                        view.choose(menu.clone(), None, window, cx)
+                    }))
+                    .into_any_element(),
+            );
+        }
+        Some(controls::popup_menu(
+            format!("{id}-menu"),
+            controls::MenuPlace::below(button_height),
+            rows,
+            window,
+            cx.listener(|view, _, _, cx| {
+                view.close_kinds();
+                cx.notify();
+            }),
+        ))
+    }
+
+    /// The body rows of a card with `action` at `path`: the form of the
+    /// fields, or the text of an action with no handler, and the request of
+    /// the handler for the user.
+    fn action_rows(
         &self,
         path: &[Slot],
-        action: Option<&Action>,
+        action: &Action,
         available: bool,
-        none: bool,
+        window: &Window,
         cx: &mut Context<Self>,
-    ) -> Div {
+    ) -> Vec<AnyElement> {
         let id = prefix(path);
-        let kind = action.and_then(|a| self.kind(&a.kind));
-        // A kind with no description, for example from a newer version of
-        // OpenCraft, has no name. Its identifier shows below the button.
-        let name = action.map_or_else(
-            || "No action".to_string(),
-            |_| kind.map_or_else(|| "Unknown action".to_string(), |k| k.name.clone()),
-        );
-        let menu = KindMenu::Replace(path.to_vec());
-        let open = self.form.menu.as_ref() == Some(&menu);
-        let toggle = menu.clone();
-        let mut body = div().flex().flex_col().gap(theme::SPACE_8).child(
-            button(format!("{id}action-kind"), format!("{name} ▾")).on_click(cx.listener(
-                move |view, _, _, cx| {
-                    view.form.menu = if view.form.menu.as_ref() == Some(&toggle) {
-                        None
-                    } else {
-                        Some(toggle.clone())
-                    };
-                    cx.notify();
-                },
-            )),
-        );
-        if open {
-            body = body.child(self.kind_list(format!("{id}kind"), menu, none, cx));
-        }
-        let Some(action) = action else {
-            return body;
-        };
+        let mut rows = Vec::new();
         if !available {
-            body = body.child(
+            rows.push(
                 div()
                     .id(format!("{id}unavailable"))
                     .debug_selector(move || format!("{id}unavailable"))
                     .flex()
                     .flex_col()
-                    .gap(theme::SPACE_4)
+                    .gap(theme::SPACE_6)
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_TERTIARY)
-                    .child(
-                        "This version of OpenCraft does not have this action. It keeps the \
-                         action in the profile. Select a different action, or use a newer \
-                         version of OpenCraft.",
-                    )
                     .child(
                         div()
-                            .text_size(theme::TEXT_HELP)
-                            .child(format!("Action identifier: {}", action.kind)),
-                    ),
+                            .text_color(theme::TEXT_TERTIARY)
+                            .child(action.kind.clone()),
+                    )
+                    .child(div().text_color(theme::WARNING).child(
+                        "This version of OpenCraft does not have this action. The binding stays \
+                         in the profile.",
+                    ))
+                    .into_any_element(),
             );
-        } else if let Some(kind) = kind {
+        } else if let Some(kind) = self.kind(&action.kind) {
             for (index, field) in kind.fields.iter().enumerate() {
-                body = body.child(self.field_editor(
+                rows.push(self.field_row(
                     path,
                     index,
                     field,
                     action.settings.get(&field.key),
+                    window,
                     cx,
                 ));
             }
@@ -739,51 +860,75 @@ impl DeviceView {
         }) = self.state.statuses.get(&action.kind)
         {
             let kind = action.kind.clone();
-            body = body
-                .child(div().text_size(theme::TEXT_LABEL).child(text.clone()))
-                .child(
-                    button(format!("{}resolve-kind", prefix(path)), label.clone()).on_click(
-                        cx.listener(move |view, _, _, _| {
+            rows.push(
+                div()
+                    .text_size(theme::TEXT_LABEL)
+                    .text_color(theme::WARNING)
+                    .child(text.clone())
+                    .into_any_element(),
+            );
+            rows.push(
+                form::end_row(
+                    theme::FORM_LABEL,
+                    theme::CARD_FORM_GAP,
+                    small_button(format!("{}resolve-kind", prefix(path)), label.clone(), true)
+                        .on_click(cx.listener(move |view, _, _, _| {
                             (view.send)(Command::Resolve { kind: kind.clone() });
-                        }),
-                    ),
-                );
-        }
-        body
-    }
-
-    /// The list of all kinds. `id` is the start of the identifier of each
-    /// item.
-    fn kind_list(&self, id: String, menu: KindMenu, none: bool, cx: &mut Context<Self>) -> Div {
-        let empty = menu.clone();
-        div()
-            .flex()
-            .flex_col()
-            .gap(theme::SPACE_4)
-            .when(none, |d| {
-                d.child(
-                    button(format!("{id}-none"), "No action").on_click(cx.listener(
-                        move |view, _, window, cx| view.choose(empty.clone(), None, window, cx),
-                    )),
+                        })),
                 )
-            })
-            .children(self.state.kinds.iter().enumerate().map(|(index, k)| {
-                let kind = k.kind.clone();
-                let menu = menu.clone();
-                button(format!("{id}-{index}"), k.name.clone()).on_click(cx.listener(
-                    move |view, _, window, cx| {
-                        view.choose(menu.clone(), Some(kind.clone()), window, cx)
-                    },
-                ))
-            }))
+                .into_any_element(),
+            );
+        }
+        rows
     }
 
-    fn field_editor(
+    /// A nested card for the contained action at `path` (section 10.5). With
+    /// no action, it is a dashed card "Add an action". `remove` adds
+    /// "Remove the action" to its kind menu.
+    fn nested_card(
+        &self,
+        path: ActionPath,
+        action: Option<&Action>,
+        remove: bool,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let id = prefix(&path);
+        let menu = Menu::Replace(path.clone());
+        let toggle = menu.clone();
+        let card =
+            GestureCard::new(format!("{id}action"), "")
+                .nested()
+                .menu(self.kind_menu(
+                    &format!("{id}kind"),
+                    &menu,
+                    remove && action.is_some(),
+                    menu_button_height(action.is_some(), true),
+                    window,
+                    cx,
+                ))
+                .on_menu(cx.listener(move |view, _, window, cx| {
+                    view.toggle_menu(toggle.clone(), window, cx)
+                }));
+        let Some(action) = action else {
+            return card.into_any_element();
+        };
+        let available = self.kind(&action.kind).is_some();
+        card.action(self.kind_label(action, available))
+            .open(true)
+            .children(self.action_rows(&path, action, available, window, cx))
+            .into_any_element()
+    }
+
+    /// The row of one field: the label, and the control of the input type
+    /// (section 10.3).
+    fn field_row(
         &self,
         path: &[Slot],
         index: usize,
         field: &Field,
         value: Option<&Value>,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let id = prefix(path);
@@ -792,155 +937,250 @@ impl DeviceView {
             key: field.key.clone(),
         };
         let row_id = format!("{id}field-{index}");
-        let mut row = div()
-            .id(row_id.clone())
-            .debug_selector(move || row_id.clone())
-            .flex_shrink_0()
-            .flex()
-            .flex_col()
-            .gap(theme::SPACE_4)
-            .child(field.label.clone());
-        match &field.input {
+        let selector = row_id.clone();
+        let row = |value: AnyElement| {
+            form::fitted_row(
+                field.label.clone(),
+                theme::FORM_LABEL,
+                theme::CARD_FORM_GAP,
+                value,
+                window,
+            )
+        };
+        let content = match &field.input {
             InputType::Choice { options } => {
-                row = row.children(options.iter().enumerate().map(|(option, item)| {
-                    let field_path = field_path.clone();
-                    let v = item.value.clone();
-                    button(
-                        format!("{id}choice-{index}-{option}"),
-                        format!(
-                            "{}{}",
-                            item.label,
-                            if value == Some(&Value::Text(v.clone())) {
-                                " ✓"
-                            } else {
-                                ""
-                            }
-                        ),
+                let menu = Menu::Choice(field_path.clone());
+                let open = self.form.menu.as_ref() == Some(&menu);
+                let current = options
+                    .iter()
+                    .find(|o| value == Some(&Value::Text(o.value.clone())))
+                    .map_or("", |o| o.label.as_str());
+                let toggle = menu.clone();
+                let menu_element = open.then(|| {
+                    let rows = options
+                        .iter()
+                        .enumerate()
+                        .map(|(option, item)| {
+                            let field_path = field_path.clone();
+                            let chosen = value == Some(&Value::Text(item.value.clone()));
+                            let v = item.value.clone();
+                            controls::menu_row(format!("{id}choice-{index}-{option}"))
+                                .child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .w(theme::ICON_SMALL)
+                                        .when(chosen, |d| {
+                                            d.child(
+                                                Icon::new(IconName::Check).size(theme::ICON_SMALL),
+                                            )
+                                        }),
+                                )
+                                .child(item.label.clone())
+                                .on_click(cx.listener(move |view, _, window, cx| {
+                                    view.form.menu = None;
+                                    if let Some(binding) = view.form_binding() {
+                                        view.set_field(binding, &field_path, Value::Text(v.clone()))
+                                    }
+                                    view.focus_workspace(window, cx);
+                                    cx.notify();
+                                }))
+                                .into_any_element()
+                        })
+                        .collect();
+                    controls::popup_menu(
+                        format!("{id}choice-{index}-menu"),
+                        controls::MenuPlace::below(theme::HEIGHT_CONTROL),
+                        rows,
+                        window,
+                        cx.listener(|view, _, _, cx| {
+                            view.close_kinds();
+                            cx.notify();
+                        }),
                     )
-                    .on_click(cx.listener(move |view, _, _, _| {
-                        if let Some(binding) = view.form_binding() {
-                            view.set_field(binding, &field_path, Value::Text(v.clone()))
-                        }
-                    }))
-                }));
-            }
-            InputType::Toggle => {
-                row = row.child(
-                    button(
-                        format!("{id}toggle-{index}"),
-                        if value == Some(&Value::Boolean(true)) {
-                            "On ✓"
-                        } else {
-                            "Off"
-                        },
+                });
+                row(div()
+                    .relative()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .child(
+                        controls::popup_button(
+                            format!("{id}choice-{index}"),
+                            theme::HEIGHT_CONTROL,
+                            open,
+                            div().truncate().child(current.to_string()),
+                        )
+                        .text_size(theme::TEXT_LABEL)
+                        .on_click(cx.listener(
+                            move |view, _, window, cx| view.toggle_menu(toggle.clone(), window, cx),
+                        )),
                     )
-                    .on_click(cx.listener(move |view, _, _, _| {
-                        let Some(binding) = view.form_binding() else {
-                            return;
-                        };
-                        let on = view
-                            .edit_action(binding)
-                            .and_then(|a| contained(&a, &field_path.action))
-                            .and_then(|a| a.settings.get(&field_path.key).cloned())
-                            == Some(Value::Boolean(true));
-                        view.set_field(binding, &field_path, Value::Boolean(!on));
-                    })),
-                );
+                    .children(menu_element)
+                    .into_any_element())
             }
+            InputType::Toggle => row(controls::switch(
+                format!("{id}toggle-{index}"),
+                value == Some(&Value::Boolean(true)),
+            )
+            .on_click(cx.listener(move |view, _, _, cx| {
+                let Some(binding) = view.form_binding() else {
+                    return;
+                };
+                let on = view
+                    .edit_action(binding)
+                    .and_then(|a| contained(&a, &field_path.action))
+                    .and_then(|a| a.settings.get(&field_path.key).cloned())
+                    == Some(Value::Boolean(true));
+                view.set_field(binding, &field_path, Value::Boolean(!on));
+                cx.notify();
+            }))
+            .into_any_element()),
             InputType::Hotkey => {
                 let recording = self.form.recording.as_ref() == Some(&field_path);
                 let record = field_path.clone();
-                row = row.child(
-                    button(
-                        format!("{id}hotkey-{index}"),
-                        if recording {
-                            "Press a key… Esc cancels".into()
-                        } else {
-                            let text = value_text(value);
-                            if text.is_empty() {
-                                "Record hotkey…".into()
+                let text = value_text(value);
+                let (text, colour) = if recording {
+                    ("Press a key…".to_string(), theme::TEXT_SECONDARY)
+                } else if text.is_empty() {
+                    ("Record hotkey…".to_string(), theme::TEXT_TERTIARY)
+                } else {
+                    (text, theme::TEXT_PRIMARY)
+                };
+                row(div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .items_center()
+                    .gap(theme::GAP_ITEMS)
+                    .child(
+                        div()
+                            .id(format!("{id}hotkey-{index}"))
+                            .debug_selector({
+                                let id = format!("{id}hotkey-{index}");
+                                move || id.clone()
+                            })
+                            .flex_1()
+                            .min_w_0()
+                            .h(theme::HEIGHT_CONTROL)
+                            .px(theme::SPACE_8)
+                            .flex()
+                            .items_center()
+                            .rounded(theme::RADIUS_CONTROL)
+                            .bg(theme::BG_BAR)
+                            .border_1()
+                            .border_color(if recording {
+                                theme::ACCENT_LINE
                             } else {
-                                text
-                            }
-                        },
+                                theme::BORDER_FIELD
+                            })
+                            .text_size(theme::TEXT_BODY)
+                            .text_color(colour)
+                            .cursor_pointer()
+                            .child(div().truncate().child(text))
+                            .on_click(cx.listener(move |view, _, window, cx| {
+                                view.form.recording = Some(record.clone());
+                                view.focus_workspace(window, cx);
+                                cx.notify();
+                            })),
                     )
-                    .on_click(cx.listener(move |view, _, window, cx| {
-                        view.form.recording = Some(record.clone());
-                        view.focus_workspace(window, cx);
-                        cx.notify();
-                    })),
-                );
-                row = row.child(
-                    button(format!("{id}clear-hotkey-{index}"), "Clear").on_click(cx.listener(
-                        move |view, _, _, cx| {
-                            view.form.recording = None;
-                            if let Some(binding) = view.form_binding() {
-                                view.set_field(binding, &field_path, Value::Text(String::new()));
-                            }
-                            cx.notify();
-                        },
-                    )),
-                );
+                    .child(
+                        small_button(format!("{id}clear-hotkey-{index}"), "Clear", true).on_click(
+                            cx.listener(move |view, _, _, cx| {
+                                view.form.recording = None;
+                                if let Some(binding) = view.form_binding() {
+                                    view.set_field(
+                                        binding,
+                                        &field_path,
+                                        Value::Text(String::new()),
+                                    );
+                                }
+                                cx.notify();
+                            }),
+                        ),
+                    )
+                    .into_any_element())
             }
             InputType::Action => {
                 let inner = value.and_then(Action::from_value);
-                let path = child(path, &field.key, None);
-                let available = inner.as_ref().is_some_and(|a| self.kind(&a.kind).is_some());
-                row = row.child(
-                    nested()
+                form::stacked_row(
+                    field.label.clone(),
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(theme::SPACE_6)
                         .when(value.is_some() && inner.is_none(), |d| {
                             d.child(unreadable())
                         })
-                        .child(self.action_body(&path, inner.as_ref(), available, true, cx)),
-                );
+                        .child(self.nested_card(
+                            child(path, &field.key, None),
+                            inner.as_ref(),
+                            true,
+                            window,
+                            cx,
+                        )),
+                )
             }
-            InputType::ActionList => {
-                row = row.child(self.action_list(path, &field.key, value, cx));
-            }
-            _ => {
-                if let Some(input) = self.form.inputs.get(&field_path) {
-                    row = row.child(match &input.state {
-                        AnyInputState::Textarea(input) => Textarea::new(input).into_any_element(),
-                        AnyInputState::Input(input) => Input::new(input).into_any_element(),
-                        _ => div().into_any_element(),
-                    });
-                }
-                if matches!(field.input, InputType::Path { .. }) {
-                    row = row.child(button(format!("{id}path-{index}"), "Choose…").on_click(
-                        cx.listener(move |view, _, window, cx| {
+            InputType::ActionList => form::stacked_row(
+                field.label.clone(),
+                self.action_list(path, &field.key, value, window, cx),
+            ),
+            input => {
+                let integer = matches!(input, InputType::Integer { .. });
+                let text = self.form.inputs.get(&field_path).map(|input| {
+                    controls::text_field(&input.state, theme::BG_BAR, window, cx)
+                        .when(integer, |d| d.flex_none().w(theme::WIDTH_INTEGER_FIELD))
+                });
+                let path_button = matches!(input, InputType::Path { .. }).then(|| {
+                    button(format!("{id}path-{index}"), "Choose…")
+                        .px(theme::SPACE_10)
+                        .on_click(cx.listener(move |view, _, window, cx| {
                             view.path_field(field_path.clone(), window, cx)
-                        }),
-                    ));
+                        }))
+                });
+                let value = div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .items_center()
+                    .gap(theme::GAP_ITEMS)
+                    .children(text)
+                    .children(path_button);
+                if matches!(input, InputType::LongText) {
+                    form::top_row(
+                        field.label.clone(),
+                        theme::FORM_LABEL,
+                        theme::CARD_FORM_GAP,
+                        value,
+                    )
+                } else {
+                    row(value.into_any_element())
                 }
             }
-        }
-        row.into_any_element()
+        };
+        content
+            .id(row_id)
+            .debug_selector(move || selector.clone())
+            .into_any_element()
     }
 
     /// The editor of the field `key` of the input type Action list: each
-    /// action in its order, with buttons to move and remove it, and a button
-    /// to add an action at the end.
+    /// action in its order, with buttons to move and remove it, and a card
+    /// to add an action at the end. #183 changes it to the step list of
+    /// section 10.5.
     fn action_list(
         &self,
         path: &[Slot],
         key: &str,
         value: Option<&Value>,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Div {
         let items = value.and_then(Action::list_from_value);
         let id = format!("{}{key}", prefix(path));
         let count = items.as_ref().map_or(0, Vec::len);
-        let mut list = nested();
+        let mut list = div().flex().flex_col().gap(theme::SPACE_6);
         if value.is_some() && items.is_none() {
             list = list.child(unreadable());
-        }
-        if count == 0 {
-            list = list.child(
-                div()
-                    .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_TERTIARY)
-                    .child("No actions. Add an action."),
-            );
         }
         for (item, inner) in items.iter().flatten().enumerate() {
             let item_path = child(path, key, Some(item));
@@ -956,75 +1196,53 @@ impl DeviceView {
                     },
                 )
             };
-            let available = self.kind(&inner.kind).is_some();
-            list = list.child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(theme::SPACE_8)
-                    .p(theme::SPACE_8)
-                    .rounded(theme::RADIUS_CONTROL)
-                    .bg(theme::BG_CARD)
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(theme::SPACE_4)
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .text_size(theme::TEXT_LABEL)
-                                    .text_color(theme::TEXT_TERTIARY)
-                                    .child(format!("Action {}", item + 1)),
-                            )
-                            .child(tool(
-                                "up",
-                                "↑",
-                                item > 0,
-                                ListChange::Move(item, item.wrapping_sub(1)),
-                            ))
-                            .child(tool(
-                                "down",
-                                "↓",
-                                item + 1 < count,
-                                ListChange::Move(item, item + 1),
-                            ))
-                            .child(tool("remove", "Remove", true, ListChange::Remove(item))),
-                    )
-                    .child(self.action_body(&item_path, Some(inner), available, false, cx)),
-            );
+            list = list
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(theme::SPACE_4)
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_size(theme::TEXT_CAPTION)
+                                .text_color(theme::TEXT_TERTIARY)
+                                .child(format!("Action {}", item + 1)),
+                        )
+                        .child(tool(
+                            "up",
+                            "↑",
+                            item > 0,
+                            ListChange::Move(item, item.wrapping_sub(1)),
+                        ))
+                        .child(tool(
+                            "down",
+                            "↓",
+                            item + 1 < count,
+                            ListChange::Move(item, item + 1),
+                        ))
+                        .child(tool("remove", "Remove", true, ListChange::Remove(item))),
+                )
+                .child(self.nested_card(item_path, Some(inner), false, window, cx));
         }
-        let menu = KindMenu::Add(path.to_vec(), key.to_string());
-        let open = self.form.menu.as_ref() == Some(&menu);
+        let menu = Menu::Add(path.to_vec(), key.to_string());
         let toggle = menu.clone();
-        list = list.child(
-            button(format!("{id}/add"), "Add action ▾").on_click(cx.listener(
-                move |view, _, _, cx| {
-                    view.form.menu = if view.form.menu.as_ref() == Some(&toggle) {
-                        None
-                    } else {
-                        Some(toggle.clone())
-                    };
-                    cx.notify();
-                },
-            )),
-        );
-        if open {
-            list = list.child(self.kind_list(format!("{id}/add-kind"), menu, false, cx));
-        }
-        list
+        list.child(
+            GestureCard::new(format!("{id}/add"), "")
+                .nested()
+                .menu(self.kind_menu(
+                    &format!("{id}/add-kind"),
+                    &menu,
+                    false,
+                    menu_button_height(false, true),
+                    window,
+                    cx,
+                ))
+                .on_menu(cx.listener(move |view, _, window, cx| {
+                    view.toggle_menu(toggle.clone(), window, cx)
+                })),
+        )
     }
-}
-
-/// The frame of a contained action: a line at the left shows the depth.
-fn nested() -> Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap(theme::SPACE_8)
-        .pl(theme::SPACE_12)
-        .border_l_2()
-        .border_color(theme::BORDER_FIELD)
 }
 
 fn unreadable() -> Div {

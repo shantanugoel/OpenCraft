@@ -47,7 +47,14 @@ pub struct ViewState {
     pub connected: bool,
     pub selected: Option<SurfaceId>,
     pub selected_control: Option<ControlId>,
+    /// The gesture of the open gesture card of the selected control. The
+    /// form of the inspector edits the binding of this gesture. With no open
+    /// card, it is `None`.
     pub gesture: Option<GestureKind>,
+    /// The open card of each control that the user opened or closed while
+    /// the application runs (decision 0029, section 10.3). A control that is
+    /// not in this map opens its first card with an action.
+    pub open_cards: BTreeMap<ControlId, Option<GestureKind>>,
     pub kinds: Vec<KindDescription>,
     /// The page that the device shows. The commands for a binding use it.
     pub page: usize,
@@ -130,6 +137,7 @@ impl ViewState {
                 self.pages = names;
                 self.bindings.clear();
                 self.epoch += 1;
+                self.update_open_card();
             }
             Event::Binding(binding) => {
                 if binding.action.is_some() {
@@ -137,6 +145,7 @@ impl ViewState {
                 } else {
                     self.bindings.remove(&binding.binding);
                 }
+                self.update_open_card();
             }
             Event::Status { kind, status } => {
                 self.statuses.insert(kind, status);
@@ -236,7 +245,7 @@ impl ViewState {
                 .find(|c| c.surface == Some(id))
                 .map(|c| c.id)
         });
-        self.gesture = self.selected_control.and_then(|c| default_gesture(c.kind));
+        self.gesture = self.selected_control.and_then(|c| self.open_card_of(c));
         true
     }
 
@@ -253,8 +262,43 @@ impl ViewState {
         };
         self.selected_control = Some(id);
         self.selected = control.surface;
-        self.gesture = default_gesture(id.kind);
+        self.gesture = self.open_card_of(id);
         true
+    }
+
+    /// Open the card of `gesture` of the selected control, or close the open
+    /// card with `None`. The inspector remembers it for this control.
+    pub fn open_card(&mut self, gesture: Option<GestureKind>) {
+        if let Some(control) = self.selected_control {
+            self.open_cards.insert(control, gesture);
+            self.gesture = gesture;
+        }
+    }
+
+    /// The open card of `control`: the card that the user opened last, or
+    /// the first card with an action on the active page.
+    fn open_card_of(&self, control: ControlId) -> Option<GestureKind> {
+        if let Some(gesture) = self.open_cards.get(&control) {
+            return *gesture;
+        }
+        gestures(control.kind)
+            .iter()
+            .map(|&(gesture, _)| gesture)
+            .find(|&gesture| {
+                self.bindings.contains_key(&BindingId {
+                    page: self.page,
+                    control,
+                    gesture,
+                })
+            })
+    }
+
+    /// The bindings changed. A control that the user did not open or close
+    /// opens its first card with an action.
+    fn update_open_card(&mut self) {
+        if let Some(control) = self.selected_control {
+            self.gesture = self.open_card_of(control);
+        }
     }
 
     pub fn binding_id(&self) -> Option<BindingId> {
@@ -312,13 +356,6 @@ pub fn gestures(kind: ControlKind) -> &'static [(GestureKind, &'static str)] {
             (GestureKind::SwipeLeft, "Swipe left"),
             (GestureKind::SwipeRight, "Swipe right"),
         ],
-    }
-}
-
-fn default_gesture(kind: ControlKind) -> Option<GestureKind> {
-    match kind {
-        ControlKind::Knob => Some(GestureKind::TurnRight),
-        _ => gestures(kind).first().map(|&(gesture, _)| gesture),
     }
 }
 
@@ -497,6 +534,7 @@ pub(crate) mod tests {
         assert_eq!(s.kinds, vec![kind]);
         s.apply(layout(), now);
         assert!(s.select(key()));
+        s.open_card(Some(GestureKind::Press));
         let id = s.binding_id().unwrap();
         assert_eq!(id.gesture, GestureKind::Press);
         let binding = BindingState {
@@ -551,6 +589,7 @@ pub(crate) mod tests {
         let mut s = ViewState::default();
         s.apply(layout(), now);
         assert!(s.select(key()));
+        s.open_card(Some(GestureKind::Press));
         let id = s.binding_id().unwrap();
         assert_eq!(id.page, 0);
         s.apply(
@@ -576,21 +615,59 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn control_selection_uses_layout_and_defaults() {
+    fn control_selection_uses_layout_and_opens_the_first_card_with_an_action() {
+        use opencraft_engine::{Action, Settings};
         let now = Instant::now();
         let mut s = ViewState::default();
         s.apply(layout(), now);
+        let bound = |control: ControlId, gesture| {
+            Event::Binding(BindingState {
+                binding: BindingId {
+                    page: 0,
+                    control,
+                    gesture,
+                },
+                action: Some(Action {
+                    kind: "test.kind".into(),
+                    settings: Settings::new(),
+                }),
+                available: true,
+            })
+        };
+        // With no action, no card is open.
         assert!(s.select_control(control(ControlKind::Knob)));
         assert_eq!(s.selected, None);
-        assert_eq!(s.binding_id().unwrap().gesture, GestureKind::TurnRight);
+        assert_eq!(s.binding_id(), None);
+        // A binding that comes later opens its card, in the order of the
+        // gestures: "Turn left" before "Push".
+        s.apply(bound(control(ControlKind::Knob), GestureKind::Push), now);
+        assert_eq!(s.gesture, Some(GestureKind::Push));
+        s.apply(
+            bound(control(ControlKind::Knob), GestureKind::TurnLeft),
+            now,
+        );
+        assert_eq!(s.gesture, Some(GestureKind::TurnLeft));
         assert!(s.select(key()));
         assert_eq!(s.selected_control, Some(control(ControlKind::Key)));
-        assert_eq!(s.binding_id().unwrap().gesture, GestureKind::Press);
+        assert_eq!(s.gesture, None);
+        // The inspector remembers a card that the user opens or closes.
+        s.open_card(Some(GestureKind::Release));
         assert!(s.select(bar()));
         assert_eq!(s.selected_control, Some(control(ControlKind::BarPanel)));
-        assert_eq!(s.binding_id().unwrap().gesture, GestureKind::Tap);
+        assert!(s.select(key()));
+        assert_eq!(s.binding_id().unwrap().gesture, GestureKind::Release);
+        s.apply(bound(control(ControlKind::Key), GestureKind::Press), now);
+        assert_eq!(s.gesture, Some(GestureKind::Release));
+        assert!(s.select_control(control(ControlKind::Knob)));
+        s.open_card(None);
+        s.apply(
+            bound(control(ControlKind::Knob), GestureKind::TurnRight),
+            now,
+        );
+        assert_eq!(s.binding_id(), None);
         assert!(s.select_control(control(ControlKind::TouchBar)));
         assert_eq!(s.selected, None);
+        s.open_card(Some(GestureKind::SwipeLeft));
         assert_eq!(s.binding_id().unwrap().gesture, GestureKind::SwipeLeft);
         assert!(!s.select_control(ControlId::new(ControlKind::Key, 99)));
         assert!(s.select_control(control(ControlKind::Knob)));

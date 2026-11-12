@@ -14,8 +14,11 @@
 //! | `right_panel` | The right panel and its tabs |
 //! | `inspector` | The "Inspector" tab: the editor of the selection |
 //! | `library` | The "Library" tab |
-//! | `actions`, `device`, `pages`, `hotkey` | The action form, the device settings, the pages and the profiles, the hotkey names |
-//! | `controls` | Buttons that more than one part uses |
+//! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
+//! | `device`, `pages`, `hotkey` | The device settings, the pages and the profiles, the hotkey names |
+//! | `form` | The parts of an inspector: the header, a section, the rows of a form |
+//! | `gesture_card` | The gesture card |
+//! | `controls` | Controls that more than one part uses |
 //! | `theme` | The visual constants |
 
 use crate::{
@@ -25,7 +28,7 @@ use crate::{
     shell::Shell,
     state::{ViewState, HIGHLIGHT_TIME},
 };
-use controls::{button, danger_button, small_button};
+use controls::{button, button_if, danger_button, small_button};
 use gpui_kit::base::{Scrollbar, ScrollbarMode};
 use gpui_kit::{
     component::{
@@ -46,6 +49,8 @@ mod actions;
 mod canvas;
 mod controls;
 mod device;
+mod form;
+mod gesture_card;
 mod hotkey;
 mod inspector;
 mod library;
@@ -77,18 +82,6 @@ fn control_name(id: ControlId) -> String {
     }
 }
 
-fn surface_name(id: SurfaceId) -> String {
-    format!(
-        "{} {}",
-        if id.kind == SurfaceKind::KeyFace {
-            "Key face"
-        } else {
-            "Bar panel"
-        },
-        id.number
-    )
-}
-
 /// A small command interface lets window tests inspect commands without a device.
 ///
 /// The view starts from the state of the [`Shell`], and then gets each
@@ -118,6 +111,7 @@ pub struct DeviceView {
     /// The panes of this window. The shell keeps them in `shell.toml`.
     pub(crate) panes: Panes,
     form: actions::ActionForm,
+    inspector: inspector::InspectorState,
     lists: pages::Lists,
     device: device::DevicePanel,
     /// The scroll position of the inspector. It shows a scrollbar when its
@@ -173,6 +167,7 @@ impl DeviceView {
             window_move: false,
             panes,
             form: actions::ActionForm::default(),
+            inspector: inspector::InspectorState::new(window, cx),
             lists: pages::Lists::new(window, cx),
             device: device::DevicePanel::new(),
             inspector_scroll: ScrollHandle::new(),

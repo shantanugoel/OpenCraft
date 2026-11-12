@@ -60,8 +60,7 @@ VSD Craft, or in System Settings > General > Login Items.
 OpenCraft opens its window. If you have no profile, OpenCraft makes the
 profile "Default" with one empty page. The key faces and the bar panels are
 black. No control is selected. Thus the inspector at the right shows only the
-text "Click a key, a knob, a bar panel, or the touch bar in the device
-picture." The knob lights on the device show colours that change slowly. This
+text "Select a control, the page, or the device." The knob lights on the device show colours that change slowly. This
 is the default of the [device settings](controls.md#device-settings).
 
 ![The OpenCraft window at the first start, with no control selected](images/first-start.png)

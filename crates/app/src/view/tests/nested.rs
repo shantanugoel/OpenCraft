@@ -154,6 +154,7 @@ fn two_contained_actions_write_their_kinds_and_fields(cx: &mut TestAppContext) {
         .settings
         .insert("first".into(), leaf_action("on").to_value());
     assert_eq!(sent_action(&sent), expected);
+    click(cx, "first/choice-1");
     click(cx, "first/choice-1-1");
     let mut first = leaf_action("on");
     first
@@ -195,13 +196,13 @@ fn two_contained_actions_write_their_kinds_and_fields(cx: &mut TestAppContext) {
         super::actions::input_text(&view, cx, &at(&[("first", None)], "text")),
         "on"
     );
-    // The same kind keeps the settings. "No action" removes the action.
+    // The same kind keeps the settings. "Remove the action" removes it.
     let count = sent.borrow().len();
     click(cx, "first/action-kind");
     click(cx, "first/kind-0");
     assert_eq!(sent.borrow().len(), count);
     click(cx, "first/action-kind");
-    click(cx, "first/kind-none");
+    click(cx, "first/kind-remove");
     expected.settings.remove("first");
     assert_eq!(sent_action(&sent), expected);
 }
@@ -228,9 +229,10 @@ fn an_action_list_adds_removes_and_moves_actions(cx: &mut TestAppContext) {
     assert_eq!(sent_action(&sent), with_items(&[b.clone(), a.clone()]));
     click(cx, "items.1/up");
     assert_eq!(sent_action(&sent), with_items(&[a.clone(), b.clone()]));
-    // An item of the list has no "No action": it has a remove button.
+    // An item of the list has no "Remove the action": it has a remove
+    // button.
     click(cx, "items.1/action-kind");
-    assert!(cx.debug_bounds("items.1/kind-none").is_none());
+    assert!(cx.debug_bounds("items.1/kind-remove").is_none());
     click(cx, "items.1/kind-0");
     assert_eq!(sent_action(&sent), with_items(&[a.clone(), a.clone()]));
     click(cx, "items.0/remove");
