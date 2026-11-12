@@ -2,8 +2,9 @@
 
 ## Messages in the window
 
-When OpenCraft has a problem, the window shows a message at the bottom. The
-message stays until you click **Close** on it. If the same problem occurs
+When OpenCraft has a problem, the window shows a message at the bottom of
+the device picture, directly above the status bar. The message stays until
+you click **Close** on it. If the same problem occurs
 again, the window shows the message one time only. A message that occurs
 when no window is open shows when you open the window. The log file also
 gets each message. See [The log file](background.md#the-log-file).
@@ -24,7 +25,8 @@ gets each message. See [The log file](background.md#the-log-file).
 
 ## The device is not found
 
-The connection shows "○ Not connected", and the device does not change.
+The connection in the toolbar shows "Not connected", and the device does not
+change.
 
 1. Quit VSD Craft. See [The vendor software runs](#the-vendor-software-runs).
 2. Disconnect the USB cable of the device. Wait 5 seconds. Connect it again.
@@ -72,20 +74,20 @@ OpenCraft, and quit it.
 
 ## An action does nothing
 
-1. Look at the bottom of the window for a message. See
+1. Look above the status bar for a message. See
    [Messages in the window](#messages-in-the-window).
-2. Make sure that the connection shows "● Connected".
-3. Look at the input line at the bottom of the window, and do the gesture
-   again. If the input line does not change, OpenCraft does not get the
-   gesture. See [The device is not found](#the-device-is-not-found).
+2. Make sure that the connection in the toolbar shows "Live on the device".
+3. Look at the left side of the status bar, and do the gesture again. If the
+   status bar does not show the gesture with "now", OpenCraft does not get
+   the gesture. See [The device is not found](#the-device-is-not-found).
 4. Make sure that the action is on the correct gesture, for example
    **Press** and not **Release**. A gesture with an action shows a dot.
 5. Make sure that the device shows the page that has the action. The page
    button with the blue frame is the active page.
 6. For "Send a hotkey", "Type text", and "Media key": make sure that
    OpenCraft has the Accessibility permission. If it does not have the
-   permission, these actions do nothing, and the window shows a message at
-   the bottom. See
+   permission, these actions do nothing, and the window shows a message
+   above the status bar. See
    [Give the Accessibility permission](install.md#give-the-accessibility-permission).
 7. If the action button shows **Unknown action**, this version of OpenCraft
    does not have the action kind. A newer version of OpenCraft made the

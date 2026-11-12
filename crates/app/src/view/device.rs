@@ -97,7 +97,7 @@ impl DeviceView {
             self.close_kinds();
             self.sync_device_panel(window, cx);
         }
-        window.blur(cx);
+        self.focus_workspace(window, cx);
         cx.notify();
     }
 
@@ -284,12 +284,17 @@ impl DeviceView {
         let mut editor = div()
             .id("device-settings")
             .debug_selector(|| "device-settings".into())
-            .child(div().text_lg().child("Device settings"));
+            .child(
+                div()
+                    .text_size(theme::TEXT_HEADING)
+                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                    .child("Device settings"),
+            );
         let support = self.state.layout.as_ref().map(|l| l.settings);
         let (Some(support), Some(settings)) = (support, self.shown_settings()) else {
             return editor.child(
                 div()
-                    .text_color(rgb(MUTED))
+                    .text_color(theme::TEXT_TERTIARY)
                     .child("The device settings are not available yet."),
             );
         };
@@ -306,12 +311,12 @@ impl DeviceView {
                 div()
                     .flex()
                     .flex_col()
-                    .gap_2()
+                    .gap(theme::SPACE_8)
                     .child("Haptic feedback")
                     .child(
                         div()
                             .flex()
-                            .gap_2()
+                            .gap(theme::SPACE_8)
                             .child(choice("haptic-on", "On", settings.haptic).on_click(
                                 cx.listener(|view, _, window, cx| {
                                     view.change_settings(|s| s.haptic = true, window, cx)
@@ -328,7 +333,7 @@ impl DeviceView {
         if support.knob_lights > 0 {
             editor = editor.child(self.knob_lights(settings, cx));
         }
-        editor.child(div().text_xs().text_color(rgb(MUTED)).child(
+        editor.child(div().text_size(theme::TEXT_HELP).text_color(theme::TEXT_TERTIARY).child(
             "These settings are for all devices of this model. OpenCraft sends them to the \
                  device each time that it connects.",
         ))
@@ -342,19 +347,24 @@ impl DeviceView {
                 view.change_settings(|s| s.knob_lights.mode = value, window, cx)
             }))
         };
-        let mut area = div().flex().flex_col().gap_4().child(
-            div().flex().flex_col().gap_2().child("Knob lights").child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .child(mode_button("knob-effect", "Effect", KnobLightMode::Effect))
-                    .child(mode_button(
-                        "knob-colours",
-                        "Colours",
-                        KnobLightMode::Colors,
-                    ))
-                    .child(mode_button("knob-off", "Off", KnobLightMode::Off)),
-            ),
+        let mut area = div().flex().flex_col().gap(theme::SPACE_16).child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(theme::SPACE_8)
+                .child("Knob lights")
+                .child(
+                    div()
+                        .flex()
+                        .gap(theme::SPACE_8)
+                        .child(mode_button("knob-effect", "Effect", KnobLightMode::Effect))
+                        .child(mode_button(
+                            "knob-colours",
+                            "Colours",
+                            KnobLightMode::Colors,
+                        ))
+                        .child(mode_button("knob-off", "Off", KnobLightMode::Off)),
+                ),
         );
         if let Some(slider) = &self.device.knob_brightness {
             area = area.child(slider_row(
@@ -371,42 +381,46 @@ impl DeviceView {
                     div()
                         .flex()
                         .flex_col()
-                        .gap_2()
+                        .gap(theme::SPACE_8)
                         .child(
                             div()
                                 .flex()
                                 .items_center()
-                                .gap_2()
+                                .gap(theme::SPACE_8)
                                 .child(
                                     div()
-                                        .size(px(20.))
+                                        .size(theme::SAMPLE)
                                         .rounded_full()
                                         .border_1()
-                                        .border_color(rgb(BORDER))
-                                        .bg(rgb(current.map_or(0, |c| {
+                                        .border_color(theme::BORDER_FIELD)
+                                        .bg(gpui_kit::rgb(current.map_or(0, |c| {
                                             u32::from(c.0[0]) << 16
                                                 | u32::from(c.0[1]) << 8
                                                 | u32::from(c.0[2])
                                         }))),
                                 )
-                                .child(div().w(px(56.)).child(format!("Knob {}", index + 1)))
+                                .child(
+                                    div()
+                                        .w(theme::FORM_LABEL)
+                                        .child(format!("Knob {}", index + 1)),
+                                )
                                 .child(div().flex_1().child(Input::new(input))),
                         )
-                        .child(div().flex().flex_wrap().gap_1().children(
+                        .child(div().flex().flex_wrap().gap(theme::SPACE_4).children(
                             KNOB_COLOURS.into_iter().enumerate().map(|(n, value)| {
                                 let id = format!("knob-{}-colour-{n}", index + 1);
                                 div()
                                     .id(SharedString::from(id.clone()))
                                     .debug_selector(move || id.clone())
-                                    .size(px(22.))
-                                    .rounded_md()
-                                    .bg(rgb(value))
+                                    .size(theme::SAMPLE)
+                                    .rounded(theme::RADIUS_CONTROL)
+                                    .bg(gpui_kit::rgb(value))
                                     .border_2()
-                                    .border_color(rgb(if current == Some(colour(value)) {
-                                        SELECTED
+                                    .border_color(if current == Some(colour(value)) {
+                                        theme::ACCENT_LINE
                                     } else {
-                                        BORDER
-                                    }))
+                                        theme::BORDER_FIELD
+                                    })
                                     .cursor_pointer()
                                     .on_click(cx.listener(move |view, _, window, cx| {
                                         view.set_knob_colour(index, colour(value), true, window, cx)
@@ -415,10 +429,12 @@ impl DeviceView {
                         )),
                 );
             }
-            area =
-                area.child(div().text_xs().text_color(rgb(MUTED)).child(
-                    "A black knob is off. If all knobs are black, the knob lights are off.",
-                ));
+            area = area.child(
+                div()
+                    .text_size(theme::TEXT_HELP)
+                    .text_color(theme::TEXT_TERTIARY)
+                    .child("A black knob is off. If all knobs are black, the knob lights are off."),
+            );
         }
         area.into_any_element()
     }
@@ -434,13 +450,13 @@ fn slider_row(
     div()
         .flex()
         .flex_col()
-        .gap_2()
+        .gap(theme::SPACE_8)
         .child(
             div().flex().justify_between().child(text).child(
                 div()
                     .id(id)
                     .debug_selector(move || format!("{id}-value"))
-                    .text_color(rgb(MUTED))
+                    .text_color(theme::TEXT_TERTIARY)
                     .child(format!("{value} %")),
             ),
         )
@@ -448,7 +464,7 @@ fn slider_row(
             div()
                 .id(SharedString::from(format!("{id}-slider")))
                 .debug_selector(move || format!("{id}-slider"))
-                .py_1()
+                .py(theme::SPACE_4)
                 .child(Slider::new(slider).accessibility_label(text)),
         )
         .into_any_element()
@@ -458,6 +474,8 @@ fn slider_row(
 /// border.
 fn choice(id: &'static str, text: &'static str, chosen: bool) -> Stateful<Div> {
     small_button(id, text, true).when(chosen, |d| {
-        d.border_color(rgb(SELECTED)).text_color(rgb(SELECTED))
+        d.border_color(theme::ACCENT_LINE)
+            .bg(theme::ACCENT_TINT)
+            .text_color(theme::TEXT_PRIMARY)
     })
 }

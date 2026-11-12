@@ -1,6 +1,6 @@
 # GPUI
 
-Last update: 2026-11-12
+Last update: 2026-11-13
 
 GPUI is the GUI toolkit of the Zed editor. The decision that uses these facts
 is [decision 0005](../decisions/0005-gpui.md).
@@ -308,7 +308,7 @@ widths from `bounds()` of each pane or from `ResizableState::sizes()`. Use
 | `component::popover::Popover::new(id).trigger(button).content(...)` opens below the trigger with its left edge on the left edge of the trigger (`Anchor::TopLeft`, the default) and a gap of 0.25 rem. It painted above the sidebar and the pane divider. | Measured | `popover_opens_below_its_button_and_closes_on_a_choice`; real window picture |
 | `.open(bool)` with `.on_open_change(...)` makes the popover controlled. Escape and a click out of the popover close it and call `on_open_change`. A click on an item of the content does not close it: set the state to closed in the item handler. | Measured | Same test; real window event log |
 | The `content` closure runs on each draw. Do not make entities in it. | Source | `gpui-component` 0.9.1 `src/popover.rs` |
-| Kit icons need an asset source: `gpui_kit::application().with_assets(gpui_kit::assets::Assets)`. The test program has it, and the icons showed. The application has no asset source now, thus Kit icons (also the caret of a `Select` and the chevron of a tree) would show nothing. | Measured (test program); Inference (application) | `src/main.rs`; `crates/app/src/main.rs`; real window picture |
+| Kit icons need an asset source: `gpui_kit::application().with_assets(gpui_kit::assets::Assets)`. The test program has it, and the icons showed. The application registers only the icons that the window uses: see [Three panes in the application](#three-panes-in-the-application-2026-11-13). | Measured | `src/main.rs`; real window picture |
 | `WindowExt::open_dialog(cx, \|dialog, window, cx\| ...)` shows a modal layer. The Kit `Root` draws the layer. The Root of `gpui_kit::open_window`, and the Root that the application makes, are sufficient. | Measured | `open_palette`; real window |
 | When the layer opens, the Root moves the focus into it. The workspace key bindings stopped: ⌃⌘S did nothing. The View menu items were not enabled while the layer was open. A click out of the dialog closed it, and the element below did not get the click. Escape closed it and gave the focus back to the earlier element. | Measured | `command_palette_is_modal_and_has_the_focus`; real window; AX `enabled` |
 | The background did not become darker in the picture of the dark theme. | Measured | Real window picture |
@@ -452,6 +452,29 @@ does not use the native menu: test the menu items in the real window.
 | `screencapture -x -o -l <id>` gives a picture of one window at 1 pixel for each point. A native menu is a different window of the process, at layer 101. | Measured | Helper program; window list |
 | A Quartz key event takes the modifier state of the earlier event if its flags are not set. After ⌘K, typed letters were Command keys, and no text came. Set the flags of each key event, also to 0. | Measured | Helper program |
 | System Events can read the items of a menu (`enabled`, `AXMenuItemCmdChar`, `AXMenuItemCmdModifiers`) and click an item. | Measured | Helper program |
+
+## Three panes in the application (2026-11-13)
+
+**Measured.** The application is the release build of `opencraft` with the
+three panes of
+[issue 176](https://github.com/shantanugoel/OpenCraft/issues/176), on the
+computer of [Release measurements](#release-measurements), with a copy of a
+real profile and the device connected. A helper program operated the real
+window with Quartz events and System Events, and took pictures of the window
+only. The pictures are kept outside the repository.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `gpui_kit::assets::icon_assets!(pub WindowIcons, [PanelLeft, ...])` makes an asset source with only the listed icons, and `with_assets(WindowIcons)` shows them. An icon that is not in the list shows nothing. No crate came into `Cargo.lock`. | Measured | `crates/app/src/view/theme.rs`, `WindowIcons`; real window picture |
+| `gpui_kit::component::IconName` has only the icons of the components. `gpui_kit::assets::IconName` has all Lucide icons, for example `Grid3x2`. `component::Icon::new` accepts both. | Source; Measured (build error with `component::IconName::Grid3x2`) | `gpui-component` 0.9.1 `src/icon.rs` |
+| `TitlebarOptions { appears_transparent: true, traffic_light_position: Some(point(px(18.), px(19.))), .. }` puts the centre of the window buttons approximately 26 below the top of the window, and the close button approximately 25 from the left edge. | Measured | Window picture |
+| With `WindowOptions::app_owns_titlebar_drag`, `Window::titlebar_double_click` in a mouse-down handler with `click_count` 2 zoomed the window and zoomed it back. | Measured | Window list |
+| `Window::start_window_move` in a mouse-move handler during a drag wrote "Window move completed without beginning" for drags from Quartz events, and the window did not move. A drag with Quartz events on the title bar of a Finder window also did not move that window. Thus a test with Quartz events cannot show if the window moves with a real mouse. | Measured; Inference (the cause) | Window list; standard error |
+| System Events `set size of window 1` to 900 × 600 gave 1080 × 700: the window stops at `window_min_size`. | Measured | Window list |
+| A divider made of an element with `on_drag` and `cursor_col_resize`, and a parent with `on_drag_move` (capture phase, for all pointer positions) and `on_drop`, changes the width of a pane. A width in the view state, with limits, needs no `ResizableState`. | Measured | `crates/app/src/view/panes.rs`; window tests; real window picture |
+| The View menu items that `cx.set_menus` sets again after each change show the new titles ("Show Sidebar", "Hide Inspector"). A click on an item through System Events did the command. | Measured | AX menu item names; window pictures |
+| A key binding in the key context `"Workspace"` does nothing when no element has the focus. The application focuses the root element when the window opens, and after a click that takes the focus from a text field, in place of `Window::blur`. | Inference; Measured (the window tests with the focus in the root element) | `gpui-pre` 0.3.12 `src/window.rs`, dispatch path; `crates/app/src/view.rs`, `focus_workspace` |
+| `TestPlatform::get_menus` gives the menus of `set_menus`, thus a window test can read the titles of the View menu. | Source; Measured | `gpui-pre` 0.3.12 `src/platform/test/platform.rs`; `view/tests/panes.rs` |
 
 ## Release measurements
 

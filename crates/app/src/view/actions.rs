@@ -10,7 +10,7 @@ use super::*;
 use crate::state::gestures;
 use gpui_kit::{
     component::input::{AnyInputState, Textarea, TextareaState},
-    FocusHandle, KeyDownEvent,
+    KeyDownEvent,
 };
 use opencraft_engine::{Action, BindingId, Field, InputType, KindDescription, Status, Value};
 
@@ -67,7 +67,6 @@ pub(super) struct ActionForm {
     // These are edits in flight, not confirmed bindings. Only events change ViewState.
     pending: BTreeMap<BindingId, Vec<Action>>,
     recording: Option<FieldPath>,
-    pub(super) focus: Option<FocusHandle>,
     menu: Option<KindMenu>,
 }
 
@@ -420,7 +419,7 @@ impl DeviceView {
         // A contained action can have new text fields now.
         self.sync_form(window, cx);
         // The click was on the list, thus no text field keeps the focus.
-        window.blur(cx);
+        self.focus_workspace(window, cx);
         cx.notify();
     }
 
@@ -590,12 +589,9 @@ impl DeviceView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self
-            .form
-            .focus
-            .as_ref()
-            .is_some_and(|f| f.is_focused(window))
-        {
+        // The recorder has the focus of the root element. A key in a text
+        // field is text.
+        if !self.focus.is_focused(window) {
             return;
         }
         let Some(path) = self.form.recording.clone() else {
@@ -628,10 +624,10 @@ impl DeviceView {
             .flex_shrink_0()
             .flex()
             .flex_col()
-            .gap_2()
-            .child(div().text_lg().child("Action"))
+            .gap(theme::SPACE_8)
+            .child(super::inspector::label("Action"))
             .child(
-                div().flex().flex_wrap().gap_1().children(
+                div().flex().flex_wrap().gap(theme::SPACE_4).children(
                     gestures(binding.control.kind)
                         .iter()
                         .map(|&(gesture, name)| {
@@ -644,14 +640,14 @@ impl DeviceView {
                                 format!("{name}{}", if bound { " •" } else { "" }),
                             )
                             .when(binding.gesture == gesture, |d| {
-                                d.border_color(rgb(SELECTED))
+                                d.border_color(theme::ACCENT_LINE).bg(theme::ACCENT_TINT)
                             })
                             .on_click(cx.listener(
                                 move |view, _, window, cx| {
                                     view.state.gesture = Some(gesture);
                                     view.form.menu = None;
                                     view.sync_form(window, cx);
-                                    window.blur(cx);
+                                    view.focus_workspace(window, cx);
                                     cx.notify();
                                 },
                             ))
@@ -687,7 +683,7 @@ impl DeviceView {
         let menu = KindMenu::Replace(path.to_vec());
         let open = self.form.menu.as_ref() == Some(&menu);
         let toggle = menu.clone();
-        let mut body = div().flex().flex_col().gap_2().child(
+        let mut body = div().flex().flex_col().gap(theme::SPACE_8).child(
             button(format!("{id}action-kind"), format!("{name} ▾")).on_click(cx.listener(
                 move |view, _, _, cx| {
                     view.form.menu = if view.form.menu.as_ref() == Some(&toggle) {
@@ -712,9 +708,9 @@ impl DeviceView {
                     .debug_selector(move || format!("{id}unavailable"))
                     .flex()
                     .flex_col()
-                    .gap_1()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
+                    .gap(theme::SPACE_4)
+                    .text_size(theme::TEXT_LABEL)
+                    .text_color(theme::TEXT_TERTIARY)
                     .child(
                         "This version of OpenCraft does not have this action. It keeps the \
                          action in the profile. Select a different action, or use a newer \
@@ -722,7 +718,7 @@ impl DeviceView {
                     )
                     .child(
                         div()
-                            .text_xs()
+                            .text_size(theme::TEXT_HELP)
                             .child(format!("Action identifier: {}", action.kind)),
                     ),
             );
@@ -743,13 +739,15 @@ impl DeviceView {
         }) = self.state.statuses.get(&action.kind)
         {
             let kind = action.kind.clone();
-            body = body.child(div().text_sm().child(text.clone())).child(
-                button(format!("{}resolve-kind", prefix(path)), label.clone()).on_click(
-                    cx.listener(move |view, _, _, _| {
-                        (view.send)(Command::Resolve { kind: kind.clone() });
-                    }),
-                ),
-            );
+            body = body
+                .child(div().text_size(theme::TEXT_LABEL).child(text.clone()))
+                .child(
+                    button(format!("{}resolve-kind", prefix(path)), label.clone()).on_click(
+                        cx.listener(move |view, _, _, _| {
+                            (view.send)(Command::Resolve { kind: kind.clone() });
+                        }),
+                    ),
+                );
         }
         body
     }
@@ -761,7 +759,7 @@ impl DeviceView {
         div()
             .flex()
             .flex_col()
-            .gap_1()
+            .gap(theme::SPACE_4)
             .when(none, |d| {
                 d.child(
                     button(format!("{id}-none"), "No action").on_click(cx.listener(
@@ -800,7 +798,7 @@ impl DeviceView {
             .flex_shrink_0()
             .flex()
             .flex_col()
-            .gap_1()
+            .gap(theme::SPACE_4)
             .child(field.label.clone());
         match &field.input {
             InputType::Choice { options } => {
@@ -867,13 +865,8 @@ impl DeviceView {
                         },
                     )
                     .on_click(cx.listener(move |view, _, window, cx| {
-                        let focus = view
-                            .form
-                            .focus
-                            .get_or_insert_with(|| cx.focus_handle())
-                            .clone();
                         view.form.recording = Some(record.clone());
-                        window.focus(&focus, cx);
+                        view.focus_workspace(window, cx);
                         cx.notify();
                     })),
                 );
@@ -944,8 +937,8 @@ impl DeviceView {
         if count == 0 {
             list = list.child(
                 div()
-                    .text_sm()
-                    .text_color(rgb(MUTED))
+                    .text_size(theme::TEXT_LABEL)
+                    .text_color(theme::TEXT_TERTIARY)
                     .child("No actions. Add an action."),
             );
         }
@@ -968,20 +961,20 @@ impl DeviceView {
                 div()
                     .flex()
                     .flex_col()
-                    .gap_2()
-                    .p_2()
-                    .rounded_md()
-                    .bg(rgb(BACKGROUND))
+                    .gap(theme::SPACE_8)
+                    .p(theme::SPACE_8)
+                    .rounded(theme::RADIUS_CONTROL)
+                    .bg(theme::BG_CARD)
                     .child(
                         div()
                             .flex()
                             .items_center()
-                            .gap_1()
+                            .gap(theme::SPACE_4)
                             .child(
                                 div()
                                     .flex_1()
-                                    .text_sm()
-                                    .text_color(rgb(MUTED))
+                                    .text_size(theme::TEXT_LABEL)
+                                    .text_color(theme::TEXT_TERTIARY)
                                     .child(format!("Action {}", item + 1)),
                             )
                             .child(tool(
@@ -1028,16 +1021,16 @@ fn nested() -> Div {
     div()
         .flex()
         .flex_col()
-        .gap_2()
-        .pl_3()
+        .gap(theme::SPACE_8)
+        .pl(theme::SPACE_12)
         .border_l_2()
-        .border_color(rgb(BORDER))
+        .border_color(theme::BORDER_FIELD)
 }
 
 fn unreadable() -> Div {
     div()
-        .text_sm()
-        .text_color(rgb(MUTED))
+        .text_size(theme::TEXT_LABEL)
+        .text_color(theme::TEXT_TERTIARY)
         .child("OpenCraft cannot read the saved value. A change replaces it.")
 }
 

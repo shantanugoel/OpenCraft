@@ -10,13 +10,13 @@
 
 use crate::{
     menu::MenuState,
-    settings::{self, Settings},
+    settings::{self, Panes, Settings},
     state::ViewState,
-    view::DeviceView,
+    view::{theme, DeviceView},
 };
 use gpui_kit::{
-    prelude::*, px, size, ActivationPolicy, App, Bounds, Context, EventEmitter, TitlebarOptions,
-    WindowBounds, WindowOptions,
+    point, prelude::*, px, size, ActivationPolicy, App, Bounds, Context, EventEmitter,
+    TitlebarOptions, WindowBounds, WindowOptions,
 };
 use opencraft_engine::{Command, Event};
 use std::{
@@ -240,6 +240,29 @@ impl Shell {
         }
     }
 
+    /// Keep the panes of the window in `shell.toml`, and set the titles of
+    /// the View menu for them. Nothing changes if the panes are the same.
+    pub fn set_panes(&mut self, panes: Panes, cx: &mut Context<Self>) {
+        if self.settings.panes == panes {
+            return;
+        }
+        let menus = self.settings.panes.sidebar_visible != panes.sidebar_visible
+            || self.settings.panes.inspector_visible != panes.inspector_visible;
+        self.settings.panes = panes;
+        if menus {
+            crate::app_menu::set_menus(cx, &panes);
+        }
+        if let Err(error) = settings::save(&self.config_dir, &self.settings) {
+            self.problem(
+                format!(
+                    "OpenCraft cannot save the panes of the window in {}: {error}",
+                    self.config_dir.join(settings::FILE_NAME).display()
+                ),
+                cx,
+            );
+        }
+    }
+
     /// The state for a new window. The short marks of old input do not show.
     pub fn window_state(&self) -> ViewState {
         let mut state = self.state.clone();
@@ -307,28 +330,15 @@ impl Shell {
         let shell = cx.entity();
         let state = self.window_state();
         let send = self.send.clone();
-        // With the title bar, the window is less than 850 points high. It
-        // fits on a small display, and the editor shows all its sections for
-        // a simple action.
-        let bounds = Bounds::centered(None, size(px(1120.), px(816.)), cx);
-        let opened = cx.open_window(
-            WindowOptions {
-                titlebar: Some(TitlebarOptions {
-                    title: Some("OpenCraft".into()),
-                    ..Default::default()
-                }),
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                window_min_size: Some(size(px(900.), px(640.))),
-                ..Default::default()
-            },
-            move |window, cx| {
-                if crate::start_trace() {
-                    window.on_next_frame(|_, _| crate::trace_now("first frame"));
-                }
-                let view = cx.new(|cx| DeviceView::new(&shell, state, send, window, cx));
-                cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
-            },
-        );
+        let panes = self.settings.panes;
+        let options = window_options(cx);
+        let opened = cx.open_window(options, move |window, cx| {
+            if crate::start_trace() {
+                window.on_next_frame(|_, _| crate::trace_now("first frame"));
+            }
+            let view = cx.new(|cx| DeviceView::new(&shell, state, panes, send, window, cx));
+            cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
+        });
         if let Err(error) = opened {
             eprintln!("OpenCraft cannot open the window: {error}");
             return;
@@ -407,6 +417,36 @@ impl Shell {
             "OpenCraft has no start at login on this platform.".into(),
             cx,
         );
+    }
+}
+
+/// The options of the main window (decision 0029, section 4): 1440 × 900,
+/// or the visible area of a smaller screen, and a minimum size so that the
+/// panes do not overlap. The title bar is transparent: the sidebar and the
+/// toolbar fill its area, and the window moves with a drag on them.
+fn window_options(cx: &App) -> WindowOptions {
+    let (width, height) = theme::WINDOW_SIZE;
+    let mut window_size = size(px(width), px(height));
+    let bounds = match cx.primary_display() {
+        Some(display) => {
+            let area = display.visible_bounds();
+            window_size = window_size.min(&area.size);
+            Bounds::centered_at(area.center(), window_size)
+        }
+        None => Bounds::centered(None, window_size, cx),
+    };
+    let (min_width, min_height) = theme::WINDOW_MIN;
+    let (x, y) = theme::WINDOW_BUTTONS;
+    WindowOptions {
+        titlebar: Some(TitlebarOptions {
+            title: Some("OpenCraft".into()),
+            appears_transparent: true,
+            traffic_light_position: Some(point(x, y)),
+        }),
+        app_owns_titlebar_drag: true,
+        window_bounds: Some(WindowBounds::Windowed(bounds)),
+        window_min_size: Some(size(px(min_width), px(min_height))),
+        ..Default::default()
     }
 }
 
@@ -634,7 +674,8 @@ mod tests {
             settings::load(f.dir.path()),
             (
                 Settings {
-                    show_dock_icon: false
+                    show_dock_icon: false,
+                    ..Settings::default()
                 },
                 None
             )

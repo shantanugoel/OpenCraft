@@ -9,10 +9,12 @@ Before you start, do the steps in [Install and first start](install.md).
 
 1. In the device picture, click the key face at the top left. This is key 1.
 
-The key face gets a blue frame. The editor at the right shows "Key face 1".
-It has these parts, from the top: **Action**, **Label**, **Colour**, and
-**Image**. If the editor is not tall enough, it shows a scrollbar at the
-right. Scroll the editor to see the other parts.
+The key face gets a blue frame. The **Inspector** tab of the right panel
+shows "Key face 1". If the right panel shows **Library**, click
+**Inspector** at the top of the right panel. The inspector has these parts,
+from the top: **Action**, **Label**, **Colour**, and **Image**. If the
+inspector is not tall enough, it shows a scrollbar at the right. Scroll the
+inspector to see the other parts.
 
 ## 2. Set the label and the colour
 
@@ -42,13 +44,13 @@ shows the colour of the key face.
 
 ## 4. Set an action
 
-Below **Action**, the editor shows the gestures of the key: **Press** and
+Below **Action**, the inspector shows the gestures of the key: **Press** and
 **Release**. **Press** is selected. An action on **Press** occurs when you
 push the key down. An action on **Release** occurs when you let the key come
 back up. Most actions are on **Press**.
 
 1. Click **No action ▾**. The list of the action kinds opens. The list is
-   longer than the editor. Scroll the editor to see all action kinds.
+   longer than the inspector. Scroll the inspector to see all action kinds.
 2. Click **Open a URL**.
 3. Click the field **URL**. Type `https://example.com`.
 
@@ -57,7 +59,7 @@ action "Open a URL" does not need a permission of macOS.
 
 ![Key 1 with a label, a colour, and the action "Open a URL"](images/first-key.png)
 
-![The editor with the sound volume action on knob 1](images/action-editor.png)
+![The inspector with the sound volume action on knob 1](images/action-editor.png)
 
 The picture shows a different action: the sound volume on knob 1. Each
 action kind has its own settings. They are in [Actions](actions.md).
@@ -69,8 +71,8 @@ To remove the action, click the button with the action name, and click
 
 1. Push key 1 on the device.
 
-The browser opens the page. The input line at the bottom of the window shows
-"key 1: press", and then "key 1: release".
+The browser opens the page. The status bar at the bottom of the device
+picture shows "Key 1 · Press · now", and then "Key 1 · Release · now".
 
 ## How OpenCraft saves your changes
 
@@ -80,9 +82,9 @@ device is connected.
 
 ## If the key does nothing
 
-- Look at the bottom of the window. If a message shows, read it. See
+- Look above the status bar. If a message shows, read it. See
   [Messages in the window](faults.md#messages-in-the-window).
-- Make sure that the connection shows "● Connected".
+- Make sure that the connection in the toolbar shows "Live on the device".
 - Make sure that the action is on **Press**, not on **Release**.
 - For "Send a hotkey", "Type text", and "Media key", OpenCraft needs the
   Accessibility permission. See
