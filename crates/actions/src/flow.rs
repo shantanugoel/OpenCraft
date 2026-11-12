@@ -46,11 +46,9 @@ fn page_target(settings: &Settings) -> Result<PageTarget> {
             Some(Value::Integer(page)) if (1..=PAGE_LIMIT).contains(page) => {
                 Ok(PageTarget::Number(*page as usize - 1))
             }
-            Some(_) => Err(format!(
-                "Set the page number to an integer from 1 to {PAGE_LIMIT}."
-            )),
+            Some(_) => Err(setting_problem(PAGE, "page")),
         },
-        _ => Err("Select the next page, the previous page, or a page number.".into()),
+        _ => Err(setting_problem(PAGE, "target")),
     }
 }
 
@@ -59,7 +57,7 @@ impl NavigationHandler {
         match action.kind.as_str() {
             PAGE => page_target(&action.settings).map(EngineRequest::SelectPage),
             PROFILE => Ok(EngineRequest::SelectProfile {
-                name: nonblank(&action.settings, "profile")?.trim().to_string(),
+                name: nonblank(action, "profile")?.trim().to_string(),
             }),
             _ => Err("This handler does not have that action kind.".into()),
         }
@@ -99,12 +97,12 @@ fn toggle_settings(settings: &Settings) -> Result<Toggle> {
         None => Ok(None),
         Some(value) => Action::from_value(value)
             .map(Some)
-            .ok_or_else(|| format!("Set {key} to an action, or remove it.")),
+            .ok_or_else(|| setting_problem(TOGGLE, key)),
     };
     let on_label = match settings.get("on_label") {
         None => None,
         Some(Value::Text(label)) => Some(label.clone()).filter(|l| !l.trim().is_empty()),
-        Some(_) => return Err("Set on_label to text.".into()),
+        Some(_) => return Err(setting_problem(TOGGLE, "on_label")),
     };
     Ok(Toggle {
         on: action("on")?,
@@ -231,17 +229,14 @@ impl Handler for ToggleHandler {
 fn sequence_settings(settings: &Settings) -> Result<(Vec<Action>, Duration)> {
     let actions = match settings.get("actions") {
         None => Vec::new(),
-        Some(value) => Action::list_from_value(value)
-            .ok_or_else(|| "Set actions to a list of actions.".to_string())?,
+        Some(value) => {
+            Action::list_from_value(value).ok_or_else(|| setting_problem(SEQUENCE, "actions"))?
+        }
     };
     let delay = match settings.get("delay_ms") {
         None => DEFAULT_DELAY,
         Some(Value::Integer(ms)) if (0..=DELAY_LIMIT).contains(ms) => *ms,
-        Some(_) => {
-            return Err(format!(
-                "Set delay_ms to an integer from 0 to {DELAY_LIMIT}."
-            ))
-        }
+        Some(_) => return Err(setting_problem(SEQUENCE, "delay_ms")),
     };
     Ok((actions, Duration::from_millis(delay as u64)))
 }

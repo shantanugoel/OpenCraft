@@ -7,6 +7,7 @@ use crate::{
     shell::Shell,
     state::{ViewState, HIGHLIGHT_TIME},
 };
+use gpui_kit::base::{Scrollbar, ScrollbarMode};
 use gpui_kit::{
     component::{
         input::{Input, InputEvent as TextEvent, InputState},
@@ -15,7 +16,7 @@ use gpui_kit::{
     div, img,
     prelude::*,
     px, rgb, AnyElement, ClickEvent, Context, Div, Entity, PathPromptOptions, Render, RenderImage,
-    SharedString, Stateful, Subscription, Task, Window,
+    ScrollHandle, SharedString, Stateful, Subscription, Task, Window,
 };
 use opencraft_engine::{
     Color, Command, ControlId, ControlKind, Event, Gesture, SurfaceId, SurfaceKind,
@@ -87,6 +88,9 @@ pub struct DeviceView {
     form: actions::ActionForm,
     lists: pages::Lists,
     device: device::DevicePanel,
+    /// The scroll position of the editor at the right. The editor shows a
+    /// scrollbar when its content is taller than the window.
+    editor_scroll: ScrollHandle,
 }
 
 impl DeviceView {
@@ -132,6 +136,7 @@ impl DeviceView {
             form: actions::ActionForm::default(),
             lists: pages::Lists::new(window, cx),
             device: device::DevicePanel::new(),
+            editor_scroll: ScrollHandle::new(),
         }
     }
 
@@ -524,23 +529,49 @@ impl DeviceView {
         }
     }
 
-    fn editor(&self, cx: &mut Context<Self>) -> AnyElement {
-        if self.device.open {
-            return self.device_editor(cx);
-        }
-        let mut editor = div()
-            .id("editor")
-            .debug_selector(|| "editor".into())
+    /// The frame of the editor at the right, around `content`. The content
+    /// scrolls, and a scrollbar shows when it is taller than the frame. Thus
+    /// the user sees that more settings are below.
+    fn editor_frame(&self, content: Stateful<Div>) -> AnyElement {
+        div()
+            .relative()
             .w(px(272.))
             .flex_shrink_0()
             .h_full()
-            .overflow_y_scroll()
-            .flex()
-            .flex_col()
-            .gap_4()
-            .p_4()
             .rounded_lg()
-            .bg(rgb(PANEL));
+            .bg(rgb(PANEL))
+            .child(
+                content
+                    .size_full()
+                    .track_scroll(&self.editor_scroll)
+                    .overflow_y_scroll()
+                    .flex()
+                    .flex_col()
+                    .gap_3()
+                    .p_4(),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .child(Scrollbar::vertical(&self.editor_scroll).mode(ScrollbarMode::Always)),
+            )
+            .into_any_element()
+    }
+
+    fn editor(&self, cx: &mut Context<Self>) -> AnyElement {
+        let content = if self.device.open {
+            self.device_editor(cx)
+        } else {
+            self.surface_editor(cx)
+        };
+        self.editor_frame(content)
+    }
+
+    fn surface_editor(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+        let mut editor = div().id("editor").debug_selector(|| "editor".into());
         if let Some(control) = self.state.selected_control {
             // A control with no surface has an action only.
             if self.state.selected.is_none() {
@@ -553,19 +584,15 @@ impl DeviceView {
                             ),
                         )
                     })
-                    .child(self.action_editor(cx))
-                    .into_any_element();
+                    .child(self.action_editor(cx));
             }
         }
         let Some(id) = self.state.selected else {
-            return editor
-                .child(div().text_lg().child("Surface"))
-                .child(
-                    div()
-                        .text_color(rgb(MUTED))
-                        .child("Select a key, a knob, a bar panel, or the touch bar."),
-                )
-                .into_any_element();
+            return editor.child(div().text_lg().child("Editor")).child(
+                div().text_color(rgb(MUTED)).child(
+                    "Click a key, a knob, a bar panel, or the touch bar in the device picture.",
+                ),
+            );
         };
         let content = self.state.surfaces.get(&id).map(|s| &s.content);
         let current_colour = content.and_then(|c| c.color);
@@ -585,7 +612,25 @@ impl DeviceView {
                     .flex()
                     .flex_col()
                     .gap_2()
-                    .child("Colour")
+                    .child(
+                        div()
+                            .flex()
+                            .justify_between()
+                            .items_center()
+                            .child("Colour")
+                            .child(
+                                small_button(
+                                    "no-colour",
+                                    if current_colour.is_none() {
+                                        "No colour ✓"
+                                    } else {
+                                        "No colour"
+                                    },
+                                    true,
+                                )
+                                .on_click(cx.listener(|view, _, _, _| view.set_colour(None))),
+                            ),
+                    )
                     .child(div().flex().flex_wrap().gap_2().children(
                         COLOURS.into_iter().enumerate().map(|(index, value)| {
                             div()
@@ -605,18 +650,7 @@ impl DeviceView {
                                     view.set_colour(Some(colour(value)))
                                 }))
                         }),
-                    ))
-                    .child(
-                        button(
-                            "no-colour",
-                            if current_colour.is_none() {
-                                "No colour ✓"
-                            } else {
-                                "No colour"
-                            },
-                        )
-                        .on_click(cx.listener(|view, _, _, _| view.set_colour(None))),
-                    ),
+                    )),
             )
             .child(
                 div()
@@ -624,35 +658,39 @@ impl DeviceView {
                     .flex_col()
                     .gap_2()
                     .child("Image")
-                    .child(div().text_sm().text_color(rgb(MUTED)).child(
-                        if content.is_some_and(|c| c.image.is_some()) {
-                            "This surface has an image."
+                    .child(div().text_sm().text_color(rgb(MUTED)).child(format!(
+                        "This {} has {} image.",
+                        if id.kind == SurfaceKind::KeyFace {
+                            "key face"
                         } else {
-                            "This surface has no image."
+                            "bar panel"
                         },
-                    ))
+                        if content.is_some_and(|c| c.image.is_some()) {
+                            "an"
+                        } else {
+                            "no"
+                        },
+                    )))
                     .child(
-                        button("choose-image", "Select image…")
-                            .on_click(cx.listener(|view, _, window, cx| view.dialog(window, cx))),
-                    )
-                    .when(content.is_some_and(|c| c.image.is_some()), |d| {
-                        d.child(button("remove-image", "Remove image").on_click(cx.listener(
-                            move |view, _, _, _| {
-                                (view.send)(Command::SetImage {
-                                    surface: id,
-                                    path: None,
-                                })
-                            },
-                        )))
-                    }),
-            )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(rgb(MUTED))
-                    .child("The engine saves each change. You can edit with no device."),
+                        div()
+                            .flex()
+                            .gap_2()
+                            .child(button("choose-image", "Select image…").on_click(
+                                cx.listener(|view, _, window, cx| view.dialog(window, cx)),
+                            ))
+                            .when(content.is_some_and(|c| c.image.is_some()), |d| {
+                                d.child(button("remove-image", "Remove image").on_click(
+                                    cx.listener(move |view, _, _, _| {
+                                        (view.send)(Command::SetImage {
+                                            surface: id,
+                                            path: None,
+                                        })
+                                    }),
+                                ))
+                            }),
+                    ),
             );
-        editor.into_any_element()
+        editor
     }
 }
 
@@ -773,6 +811,7 @@ impl Render for DeviceView {
                             .child(self.profile_control(cx))
                             .child(
                                 div()
+                                    .id("connection")
                                     .text_sm()
                                     .text_color(rgb(if self.state.connected {
                                         0x8bcea6
@@ -782,7 +821,16 @@ impl Render for DeviceView {
                                     .child(if self.state.connected {
                                         "● Connected"
                                     } else {
-                                        "○ Not connected · You can edit"
+                                        "○ Not connected"
+                                    })
+                                    .when(!self.state.connected, |d| {
+                                        d.tooltip(|window, cx| {
+                                            Tooltip::new(
+                                                "Connect the device with a USB cable. If VSD \
+                                                 Craft runs, quit it.",
+                                            )
+                                            .build(window, cx)
+                                        })
                                     }),
                             ),
                     ),
@@ -805,12 +853,22 @@ impl Render for DeviceView {
                     .child(self.editor(cx)),
             )
             .child(
-                div().text_sm().text_color(rgb(MUTED)).child(
-                    self.state
-                        .last_input
-                        .clone()
-                        .unwrap_or_else(|| "No input yet".into()),
-                ),
+                div()
+                    .flex()
+                    .justify_between()
+                    .gap_4()
+                    .text_sm()
+                    .text_color(rgb(MUTED))
+                    .child(
+                        self.state
+                            .last_input
+                            .clone()
+                            .unwrap_or_else(|| "No input yet".into()),
+                    )
+                    .child(
+                        "OpenCraft saves each change. You can make changes also when no device is \
+                         connected.",
+                    ),
             )
             .when(!self.state.problems.is_empty(), |d| {
                 d.child(

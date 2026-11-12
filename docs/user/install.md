@@ -66,11 +66,11 @@ The window has these parts:
 | Device name | Top left | The model of the device, for example "VSD StreamDock N4 Pro" |
 | **Device settings** | Top right | Opens the device settings. See [Device settings](controls.md#device-settings). |
 | **Profile** | Top right | The active profile, and a menu for the profiles |
-| Connection | Top right | "● Connected", or "○ Not connected · You can edit" |
+| Connection | Top right | "● Connected", or "○ Not connected" |
 | Page row | Below the top | One button for each page, **+ Page**, and the tools for the active page |
 | Device picture | Middle | The 10 key faces, the 4 bar panels, the touch bar, and the 4 knobs. Each key face and bar panel shows the same image as the device. |
 | Editor | Right | The settings of the control that you selected |
-| Input line | Bottom | The last gesture on the device, for example "key 3: press" |
+| Input line | Bottom left | The last gesture on the device, for example "key 3: press" |
 
 When you push a key, turn a knob, or touch the touch bar, the device picture
 shows it.
@@ -86,7 +86,8 @@ shows it.
 ### When no device is connected
 
 The window opens also with no device. The connection shows
-"○ Not connected · You can edit". You can change all settings. OpenCraft
+"○ Not connected". Put the pointer on it to see what to do. You can change
+all settings. OpenCraft
 saves them, and the device shows them when you connect it. OpenCraft looks
 for the device each second. You do not have to start OpenCraft again.
 
@@ -99,7 +100,9 @@ also does not need the Input Monitoring permission.
 
 If OpenCraft does not have the permission, the editor shows this text below
 each action of these kinds: "OpenCraft needs the Accessibility permission to
-send keys." Then the action does nothing.
+send keys." Then the action does nothing. When you do the action on the
+device, the window shows the message "OpenCraft did not send the keys,
+because it does not have the Accessibility permission." at the bottom.
 
 To give the permission:
 

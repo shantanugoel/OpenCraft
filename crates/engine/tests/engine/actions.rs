@@ -634,6 +634,7 @@ fn a_busy_message_queue_does_not_stop_device_polls() {
     let link = Link::with_clock(
         FakeConnector {
             queue: rig.queue.clone(),
+            refusals: rig.refusals.clone(),
         },
         FakeClock {
             world: rig.world.clone(),
@@ -742,6 +743,7 @@ fn a_blocked_handler_does_not_stop_the_runtime_or_another_handler() {
         Link::with_clock(
             FakeConnector {
                 queue: rig.queue.clone(),
+                refusals: rig.refusals.clone(),
             },
             FakeClock {
                 world: rig.world.clone(),
@@ -830,6 +832,7 @@ fn a_handler_asks_the_engine_to_do_an_action_with_its_own_binding() {
     let events = rig.take_events();
     assert_eq!(problems(&events).len(), 1, "{events:?}");
     assert!(problems(&events)[0].contains("missing.kind"));
+    assert!(!problems(&events)[0].contains("handler"));
     assert!(inner_requests.try_recv().is_err());
 }
 

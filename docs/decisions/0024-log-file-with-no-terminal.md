@@ -43,6 +43,12 @@ to the standard error, as before.
 
 The file contains no label, no binding, and no input of the user. The
 engine writes a line only for an event that is not frequent.
+Note (2026-11-12): issue
+[#162](https://github.com/shantanugoel/OpenCraft/issues/162) adds a line for
+each problem that the engine sends to the shell, and for the text of the
+device layer about a device error. A problem text can contain a name that
+the user gave, for example the name of a profile, or a path. The user guide
+tells the user to read the file before they attach it to a report.
 
 ## Results
 

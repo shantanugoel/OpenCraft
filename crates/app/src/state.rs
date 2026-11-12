@@ -85,7 +85,13 @@ impl ViewState {
                 self.connected = false;
                 self.clear_input();
             }
-            Event::Problem(text) => self.problems.push(text),
+            // The same text shows one time. For example, each press of a key
+            // can send the same problem.
+            Event::Problem(text) => {
+                if !self.problems.contains(&text) {
+                    self.problems.push(text);
+                }
+            }
             Event::Input(input) => return self.input(input, now),
             Event::Kinds(kinds) => self.kinds = kinds,
             Event::Profiles { profiles, active } => {
@@ -370,6 +376,13 @@ pub(crate) mod tests {
         assert!(!s.connected);
         s.apply(Event::Problem("Cannot save.".into()), now);
         s.apply(layout(), now);
+        assert_eq!(s.problems, ["Cannot save."]);
+        // The same problem again does not show a second time. After the
+        // user closed it, it shows again.
+        s.apply(Event::Problem("Cannot save.".into()), now);
+        assert_eq!(s.problems, ["Cannot save."]);
+        s.problems.clear();
+        s.apply(Event::Problem("Cannot save.".into()), now);
         assert_eq!(s.problems, ["Cannot save."]);
         s.apply(Event::Connected, now);
         assert!(s.connected);
