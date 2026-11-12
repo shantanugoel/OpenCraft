@@ -116,7 +116,9 @@ pub enum ShellCommand {
     SelectProfile(String),
     /// Make the page with this number of the active profile the active page.
     SelectPage(usize),
-    /// Set the display brightness of the device, in percent.
+    /// Set the display brightness of the device, in percent. Only the
+    /// slider of the menu bar item (macOS) makes this command.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     SetBrightness(u8),
     /// Open the Settings window, or bring it to the front. With a pane, show
     /// that pane; with `None`, show the pane that was visible last.
