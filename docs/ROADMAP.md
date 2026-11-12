@@ -22,7 +22,7 @@ application that other persons can adopt.
 | 3 | Actions for keys and knobs | Complete |
 | 4 | Pages and the touch bar | Complete |
 | 5 | Background operation | Complete |
-| 6 | First public release | Not started |
+| 6 | First public release | Complete |
 
 ## Checks for each phase
 
@@ -320,7 +320,7 @@ the record of the checks.
 - What the link and the engine do at a wake is in
   [kb/sleep-and-wake.md](kb/sleep-and-wake.md).
 
-## Phase 6: First public release
+## Phase 6: First public release (complete)
 
 **Goal.** A person who is not the owner can install and use OpenCraft.
 
@@ -333,8 +333,47 @@ the record of the checks.
 
 **Exit criteria.**
 
-- [ ] All product targets are met.
-- [ ] A new user installs OpenCraft and configures a key with the documentation only.
+- [x] All product targets are met. This is true for the memory and for the
+  processor use. The start time is below its target for a repeated start
+  only. The count of lost input events is from Phase 3 and Phase 4.
+- [x] A new user installs OpenCraft and configures a key with the
+  documentation only. An agent that had only the user guide did this. No
+  person other than the owner did it.
+
+On 2026-11-12 the owner accepted these limits: the start time as in Phase 5,
+and no check by a second person. The owner also moved two checks out of this
+phase: the first start of the downloaded application, and the three actions
+that need the Accessibility permission in the release bundle. They block no
+phase. They are in
+[issue #170](https://github.com/shantanugoel/OpenCraft/issues/170).
+
+**Decisions that this phase forces.** The form of the release: see
+[decision 0025](decisions/0025-release-form.md). The licence notices: see
+[decision 0026](decisions/0026-licence-notices.md). The installation through
+Homebrew: see [decision 0027](decisions/0027-homebrew-cask.md). One more
+decision of the phase is
+[0028](decisions/0028-second-start-opens-the-window.md).
+
+**Result.** The phase is complete on 2026-11-12, with the limits that the
+exit criteria give. The [checks for each phase](#checks-for-each-phase) are
+done. [Issue #153](https://github.com/shantanugoel/OpenCraft/issues/153) has
+the record of the checks.
+
+- Version 0.1.0 is a signed and notarized bundle in one disk image for Apple
+  silicon. The facts are in
+  [kb/macos-distribution.md](kb/macos-distribution.md).
+- A Homebrew cask in a tap of the owner installs the release. The facts are
+  in [kb/homebrew.md](kb/homebrew.md).
+- The user guide is in [user/](user/README.md). The result of the test with
+  the guide only is in
+  [issue #152](https://github.com/shantanugoel/OpenCraft/issues/152).
+- The licence notices are in the bundle, and the menu bar item opens them.
+  The facts are in [kb/dependency-licences.md](kb/dependency-licences.md).
+- The procedure for a new device model is in
+  [ADDING-A-DEVICE-MODEL.md](ADDING-A-DEVICE-MODEL.md). A test adds a second
+  model as data only. No second real device was connected.
+- The measured footprint of the release bundle is in
+  [kb/footprint.md](kb/footprint.md#phase-6).
 
 ## Not in a phase
 

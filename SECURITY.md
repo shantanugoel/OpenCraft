@@ -18,7 +18,7 @@ person. Thus the time to an answer can be some days.
 
 ## Supported versions
 
-Only the latest version on the `main` branch gets a correction.
+Only the latest release gets a correction.
 
 ## What is in scope
 

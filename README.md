@@ -5,7 +5,7 @@ controllers. It replaces **VSD Craft**, the vendor software of VSD and
 Mirabox. It is written in Rust. It has no Electron and no embedded web
 browser.
 
-> **Status: first public release in preparation.** OpenCraft operates the
+> **Status: version 0.1.0 is the first public release.** OpenCraft operates the
 > VSD StreamDock N4 Pro on macOS: keys, knobs, the touch bar,
 > pages, profiles, and device settings. It has no plug-ins yet. The
 > [roadmap](docs/ROADMAP.md#status) gives the state of each phase.
