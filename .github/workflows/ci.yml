@@ -50,3 +50,36 @@ jobs:
 
       - name: Test
         run: cargo test --workspace
+
+  # Decision 0026: the licences of the dependencies, and the notices file.
+  licences:
+    name: Licences and notices
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Fails for a licence that is not in deny.toml, and for a crate that
+      # does not come from crates.io. The target of deny.toml is the macOS
+      # build.
+      - name: Licences and sources of the dependencies
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check licenses sources
+          arguments: --locked
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-about
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.9.3
+
+      # Fails when THIRD-PARTY-NOTICES.txt is not correct for Cargo.lock and
+      # about.toml. cargo-about reads the crates of all platforms.
+      - name: Notices file
+        run: |
+          cargo fetch --locked
+          scripts/notices.sh --check

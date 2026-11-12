@@ -5,7 +5,8 @@
 //! also when no window is open. A new window starts from its state, and then
 //! gets each event from it. The menu bar item shows the same state.
 //!
-//! The shell also turns the start at login on and off (decision 0021).
+//! The shell also turns the start at login on and off (decision 0021), and
+//! opens the licence notices of the bundle (decision 0026).
 
 use crate::{
     menu::MenuState,
@@ -18,12 +19,42 @@ use gpui_kit::{
     WindowBounds, WindowOptions,
 };
 use opencraft_engine::{Command, Event};
-use std::{path::PathBuf, rc::Rc, time::Duration, time::Instant};
+use std::{
+    path::{Path, PathBuf},
+    rc::Rc,
+    time::Duration,
+    time::Instant,
+};
 
 /// The time from the change to the regular activation policy to the
 /// activation of the application. See `docs/kb/gpui.md`, "Windows, Dock icon,
 /// and activation".
 const ACTIVATE_DELAY: Duration = Duration::from_millis(200);
+
+/// The file of the licence notices in `Contents/Resources` of the bundle.
+/// `scripts/release.sh` puts it there (decision 0026).
+pub const NOTICES_FILE: &str = "THIRD-PARTY-NOTICES.txt";
+
+/// The licence notices file of the bundle that contains `executable`, if the
+/// file exists. `None` for an executable that is not in a bundle, for example
+/// after `cargo run`.
+pub fn notices_file(executable: &Path) -> Option<PathBuf> {
+    let macos = executable.parent()?;
+    let contents = macos.parent()?;
+    if macos.file_name()? != "MacOS" || contents.file_name()? != "Contents" {
+        return None;
+    }
+    let file = contents.join("Resources").join(NOTICES_FILE);
+    file.is_file().then_some(file)
+}
+
+/// Opens a file with the default application. False if it cannot.
+type OpenFile = fn(&Path) -> bool;
+
+#[cfg(target_os = "macos")]
+const OPEN_FILE: OpenFile = crate::menu_bar::open_file;
+#[cfg(not(target_os = "macos"))]
+const OPEN_FILE: OpenFile = |_| false;
 
 /// A command to the shell, from the menu bar item, from a click on the Dock
 /// icon, or from a signal.
@@ -35,6 +66,8 @@ pub enum ShellCommand {
     ToggleDockIcon,
     /// Turn the start at login on if it is off, and off if it is on.
     ToggleStartAtLogin,
+    /// Open the licence notices file of the bundle.
+    OpenNotices,
     /// Start the quit path.
     Quit,
 }
@@ -48,6 +81,10 @@ pub struct Shell {
     config_dir: PathBuf,
     /// Sends a command to the engine.
     send: Rc<dyn Fn(Command)>,
+    /// The licence notices file of the bundle. `None` if the executable is
+    /// not in a bundle with the file.
+    notices: Option<PathBuf>,
+    open_file: OpenFile,
     #[cfg(target_os = "macos")]
     menu_bar: Option<crate::menu_bar::MenuBar>,
     /// The directory of the LaunchAgent file. `None` if the home directory
@@ -71,13 +108,17 @@ impl Shell {
     pub fn new(config_dir: PathBuf, settings: Settings, send: Rc<dyn Fn(Command)>) -> Self {
         #[cfg(target_os = "macos")]
         let login_dir = crate::login::agents_dir();
+        let current_exe = std::env::current_exe().ok();
+        let notices = current_exe.as_deref().and_then(notices_file);
         #[cfg(target_os = "macos")]
-        let executable = std::env::current_exe().ok();
+        let executable = current_exe;
         Self {
             state: ViewState::default(),
             settings,
             config_dir,
             send,
+            notices,
+            open_file: OPEN_FILE,
             #[cfg(target_os = "macos")]
             menu_bar: None,
             #[cfg(target_os = "macos")]
@@ -104,6 +145,15 @@ impl Shell {
     pub fn set_executable(&mut self, executable: PathBuf) {
         self.executable = Some(executable);
         self.start_at_login = self.login_is_on();
+    }
+
+    /// Use `notices` as the licence notices file, and `open_file` to open a
+    /// file. The tests open no application.
+    #[cfg(test)]
+    pub fn set_notices(&mut self, notices: Option<PathBuf>, open_file: OpenFile) {
+        self.notices = notices;
+        self.open_file = open_file;
+        self.refresh_menu();
     }
 
     /// True if the LaunchAgent file starts the executable of this process.
@@ -185,6 +235,7 @@ impl Shell {
                 self.set_show_dock_icon(!self.settings.show_dock_icon, cx)
             }
             ShellCommand::ToggleStartAtLogin => self.toggle_start_at_login(cx),
+            ShellCommand::OpenNotices => self.open_notices(cx),
             ShellCommand::Quit => cx.quit(),
         }
     }
@@ -214,7 +265,25 @@ impl Shell {
             start_at_login: self.start_at_login,
             #[cfg(not(target_os = "macos"))]
             start_at_login: false,
+            notices: self.notices.is_some(),
         }
+    }
+
+    /// Open the licence notices with the default application. The menu shows
+    /// the item only if the bundle has the file.
+    fn open_notices(&mut self, cx: &mut Context<Self>) {
+        let text = match &self.notices {
+            Some(file) if (self.open_file)(file) => return,
+            Some(file) => format!(
+                "OpenCraft cannot open the licence notices in {}.",
+                file.display()
+            ),
+            None => format!(
+                "This copy of OpenCraft has no licence notices. The file {NOTICES_FILE} \
+                 of the source code has them."
+            ),
+        };
+        self.problem(text, cx);
     }
 
     fn refresh_menu(&mut self) {
@@ -461,7 +530,8 @@ mod tests {
                 connected: false,
                 profile: None,
                 show_dock_icon: true,
-                start_at_login: false
+                start_at_login: false,
+                notices: false
             }
         );
         f.events.try_send(layout()).unwrap();
@@ -475,7 +545,8 @@ mod tests {
                 connected: true,
                 profile: Some("Desk".into()),
                 show_dock_icon: true,
-                start_at_login: false
+                start_at_login: false,
+                notices: false
             }
         );
         f.events.try_send(Event::Disconnected).unwrap();
@@ -672,6 +743,90 @@ mod tests {
         let problems = cx.update(|cx| f.shell.read(cx).state.problems.clone());
         assert_eq!(problems.len(), 1);
         assert!(problems[0].contains("cannot change the start at login"));
+    }
+
+    /// A bundle in `dir` with the executable, and with the notices file if
+    /// `with_file`. Gives the executable.
+    fn bundle(dir: &Path, with_file: bool) -> PathBuf {
+        let contents = dir.join("OpenCraft.app").join("Contents");
+        std::fs::create_dir_all(contents.join("MacOS")).unwrap();
+        std::fs::create_dir_all(contents.join("Resources")).unwrap();
+        if with_file {
+            std::fs::write(contents.join("Resources").join(NOTICES_FILE), "Notices").unwrap();
+        }
+        contents.join("MacOS").join("opencraft")
+    }
+
+    #[test]
+    fn the_notices_file_is_in_the_resources_of_the_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let executable = bundle(dir.path(), true);
+        assert_eq!(
+            notices_file(&executable),
+            Some(
+                dir.path()
+                    .join("OpenCraft.app/Contents/Resources")
+                    .join(NOTICES_FILE)
+            )
+        );
+        // A bundle with no file.
+        let other = tempfile::tempdir().unwrap();
+        assert_eq!(notices_file(&bundle(other.path(), false)), None);
+        // An executable that is not in a bundle, as after `cargo run`. The
+        // file next to it is not used.
+        let plain = dir.path().join("target").join("debug");
+        std::fs::create_dir_all(plain.join("..").join("Resources")).unwrap();
+        std::fs::write(plain.join("..").join("Resources").join(NOTICES_FILE), "").unwrap();
+        assert_eq!(notices_file(&plain.join("opencraft")), None);
+        assert_eq!(notices_file(Path::new("opencraft")), None);
+        // The test executable is not in a bundle.
+        assert_eq!(notices_file(&std::env::current_exe().unwrap()), None);
+    }
+
+    thread_local! {
+        static OPENED: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn open_and_record(path: &Path) -> bool {
+        OPENED.with(|opened| opened.borrow_mut().push(path.to_path_buf()));
+        true
+    }
+
+    #[gpui_kit::test]
+    fn the_notices_item_opens_the_file_of_the_bundle(cx: &mut TestAppContext) {
+        let f = shell(cx);
+        // The test executable is not in a bundle: the menu has no item.
+        assert!(!cx.update(|cx| f.shell.read(cx).menu_state().notices));
+        let file = notices_file(&bundle(f.dir.path(), true)).unwrap();
+        f.shell.update(cx, |shell, _| {
+            shell.set_notices(Some(file.clone()), open_and_record)
+        });
+        assert!(cx.update(|cx| f.shell.read(cx).menu_state().notices));
+        f.commands.try_send(ShellCommand::OpenNotices).unwrap();
+        cx.run_until_parked();
+        assert_eq!(OPENED.with(|opened| opened.borrow().clone()), [file]);
+        assert!(cx.update(|cx| f.shell.read(cx).state.problems.is_empty()));
+        assert!(cx.update(|cx| cx.windows().is_empty()));
+    }
+
+    #[gpui_kit::test]
+    fn a_notices_file_that_does_not_open_shows_a_problem(cx: &mut TestAppContext) {
+        let f = shell(cx);
+        let file = notices_file(&bundle(f.dir.path(), true)).unwrap();
+        f.shell
+            .update(cx, |shell, _| shell.set_notices(Some(file), |_| false));
+        f.commands.try_send(ShellCommand::OpenNotices).unwrap();
+        cx.run_until_parked();
+        // With no file, the command shows where the notices are.
+        f.shell
+            .update(cx, |shell, _| shell.set_notices(None, open_and_record));
+        f.commands.try_send(ShellCommand::OpenNotices).unwrap();
+        cx.run_until_parked();
+        let problems = cx.update(|cx| f.shell.read(cx).state.problems.clone());
+        assert_eq!(problems.len(), 2);
+        assert!(problems[0].contains("cannot open the licence notices"));
+        assert!(problems[1].contains(NOTICES_FILE));
+        assert!(OPENED.with(|opened| opened.borrow().is_empty()));
     }
 
     #[gpui_kit::test]

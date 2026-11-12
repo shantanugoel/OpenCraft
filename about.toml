@@ -1,0 +1,90 @@
+# The configuration of cargo-about. scripts/notices.sh uses it to make
+# THIRD-PARTY-NOTICES.txt. The decision is
+# docs/decisions/0026-licence-notices.md. The facts are in
+# docs/kb/dependency-licences.md.
+#
+# `accepted` is in order of priority: for "MIT OR Apache-2.0", the notices
+# use MIT. Keep the same licences as `licenses.allow` in deny.toml.
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+    "0BSD",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "MPL-2.0",
+    "ISC",
+]
+
+# The release is for Apple silicon only (decision 0025).
+targets = ["aarch64-apple-darwin"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+# The built-in clarification of cargo-about for chrono. It reads the file
+# of the crate.
+workarounds = ["chrono"]
+
+# The clarifications below are for crates that have a licence file that
+# cargo-about does not identify. Each one uses a file of the crate itself, so
+# the notices need no network. When a crate changes its file, the checksum is
+# not correct and cargo-about stops. Then read the new file and change the
+# entry.
+
+[exr.clarify]
+license = "BSD-3-Clause"
+
+[[exr.clarify.files]]
+path = "LICENSE.md"
+checksum = "97e4d3aa7a9e8ac31979c16ca8bb2b628a9cb72c3362185ad2bf4ad77f43551f"
+
+# The file LICENSE says: include all inherited and new licence notices.
+[granit-parser.clarify]
+license = "MIT"
+
+[[granit-parser.clarify.files]]
+path = "LICENSE"
+checksum = "1af262e6647807eecaec988ecf2b783fb8fdbdecba396d582c1aab90615f6845"
+
+[[granit-parser.clarify.files]]
+path = ".licenses/ChenYuheng-MIT"
+checksum = "70480dc70c2fe1d9bbb64dab9a0abce266332905ffef9cabeae26dd027716ecb"
+
+[[granit-parser.clarify.files]]
+path = ".licenses/Ethiraric-MIT"
+checksum = "90f4ea53f408858ba4886f57b8e3ceac876eefbb59c20f0844f0abbfa59e2749"
+
+[libm.clarify]
+license = "MIT"
+
+[[libm.clarify.files]]
+path = "LICENSE.txt"
+checksum = "3823dda7cf046602f4b4e77ec8e227863dc4736037cc85bb33d9f19febe16bb7"
+
+# "Apache-2.0 OR BSL-1.0": the notices use Apache-2.0.
+[ryu.clarify]
+license = "Apache-2.0"
+
+[[ryu.clarify.files]]
+path = "LICENSE-APACHE"
+checksum = "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+
+# The crate declares Apache-2.0 for its code. Its Lucide icons have the ISC
+# licence, and the icons from Feather also have the MIT licence. Both texts
+# are in one file.
+[gpui-kit-assets.clarify]
+license = "Apache-2.0 AND ISC AND MIT"
+
+[[gpui-kit-assets.clarify.files]]
+path = "LICENSE-LUCIDE"
+license = "ISC"
+checksum = "8284cdd9d63b57341875ae52c388355a2f8ebc7e09fbaf64548e2c2df39a226c"
+end = "PERFORMANCE OF THIS SOFTWARE.\n"
+
+[[gpui-kit-assets.clarify.files]]
+path = "LICENSE-LUCIDE"
+license = "MIT"
+checksum = "b5e665ef74d9f58eff9140502a615d9438edb7ef96af3bc4ab1fdad7ddc8ad73"
+start = "The following Lucide icons"

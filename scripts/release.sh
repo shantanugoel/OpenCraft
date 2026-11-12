@@ -6,10 +6,10 @@
 #
 # Usage: scripts/release.sh [--notarize-only]
 #
-#   (no option)       Build, make the bundle, sign it, make the disk image,
-#                     and sign the disk image. If OPENCRAFT_NOTARY_PROFILE is
-#                     set, also notarize and staple the bundle and the disk
-#                     image.
+#   (no option)       Check the licence notices, build, make the bundle,
+#                     sign it, make the disk image, and sign the disk image.
+#                     If OPENCRAFT_NOTARY_PROFILE is set, also notarize and
+#                     staple the bundle and the disk image.
 #   --notarize-only   Do not build. Start from the signed bundle of an
 #                     earlier run, notarize and staple it, make the disk
 #                     image again, and notarize and staple the disk image.
@@ -43,8 +43,9 @@ ARCH="arm64"
 # docs/kb/macos-distribution.md.
 MINIMUM_SYSTEM="12.0"
 ICON="assets/macos/OpenCraft.icns"
-# The file of the licence notices (issue #146). If it exists, the script
-# copies it into Contents/Resources of the bundle.
+# The file of the licence notices (decision 0026). scripts/notices.sh makes
+# it. The script stops if the file is missing or is not correct for the
+# crates of the build, and copies it into Contents/Resources of the bundle.
 NOTICES="THIRD-PARTY-NOTICES.txt"
 
 notarize_only=0
@@ -114,6 +115,17 @@ info_plist() {
 PLIST
 }
 
+# The key in the notices file must be the key of the crates of Cargo.lock.
+# This check needs no cargo-about and no network. CI compares the full file.
+check_notices() {
+    step "Check $NOTICES"
+    [ -f "$NOTICES" ] || fail "$NOTICES does not exist. Run scripts/notices.sh and commit the file."
+    key="$(scripts/notices.sh --key)"
+    grep -qx "Key: $key" "$NOTICES" ||
+        fail "$NOTICES is not correct for Cargo.lock and about.toml. Run scripts/notices.sh and commit the file."
+    echo "$NOTICES is correct for the crates of Cargo.lock."
+}
+
 build_bundle() {
     step "Build the release profile"
     cargo build --release -p opencraft-app
@@ -126,11 +138,7 @@ build_bundle() {
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$binary" "$app/Contents/MacOS/$EXECUTABLE"
     cp "$ICON" "$app/Contents/Resources/$NAME.icns"
-    if [ -f "$NOTICES" ]; then
-        cp "$NOTICES" "$app/Contents/Resources/$NOTICES"
-    else
-        echo "No $NOTICES in the repository. The bundle has no licence notices."
-    fi
+    cp "$NOTICES" "$app/Contents/Resources/$NOTICES"
     info_plist > "$app/Contents/Info.plist"
     plutil -lint "$app/Contents/Info.plist"
 }
@@ -152,9 +160,10 @@ verify_app() {
     echo "$details" | grep -q '^Timestamp=' || fail "the signature has no secure timestamp."
     echo "$details" | grep -q '^Authority=Developer ID Application: ' ||
         fail "the identity is not a \"Developer ID Application\" identity."
+    [ -s "$app/Contents/Resources/$NOTICES" ] || fail "the bundle has no $NOTICES."
     plist_version="$(plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist")"
     [ "$plist_version" = "$version" ] || fail "the bundle has the version $plist_version, not $version."
-    echo "Identifier $IDENTIFIER, version $version, hardened runtime, secure timestamp, Developer ID: correct."
+    echo "Identifier $IDENTIFIER, version $version, hardened runtime, secure timestamp, Developer ID, $NOTICES: correct."
     echo "Gatekeeper assessment of the bundle:"
     spctl --assess --type exec --verbose "$app" 2>&1 || true
 }
@@ -230,6 +239,7 @@ if [ "$notarize_only" -eq 1 ]; then
     exit 0
 fi
 
+check_notices
 build_bundle
 sign_app
 verify_app

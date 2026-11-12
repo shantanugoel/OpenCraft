@@ -24,6 +24,7 @@ the menu.
 | Menu item | What it does |
 |---|---|
 | OpenCraft *version* | Shows the version of OpenCraft. You cannot click it. |
+| Licence notices | Opens the licences of the software that OpenCraft contains, in TextEdit or in your default text editor |
 | Device: connected, or Device: not connected | Shows the state of the device. You cannot click it. |
 | Profile: *name* | Shows the active profile. You cannot click it. |
 | Open OpenCraft | Opens the window, or brings it to the front |
