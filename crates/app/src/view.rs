@@ -7,10 +7,13 @@ use crate::{
     state::{ViewState, HIGHLIGHT_TIME},
 };
 use gpui_kit::{
-    component::input::{Input, InputEvent as TextEvent, InputState},
+    component::{
+        input::{Input, InputEvent as TextEvent, InputState},
+        tooltip::Tooltip,
+    },
     div, img,
     prelude::*,
-    px, rgb, AnyElement, Context, Div, Entity, PathPromptOptions, Render, RenderImage,
+    px, rgb, AnyElement, ClickEvent, Context, Div, Entity, PathPromptOptions, Render, RenderImage,
     SharedString, Stateful, Subscription, Task, Window,
 };
 use opencraft_engine::{
@@ -20,6 +23,7 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Instant};
 
 mod actions;
 mod hotkey;
+mod pages;
 
 const BACKGROUND: u32 = 0x191c22;
 const PANEL: u32 = 0x232730;
@@ -28,6 +32,8 @@ const TEXT: u32 = 0xeff2f7;
 const MUTED: u32 = 0xaeb8c7;
 const SELECTED: u32 = 0x89b9ff;
 const ACTIVE: u32 = 0xffce73;
+const DISABLED: u32 = 0x6b7482;
+const DANGER: u32 = 0xb83f4c;
 const COLOURS: [u32; 12] = [
     0x20242b, 0x596273, 0xd7dee8, 0xb83f4c, 0xcc7135, 0xc4a53e, 0x3d875a, 0x298886, 0x356ab6,
     0x6454ac, 0x9357a3, 0xb65c86,
@@ -35,6 +41,16 @@ const COLOURS: [u32; 12] = [
 
 fn colour(value: u32) -> Color {
     Color::rgb((value >> 16) as u8, (value >> 8) as u8, value as u8)
+}
+
+/// The name of a control for the user.
+fn control_name(id: ControlId) -> String {
+    match id.kind {
+        ControlKind::Key => format!("Key {}", id.number),
+        ControlKind::Knob => format!("Knob {}", id.number),
+        ControlKind::BarPanel => format!("Bar panel {}", id.number),
+        ControlKind::TouchBar => "Touch bar".into(),
+    }
 }
 
 fn surface_name(id: SurfaceId) -> String {
@@ -60,6 +76,7 @@ pub struct DeviceView {
     _input_subscription: Subscription,
     highlight_tasks: BTreeMap<ControlId, Task<()>>,
     form: actions::ActionForm,
+    lists: pages::Lists,
 }
 
 impl DeviceView {
@@ -103,6 +120,7 @@ impl DeviceView {
             _input_subscription: subscription,
             highlight_tasks: BTreeMap::new(),
             form: actions::ActionForm::default(),
+            lists: pages::Lists::new(window, cx),
         }
     }
 
@@ -110,9 +128,14 @@ impl DeviceView {
         if let Event::Binding(binding) = &event {
             self.acknowledge(binding);
         }
-        if matches!(event, Event::Pages { .. }) {
+        if matches!(event, Event::Pages { .. } | Event::Profiles { .. }) {
             self.forget_pending();
         }
+        if matches!(event, Event::Pages { .. }) {
+            // The surfaces of the new page came before this event.
+            self.label_loaded = false;
+        }
+        self.update_lists(&event);
         if let Event::Surface(surface) = &event {
             if let Some(old) = self
                 .images
@@ -170,6 +193,7 @@ impl DeviceView {
 
     fn select(&mut self, id: SurfaceId, window: &mut Window, cx: &mut Context<Self>) {
         if self.state.select(id) {
+            self.close_kinds();
             self.load_label(window, cx);
             self.sync_form(window, cx);
             window.blur(cx);
@@ -187,6 +211,7 @@ impl DeviceView {
         let Some(surface) = self.state.selected else {
             return;
         };
+        let epoch = self.state.epoch;
         // Keep the surface captured here, even if selection changes during the dialog.
         let paths = cx.prompt_for_paths(PathPromptOptions {
             files: true,
@@ -199,7 +224,13 @@ impl DeviceView {
             let _ = view.update_in(cx, |view, _, cx| {
                 match result {
                     Ok(Ok(Some(paths))) => {
-                        if let Some(path) = paths.into_iter().next() {
+                        // A page change during the dialog drops the image: the
+                        // command would change a different page.
+                        if let Some(path) = paths
+                            .into_iter()
+                            .next()
+                            .filter(|_| view.state.epoch == epoch)
+                        {
                             // The engine reads, checks, and copies the file on its thread.
                             (view.send)(Command::SetImage {
                                 surface,
@@ -268,7 +299,7 @@ impl DeviceView {
             return div().child("Load the device layout…").into_any_element();
         };
         let scale = ((width - 32.) / f32::from(layout.display_width.max(1)))
-            .min((height - 120.) / f32::from(layout.display_height.max(1)))
+            .min((height - 150.) / f32::from(layout.display_height.max(1)))
             .max(0.1);
         let display_width = f32::from(layout.display_width) * scale;
         let display_height = f32::from(layout.display_height) * scale;
@@ -323,11 +354,7 @@ impl DeviceView {
                         .debug_selector(move || format!("control-{id}"))
                         .cursor_pointer()
                         .on_click(cx.listener(move |view, _, window, cx| {
-                            if view.state.select_control(id) {
-                                view.sync_form(window, cx);
-                                window.blur(cx);
-                                cx.notify();
-                            }
+                            view.select_control(id, window, cx)
                         }))
                         .absolute()
                         .left(px(center - diameter / 2.))
@@ -379,8 +406,91 @@ impl DeviceView {
             .bg(rgb(0x101216))
             .rounded_lg()
             .child(display)
+            .children(self.touch_bar(layout, scale, display_width, cx))
             .child(knob_row)
             .into_any_element()
+    }
+
+    /// A strip below the bar panels for the touch bar control. The touch bar
+    /// control has no surface, so the strip is the element that selects it.
+    fn touch_bar(
+        &self,
+        layout: &opencraft_engine::DeviceLayout,
+        scale: f32,
+        display_width: f32,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let control = layout
+            .controls
+            .iter()
+            .find(|c| c.id.kind == ControlKind::TouchBar)?;
+        let panels = layout
+            .surfaces
+            .iter()
+            .filter(|s| s.id.kind == SurfaceKind::BarPanel);
+        let left = panels.clone().map(|s| s.x).min().unwrap_or(0);
+        let right = panels
+            .map(|s| s.x + s.width)
+            .max()
+            .unwrap_or(layout.display_width);
+        let id = control.id;
+        let highlight = self.state.highlights.get(&id).map(|h| h.gesture);
+        let arrow = |gesture: Gesture, text: &'static str| {
+            div()
+                .text_color(rgb(if highlight == Some(gesture) {
+                    ACTIVE
+                } else {
+                    MUTED
+                }))
+                .child(text)
+        };
+        Some(
+            div()
+                .relative()
+                .w(px(display_width))
+                .h(px(24.))
+                .child(
+                    div()
+                        .id(format!("control-{id}"))
+                        .debug_selector(move || format!("control-{id}"))
+                        .absolute()
+                        .left(px(f32::from(left) * scale))
+                        .w(px(f32::from(right.saturating_sub(left)) * scale))
+                        .h_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .gap_3()
+                        .rounded_md()
+                        .bg(rgb(PANEL))
+                        .border_2()
+                        .border_color(rgb(if highlight.is_some() {
+                            ACTIVE
+                        } else if self.state.selected_control == Some(id) {
+                            SELECTED
+                        } else {
+                            BORDER
+                        }))
+                        .text_xs()
+                        .cursor_pointer()
+                        .child(arrow(Gesture::SwipeLeft, "◀"))
+                        .child(div().text_color(rgb(MUTED)).child("Touch bar"))
+                        .child(arrow(Gesture::SwipeRight, "▶"))
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            view.select_control(id, window, cx)
+                        })),
+                )
+                .into_any_element(),
+        )
+    }
+
+    fn select_control(&mut self, id: ControlId, window: &mut Window, cx: &mut Context<Self>) {
+        if self.state.select_control(id) {
+            self.close_kinds();
+            self.sync_form(window, cx);
+            window.blur(cx);
+            cx.notify();
+        }
     }
 
     fn editor(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -398,9 +508,17 @@ impl DeviceView {
             .rounded_lg()
             .bg(rgb(PANEL));
         if let Some(control) = self.state.selected_control {
-            if control.kind == ControlKind::Knob {
+            // A control with no surface has an action only.
+            if self.state.selected.is_none() {
                 return editor
-                    .child(div().text_lg().child(format!("Knob {}", control.number)))
+                    .child(div().text_lg().child(control_name(control)))
+                    .when(control.kind == ControlKind::TouchBar, |d| {
+                        d.child(
+                            div().text_sm().text_color(rgb(MUTED)).child(
+                                "A swipe has no position. It is the same on all bar panels.",
+                            ),
+                        )
+                    })
                     .child(self.action_editor(cx))
                     .into_any_element();
             }
@@ -411,7 +529,7 @@ impl DeviceView {
                 .child(
                     div()
                         .text_color(rgb(MUTED))
-                        .child("Select a key, a knob, or a bar panel."),
+                        .child("Select a key, a knob, a bar panel, or the touch bar."),
                 )
                 .into_any_element();
         };
@@ -504,7 +622,47 @@ impl DeviceView {
     }
 }
 
+/// A button with a small padding. A button that is not enabled shows dim
+/// text; the caller adds no click handler to it.
+fn small_button(
+    id: impl Into<SharedString>,
+    text: impl Into<SharedString>,
+    enabled: bool,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    let text: SharedString = text.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .px_2()
+        .py_1()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(BORDER))
+        .text_sm()
+        .when(enabled, |d| {
+            d.cursor_pointer().hover(|d| d.bg(rgb(0x343c49)))
+        })
+        .when(!enabled, |d| d.text_color(rgb(DISABLED)))
+        .child(text)
+}
+
+/// A button for a change that removes something.
+fn danger_button(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
+    // GPUI panics if an element gets a second hover style.
+    plain_button(id, text)
+        .bg(rgb(0x5a2a31))
+        .border_color(rgb(DANGER))
+        .hover(|d| d.bg(rgb(0x6d3039)))
+}
+
 fn button(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
+    plain_button(id, text).hover(|d| d.bg(rgb(0x343c49)))
+}
+
+/// A button with no hover style.
+fn plain_button(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
     let id: SharedString = id.into();
     let text: SharedString = text.into();
     div()
@@ -518,7 +676,6 @@ fn button(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Statefu
         .border_color(rgb(BORDER))
         .text_sm()
         .cursor_pointer()
-        .hover(|d| d.bg(rgb(0x343c49)))
         .child(text)
 }
 
@@ -531,12 +688,13 @@ impl Render for DeviceView {
         } else {
             136.
         };
-        let height = (f32::from(size.height) - 164. - problem_height).max(200.);
+        let height = (f32::from(size.height) - 216. - problem_height).max(200.);
         div()
             .when_some(self.form.focus.as_ref(), |d, focus| d.track_focus(focus))
             .capture_key_down(
                 cx.listener(|view, event, window, cx| view.record_key(event, window, cx)),
             )
+            .relative()
             .size_full()
             .flex()
             .flex_col()
@@ -566,19 +724,27 @@ impl Render for DeviceView {
                     )
                     .child(
                         div()
-                            .text_sm()
-                            .text_color(rgb(if self.state.connected {
-                                0x8bcea6
-                            } else {
-                                MUTED
-                            }))
-                            .child(if self.state.connected {
-                                "● Connected"
-                            } else {
-                                "○ Not connected · You can edit"
-                            }),
+                            .flex()
+                            .items_center()
+                            .gap_5()
+                            .child(self.profile_control(cx))
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(rgb(if self.state.connected {
+                                        0x8bcea6
+                                    } else {
+                                        MUTED
+                                    }))
+                                    .child(if self.state.connected {
+                                        "● Connected"
+                                    } else {
+                                        "○ Not connected · You can edit"
+                                    }),
+                            ),
                     ),
             )
+            .child(self.page_row(cx))
             .child(
                 div()
                     .flex()
@@ -638,6 +804,7 @@ impl Render for DeviceView {
                         )),
                 )
             })
+            .children(self.profile_backdrop(cx))
     }
 }
 

@@ -1,7 +1,45 @@
 //! The form uses a fake kind, fake events, and the no-display platform.
 
 use super::*;
+use crate::view::actions::{FieldPath, Slot};
 use gpui_kit::component::input::AnyInputState;
+
+/// The path of a field of the action of the binding.
+pub(super) fn top(key: &str) -> FieldPath {
+    at(&[], key)
+}
+
+/// The path of a field of a contained action. Each step is a key, and a
+/// position for an action list.
+pub(super) fn at(steps: &[(&str, Option<usize>)], key: &str) -> FieldPath {
+    FieldPath {
+        action: steps
+            .iter()
+            .map(|(key, item)| Slot {
+                key: (*key).into(),
+                item: *item,
+            })
+            .collect(),
+        key: key.into(),
+    }
+}
+
+fn input_state(
+    view: &Entity<DeviceView>,
+    cx: &mut VisualTestContext,
+    path: &FieldPath,
+) -> AnyInputState {
+    cx.update(|_, cx| view.read(cx).form.inputs[path].state.clone())
+}
+
+pub(super) fn input_text(
+    view: &Entity<DeviceView>,
+    cx: &mut VisualTestContext,
+    path: &FieldPath,
+) -> String {
+    let input = input_state(view, cx, path);
+    cx.update(|_, cx| input.value(cx).to_string())
+}
 
 fn kind() -> KindDescription {
     KindDescription {
@@ -100,8 +138,17 @@ fn event(id: BindingId, action: Action, available: bool) -> Event {
 }
 
 fn type_field(view: &Entity<DeviceView>, cx: &mut VisualTestContext, key: &str, value: &str) {
+    type_at(view, cx, &top(key), value);
+}
+
+pub(super) fn type_at(
+    view: &Entity<DeviceView>,
+    cx: &mut VisualTestContext,
+    path: &FieldPath,
+    value: &str,
+) {
+    let input = input_state(view, cx, path);
     cx.update(|window, cx| {
-        let input = view.read(cx).form.inputs[key].clone();
         window.focus(&input.focus_handle(cx), cx);
         window.dispatch_action(Box::new(gpui_kit::component::input::SelectAll), cx);
     });
@@ -137,12 +184,10 @@ fn all_field_types_send_full_settings_and_keep_unknown_keys(cx: &mut TestAppCont
     ] {
         assert!(cx.debug_bounds(id).is_some());
     }
-    cx.update(|_, cx| {
-        assert!(matches!(
-            view.read(cx).form.inputs["long"],
-            AnyInputState::Textarea(_)
-        ))
-    });
+    assert!(matches!(
+        input_state(&view, cx, &top("long")),
+        AnyInputState::Textarea(_)
+    ));
     type_field(&view, cx, "text", "changed");
     expect_change(&sent, &mut expected, "text", Value::Text("changed".into()));
     // No reply yet: the next edit must retain the first edit.
@@ -304,7 +349,6 @@ fn kinds_defaults_no_action_gestures_and_control_selection(cx: &mut TestAppConte
         })
     ));
     click(cx, "surface-bar panel 3");
-    assert!(cx.debug_bounds("action-kind").is_none());
     assert!(cx.debug_bounds("choose-image").is_some());
 }
 
@@ -427,11 +471,8 @@ fn old_replies_keep_later_edits_and_new_events_replace_the_form(cx: &mut TestApp
     tx.try_send(event(binding(GestureKind::Press), first.clone(), true))
         .unwrap();
     cx.run_until_parked();
+    assert_eq!(input_text(&view, cx, &top("long")), "second edit");
     cx.update(|_, cx| {
-        assert_eq!(
-            view.read(cx).form.inputs["long"].value(cx).as_ref(),
-            "second edit"
-        );
         assert_eq!(
             view.read(cx).state.bindings[&binding(GestureKind::Press)].action,
             Some(first)
@@ -447,12 +488,7 @@ fn old_replies_keep_later_edits_and_new_events_replace_the_form(cx: &mut TestApp
     tx.try_send(event(binding(GestureKind::Press), external, true))
         .unwrap();
     cx.run_until_parked();
-    cx.update(|_, cx| {
-        assert_eq!(
-            view.read(cx).form.inputs["text"].value(cx).as_ref(),
-            "engine value"
-        )
-    });
+    assert_eq!(input_text(&view, cx, &top("text")), "engine value");
     let count = sent.borrow().len();
     // Selecting the same kind must not reset its settings to defaults.
     click(cx, "action-kind");
