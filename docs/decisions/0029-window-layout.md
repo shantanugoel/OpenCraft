@@ -1382,6 +1382,29 @@ stays. The items, in this order:
   timer.
 - "Release the device" is a LATER place after "Settings…".
 
+Note (2026-11-13), from the work of #194. The tests showed these facts
+([kb/gpui.md](../kb/gpui.md#the-menu-with-the-brightness-row-2026-11-13)),
+and the code does this:
+
+- `NSMenuItem.image` shows nothing in this menu. The dot of the first item is
+  a coloured character in the title (green for "connected", the system
+  tertiary label colour for "not connected"), at the left of the text, in the
+  column of the item titles. It is not in the column of the check marks.
+- The row of the profiles has the title "Profile" as a native section header.
+  The items of the profiles have no icon.
+- The custom view follows the width of the menu. Its text is 14 points from
+  the edge, in the column of the check marks, and the right edge has the same
+  space. The slider has the lowest value of the device model, not 0.
+- The menu has no "Page" submenu and no "Profile" section before the engine
+  sends the pages and the profiles. It has no brightness row before the engine
+  sends the device settings.
+- A selection of the active profile or the active page sends no command.
+- The slider sends at most one command in each 50 ms, and the last value
+  always goes to the engine. A change from the window moves the slider when
+  the menu opens again. The engine saves the value.
+- "Open OpenCraft" has the key equivalent ⌘O, and works while the menu is
+  open. The window does not bind ⌘O.
+
 ### 20. Data that the shell needs from the engine
 
 The shell has no device logic and no action logic (rule 12), and no list of

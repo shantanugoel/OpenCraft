@@ -81,6 +81,12 @@ effects, which this record gives.
 The menu has no control to select a profile or a page. The window and the
 device do this. Look at this again if the owner asks for it.
 
+Note (2026-11-13): the owner asked for it. [Decision
+0029](0029-window-layout.md), section 19, gives the menu a list of the
+profiles, a submenu of the pages, and a slider for the display brightness.
+The tested facts about a custom view in a menu are in
+[kb/gpui.md](../kb/gpui.md#the-menu-with-the-brightness-row-2026-11-13).
+
 ### Commands from the menu
 
 A class that `objc2::define_class!` makes is the target of each menu item.

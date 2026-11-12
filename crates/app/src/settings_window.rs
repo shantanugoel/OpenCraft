@@ -236,7 +236,7 @@ impl SettingsView {
     /// A click handler that sends `command` to the shell.
     fn on_click(&self, command: ShellCommand) -> impl Fn(&ClickEvent, &mut Window, &mut App) {
         let shell = self.shell.clone();
-        move |_, _, cx| shell.update(cx, |shell, cx| shell.command(command, cx))
+        move |_, _, cx| shell.update(cx, |shell, cx| shell.command(command.clone(), cx))
     }
 
     /// The title bar and the row of tabs.
