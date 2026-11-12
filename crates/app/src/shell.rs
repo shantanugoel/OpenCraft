@@ -9,6 +9,7 @@
 //! opens the licence notices of the bundle (decision 0026).
 
 use crate::{
+    app_menu::EditMenu,
     menu::MenuState,
     settings::{self, Panes, Settings},
     state::ViewState,
@@ -77,6 +78,9 @@ pub struct Shell {
     /// window has its own selection.
     pub state: ViewState,
     settings: Settings,
+    /// True while a text field of the window that edits the profile has the
+    /// focus. Then the Edit menu shows no names of steps.
+    typing: bool,
     /// The directory of `shell.toml`.
     config_dir: PathBuf,
     /// Sends a command to the engine.
@@ -115,6 +119,7 @@ impl Shell {
         Self {
             state: ViewState::default(),
             settings,
+            typing: false,
             config_dir,
             send,
             notices,
@@ -209,7 +214,11 @@ impl Shell {
     }
 
     pub fn receive(&mut self, event: Event, cx: &mut Context<Self>) {
+        let history = matches!(event, Event::History { .. });
         self.state.apply(event.clone(), Instant::now());
+        if history {
+            self.set_menus(cx);
+        }
         cx.emit(event);
         self.refresh_menu();
         cx.notify();
@@ -250,7 +259,7 @@ impl Shell {
             || self.settings.panes.inspector_visible != panes.inspector_visible;
         self.settings.panes = panes;
         if menus {
-            crate::app_menu::set_menus(cx, &panes);
+            self.set_menus(cx);
         }
         if let Err(error) = settings::save(&self.config_dir, &self.settings) {
             self.problem(
@@ -261,6 +270,32 @@ impl Shell {
                 cx,
             );
         }
+    }
+
+    /// A text field of the window that edits the profile got the focus
+    /// (`true`) or lost it (`false`). The Edit menu then names the steps of
+    /// the profile, or no step.
+    pub fn set_typing(&mut self, typing: bool, cx: &mut Context<Self>) {
+        if self.typing != typing {
+            self.typing = typing;
+            self.set_menus(cx);
+        }
+    }
+
+    /// The names of the steps that the Edit menu shows.
+    pub fn edit_menu(&self) -> EditMenu {
+        if self.typing {
+            return EditMenu::default();
+        }
+        EditMenu {
+            undo: self.state.undo.clone(),
+            redo: self.state.redo.clone(),
+        }
+    }
+
+    /// Set the menus for the panes and the steps.
+    fn set_menus(&self, cx: &mut Context<Self>) {
+        crate::app_menu::set_menus(cx, &self.settings.panes, &self.edit_menu());
     }
 
     /// The state for a new window. The short marks of old input do not show.

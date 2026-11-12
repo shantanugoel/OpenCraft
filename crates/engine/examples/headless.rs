@@ -19,6 +19,8 @@
 //! color bar-panel-1
 //! image key-face-1 /path/to/file.png
 //! image key-face-1
+//! undo
+//! redo
 //! brightness 40
 //! haptic off
 //! knobs colors
@@ -100,6 +102,9 @@ fn main() {
                 println!("[{at:8.3}] pages: {names:?}, active {active}")
             }
             Event::Binding(binding) => println!("[{at:8.3}] binding: {binding:?}"),
+            Event::History { undo, redo } => {
+                println!("[{at:8.3}] history: undo {undo:?}, redo {redo:?}")
+            }
             Event::Status { kind, status } => println!("[{at:8.3}] status: {kind}: {status:?}"),
             Event::Counters(counters) => println!("[{at:8.3}] counters: {counters:?}"),
             Event::Problem(text) => println!("[{at:8.3}] problem: {text}"),
@@ -131,6 +136,14 @@ fn main() {
             let (name, surface, value) = (parts.next().unwrap_or(""), parts.next(), parts.next());
             if name == "quit" {
                 break;
+            }
+            if let Some(command) = match name {
+                "undo" => Some(Command::Undo),
+                "redo" => Some(Command::Redo),
+                _ => None,
+            } {
+                engine.send(command);
+                continue;
             }
             let rest = line.trim().split_once(' ').map_or("", |(_, rest)| rest);
             let current = settings.lock().unwrap().clone();

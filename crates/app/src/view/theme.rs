@@ -349,6 +349,8 @@ pub const ICON_BUTTON: Pixels = px(14.);
 pub const ICON_MESSAGE: Pixels = px(14.);
 /// An icon in a sidebar row.
 pub const ICON_ROW: Pixels = px(15.);
+/// The icon of a toolbar button, for example Undo.
+pub const ICON_TOOLBAR: Pixels = px(16.);
 /// The icon of a pane button.
 pub const ICON_PANE: Pixels = px(17.);
 /// The device icon of the device card.
@@ -470,7 +472,9 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     PanelRight,
     Pencil,
     Plus,
+    Redo2,
     Settings,
     Trash,
     TriangleAlert,
+    Undo2,
 ]);

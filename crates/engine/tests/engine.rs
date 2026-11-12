@@ -30,6 +30,8 @@ use tempfile::TempDir;
 mod actions;
 #[path = "engine/device_settings.rs"]
 mod device_settings;
+#[path = "engine/history.rs"]
+mod history;
 #[path = "engine/pages.rs"]
 mod pages;
 #[path = "engine/profiles.rs"]
@@ -475,11 +477,11 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
     assert_eq!((layout.display_width, layout.display_height), (800, 480));
 
     // Each key face and each bar panel has a state: no content, and a black
-    // image of the size of the surface. The list of profiles and the list of
-    // pages come last.
+    // image of the size of the surface. The list of profiles, the list of
+    // pages, the empty history, and the device settings come last.
     let states = surfaces(&events);
     assert_eq!(states.len(), 14);
-    assert_eq!(events.len(), 19);
+    assert_eq!(events.len(), 20);
     assert_eq!(events[1], Event::Kinds(Vec::new()));
     assert_eq!(
         events[16],
@@ -500,6 +502,13 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
     );
     assert_eq!(
         events[18],
+        Event::History {
+            undo: None,
+            redo: None
+        }
+    );
+    assert_eq!(
+        events[19],
         Event::DeviceSettings(DeviceSettings::defaults(DESCRIPTORS[0].settings))
     );
     for state in states {
@@ -544,9 +553,16 @@ fn a_change_shows_on_the_device_and_in_the_event_as_the_same_image() {
 
     rig.set_color(KEY_3, RED);
 
-    // The shell gets the new state.
+    // The shell gets the new state, and the name of the new step.
     let events = rig.take_events();
-    assert_eq!(events.len(), 1);
+    assert_eq!(events.len(), 2);
+    assert_eq!(
+        events[1],
+        Event::History {
+            undo: Some("Set Fill".into()),
+            redo: None
+        }
+    );
     let state = last_state(&events, KEY_3);
     assert_eq!(state.content.color, Some(RED));
     assert_color(&state.image, 56, 56, RED);

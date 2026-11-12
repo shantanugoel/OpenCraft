@@ -249,6 +249,16 @@ impl Profile {
         true
     }
 
+    /// Put `pages` in place of all pages, and return the pages that were
+    /// there. If `pages` is empty, the profile gets one page with no
+    /// content. The undo and the redo of the engine use this.
+    pub fn replace_pages(&mut self, mut pages: Vec<Page>) -> Vec<Page> {
+        if pages.is_empty() {
+            pages.push(Page::new(DEFAULT_PAGE_NAME));
+        }
+        std::mem::replace(&mut self.pages, pages)
+    }
+
     /// A name for a new page: `Page N`, where N is the number of pages after
     /// the add. If a page has that name, N increases.
     pub fn new_page_name(&self) -> String {

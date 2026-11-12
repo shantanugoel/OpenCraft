@@ -355,7 +355,8 @@ fn a_rename_sends_the_list_of_pages_and_the_bindings_again() {
     let events = rig.take_events();
     assert_eq!(events[0], pages(&["A", "Media"], 0));
     assert_eq!(binding_states(&events), [key_3(0)]);
-    assert_eq!(events.len(), 2);
+    assert!(matches!(events[2], Event::History { .. }));
+    assert_eq!(events.len(), 3);
     assert!(requests.try_recv().is_err());
     assert!(sent(&device).is_empty());
 
@@ -425,6 +426,10 @@ fn a_move_that_changes_the_number_of_the_active_page_gives_new_numbers() {
                 action: Some(action(KIND)),
                 available: true,
             }),
+            Event::History {
+                undo: Some("Move Page".into()),
+                redo: None
+            },
         ]
     );
 

@@ -84,6 +84,10 @@ pub struct ViewState {
     pub highlights: BTreeMap<ControlId, Highlight>,
     pub last_input: Option<LastInput>,
     pub problems: Vec<String>,
+    /// The name of the step that an undo undoes, and of the step that a redo
+    /// does again. `None` is an empty list (decision 0030).
+    pub undo: Option<String>,
+    pub redo: Option<String>,
 }
 
 impl ViewState {
@@ -161,6 +165,10 @@ impl ViewState {
                 self.statuses.insert(kind, status);
             }
             Event::DeviceSettings(settings) => self.device_settings = Some(settings),
+            Event::History { undo, redo } => {
+                self.undo = undo;
+                self.redo = redo;
+            }
             Event::Counters(_) => {}
         }
         None

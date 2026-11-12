@@ -300,6 +300,7 @@ impl DeviceView {
         if long {
             let input = cx.new(|cx| TextareaState::new(window, cx).auto_grow(3, 7));
             let subscription = cx.subscribe_in(&input, window, move |view, input, event, _, cx| {
+                view.text_edit_event(input.entity_id(), event, cx);
                 if matches!(event, TextEvent::Change) {
                     view.text_field(owner, &path, input.read(cx).value().to_string());
                 }
@@ -309,6 +310,7 @@ impl DeviceView {
         let input = cx.new(|cx| InputState::new(window, cx));
         let subscription =
             cx.subscribe_in(&input, window, move |view, input, event, window, cx| {
+                view.text_edit_event(input.entity_id(), event, cx);
                 if matches!(event, TextEvent::Change) {
                     let text = input.read(cx).value().to_string();
                     if let Some(Value::Integer(value)) = view.text_field(owner, &path, text.clone())
