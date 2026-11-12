@@ -117,6 +117,9 @@ do the action again.
 
 - If OpenCraft started at login, it opens no window. Click the menu bar item,
   and click **Open OpenCraft**.
+- If you turned off **Show the window at start** in the Settings window,
+  OpenCraft opens no window when it starts. Click the menu bar item, and
+  click **Open OpenCraft**.
 - If OpenCraft already runs and you closed its window, a new start from the
   Applications folder or a click on the Dock icon opens the window. If no
   window opens, click the menu bar item, and click **Open OpenCraft**.

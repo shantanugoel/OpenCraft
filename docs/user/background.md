@@ -10,9 +10,9 @@ OpenCraft continues to run. The device continues to operate, and each action
 continues to operate.
 
 To quit OpenCraft, use **Quit OpenCraft** in the menu bar item, or push
-Command-Q while the window is in front. When OpenCraft quits, the displays and
-the knob lights of the device become dark. The device stays dark until
-OpenCraft starts again.
+Command-Q while a window of OpenCraft is in front. When OpenCraft quits, the
+displays and the knob lights of the device become dark. The device stays dark
+until OpenCraft starts again.
 
 ## The menu bar item
 
@@ -23,46 +23,109 @@ the menu.
 
 | Menu item | What it does |
 |---|---|
-| OpenCraft *version* | Shows the version of OpenCraft. You cannot click it. |
-| Licence notices | Opens the licences of the software that OpenCraft contains, in TextEdit or in your default text editor |
 | Device: connected, or Device: not connected | Shows the state of the device. You cannot click it. |
 | Profile: *name* | Shows the active profile. You cannot click it. |
 | Open OpenCraft | Opens the window, or brings it to the front |
-| Show the Dock icon | Shows or hides the Dock icon. See below. |
-| Start at login | Starts OpenCraft when you log in. See below. |
+| Settings… | Opens the Settings window. See below. |
+| About and licence notices | Opens the Settings window at the tab **About** |
 | Quit OpenCraft | Quits OpenCraft. The device becomes dark. |
 
 When the Dock icon shows, a click on the Dock icon also opens the window.
+
+## The Settings window
+
+The Settings window holds the options of OpenCraft. To open it, do one of
+these steps:
+
+- Click the menu bar item, and click **Settings…**.
+- In the window of OpenCraft, click **OpenCraft** in the menu bar of macOS,
+  and click **Settings…**. Or push Command-comma (⌘,).
+
+If the Settings window is already open, these steps bring it to the front. The
+menu item **About OpenCraft** and the item **About and licence notices** in
+the menu bar item open the window at the tab **About**.
+
+The window has three tabs: **General**, **Shortcuts**, and **About**. It opens
+at the tab that you used last. You cannot change the size of the window. To
+close it, click the red button at the top left, or push Command-W. The
+OpenCraft window and the device continue to operate.
+
+### The tab General
+
+![The tab General of the Settings window](images/settings-general.png)
+
+The three switches at the top of the tab:
+
+| Switch | What it does |
+|---|---|
+| Start at login | Starts OpenCraft when you log in, with no window. See [Start at login](#start-at-login). |
+| Show the Dock icon | Shows or hides the Dock icon. See [The Dock icon](#the-dock-icon). |
+| Show the window at start | Opens the OpenCraft window when you start OpenCraft. See [The window at start](#the-window-at-start). |
+
+Below the switches, the tab shows the state of the Accessibility permission.
+The text is "Accessibility permission: **given**" or "Accessibility
+permission: **not given**". Below it, the tab names the action kinds that need
+the permission, for example "Necessary for Send a hotkey, Type text and Media
+key". Click **Open System Settings** to open the pane Accessibility of System
+Settings. OpenCraft also asks macOS for the permission, so that OpenCraft is in
+the list of that pane. Turn on OpenCraft in the list. The text in the tab
+changes to "given" when you do this. See
+[Give the Accessibility permission](install.md#give-the-accessibility-permission).
+
+At the bottom, the tab has two rows with the button **Show in Finder**:
+
+| Row | What the button shows |
+|---|---|
+| Profiles folder | The folder with your profiles. The row shows its path. |
+| Log file | The log file `opencraft.log`. See [The log file](#the-log-file). If the file does not exist yet, the button shows the folder that has it. |
+
+### The tab Shortcuts
+
+The tab lists the key commands of the OpenCraft window with their keys, for
+example **Hide or show the sidebar** with ⌃⌘S. You cannot change the keys.
+
+![The tab Shortcuts of the Settings window](images/settings-shortcuts.png)
+
+### The tab About
+
+The tab shows the name of OpenCraft and its version. The button **Licence
+notices** opens the licences of the software that OpenCraft contains, in
+TextEdit or in your default text editor. If OpenCraft does not run from its
+application package, for example after a build from the source code, the button
+is dim, and the tab names the file that has the notices.
+
+![The tab About of the Settings window](images/settings-about.png)
+
+If a change in the Settings window fails, a red message shows at the bottom of
+the window. Click **Close** to remove it.
 
 ## The Dock icon
 
 The Dock icon shows by default. To hide it:
 
-1. Click the menu bar item.
-2. Click **Show the Dock icon**. The check mark goes away.
+1. Open the Settings window. See above.
+2. In the tab **General**, turn off **Show the Dock icon**.
 
 The window stays open. OpenCraft keeps this option for the next start. To
-show the Dock icon again, do the same steps.
+show the Dock icon again, turn the switch on.
 
 With no Dock icon, OpenCraft is also not in the list of Command-Tab. Use the
 menu bar item to open the window.
 
 ## Start at login
 
-1. Click the menu bar item.
-2. Click **Start at login**. The item gets a check mark.
+1. Open the Settings window. See above.
+2. In the tab **General**, turn on **Start at login**.
 
 When you log in, OpenCraft starts with no window. The menu bar item shows,
 and the device operates. To open the window, use **Open OpenCraft** in the
 menu bar item.
 
-To stop the start at login, click **Start at login** again. The check mark
-goes away.
+To stop the start at login, turn off the switch.
 
 - The option writes the file `~/Library/LaunchAgents/opencraft.login.plist`.
   The file contains the location of OpenCraft. If you move OpenCraft to a
-  different folder, the check mark goes away. Click **Start at login**
-  again.
+  different folder, the switch goes off. Turn it on again.
 - The option operates only when OpenCraft is in a folder on your disk, for
   example the Applications folder. If you start OpenCraft from the
   downloaded disk image, OpenCraft shows a message and does not turn the
@@ -70,8 +133,16 @@ goes away.
 - macOS can show a message that a background item was added. System
   Settings > General > Login Items can show the item with the name
   `opencraft`.
-- If you turn off the item in System Settings, the menu still shows the
-  check mark. Use the menu of OpenCraft to change the option.
+- If you turn off the item in System Settings, the Settings window still shows
+  the switch as on. Use the switch in the Settings window to change the option.
+
+## The window at start
+
+By default, OpenCraft opens its window each time that you start it. To start
+OpenCraft with no window, turn off **Show the window at start** in the tab
+**General**. Then use the menu bar item to open the window.
+
+A start at login never opens the window. This does not depend on this switch.
 
 ## One OpenCraft at a time
 
@@ -97,7 +168,7 @@ click Go > Go to Folder, and type the path.
 | `profiles/state.toml` | The active profile |
 | `profiles/device-settings.toml` | The device settings |
 | `profiles/removed/` | The profiles that you removed |
-| `shell.toml` | The option for the Dock icon |
+| `shell.toml` | The options of the Settings window, and the sizes of the panes of the window |
 | `opencraft.log` | The log file. See below. |
 | `opencraft.log.1` | The previous log file |
 | `opencraft.lock` | The file that prevents a second OpenCraft. It contains the process number of the OpenCraft that runs. |

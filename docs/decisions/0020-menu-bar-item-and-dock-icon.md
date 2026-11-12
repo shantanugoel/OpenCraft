@@ -72,6 +72,12 @@ item "OpenCraft *version*", text, not enabled, with a separator after it.
 [Decision 0026](0026-licence-notices.md) adds the command "Licence notices"
 after it, before the separator, and the features `NSWorkspace` and `NSURL`.
 
+Note (2026-11-13): [decision 0029](0029-window-layout.md), section 17,
+moves the version, the licence notices, "Show the Dock icon", and "Start at
+login" into the Settings window. The menu then has "Settings…" and "About
+and licence notices", which open that window. The options keep their
+effects, which this record gives.
+
 The menu has no control to select a profile or a page. The window and the
 device do this. Look at this again if the owner asks for it.
 

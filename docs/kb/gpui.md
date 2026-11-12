@@ -557,6 +557,36 @@ the repository. The design is in
 | A click on the Edit menu item "Undo" while a text field had the focus undid the typing of the field, and not a step of the profile. This agrees with the window layout test. | Measured | Profile file; window picture |
 | A GPUI tooltip that shows does not change its text when the element gives a new text. After a click on Undo, the tooltip still showed the name of the old step. An element ID that contains the text removes the old tooltip. | Measured | Window pictures; `crates/app/src/view/controls.rs`, `toolbar_button` |
 
+## Settings window (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+Settings window of
+[issue 193](https://github.com/shantanugoel/OpenCraft/issues/193), on the
+computer of [Release measurements](#release-measurements), with the device
+connected. The process used a copy of a profile and a different `HOME`, so
+that the start at login wrote its file into a scratch folder. A helper
+program operated the real windows with Quartz events and System Events, and
+took pictures of the windows only. The pictures are kept outside the
+repository.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `WindowOptions { is_resizable: false, is_minimizable: false }` with a transparent title bar gives a window with the red button, and with the minimize and zoom buttons dim. | Measured | Window picture |
+| `TitlebarOptions::traffic_light_position: Some(point(px(13.), px(10.)))` puts the centre of the window buttons in the middle of a title bar of 34, at the same height as a title text in a row of 34. | Measured | Window picture |
+| With `app_owns_titlebar_drag` false, the transparent title bar still has the native window behaviour. The Settings window has no code to move it. | Inference | `settings_window::window_options`; the window opens and closes with the standard buttons. A drag was not tested. |
+| `Window::resize` changes the height of the window when the user selects a tab. The window list showed the new height at once (for example 480, 532 with a message, and 300). | Measured | Window list |
+| A global binding `KeyBinding::new("cmd-,", OpenSettings, None)` and `App::on_action` open the window from a focused main window, from the Settings window, and when the Settings window is behind the main window. The second use brings the same window to the front: the window list order changed, and the window count stayed 2. | Measured | Window list order, System Events |
+| `Context::on_action` of an entity context is a different method (it needs a window). Use `let app: &mut App = cx;` and then `app.on_action(..)` for a global handler. | Source; Measured (build error) | `gpui-pre` 0.3.12 `src/app/context.rs` |
+| A binding with the key context `"Settings"` for ⌘W, and `window.remove_window()` in the handler of the root element, close the Settings window and no other window. | Measured | Window list; window test |
+| The test platform draws a new window at once, inside `App::open_window`. A view that reads the entity that opens it (`Entity::read`) stops with "cannot read ... while it is already being updated". The view must take a copy of the data as an argument, as the main window does. | Measured | `the_shell_opens_one_settings_window_and_brings_it_to_the_front`, first version |
+| The default line height of GPUI made a two-line row 62 high. `.line_height(relative(1.25))` on the root element gave a row of 53, as in the wireframe. | Measured | Window pictures |
+| `Keystroke::display` of GPUI writes `^` for the Control key. The Settings window writes its own symbols: ⌃, ⌥, ⇧, and ⌘, in this order. The font draws ⌃ as a small caret. | Measured | Window picture |
+| `App::key_bindings().borrow().bindings_for_action(&action)` finds a binding of any key context. The list of key commands in the window uses it, thus its keys agree with the real bindings. | Measured | Window test |
+| System Events lists the application menu items "About OpenCraft", "Settings…", and "Quit OpenCraft". The application menu has the name of the process, for example `opencraft`, outside an application bundle. A click on "About OpenCraft" brought the Settings window to the front at the tab "About". | Measured | System Events |
+| A start with `open -n` of a bundle gives a process with its own Accessibility state: the Settings window showed "not given". A start from the Terminal showed "given". | Measured | Window pictures |
+| In a bundle with an `Info.plist`, the owner name of the windows in the Quartz window list is the bundle name (`OpenCraft`), not the name of the executable. | Measured | Window list |
+| An item of a native menu shows its key equivalent as "⌘ ," for the key `,`. | Measured | Window picture of the menu |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

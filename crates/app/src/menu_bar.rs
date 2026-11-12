@@ -15,9 +15,8 @@ use objc2::{
     sel, DefinedClass, MainThreadMarker, MainThreadOnly,
 };
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationOptions, NSControlStateValueOff, NSControlStateValueOn,
-    NSImage, NSMenu, NSMenuItem, NSRunningApplication, NSStatusBar, NSStatusItem,
-    NSVariableStatusItemLength, NSWorkspace,
+    NSApplication, NSApplicationActivationOptions, NSImage, NSMenu, NSMenuItem,
+    NSRunningApplication, NSStatusBar, NSStatusItem, NSVariableStatusItemLength, NSWorkspace,
 };
 use objc2_foundation::{NSString, NSURL};
 use std::path::Path;
@@ -102,7 +101,7 @@ impl MenuBar {
                     entry.setEnabled(false);
                     entry
                 }
-                Kind::Command | Kind::Check => {
+                Kind::Command => {
                     let entry = menu_item(mtm, Some(sel!(select:)), item.key());
                     // SAFETY: the target stays alive as long as the menu.
                     unsafe { entry.setTarget(Some(&target)) };
@@ -154,13 +153,6 @@ impl MenuBar {
                 }
                 None => entry.setHidden(true),
             }
-            if item.kind() == Kind::Check {
-                entry.setState(if state.checked(*item) {
-                    NSControlStateValueOn
-                } else {
-                    NSControlStateValueOff
-                });
-            }
         }
         self.shown = Some(state.clone());
     }
@@ -195,4 +187,30 @@ pub fn open_file(path: &Path) -> bool {
     };
     let url = NSURL::fileURLWithPath(&NSString::from_str(path));
     NSWorkspace::sharedWorkspace().openURL(&url)
+}
+
+/// Open `url` with the application for its scheme, for example the pane of
+/// System Settings for an address that starts with `x-apple.systempreferences:`.
+/// False if macOS cannot open it.
+pub fn open_url(url: &str) -> bool {
+    NSURL::URLWithString(&NSString::from_str(url))
+        .is_some_and(|url| NSWorkspace::sharedWorkspace().openURL(&url))
+}
+
+/// Show `path` in the Finder: a file is selected in its folder, and a folder
+/// opens. False if macOS cannot do it.
+pub fn show_in_finder(path: &Path) -> bool {
+    let Some(text) = path.to_str() else {
+        return false;
+    };
+    let workspace = NSWorkspace::sharedWorkspace();
+    if path.is_dir() {
+        let url = NSURL::fileURLWithPath(&NSString::from_str(text));
+        workspace.openURL(&url)
+    } else {
+        workspace.selectFile_inFileViewerRootedAtPath(
+            Some(&NSString::from_str(text)),
+            &NSString::from_str(""),
+        )
+    }
 }

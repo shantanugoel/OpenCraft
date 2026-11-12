@@ -24,6 +24,7 @@ mod menu;
 #[cfg(target_os = "macos")]
 mod menu_bar;
 mod settings;
+mod settings_window;
 mod shell;
 #[cfg(unix)]
 mod signals;
@@ -66,6 +67,14 @@ fn login_start(arguments: impl IntoIterator<Item = std::ffi::OsString>) -> bool 
         }
     }
     login
+}
+
+/// True if the start opens the window. A start at login opens no window
+/// (decision 0021). The user can turn off the window for the other starts
+/// (decision 0029, section 17).
+#[cfg(target_os = "macos")]
+fn opens_window(login: bool, settings: &settings::Settings) -> bool {
+    !login && settings.show_window_at_start
 }
 
 /// Start the device before the GUI toolkit. The sink never waits for the GUI.
@@ -164,9 +173,12 @@ fn main() {
         }
         log_file::write_start_line();
     }
-    // Only macOS has a menu bar item that opens the window later.
+    let (settings, settings_problem) = settings::load(&config_dir);
+    // Only macOS has a menu bar item that opens the window later. A start at
+    // login opens no window (decision 0021). The user can also turn off the
+    // window for the other starts (decision 0029, section 17).
     #[cfg(target_os = "macos")]
-    let open_window = !login;
+    let open_window = opens_window(login, &settings);
     #[cfg(not(target_os = "macos"))]
     let open_window = {
         if login {
@@ -175,10 +187,13 @@ fn main() {
         true
     };
     if !open_window {
-        eprintln!("OpenCraft starts with {LOGIN_ARGUMENT}. It opens no window.");
+        if login {
+            eprintln!("OpenCraft starts with {LOGIN_ARGUMENT}. It opens no window.");
+        } else {
+            eprintln!("OpenCraft opens no window: the option to show the window at start is off.");
+        }
     }
-    let (settings, settings_problem) = settings::load(&config_dir);
-    let (engine, events) = start_engine(profiles_dir);
+    let (engine, events) = start_engine(profiles_dir.clone());
     // Keep ownership outside the views. The quit hook stops the engine; code
     // after the run loop is a fallback on platforms where it returns.
     let engine = Rc::new(RefCell::new(Some(engine)));
@@ -224,6 +239,7 @@ fn main() {
         app_menu::install(cx, &settings.panes);
         let shell = cx.new(|cx| {
             let mut shell = Shell::new(config_dir, settings, send);
+            shell.set_profiles_dir(profiles_dir);
             shell.listen(events, command_receiver, cx);
             #[cfg(target_os = "macos")]
             shell.add_menu_bar(commands);
@@ -251,6 +267,17 @@ mod tests {
 
     fn arguments(list: &[&str]) -> Vec<OsString> {
         list.iter().map(OsString::from).collect()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_window_opens_at_a_start_unless_the_option_or_the_login_stops_it() {
+        let mut settings = settings::Settings::default();
+        assert!(opens_window(false, &settings));
+        assert!(!opens_window(true, &settings));
+        settings.show_window_at_start = false;
+        assert!(!opens_window(false, &settings));
+        assert!(!opens_window(true, &settings));
     }
 
     #[test]

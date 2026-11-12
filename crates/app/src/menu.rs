@@ -1,24 +1,28 @@
-//! The content of the menu of the menu bar item (decision 0020), with no
-//! platform code. The module `menu_bar` shows it with AppKit on macOS.
+//! The content of the menu of the menu bar item (decision 0020 and decision
+//! 0029, section 19), with no platform code. The module `menu_bar` shows it
+//! with AppKit on macOS.
+//!
+//! The options "Show the Dock icon" and "Start at login", the version, and
+//! the licence notices are in the Settings window (decision 0029, section
+//! 17). The menu has the items that open that window.
 //!
 //! To add an item, add it to [`Item`] and to [`ITEMS`], and give it a title.
-//! A check mark item also needs a value in [`MenuState`] and a command.
 
 // Only the macOS menu bar item and the tests read the menu.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
-use crate::shell::ShellCommand;
+use crate::{settings::SettingsPane, shell::ShellCommand};
 
 /// One item of the menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Item {
-    Version,
-    Notices,
     Device,
     Profile,
     Open,
-    ShowDockIcon,
-    StartAtLogin,
+    /// Opens the Settings window.
+    Settings,
+    /// Opens the Settings window at the pane "About".
+    About,
     Quit,
     Separator,
 }
@@ -30,23 +34,18 @@ pub enum Kind {
     Text,
     /// An item that sends a command.
     Command,
-    /// An item with a check mark that sends a command.
-    Check,
     Separator,
 }
 
 /// The items, in their order in the menu.
-pub const ITEMS: [Item; 12] = [
-    Item::Version,
-    Item::Notices,
-    Item::Separator,
+pub const ITEMS: [Item; 9] = [
     Item::Device,
     Item::Profile,
     Item::Separator,
     Item::Open,
+    Item::Settings,
     Item::Separator,
-    Item::ShowDockIcon,
-    Item::StartAtLogin,
+    Item::About,
     Item::Separator,
     Item::Quit,
 ];
@@ -54,9 +53,8 @@ pub const ITEMS: [Item; 12] = [
 impl Item {
     pub fn kind(self) -> Kind {
         match self {
-            Item::Version | Item::Device | Item::Profile => Kind::Text,
-            Item::Notices | Item::Open | Item::Quit => Kind::Command,
-            Item::ShowDockIcon | Item::StartAtLogin => Kind::Check,
+            Item::Device | Item::Profile => Kind::Text,
+            Item::Open | Item::Settings | Item::About | Item::Quit => Kind::Command,
             Item::Separator => Kind::Separator,
         }
     }
@@ -64,18 +62,18 @@ impl Item {
     /// The command that the item sends when the user selects it.
     pub fn command(self) -> Option<ShellCommand> {
         match self {
-            Item::Notices => Some(ShellCommand::OpenNotices),
             Item::Open => Some(ShellCommand::Open),
-            Item::ShowDockIcon => Some(ShellCommand::ToggleDockIcon),
-            Item::StartAtLogin => Some(ShellCommand::ToggleStartAtLogin),
+            Item::Settings => Some(ShellCommand::OpenSettings(None)),
+            Item::About => Some(ShellCommand::OpenSettings(Some(SettingsPane::About))),
             Item::Quit => Some(ShellCommand::Quit),
-            Item::Version | Item::Device | Item::Profile | Item::Separator => None,
+            Item::Device | Item::Profile | Item::Separator => None,
         }
     }
 
     /// The key equivalent, with the Command key.
     pub fn key(self) -> &'static str {
         match self {
+            Item::Settings => ",",
             Item::Quit => "q",
             _ => "",
         }
@@ -95,11 +93,6 @@ impl Item {
     }
 }
 
-/// The version of the application: the workspace version in `Cargo.toml`.
-/// The release script writes the same version into the bundle (decision
-/// 0025).
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// The values that the menu shows.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MenuState {
@@ -108,12 +101,6 @@ pub struct MenuState {
     /// The name of the active profile. `None` before the engine sends the
     /// profiles.
     pub profile: Option<String>,
-    pub show_dock_icon: bool,
-    /// The LaunchAgent file of decision 0021 exists.
-    pub start_at_login: bool,
-    /// The bundle has the licence notices file (decision 0026). With no
-    /// file, for example after `cargo run`, the menu does not show the item.
-    pub notices: bool,
 }
 
 impl MenuState {
@@ -121,27 +108,15 @@ impl MenuState {
     /// item now.
     pub fn title(&self, item: Item) -> Option<String> {
         Some(match item {
-            Item::Version => format!("OpenCraft {VERSION}"),
-            Item::Notices if self.notices => "Licence notices".into(),
-            Item::Notices => return None,
             Item::Device if self.connected => "Device: connected".into(),
             Item::Device => "Device: not connected".into(),
             Item::Profile => format!("Profile: {}", self.profile.as_ref()?),
             Item::Open => "Open OpenCraft".into(),
-            Item::ShowDockIcon => "Show the Dock icon".into(),
-            Item::StartAtLogin => "Start at login".into(),
+            Item::Settings => "Settings…".into(),
+            Item::About => "About and licence notices".into(),
             Item::Quit => "Quit OpenCraft".into(),
             Item::Separator => String::new(),
         })
-    }
-
-    /// True if a check mark item shows its check mark.
-    pub fn checked(&self, item: Item) -> bool {
-        match item {
-            Item::ShowDockIcon => self.show_dock_icon,
-            Item::StartAtLogin => self.start_at_login,
-            _ => false,
-        }
     }
 }
 
@@ -150,87 +125,72 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_menu_has_the_items_of_decision_0020() {
+    fn the_menu_has_the_items_of_decision_0029() {
         let state = MenuState {
             connected: true,
             profile: Some("Desk".into()),
-            show_dock_icon: true,
-            start_at_login: true,
-            notices: true,
         };
         let titles: Vec<_> = ITEMS
             .iter()
             .filter(|i| i.kind() != Kind::Separator)
             .map(|&i| state.title(i).unwrap())
             .collect();
+        // No version, no licence notices item, no "Show the Dock icon", and
+        // no "Start at login": the Settings window has them.
         assert_eq!(
             titles,
             [
-                format!("OpenCraft {VERSION}").as_str(),
-                "Licence notices",
                 "Device: connected",
                 "Profile: Desk",
                 "Open OpenCraft",
-                "Show the Dock icon",
-                "Start at login",
+                "Settings…",
+                "About and licence notices",
                 "Quit OpenCraft"
             ]
-        );
-        assert!(state.checked(Item::ShowDockIcon));
-        assert!(state.checked(Item::StartAtLogin));
-        assert_eq!(Item::StartAtLogin.kind(), Kind::Check);
-        assert_eq!(
-            Item::StartAtLogin.command(),
-            Some(ShellCommand::ToggleStartAtLogin)
-        );
-        // Decision 0020: the item is after "Show the Dock icon", before the
-        // separator above "Quit OpenCraft".
-        assert_eq!(Item::StartAtLogin.tag(), Item::ShowDockIcon.tag() + 1);
-        assert_eq!(
-            ITEMS[Item::StartAtLogin.tag() as usize + 1],
-            Item::Separator
         );
         assert_eq!(Item::Quit.key(), "q");
         assert_eq!(Item::Quit.command(), Some(ShellCommand::Quit));
         assert_eq!(Item::Open.command(), Some(ShellCommand::Open));
-        assert_eq!(
-            Item::ShowDockIcon.command(),
-            Some(ShellCommand::ToggleDockIcon)
-        );
         assert_eq!(Item::Device.command(), None);
-        assert_eq!(Item::Version.command(), None);
-        assert_eq!(Item::Version.kind(), Kind::Text);
-        // Decision 0025: the version is the first item. Decision 0026: the
-        // licence notices are after it, with a separator after them.
-        assert_eq!(Item::Version.tag(), 0);
-        assert_eq!(Item::Notices.tag(), 1);
-        assert_eq!(ITEMS[2], Item::Separator);
-        assert_eq!(Item::Notices.kind(), Kind::Command);
-        assert_eq!(Item::Notices.command(), Some(ShellCommand::OpenNotices));
-        assert_eq!(Item::Notices.key(), "");
         assert_eq!(Item::Device.kind(), Kind::Text);
         assert_eq!(Item::Profile.kind(), Kind::Text);
+    }
+
+    #[test]
+    fn two_items_open_the_settings_window() {
+        // "Settings…" has the key equivalent of the application menu. It
+        // keeps the pane that was visible last. "About and licence notices"
+        // opens the pane "About" (decision 0029, section 19).
+        assert_eq!(Item::Settings.key(), ",");
+        assert_eq!(Item::Settings.kind(), Kind::Command);
+        assert_eq!(
+            Item::Settings.command(),
+            Some(ShellCommand::OpenSettings(None))
+        );
+        assert_eq!(Item::About.key(), "");
+        assert_eq!(Item::About.kind(), Kind::Command);
+        assert_eq!(
+            Item::About.command(),
+            Some(ShellCommand::OpenSettings(Some(SettingsPane::About)))
+        );
+        // The order of decision 0029: "Settings…" after "Open OpenCraft", a
+        // separator, "About and licence notices", a separator, and "Quit".
+        assert_eq!(Item::Settings.tag(), Item::Open.tag() + 1);
+        assert_eq!(ITEMS[Item::Settings.tag() as usize + 1], Item::Separator);
+        assert_eq!(Item::About.tag(), Item::Settings.tag() + 2);
+        assert_eq!(ITEMS[Item::About.tag() as usize + 1], Item::Separator);
+        assert_eq!(Item::Quit.tag() as usize, ITEMS.len() - 1);
     }
 
     #[test]
     fn the_menu_shows_the_state() {
         let state = MenuState::default();
         assert_eq!(
-            state.title(Item::Version),
-            Some(format!("OpenCraft {}", env!("CARGO_PKG_VERSION")))
-        );
-        assert_eq!(
             state.title(Item::Device).as_deref(),
             Some("Device: not connected")
         );
         // No profile line before the engine sends the profiles.
         assert_eq!(state.title(Item::Profile), None);
-        // No licence notices item when the bundle has no notices file.
-        assert_eq!(state.title(Item::Notices), None);
-        assert!(!state.checked(Item::Notices));
-        assert!(!state.checked(Item::ShowDockIcon));
-        assert!(!state.checked(Item::StartAtLogin));
-        assert!(!state.checked(Item::Open));
     }
 
     #[test]

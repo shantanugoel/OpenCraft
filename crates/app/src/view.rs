@@ -48,7 +48,7 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Instant};
 
 mod actions;
 mod canvas;
-mod controls;
+pub(crate) mod controls;
 mod device;
 mod form;
 mod gesture_card;

@@ -5,19 +5,22 @@
 //! also when no window is open. A new window starts from its state, and then
 //! gets each event from it. The menu bar item shows the same state.
 //!
-//! The shell also turns the start at login on and off (decision 0021), and
-//! opens the licence notices of the bundle (decision 0026).
+//! The shell also turns the start at login on and off (decision 0021), opens
+//! the licence notices of the bundle (decision 0026), and opens the Settings
+//! window (decision 0029, section 17). The window code is in the module
+//! `settings_window`.
 
 use crate::{
-    app_menu::EditMenu,
+    app_menu::{EditMenu, OpenAbout, OpenSettings},
     menu::MenuState,
-    settings::{self, Panes, Settings},
+    settings::{self, Panes, Settings, SettingsPane},
+    settings_window::{SettingsView, Snapshot},
     state::ViewState,
     view::{theme, DeviceView},
 };
 use gpui_kit::{
-    point, prelude::*, px, size, ActivationPolicy, App, Bounds, Context, EventEmitter,
-    TitlebarOptions, WindowBounds, WindowOptions,
+    point, prelude::*, px, size, ActivationPolicy, AnyWindowHandle, App, Bounds, Context,
+    EventEmitter, TitlebarOptions, WindowBounds, WindowHandle, WindowOptions,
 };
 use opencraft_engine::{Command, Event};
 use std::{
@@ -49,6 +52,12 @@ pub fn notices_file(executable: &Path) -> Option<PathBuf> {
     file.is_file().then_some(file)
 }
 
+/// The name of the log file (decision 0024).
+#[cfg(unix)]
+const LOG_FILE_NAME: &str = crate::log_file::FILE_NAME;
+#[cfg(not(unix))]
+const LOG_FILE_NAME: &str = "opencraft.log";
+
 /// Opens a file with the default application. False if it cannot.
 type OpenFile = fn(&Path) -> bool;
 
@@ -57,18 +66,63 @@ const OPEN_FILE: OpenFile = crate::menu_bar::open_file;
 #[cfg(not(target_os = "macos"))]
 const OPEN_FILE: OpenFile = |_| false;
 
+/// The address of the pane "Accessibility" of System Settings.
+pub const ACCESSIBILITY_PANE: &str =
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
+
+/// The functions that show something to the user outside the window. The
+/// tests replace them, so that a test opens no application.
+#[derive(Clone, Copy)]
+struct Desktop {
+    /// Show a file or a folder in the Finder.
+    show_in_finder: fn(&Path) -> bool,
+    /// Open an address, for example a pane of System Settings.
+    open_url: fn(&str) -> bool,
+}
+
+#[cfg(target_os = "macos")]
+const DESKTOP: Desktop = Desktop {
+    show_in_finder: crate::menu_bar::show_in_finder,
+    open_url: crate::menu_bar::open_url,
+};
+#[cfg(not(target_os = "macos"))]
+const DESKTOP: Desktop = Desktop {
+    show_in_finder: |_| false,
+    open_url: |_| false,
+};
+
+/// A place that the Settings window shows in the Finder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Place {
+    /// The folder with the profiles.
+    Profiles,
+    /// The log file, or its folder if the file does not exist.
+    LogFile,
+}
+
 /// A command to the shell, from the menu bar item, from a click on the Dock
 /// icon, or from a signal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellCommand {
     /// Open the window, or bring it to the front.
     Open,
+    /// Open the Settings window, or bring it to the front. With a pane, show
+    /// that pane; with `None`, show the pane that was visible last.
+    OpenSettings(Option<SettingsPane>),
     /// Show the Dock icon if it is hidden, and hide it if it shows.
     ToggleDockIcon,
     /// Turn the start at login on if it is off, and off if it is on.
     ToggleStartAtLogin,
+    /// Turn the opening of the window at the start on if it is off, and off
+    /// if it is on.
+    ToggleShowWindowAtStart,
     /// Open the licence notices file of the bundle.
     OpenNotices,
+    /// Show a folder or a file of OpenCraft in the Finder.
+    ShowInFinder(Place),
+    /// Open the pane "Accessibility" of System Settings, and ask the engine
+    /// to wait for the permission.
+    OpenAccessibilitySettings,
     /// Start the quit path.
     Quit,
 }
@@ -89,6 +143,18 @@ pub struct Shell {
     /// not in a bundle with the file.
     notices: Option<PathBuf>,
     open_file: OpenFile,
+    desktop: Desktop,
+    /// The profiles directory, for the Settings window.
+    profiles_dir: PathBuf,
+    /// The window with the editor. `None` before the first window. It can
+    /// be a window that the user closed: look in `App::windows`.
+    main_window: Option<AnyWindowHandle>,
+    /// The Settings window, with the same condition.
+    settings_window: Option<WindowHandle<gpui_kit::base::Root>>,
+    /// The last problem of a command of the Settings window. The window
+    /// shows it below its pane, because the user cannot see the messages of
+    /// the main window there.
+    settings_notice: Option<String>,
     #[cfg(target_os = "macos")]
     menu_bar: Option<crate::menu_bar::MenuBar>,
     /// The directory of the LaunchAgent file. `None` if the home directory
@@ -120,10 +186,15 @@ impl Shell {
             state: ViewState::default(),
             settings,
             typing: false,
+            profiles_dir: config_dir.join("profiles"),
             config_dir,
             send,
             notices,
             open_file: OPEN_FILE,
+            desktop: DESKTOP,
+            main_window: None,
+            settings_window: None,
+            settings_notice: None,
             #[cfg(target_os = "macos")]
             menu_bar: None,
             #[cfg(target_os = "macos")]
@@ -152,6 +223,16 @@ impl Shell {
         self.start_at_login = self.login_is_on();
     }
 
+    /// Use `show_in_finder` and `open_url` in place of the functions of the
+    /// system. The tests open no application.
+    #[cfg(test)]
+    pub fn set_desktop(&mut self, show_in_finder: fn(&Path) -> bool, open_url: fn(&str) -> bool) {
+        self.desktop = Desktop {
+            show_in_finder,
+            open_url,
+        };
+    }
+
     /// Use `notices` as the licence notices file, and `open_file` to open a
     /// file. The tests open no application.
     #[cfg(test)]
@@ -178,6 +259,19 @@ impl Shell {
         commands: async_channel::Receiver<ShellCommand>,
         cx: &mut Context<Self>,
     ) {
+        // The key command and the menu items of the application menu. They
+        // work also when the Settings window or no window has the focus.
+        let settings = cx.weak_entity();
+        let about = settings.clone();
+        let app: &mut App = cx;
+        app.on_action(move |_: &OpenSettings, cx| {
+            let _ = settings.update(cx, |shell, cx| shell.open_settings(None, cx));
+        });
+        app.on_action(move |_: &OpenAbout, cx| {
+            let _ = about.update(cx, |shell, cx| {
+                shell.open_settings(Some(SettingsPane::About), cx)
+            });
+        });
         cx.spawn(async move |shell, cx| {
             while let Ok(event) = events.recv().await {
                 if shell
@@ -240,11 +334,17 @@ impl Shell {
     pub fn command(&mut self, command: ShellCommand, cx: &mut Context<Self>) {
         match command {
             ShellCommand::Open => self.open_window(cx),
+            ShellCommand::OpenSettings(pane) => self.open_settings(pane, cx),
             ShellCommand::ToggleDockIcon => {
                 self.set_show_dock_icon(!self.settings.show_dock_icon, cx)
             }
             ShellCommand::ToggleStartAtLogin => self.toggle_start_at_login(cx),
+            ShellCommand::ToggleShowWindowAtStart => {
+                self.set_show_window_at_start(!self.settings.show_window_at_start, cx)
+            }
             ShellCommand::OpenNotices => self.open_notices(cx),
+            ShellCommand::ShowInFinder(place) => self.show_in_finder(place, cx),
+            ShellCommand::OpenAccessibilitySettings => self.open_accessibility_settings(cx),
             ShellCommand::Quit => cx.quit(),
         }
     }
@@ -318,13 +418,77 @@ impl Shell {
                     .find(|p| &p.id == id)
                     .map(|p| p.name.clone())
             }),
-            show_dock_icon: self.settings.show_dock_icon,
-            #[cfg(target_os = "macos")]
-            start_at_login: self.start_at_login,
-            #[cfg(not(target_os = "macos"))]
-            start_at_login: false,
-            notices: self.notices.is_some(),
         }
+    }
+
+    /// The settings of the shell.
+    #[cfg(test)]
+    pub fn settings(&self) -> &Settings {
+        &self.settings
+    }
+
+    /// True if the LaunchAgent file starts this application. Only macOS has
+    /// a start at login (decision 0021).
+    pub fn start_at_login(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        return self.start_at_login;
+        #[cfg(not(target_os = "macos"))]
+        false
+    }
+
+    /// True if the bundle has the licence notices file.
+    pub fn has_notices(&self) -> bool {
+        self.notices.is_some()
+    }
+
+    /// What the Settings window shows.
+    pub fn settings_snapshot(&self) -> Snapshot {
+        Snapshot {
+            settings: self.settings,
+            start_at_login: self.start_at_login(),
+            has_notices: self.has_notices(),
+            profiles_dir: self.profiles_dir.clone(),
+            permission: crate::settings_window::permission(&self.state),
+            notice: self.settings_notice.clone(),
+        }
+    }
+
+    /// The last problem of a command of the Settings window, if the user did
+    /// not close it.
+    #[cfg(test)]
+    pub fn settings_notice(&self) -> Option<&str> {
+        self.settings_notice.as_deref()
+    }
+
+    /// The user closed the message of the Settings window.
+    pub fn dismiss_notice(&mut self, cx: &mut Context<Self>) {
+        self.settings_notice = None;
+        cx.notify();
+    }
+
+    /// A problem of a command of the Settings window. The main window and
+    /// the log get it as each problem, and the Settings window shows it
+    /// below its pane.
+    fn settings_problem(&mut self, text: String, cx: &mut Context<Self>) {
+        self.settings_notice = Some(text.clone());
+        self.problem(text, cx);
+    }
+
+    /// The profiles directory.
+    #[cfg(test)]
+    pub fn profiles_dir(&self) -> &Path {
+        &self.profiles_dir
+    }
+
+    /// Use `dir` as the profiles directory of the Settings window.
+    pub fn set_profiles_dir(&mut self, dir: PathBuf) {
+        self.profiles_dir = dir;
+    }
+
+    /// The log file of the application, in the directory of the shell. The
+    /// file exists only after a start with no terminal (decision 0024).
+    pub fn log_file(&self) -> PathBuf {
+        self.config_dir.join(LOG_FILE_NAME)
     }
 
     /// Open the licence notices with the default application. The menu shows
@@ -341,7 +505,7 @@ impl Shell {
                  of the source code has them."
             ),
         };
-        self.problem(text, cx);
+        self.settings_problem(text, cx);
     }
 
     fn refresh_menu(&mut self) {
@@ -354,10 +518,10 @@ impl Shell {
         }
     }
 
-    /// Open the window. If a window is open, bring it and the application to
-    /// the front.
+    /// Open the window. If the window is open, bring it and the application
+    /// to the front. The Settings window is not this window.
     pub fn open_window(&mut self, cx: &mut Context<Self>) {
-        if let Some(window) = cx.windows().into_iter().next() {
+        if let Some(window) = self.main_window.filter(|w| cx.windows().contains(w)) {
             let _ = window.update(cx, |_, window, _| window.activate_window());
             cx.activate(true);
             return;
@@ -374,18 +538,125 @@ impl Shell {
             let view = cx.new(|cx| DeviceView::new(&shell, state, panes, send, window, cx));
             cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
         });
-        if let Err(error) = opened {
-            eprintln!("OpenCraft cannot open the window: {error}");
-            return;
+        match opened {
+            Ok(window) => self.main_window = Some(window.into()),
+            Err(error) => {
+                eprintln!("OpenCraft cannot open the window: {error}");
+                return;
+            }
         }
         cx.activate(true);
+    }
+
+    /// Open the Settings window. If it is open, bring it and the application
+    /// to the front. With a `pane`, the window shows that pane; with `None`,
+    /// it shows the pane that was visible last (decision 0029, section 17).
+    pub fn open_settings(&mut self, pane: Option<SettingsPane>, cx: &mut Context<Self>) {
+        if let Some(pane) = pane {
+            self.set_settings_pane(pane, cx);
+        }
+        let open = self
+            .settings_window
+            .filter(|w| cx.windows().contains(&AnyWindowHandle::from(*w)));
+        if let Some(window) = open {
+            let _ = window.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+            return;
+        }
+        // A new window does not show the message of an earlier window.
+        self.settings_notice = None;
+        let shell = cx.entity();
+        let snapshot = self.settings_snapshot();
+        let options = crate::settings_window::window_options(&snapshot, cx);
+        let opened = cx.open_window(options, move |window, cx| {
+            let view = cx.new(|cx| SettingsView::new(&shell, snapshot, window, cx));
+            cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
+        });
+        match opened {
+            Ok(window) => self.settings_window = Some(window),
+            Err(error) => {
+                eprintln!("OpenCraft cannot open the Settings window: {error}");
+                return;
+            }
+        }
+        cx.activate(true);
+    }
+
+    /// Show `pane` in the Settings window, and keep it in `shell.toml` for
+    /// the next time that the window opens.
+    pub fn set_settings_pane(&mut self, pane: SettingsPane, cx: &mut Context<Self>) {
+        if self.settings.settings_pane == pane {
+            return;
+        }
+        self.settings.settings_pane = pane;
+        self.save_settings("the pane of the Settings window", cx);
+        cx.notify();
+    }
+
+    fn set_show_window_at_start(&mut self, show: bool, cx: &mut Context<Self>) {
+        self.settings.show_window_at_start = show;
+        self.save_settings("the option to show the window at start", cx);
+        cx.notify();
+    }
+
+    /// Write `shell.toml`. A failure shows as a problem that names `what`.
+    fn save_settings(&mut self, what: &str, cx: &mut Context<Self>) {
+        if let Err(error) = settings::save(&self.config_dir, &self.settings) {
+            self.settings_problem(
+                format!(
+                    "OpenCraft cannot save {what} in {}: {error}",
+                    self.config_dir.join(settings::FILE_NAME).display()
+                ),
+                cx,
+            );
+        }
+    }
+
+    /// Show the profiles folder, or the log file, in the Finder. A log file
+    /// that does not exist yet gives its folder.
+    fn show_in_finder(&mut self, place: Place, cx: &mut Context<Self>) {
+        let path = match place {
+            Place::Profiles => self.profiles_dir.clone(),
+            Place::LogFile => {
+                let file = self.log_file();
+                if file.exists() {
+                    file
+                } else {
+                    self.config_dir.clone()
+                }
+            }
+        };
+        if !(self.desktop.show_in_finder)(&path) {
+            self.settings_problem(
+                format!("OpenCraft cannot show {} in the Finder.", path.display()),
+                cx,
+            );
+        }
+    }
+
+    /// Open the pane "Accessibility" of System Settings. For each kind that
+    /// waits for the permission, ask the engine to wait for it: the engine
+    /// asks the system, so that OpenCraft is in the list of the pane, and it
+    /// tells the window when the user gives the permission.
+    fn open_accessibility_settings(&mut self, cx: &mut Context<Self>) {
+        if !(self.desktop.open_url)(ACCESSIBILITY_PANE) {
+            self.settings_problem(
+                "OpenCraft cannot open System Settings. Open it, and go to Privacy & Security > \
+                 Accessibility."
+                    .into(),
+                cx,
+            );
+        }
+        for kind in crate::settings_window::kinds_waiting_for_permission(&self.state) {
+            (self.send)(Command::Resolve { kind });
+        }
     }
 
     fn set_show_dock_icon(&mut self, show: bool, cx: &mut Context<Self>) {
         self.settings.show_dock_icon = show;
         apply_dock_icon(show, cx);
         if let Err(error) = settings::save(&self.config_dir, &self.settings) {
-            self.problem(
+            self.settings_problem(
                 format!(
                     "OpenCraft cannot save the Dock icon setting in {}: {error}",
                     self.config_dir.join(settings::FILE_NAME).display()
@@ -408,7 +679,7 @@ impl Shell {
         use crate::login;
         let (Some(dir), Some(executable)) = (self.login_dir.clone(), self.executable.clone())
         else {
-            self.problem(
+            self.settings_problem(
                 "OpenCraft cannot change the start at login: it cannot find the home directory \
                  or its own executable."
                     .into(),
@@ -418,7 +689,7 @@ impl Shell {
         };
         let on = self.login_is_on();
         if !on && login::on_read_only_volume(&executable) {
-            self.problem(
+            self.settings_problem(
                 "To start OpenCraft at login, move it to the Applications folder and start it \
                  from there. It runs now from a read-only location, for example the disk image."
                     .into(),
@@ -432,7 +703,7 @@ impl Shell {
             login::turn_on(&dir, &executable)
         };
         if let Err(error) = result {
-            self.problem(
+            self.settings_problem(
                 format!(
                     "OpenCraft cannot change the start at login in {}: {error}",
                     dir.join(login::FILE_NAME).display()
@@ -448,7 +719,7 @@ impl Shell {
     /// Only macOS has a start at login (decision 0021).
     #[cfg(not(target_os = "macos"))]
     fn toggle_start_at_login(&mut self, cx: &mut Context<Self>) {
-        self.problem(
+        self.settings_problem(
             "OpenCraft has no start at login on this platform.".into(),
             cx,
         );
@@ -604,9 +875,6 @@ mod tests {
             MenuState {
                 connected: false,
                 profile: None,
-                show_dock_icon: true,
-                start_at_login: false,
-                notices: false
             }
         );
         f.events.try_send(layout()).unwrap();
@@ -619,9 +887,6 @@ mod tests {
             MenuState {
                 connected: true,
                 profile: Some("Desk".into()),
-                show_dock_icon: true,
-                start_at_login: false,
-                notices: false
             }
         );
         f.events.try_send(Event::Disconnected).unwrap();
@@ -704,7 +969,7 @@ mod tests {
         let f = shell(cx);
         f.commands.try_send(ShellCommand::ToggleDockIcon).unwrap();
         cx.run_until_parked();
-        assert!(!cx.update(|cx| f.shell.read(cx).menu_state().show_dock_icon));
+        assert!(!cx.update(|cx| f.shell.read(cx).settings().show_dock_icon));
         assert_eq!(
             settings::load(f.dir.path()),
             (
@@ -717,7 +982,7 @@ mod tests {
         );
         f.commands.try_send(ShellCommand::ToggleDockIcon).unwrap();
         cx.run_until_parked();
-        assert!(cx.update(|cx| f.shell.read(cx).menu_state().show_dock_icon));
+        assert!(cx.update(|cx| f.shell.read(cx).settings().show_dock_icon));
         assert_eq!(settings::load(f.dir.path()), (Settings::default(), None));
     }
 
@@ -727,8 +992,7 @@ mod tests {
         use crate::login;
         let f = shell(cx);
         let agents = f.dir.path().join("LaunchAgents");
-        let on =
-            |cx: &mut TestAppContext| cx.update(|cx| f.shell.read(cx).menu_state().start_at_login);
+        let on = |cx: &mut TestAppContext| cx.update(|cx| f.shell.read(cx).start_at_login());
         assert!(!on(cx));
         f.commands
             .try_send(ShellCommand::ToggleStartAtLogin)
@@ -761,8 +1025,7 @@ mod tests {
         .unwrap();
         f.shell
             .update(cx, |shell, _| shell.set_login_dir(agents.clone()));
-        let on =
-            |cx: &mut TestAppContext| cx.update(|cx| f.shell.read(cx).menu_state().start_at_login);
+        let on = |cx: &mut TestAppContext| cx.update(|cx| f.shell.read(cx).start_at_login());
         assert!(!on(cx));
         f.commands
             .try_send(ShellCommand::ToggleStartAtLogin)
@@ -789,7 +1052,7 @@ mod tests {
             .try_send(ShellCommand::ToggleStartAtLogin)
             .unwrap();
         cx.run_until_parked();
-        assert!(!cx.update(|cx| f.shell.read(cx).menu_state().start_at_login));
+        assert!(!cx.update(|cx| f.shell.read(cx).start_at_login()));
         assert!(!f
             .dir
             .path()
@@ -815,7 +1078,7 @@ mod tests {
             .try_send(ShellCommand::ToggleStartAtLogin)
             .unwrap();
         cx.run_until_parked();
-        assert!(!cx.update(|cx| f.shell.read(cx).menu_state().start_at_login));
+        assert!(!cx.update(|cx| f.shell.read(cx).start_at_login()));
         let problems = cx.update(|cx| f.shell.read(cx).state.problems.clone());
         assert_eq!(problems.len(), 1);
         assert!(problems[0].contains("cannot change the start at login"));
@@ -872,12 +1135,12 @@ mod tests {
     fn the_notices_item_opens_the_file_of_the_bundle(cx: &mut TestAppContext) {
         let f = shell(cx);
         // The test executable is not in a bundle: the menu has no item.
-        assert!(!cx.update(|cx| f.shell.read(cx).menu_state().notices));
+        assert!(!cx.update(|cx| f.shell.read(cx).has_notices()));
         let file = notices_file(&bundle(f.dir.path(), true)).unwrap();
         f.shell.update(cx, |shell, _| {
             shell.set_notices(Some(file.clone()), open_and_record)
         });
-        assert!(cx.update(|cx| f.shell.read(cx).menu_state().notices));
+        assert!(cx.update(|cx| f.shell.read(cx).has_notices()));
         f.commands.try_send(ShellCommand::OpenNotices).unwrap();
         cx.run_until_parked();
         assert_eq!(OPENED.with(|opened| opened.borrow().clone()), [file]);

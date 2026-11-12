@@ -147,6 +147,9 @@ To give the permission:
 4. In System Settings > Privacy & Security > Accessibility, turn on
    OpenCraft.
 
+The Settings window also shows the permission and has a button for it. See
+[The tab General](background.md#the-tab-general).
+
 OpenCraft checks the permission each second for 10 minutes after you click
 the button. When it has the permission, the text in the inspector goes away. It
 also checks the permission each time that you do one of these actions.
@@ -157,9 +160,9 @@ Applications folder.
 
 ## Remove OpenCraft
 
-1. Click the OpenCraft item in the menu bar. If **Start at login** has a
-   check mark, click it to turn it off. This removes the file that starts
-   OpenCraft at login.
+1. Click the OpenCraft item in the menu bar, and click **Settings…**. In the
+   tab **General**, turn off **Start at login** if it is on. This removes the
+   file that starts OpenCraft at login.
 2. Click the menu bar item again, and click **Quit OpenCraft**.
 3. Remove the application. Use the procedure that agrees with the
    installation:
