@@ -44,6 +44,9 @@ pub use opencraft_core::{ControlId, ControlKind, Gesture, InputEvent, SurfaceId,
 pub use runtime::{spawn, Config, EngineHandle};
 
 pub use error::{Error, Result};
-pub use profile::{Color, Page, Profile, SurfaceContent};
+pub use profile::{
+    Color, LabelChange, LabelPosition, LabelStyle, Page, Profile, SurfaceContent, LABEL_SIZES,
+};
 pub use profiles::{ProfileEntry, ProfilesDir};
+pub use render::label_color;
 pub use store::{default_profiles_dir, Backup, BackupReason, Loaded, ProfileStore};

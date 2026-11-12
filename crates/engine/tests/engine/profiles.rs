@@ -147,11 +147,13 @@ fn an_old_default_directory_with_a_version_two_file_is_the_active_profile_with_n
     assert_eq!(rig.profile_text().as_deref(), Some(old));
     assert_eq!(state_text(&rig), None);
 
-    // The next change writes version 3 with the model.
+    // The next change writes the current version with the model.
     rig.set_color(BAR_2, BLUE);
     rig.engine.finish();
     let text = rig.profile_text().unwrap();
-    assert!(text.starts_with("schema_version = 3\nname = \"Mine\"\nmodel = \"n4-pro\"\n"));
+    assert!(text.starts_with(&format!(
+        "schema_version = {SCHEMA_VERSION}\nname = \"Mine\"\nmodel = \"n4-pro\"\n"
+    )));
     let mut rig = rig.restart();
     assert!(problems(&rig.take_events()).is_empty());
     assert_eq!(rig.engine.profile().pages()[0].bindings().count(), 3);

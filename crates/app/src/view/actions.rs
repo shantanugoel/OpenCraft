@@ -651,7 +651,7 @@ impl DeviceView {
         }
         let escape = event.keystroke.key == "escape"
             && event.keystroke.modifiers == gpui_kit::Modifiers::default();
-        if escape && (self.form.menu.is_some() || self.inspector.colour_open) {
+        if escape && (self.form.menu.is_some() || self.inspector.is_open()) {
             cx.stop_propagation();
             self.close_kinds();
             cx.notify();
@@ -672,11 +672,11 @@ impl DeviceView {
         cx.notify();
     }
 
-    /// Close the open menu of the cards, the popover of "Other colour", and
-    /// the popover of a knob light colour.
+    /// Close the open menu of the cards, the menus and popovers of the
+    /// "Appearance" section, and the popover of a knob light colour.
     pub(super) fn close_kinds(&mut self) {
         self.form.menu = None;
-        self.inspector.colour_open = false;
+        self.inspector.close();
         self.device.colour_open = None;
     }
 

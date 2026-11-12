@@ -651,6 +651,24 @@ in the real window unless the text says other.
   `-vf "select=eq(n\,45)"` to take frame 45 (1.5 s). The knob lights and the
   display brightness changed in the frames after the commands.
 
+## Label options in the inspector (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+label options of
+[issue 189](https://github.com/shantanugoel/OpenCraft/issues/189), on the
+computer of [Release measurements](#release-measurements), with a copy of a
+real profile and the device connected. A helper program operated the real
+window with Quartz events and took pictures of the window only. A USB
+camera took pictures of the device. The pictures are kept outside the
+repository.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| Four segments with `flex_1` in a track of 253 points got the widths 61.5, 62, 61.5, and 62. The layout puts each edge on a half point, thus segments of one width can be different by 0.5. A test of equal widths needs a tolerance. | Measured | Window test `the_label_rows_are_as_high_as_a_text_field_and_aligned_with_the_title` |
+| A popover of 200 with the leading edge on a button near the right edge of the window does not fit. GPUI then moved it to the left, over the button and the row label. With `MenuPlace::align_end`, the trailing edges are on one line, and the popover shows below the button. | Measured | Window pictures |
+| A function that returns the result of `cx.listener(..)` as `impl Fn(..) + 'static` does not compile in Rust 2024: the opaque type captures the lifetime of `Context`, also with `use<>`. A `Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>` works, and `on_click` takes it. | Measured | Build errors; `crates/app/src/view/inspector.rs`, `choose_text_colour` |
+| The device showed each label position, size, colour, and weight as the canvas showed them: the engine makes one image for both (rule 11). | Measured | Camera picture and window picture at the same time |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

@@ -658,6 +658,76 @@ pub(super) fn search_field(
         )
 }
 
+/// A square toggle button of 28 × 28 with a short text, for example "B" for
+/// bold (section 10.2). On: `bg-segment-on`, border `#5A5C63`,
+/// `text-on-accent`. Off: the look of a button, with `text-secondary`.
+/// `tooltip` is the accessible label. The caller adds the click handler.
+pub(super) fn toggle_button(
+    id: impl Into<SharedString>,
+    content: impl IntoElement,
+    on: bool,
+    tooltip: impl Into<SharedString>,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    let tooltip: SharedString = tooltip.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .size(theme::WIDTH_SQUARE_BUTTON)
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(theme::RADIUS_CONTROL)
+        .border_1()
+        .cursor_pointer()
+        .map(|d| {
+            if on {
+                d.bg(theme::BG_SEGMENT_ON)
+                    .border_color(theme::BORDER_TOGGLE_ON)
+                    .text_color(theme::TEXT_ON_ACCENT)
+            } else {
+                d.bg(theme::BG_CONTROL)
+                    .border_color(theme::BORDER_CONTROL)
+                    .text_color(theme::TEXT_SECONDARY)
+                    .hover(|d| d.bg(theme::HOVER_CONTROL))
+            }
+        })
+        .active(|d| d.bg(theme::PRESSED))
+        .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
+        .child(content)
+}
+
+/// A square colour button of 28 × 28 that shows `colour` (section 10.2).
+/// While its popover is open, the button has the focus border, and no
+/// tooltip. The caller adds the click handler.
+pub(super) fn colour_button(
+    id: impl Into<SharedString>,
+    colour: Rgba,
+    open: bool,
+    tooltip: impl Into<SharedString>,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    let tooltip: SharedString = tooltip.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .size(theme::WIDTH_SQUARE_BUTTON)
+        .rounded(theme::RADIUS_CONTROL)
+        .bg(colour)
+        .border_1()
+        .border_color(if open {
+            theme::ACCENT_LINE
+        } else {
+            theme::BORDER_CONTROL
+        })
+        .cursor_pointer()
+        .when(!open, |d| {
+            d.tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
+        })
+}
+
 /// A line between two groups of rows of a menu.
 pub(super) fn menu_separator() -> Div {
     div()

@@ -506,3 +506,33 @@ fn a_rename_of_the_active_profile_is_not_in_the_history_and_stays_after_an_undo(
     assert_eq!(rig.engine.profile().name, "Renamed");
     assert_eq!(saved(&mut rig).name, "Renamed");
 }
+
+/// The label options are a new part of the content of a surface. The
+/// history covers them with no special code (decision 0030): each change is
+/// one step, in memory and in the file.
+#[test]
+fn each_label_option_is_undone_and_done_again_in_memory_and_in_the_file() {
+    use opencraft_engine::{LabelChange, LabelPosition};
+    let style = |change| Command::SetLabelStyle {
+        surface: KEY_3,
+        change,
+    };
+    let cases = [
+        (
+            0,
+            style(LabelChange::Position(Some(LabelPosition::Top))),
+            "Set Title Position",
+        ),
+        (
+            1,
+            style(LabelChange::Position(Some(LabelPosition::Hidden))),
+            "Set Title Position",
+        ),
+        (0, style(LabelChange::Size(14)), "Set Title Size"),
+        (0, style(LabelChange::Color(Some(BLUE))), "Set Title Colour"),
+        (1, style(LabelChange::Bold(false)), "Set Title Weight"),
+    ];
+    for (page, change, name) in cases {
+        check(page, change, name);
+    }
+}

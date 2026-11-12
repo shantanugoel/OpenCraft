@@ -10,8 +10,16 @@
 //! `gesture_card`.
 
 use super::*;
-use gpui_kit::{component::input::AnyInputState, rgb, Rgba};
-use opencraft_engine::{ControlLayout, DeviceLayout};
+use gpui_kit::{assets::IconName, component::input::AnyInputState, component::Icon, rgb, Rgba};
+use opencraft_engine::{
+    label_color, ControlLayout, DeviceLayout, LabelChange, LabelPosition, SurfaceContent,
+    LABEL_SIZES,
+};
+
+/// The text colours of the popover of the label colour, before the fill
+/// colours of [`COLOURS`]: white and black. These are data: the profile
+/// keeps them.
+const TEXT_COLOURS: [u32; 2] = [0xffffff, 0x000000];
 
 /// The state of the inspector that is not in the form of the cards.
 pub(super) struct InspectorState {
@@ -20,6 +28,13 @@ pub(super) struct InspectorState {
     /// The field for `#RRGGBB` in that popover.
     colour_input: Entity<InputState>,
     _colour_subscription: Subscription,
+    /// The menu of the label size is open.
+    size_open: bool,
+    /// The popover of the label colour is open.
+    text_colour_open: bool,
+    /// The field for `#RRGGBB` in that popover.
+    text_colour_input: Entity<InputState>,
+    _text_colour_subscription: Subscription,
 }
 
 impl InspectorState {
@@ -36,11 +51,67 @@ impl InspectorState {
                     }
                 }
             });
+        let text_colour_input = cx.new(|cx| InputState::new(window, cx).placeholder("#RRGGBB"));
+        let text_subscription = cx.subscribe_in(
+            &text_colour_input,
+            window,
+            |view, input, event, window, cx| {
+                if matches!(event, TextEvent::PressEnter { .. }) {
+                    if let Some(colour) = parse_colour(&input.read(cx).value()) {
+                        view.set_label_style(LabelChange::Color(Some(colour)));
+                        view.inspector.text_colour_open = false;
+                        view.focus_workspace(window, cx);
+                        cx.notify();
+                    }
+                }
+            },
+        );
         Self {
             colour_open: false,
             colour_input,
             _colour_subscription: subscription,
+            size_open: false,
+            text_colour_open: false,
+            text_colour_input,
+            _text_colour_subscription: text_subscription,
         }
+    }
+
+    /// True if a menu or a popover of the "Appearance" section is open.
+    pub(super) fn is_open(&self) -> bool {
+        self.colour_open || self.size_open || self.text_colour_open
+    }
+
+    /// Close each menu and popover of the "Appearance" section.
+    pub(super) fn close(&mut self) {
+        self.colour_open = false;
+        self.size_open = false;
+        self.text_colour_open = false;
+    }
+}
+
+/// A click handler that a function can return. A function cannot return
+/// the result of `cx.listener` as `impl Fn`: see `docs/kb/gpui.md`.
+type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+
+/// The click handler of a sample in the popover of the label colour.
+/// `None` is "Automatic".
+fn choose_text_colour(value: Option<Color>, cx: &mut Context<DeviceView>) -> ClickHandler {
+    Box::new(cx.listener(move |view, _, window, cx| {
+        view.set_label_style(LabelChange::Color(value));
+        view.close_kinds();
+        view.focus_workspace(window, cx);
+        cx.notify();
+    }))
+}
+
+/// The ID of the segment of a label position, and its text.
+fn position_segment(position: LabelPosition) -> (&'static str, &'static str) {
+    match position {
+        LabelPosition::Top => ("label-position-top", "Top"),
+        LabelPosition::Middle => ("label-position-middle", "Middle"),
+        LabelPosition::Bottom => ("label-position-bottom", "Bottom"),
+        LabelPosition::Hidden => ("label-position-none", "None"),
     }
 }
 
@@ -255,12 +326,19 @@ impl DeviceView {
         )
     }
 
+    /// Change one label option of the selected surface.
+    fn set_label_style(&mut self, change: LabelChange) {
+        if let Some(surface) = self.state.selected {
+            (self.send)(Command::SetLabelStyle { surface, change });
+        }
+    }
+
     /// The "Appearance" section of a key face or a bar panel (section
-    /// 10.2). #189 adds the label options, and #190 changes "Image" to
-    /// "Icon".
+    /// 10.2). #190 changes "Image" to "Icon".
     fn appearance(&self, id: SurfaceId, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let content = self.state.surfaces.get(&id).map(|s| &s.content);
         let has_image = content.is_some_and(|c| c.image.is_some());
+        let content = content.cloned().unwrap_or_default();
         let row = |label: &str, value: AnyElement| {
             form::row(label.to_string(), theme::FORM_LABEL, theme::FORM_GAP, value)
         };
@@ -300,8 +378,273 @@ impl DeviceView {
                         .debug_selector(|| "title-field".into())
                         .into_any_element(),
                     ))
+                    .child(row("Position", self.label_position(&content, cx)))
+                    .child(row("Text", self.label_text(&content, window, cx)))
                     .child(row("Fill", self.fill_samples(id, window, cx))),
             )
+            .into_any_element()
+    }
+
+    /// The row "Position": a segmented control with "Top", "Middle",
+    /// "Bottom", and "None". The selected segment is the position that the
+    /// surface shows, also when the profile has no position (the engine
+    /// gives the automatic position).
+    fn label_position(&self, content: &SurfaceContent, cx: &mut Context<Self>) -> AnyElement {
+        let current = content.label_style.position_for(content.image.is_some());
+        let segments = LabelPosition::ALL
+            .into_iter()
+            .map(|position| {
+                let (id, text) = position_segment(position);
+                let selected = position == current;
+                controls::segment(id, text, selected, theme::HEIGHT_SEGMENT_INSPECTOR)
+                    .min_w_0()
+                    .when(!selected, |d| {
+                        d.on_click(cx.listener(move |view, _, window, cx| {
+                            view.set_label_style(LabelChange::Position(Some(position)));
+                            view.focus_workspace(window, cx);
+                            cx.notify();
+                        }))
+                    })
+            })
+            .collect();
+        // In a form, the track has the full width and the border
+        // `border-field`, so that it is as high as a text field.
+        controls::segmented("label-position", segments)
+            .flex_1()
+            .min_w_0()
+            .border_1()
+            .border_color(theme::BORDER_FIELD)
+            .into_any_element()
+    }
+
+    /// The row "Text": the popup button of the size, the colour button, and
+    /// the toggle button "B" for bold.
+    fn label_text(
+        &self,
+        content: &SurfaceContent,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let style = content.label_style;
+        let bold = style.bold;
+        div()
+            .flex()
+            .items_center()
+            .gap(theme::GAP_ITEMS)
+            .child(self.size_popup(style.size, window, cx))
+            .child(self.text_colour(content, window, cx))
+            .child(
+                controls::toggle_button(
+                    "label-bold",
+                    div()
+                        .text_size(theme::TEXT_BODY)
+                        .font_weight(gpui_kit::FontWeight::BOLD)
+                        .child("B"),
+                    bold,
+                    "Bold",
+                )
+                .on_click(cx.listener(move |view, _, window, cx| {
+                    view.set_label_style(LabelChange::Bold(!bold));
+                    view.close_kinds();
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                })),
+            )
+            .into_any_element()
+    }
+
+    /// The popup button of the label size, for example "20 pt", and its
+    /// menu with the sizes of [`LABEL_SIZES`].
+    fn size_popup(&self, size: u8, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let open = self.inspector.size_open;
+        let menu = open.then(|| {
+            let rows = LABEL_SIZES
+                .into_iter()
+                .map(|item| {
+                    controls::menu_row(format!("label-size-{item}"))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .w(theme::ICON_SMALL)
+                                .when(item == size, |d| {
+                                    d.child(Icon::new(IconName::Check).size(theme::ICON_SMALL))
+                                }),
+                        )
+                        .child(format!("{item} pt"))
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            view.set_label_style(LabelChange::Size(item));
+                            view.close_kinds();
+                            view.focus_workspace(window, cx);
+                            cx.notify();
+                        }))
+                        .into_any_element()
+                })
+                .collect();
+            controls::popup_menu(
+                "label-size-menu",
+                controls::MenuPlace {
+                    button_height: theme::HEIGHT_CONTROL,
+                    width: theme::WIDTH_SIZE_MENU,
+                    align_end: false,
+                },
+                rows,
+                window,
+                cx.listener(|view, _, window, cx| {
+                    view.close_kinds();
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                }),
+            )
+        });
+        div()
+            .relative()
+            .flex_shrink_0()
+            .w(theme::WIDTH_SIZE_POPUP)
+            .flex()
+            .child(
+                controls::popup_button(
+                    "label-size",
+                    theme::HEIGHT_CONTROL,
+                    open,
+                    div().truncate().child(format!("{size} pt")),
+                )
+                .text_size(theme::TEXT_LABEL)
+                .on_click(cx.listener(move |view, _, window, cx| {
+                    view.close_kinds();
+                    view.inspector.size_open = !open;
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                })),
+            )
+            .children(menu)
+            .into_any_element()
+    }
+
+    /// The colour button of the label, and its popover: "Automatic", white,
+    /// black, the fill colours, and a field for `#RRGGBB`.
+    fn text_colour(
+        &self,
+        content: &SurfaceContent,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let open = self.inspector.text_colour_open;
+        let current = content.label_style.color;
+        let shown = label_color(content);
+        let tooltip = match current {
+            Some(colour) => format!("Text colour {}", colour_text(colour)),
+            None => format!("Text colour: automatic ({})", colour_text(shown)),
+        };
+        let popover = open.then(|| {
+            let automatic = controls::colour_sample(
+                "label-colour-automatic",
+                None,
+                current.is_none(),
+                Some("Automatic: black or white for the fill".into()),
+            )
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_size(theme::TEXT_CAPTION)
+            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+            .text_color(theme::TEXT_SECONDARY)
+            .child("A")
+            .on_click(choose_text_colour(None, cx));
+            let samples: Vec<_> = TEXT_COLOURS
+                .into_iter()
+                .chain(COLOURS)
+                .enumerate()
+                .map(|(index, value)| {
+                    controls::colour_sample(
+                        format!("label-colour-{index}"),
+                        Some(rgb(value)),
+                        current == Some(colour(value)),
+                        Some(format!("Text #{value:06X}").into()),
+                    )
+                    .on_click(choose_text_colour(Some(colour(value)), cx))
+                })
+                .collect();
+            controls::popup_menu(
+                "label-colour-popover",
+                // The trailing edge on the button: the popover then fits in
+                // the right panel at its smallest width.
+                controls::MenuPlace {
+                    button_height: theme::HEIGHT_CONTROL,
+                    width: theme::WIDTH_COLOUR_POPOVER,
+                    align_end: true,
+                },
+                vec![div()
+                    .capture_key_down(cx.listener(
+                        |view, event: &gpui_kit::KeyDownEvent, window, cx| {
+                            // Escape in the field closes the popover with no change.
+                            if event.keystroke.key == "escape" {
+                                cx.stop_propagation();
+                                view.close_kinds();
+                                view.focus_workspace(window, cx);
+                                cx.notify();
+                            }
+                        },
+                    ))
+                    .p(theme::SPACE_6)
+                    .flex()
+                    .flex_col()
+                    .gap(theme::SPACE_8)
+                    .child(
+                        div()
+                            .text_size(theme::TEXT_LABEL)
+                            .text_color(theme::TEXT_SECONDARY)
+                            .child("Text colour"),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .gap(theme::SPACE_6)
+                            .child(automatic)
+                            .children(samples),
+                    )
+                    .child(
+                        controls::text_field(
+                            &AnyInputState::Input(self.inspector.text_colour_input.clone()),
+                            theme::BG_FIELD,
+                            window,
+                            cx,
+                        )
+                        .id("label-colour-field")
+                        .debug_selector(|| "label-colour-field".into()),
+                    )
+                    .child(form::help("Type #RRGGBB and push Return."))
+                    .into_any_element()],
+                window,
+                cx.listener(|view, _, window, cx| {
+                    view.close_kinds();
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                }),
+            )
+        });
+        div()
+            .relative()
+            .flex_shrink_0()
+            .child(
+                controls::colour_button("label-colour", sample_fill(shown), open, tooltip)
+                    .on_click(cx.listener(move |view, _, window, cx| {
+                        view.close_kinds();
+                        if open {
+                            view.focus_workspace(window, cx);
+                        } else {
+                            view.inspector.text_colour_open = true;
+                            let text = current.map(colour_text).unwrap_or_default();
+                            let input = view.inspector.text_colour_input.clone();
+                            input.update(cx, |input, cx| {
+                                input.set_value(text, window, cx);
+                                input.focus(window, cx);
+                            });
+                        }
+                        cx.notify();
+                    })),
+            )
+            .children(popover)
             .into_any_element()
     }
 

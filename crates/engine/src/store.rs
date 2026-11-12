@@ -17,22 +17,42 @@
 //! - An image of the user becomes a PNG copy in `images`. The profile does
 //!   not refer to the original file.
 
-//! ## Schema version 3
+//! ## Schema version 4
 //!
-//! Version 3 adds the key `model`: the model identifier of the descriptor.
+//! Version 4 adds the label options of a surface (issue #189):
+//!
+//! | Key | Value | With no key |
+//! |---|---|---|
+//! | `label_position` | `"top"`, `"middle"`, `"bottom"`, or `"none"` | The middle with no image, the bottom with an image |
+//! | `label_size` | The font size in pixels, from 10 to 40 | 20 |
+//! | `label_color` | `#RRGGBB` | Black or white, for the fill |
+//! | `label_bold` | `true` or `false` | `true` |
+//!
+//! The engine writes a key only if its value is not the value with no key.
+//! A file of version 1 to 3 has no label options, and loads with the look of
+//! the earlier versions.
+//!
+//! Version 3 added the key `model`: the model identifier of the descriptor.
 //! Version 2 added bindings. A file of version 1 or 2 loads with the model of
 //! the first descriptor (see [`crate::profile::default_model`]), and version 1
 //! loads with no bindings. Nothing else changes, so the load loses nothing.
-//! The next write writes version 3.
+//! The next write writes version 4.
+//!
+//! A later task can add more keys to version 4 (for example the icon of a
+//! surface, #190, and the background of a page, #191), if no release of
+//! OpenCraft writes version 4 before that task. Else the task increases the
+//! version.
 //!
 //! ```toml
-//! schema_version = 3
+//! schema_version = 4
 //! name = "Default"
 //! model = "n4-pro"
 //! [[pages]]
 //! name = "Page 1"
 //! [pages.surfaces.key-face-3]
 //! label = "Mail"
+//! label_position = "top"
+//! label_size = 14
 //! [pages.bindings.key-3.press]
 //! kind = "opencraft.hotkey"
 //! [pages.bindings.key-3.press.settings]
@@ -53,7 +73,8 @@ use crate::action::{Action, GestureKind};
 use crate::error::{Error, Result};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
-    default_model, parse_surface_key, surface_key, Color, Page, Profile, SurfaceContent,
+    default_model, parse_surface_key, surface_key, Color, LabelPosition, LabelStyle, Page, Profile,
+    SurfaceContent, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, ImageReader};
@@ -65,7 +86,13 @@ use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
 
 /// The schema version that this engine writes.
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 4;
+
+/// The first schema version with the label options of a surface.
+const LABEL_OPTIONS_VERSION: u32 = 4;
+
+/// The first schema version with the key `model`.
+const MODEL_VERSION: u32 = 3;
 
 /// The name of the profile file in the profile directory.
 pub const PROFILE_FILE: &str = "profile.toml";
@@ -425,7 +452,8 @@ struct Header {
     schema_version: u32,
 }
 
-/// The fields of schema versions 1, 2, and 3. Version 3 adds `model`.
+/// The fields of schema versions 1 to 4. Version 3 adds `model`, and
+/// version 4 adds the label options of a surface.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileData {
@@ -442,20 +470,87 @@ struct FileData {
 struct PageData {
     name: String,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    surfaces: BTreeMap<String, SurfaceV1>,
+    surfaces: BTreeMap<String, SurfaceData>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     bindings: BTreeMap<String, BTreeMap<GestureKind, Action>>,
 }
 
+/// The content of one surface. The keys that start with `label_` came in
+/// version 4.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct SurfaceV1 {
+struct SurfaceData {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_position: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_size: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_bold: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     image: Option<String>,
+}
+
+impl SurfaceData {
+    fn has_label_options(&self) -> bool {
+        self.label_position.is_some()
+            || self.label_size.is_some()
+            || self.label_color.is_some()
+            || self.label_bold.is_some()
+    }
+
+    /// The label style of the file data. The error text names the key.
+    fn label_style(&self) -> std::result::Result<LabelStyle, String> {
+        let default = LabelStyle::default();
+        let position = match &self.label_position {
+            None => None,
+            Some(text) => Some(
+                LabelPosition::from_key(text)
+                    .ok_or_else(|| format!("label_position '{text}' is not a position"))?,
+            ),
+        };
+        let size = match self.label_size {
+            None => default.size,
+            Some(size) if (MIN_LABEL_SIZE..=MAX_LABEL_SIZE).contains(&size) => size,
+            Some(size) => {
+                return Err(format!(
+                    "label_size {size} is not from {MIN_LABEL_SIZE} to {MAX_LABEL_SIZE}"
+                ))
+            }
+        };
+        let color = match &self.label_color {
+            None => None,
+            Some(text) => Some(
+                text.parse::<Color>()
+                    .map_err(|e| format!("label_color '{text}': {e}"))?,
+            ),
+        };
+        Ok(LabelStyle {
+            position,
+            size,
+            color,
+            bold: self.label_bold.unwrap_or(default.bold),
+        })
+    }
+
+    fn from_content(content: &SurfaceContent) -> Self {
+        let style = content.label_style;
+        let default = LabelStyle::default();
+        Self {
+            label: content.label.clone(),
+            label_position: style.position.map(|p| p.key().to_string()),
+            label_size: (style.size != default.size).then_some(style.size),
+            label_color: style.color.map(|c| c.to_string()),
+            label_bold: (style.bold != default.bold).then_some(style.bold),
+            color: content.color.map(|c| c.to_string()),
+            image: content.image.clone(),
+        }
+    }
 }
 
 /// Read the text of a profile file.
@@ -468,11 +563,12 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         found => return Err(BackupReason::NewerSchema { found }),
     }
     let file: FileData = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
-    let model = match (header.schema_version, file.model) {
-        (SCHEMA_VERSION, Some(model)) if !model.is_empty() => model,
-        (SCHEMA_VERSION, _) => return Err(invalid("the file has no model".to_string())),
-        (_, None) => default_model().to_string(),
-        (version, Some(_)) => return Err(invalid(format!("version {version} has no model"))),
+    let version = header.schema_version;
+    let model = match (version >= MODEL_VERSION, file.model) {
+        (true, Some(model)) if !model.is_empty() => model,
+        (true, _) => return Err(invalid("the file has no model".to_string())),
+        (false, None) => default_model().to_string(),
+        (false, Some(_)) => return Err(invalid(format!("version {version} has no model"))),
     };
 
     let mut pages = Vec::new();
@@ -481,7 +577,7 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         for (key, surface) in page_file.surfaces {
             let id = parse_surface_key(&key)
                 .ok_or_else(|| invalid(format!("'{key}' is not a surface")))?;
-            let color = match surface.color {
+            let color = match &surface.color {
                 Some(text) => Some(
                     text.parse::<Color>()
                         .map_err(|e| invalid(format!("{key}: '{text}': {e}")))?,
@@ -495,9 +591,18 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
                     )));
                 }
             }
+            if version < LABEL_OPTIONS_VERSION && surface.has_label_options() {
+                return Err(invalid(format!(
+                    "{key}: version {version} has no label options"
+                )));
+            }
+            let label_style = surface
+                .label_style()
+                .map_err(|e| invalid(format!("{key}: {e}")))?;
             page.update(id, |content| {
                 *content = SurfaceContent {
                     label: surface.label,
+                    label_style,
                     color,
                     image: surface.image,
                 };
@@ -542,16 +647,7 @@ fn to_text(profile: &Profile) -> Result<String> {
                 },
                 surfaces: page
                     .surfaces()
-                    .map(|(id, content)| {
-                        (
-                            surface_key(id),
-                            SurfaceV1 {
-                                label: content.label.clone(),
-                                color: content.color.map(|c| c.to_string()),
-                                image: content.image.clone(),
-                            },
-                        )
-                    })
+                    .map(|(id, content)| (surface_key(id), SurfaceData::from_content(content)))
                     .collect(),
             })
             .collect(),
@@ -637,7 +733,7 @@ mod tests {
         let (_dir, store) = store();
         store.save(&sample()).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        let want = r##"schema_version = 3
+        let want = r##"schema_version = 4
 name = "Default"
 model = "n4-pro"
 
@@ -731,12 +827,12 @@ image = "images/4f1c2a9be07d3356.png"
     #[test]
     fn a_file_with_a_newer_schema_version_is_kept_as_a_backup() {
         let (_dir, store) = store();
-        let text = "schema_version = 4\nname = \"Later\"\nnew_field = true\n";
+        let text = "schema_version = 5\nname = \"Later\"\nnew_field = true\n";
         let loaded = load_text(&store, text.as_bytes());
 
         assert_eq!(loaded.profile, Profile::default());
         let backup = loaded.backup.unwrap();
-        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 4 });
+        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 5 });
         assert_eq!(backup.path, store.dir().join("profile.backup-1.toml"));
         // The content of the file did not change, and no profile file is
         // there until the next save.
@@ -764,6 +860,16 @@ image = "images/4f1c2a9be07d3356.png"
             b"schema_version = 3\nname = \"x\"\nmodel = \"\"\n",
             b"schema_version = 3\nname = \"x\"\nmodel = 4\n",
             b"schema_version = 2\nname = \"x\"\nmodel = \"n4-pro\"\n",
+            b"schema_version = 4\nname = \"x\"\n",
+            // Versions 1 to 3 have no label options, and version 4 checks
+            // each value.
+            b"schema_version = 3\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_bold = false\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_position = \"centre\"\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_size = 9\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_size = 41\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_size = 300\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_color = \"white\"\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_bold = \"yes\"\n",
         ];
         for (i, text) in cases.iter().enumerate() {
             let (_dir, store) = store();
@@ -822,12 +928,98 @@ name = "Second"
         // The load did not write the file.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
 
-        // The next write is version 3 with the same content and the model.
+        // The next write is version 4 with the same content and the model.
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 3\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
+        assert!(text.starts_with("schema_version = 4\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
         assert!(text.contains("hotkey = \"cmd+shift+4\""), "{text}");
+        assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, profile);
+    }
+
+    #[test]
+    fn a_version_three_file_loads_with_the_default_label_style() {
+        let (_dir, store) = store();
+        let old = r##"schema_version = 3
+name = "Old"
+model = "n4-pro"
+
+[[pages]]
+name = "Main"
+
+[pages.surfaces.key-face-3]
+label = "Mail"
+color = "#1E6FD9"
+image = "images/4f1c2a9be07d3356.png"
+
+[pages.surfaces.bar-panel-1]
+label = "Sound"
+"##;
+        let loaded = load_text(&store, old.as_bytes());
+        assert_eq!(loaded.backup, None);
+        let page = &loaded.profile.pages()[0];
+        for id in [KEY_3, BAR_1] {
+            assert_eq!(page.content(id).label_style, LabelStyle::default(), "{id}");
+        }
+        assert_eq!(page.content(KEY_3).label.as_deref(), Some("Mail"));
+        // The load did not write the file. The next write is version 4, and
+        // it writes no label option.
+        assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
+        store.save(&loaded.profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(text.starts_with("schema_version = 4\n"), "{text}");
+        assert!(!text.contains("label_"), "{text}");
+        assert_eq!(store.load().unwrap().profile, loaded.profile);
+    }
+
+    #[test]
+    fn the_label_options_save_with_their_text_form_and_load_again() {
+        let (_dir, store) = store();
+        let mut profile = sample();
+        let page = profile.page_mut(0).unwrap();
+        page.update(KEY_3, |c| {
+            c.label_style = LabelStyle {
+                position: Some(LabelPosition::Top),
+                size: 14,
+                color: Some(Color::rgb(0xFF, 0xCE, 0x73)),
+                bold: false,
+            }
+        });
+        page.update(BAR_1, |c| {
+            c.label_style.position = Some(LabelPosition::Hidden);
+        });
+        // Only a style, with no label.
+        let key_1 = SurfaceId::new(SurfaceKind::KeyFace, 1);
+        page.update(key_1, |c| {
+            c.label_style.position = Some(LabelPosition::Bottom)
+        });
+        store.save(&profile).unwrap();
+
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        let key_3 = r##"[pages.surfaces.key-face-3]
+label = "Mail"
+label_position = "top"
+label_size = 14
+label_color = "#FFCE73"
+label_bold = false
+color = "#1E6FD9"
+"##;
+        assert!(text.contains(key_3), "{text}");
+        assert!(text.contains("label_position = \"none\""), "{text}");
+        assert!(
+            text.contains("[pages.surfaces.key-face-1]\nlabel_position = \"bottom\"\n"),
+            "{text}"
+        );
+        assert_eq!(store.load().unwrap().profile, profile);
+        for position in LabelPosition::ALL {
+            let mut profile = Profile::default();
+            profile.page_mut(0).unwrap().update(KEY_3, |c| {
+                c.label = Some("x".into());
+                c.label_style.position = Some(position);
+            });
+            store.save(&profile).unwrap();
+            assert_eq!(store.load().unwrap().profile, profile, "{position:?}");
+        }
     }
 
     #[test]
