@@ -77,17 +77,19 @@ pub(crate) fn problem(sender: &Option<MessageSender>, result: Result<()>) {
     }
 }
 
-fn text<'a>(settings: &'a Settings, key: &str) -> Result<&'a str> {
-    match settings.get(key) {
+/// The text in the setting `key` of `action`. Empty text is a problem.
+fn text<'a>(action: &'a Action, key: &str) -> Result<&'a str> {
+    match action.settings.get(key) {
         Some(Value::Text(value)) if !value.is_empty() => Ok(value),
-        _ => Err(format!("Set {key} to text that is not empty.")),
+        _ => Err(setting_problem(&action.kind, key)),
     }
 }
 
-pub(crate) fn nonblank<'a>(settings: &'a Settings, key: &str) -> Result<&'a str> {
-    let value = text(settings, key)?;
+/// As [`text`], but text with only spaces and line ends is also a problem.
+pub(crate) fn nonblank<'a>(action: &'a Action, key: &str) -> Result<&'a str> {
+    let value = text(action, key)?;
     if value.trim().is_empty() {
-        Err(format!("Set {key} to text that is not empty."))
+        Err(setting_problem(&action.kind, key))
     } else {
         Ok(value)
     }
@@ -124,14 +126,14 @@ impl OpenHandler {
         match action.kind.as_str() {
             APPLICATION => self
                 .system
-                .open_application(nonblank(&action.settings, "application")?)
+                .open_application(nonblank(&action, "application")?)
                 .map_err(|e| format!("Cannot open the application: {e}.")),
             URL => self
                 .system
-                .open_url(nonblank(&action.settings, "url")?)
+                .open_url(nonblank(&action, "url")?)
                 .map_err(|e| format!("Cannot open the URL: {e}.")),
             SHELL => {
-                let command = nonblank(&action.settings, "command")?.to_string();
+                let command = nonblank(&action, "command")?.to_string();
                 // Make the waiter first. If its thread cannot start, no child
                 // exists that the system must remove.
                 let (children, child) = mpsc::channel::<Box<dyn ShellChild>>();
@@ -189,7 +191,7 @@ fn key_status(sender: &Option<MessageSender>, ready: bool) {
                 } else {
                     Status::NeedsUser {
                         text: "OpenCraft needs the Accessibility permission to send keys.".into(),
-                        button: "Give the permission".into(),
+                        button: PERMISSION_BUTTON.into(),
                     }
                 },
             },
@@ -203,22 +205,32 @@ enum KeyWork<'a> {
     Media(MediaKey),
 }
 
+/// The problem of a key action when OpenCraft does not have the permission
+/// to send keys. The three key kinds send the same text, so that the window
+/// shows it one time.
+pub(crate) fn no_permission() -> String {
+    format!(
+        "OpenCraft did not send the keys, because it does not have the Accessibility \
+         permission. Select the control, and click \"{PERMISSION_BUTTON}\" below the action."
+    )
+}
+
 fn key_work(action: &Action) -> Result<KeyWork<'_>> {
     Ok(match action.kind.as_str() {
         HOTKEY => KeyWork::Hotkey(
-            text(&action.settings, "hotkey")?
+            text(action, "hotkey")?
                 .parse()
-                .map_err(|e| format!("Cannot use the hotkey: {e}."))?,
+                .map_err(|_| setting_problem(HOTKEY, "hotkey"))?,
         ),
-        TEXT => KeyWork::Text(text(&action.settings, "text")?),
-        MEDIA => KeyWork::Media(match text(&action.settings, "key")? {
+        TEXT => KeyWork::Text(text(action, "text")?),
+        MEDIA => KeyWork::Media(match text(action, "key")? {
             "play-pause" => MediaKey::PlayPause,
             "next" => MediaKey::Next,
             "previous" => MediaKey::Previous,
             "volume-up" => MediaKey::VolumeUp,
             "volume-down" => MediaKey::VolumeDown,
             "mute" => MediaKey::Mute,
-            _ => return Err("Select a media key from the list.".into()),
+            _ => return Err(setting_problem(MEDIA, "key")),
         }),
         _ => return Err("This handler does not have that action kind.".into()),
     })
@@ -292,7 +304,9 @@ impl KeyHandler {
         let permitted = self.check_permission();
         let work = key_work(action)?;
         if !permitted {
-            return Ok(());
+            // The user must see the cause at the time of the gesture. The
+            // shell shows one message for the same text.
+            return Err(no_permission());
         }
         let result = match work {
             KeyWork::Hotkey(hotkey) => self.system.send_hotkey(&hotkey),
@@ -394,12 +408,12 @@ fn volume_settings(settings: &Settings) -> Result<(&str, u8)> {
     let operation = match settings.get("operation") {
         None => "up",
         Some(Value::Text(value)) if ["up", "down", "mute"].contains(&value.as_str()) => value,
-        _ => return Err("Select up, down, or mute for the sound volume.".into()),
+        _ => return Err(setting_problem(VOLUME, "operation")),
     };
     let step = match settings.get("step") {
         None => 5,
         Some(Value::Integer(step)) if (1..=25).contains(step) => *step as u8,
-        _ => return Err("Set the sound volume step to an integer from 1 to 25.".into()),
+        _ => return Err(setting_problem(VOLUME, "step")),
     };
     Ok((operation, step))
 }

@@ -98,7 +98,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
     assert!(system.calls().contains(&Call::Level(55)));
     // The same port reports invalid settings and resolves a kind status.
     send("open-url", invoke(action("open-url", &[])));
-    assert!(matches!(receive(), Message::Problem(text) if text.contains("url")));
+    assert!(matches!(receive(), Message::Problem(text) if text.contains("\"URL\"")));
     system
         .permission
         .store(false, std::sync::atomic::Ordering::SeqCst);
@@ -112,6 +112,9 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             }
         ));
     }
+    assert!(
+        matches!(receive(), Message::Problem(text) if text.contains("Accessibility permission"))
+    );
     system
         .permission
         .store(true, std::sync::atomic::Ordering::SeqCst);

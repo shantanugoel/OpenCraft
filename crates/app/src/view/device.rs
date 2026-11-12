@@ -280,30 +280,18 @@ impl DeviceView {
     }
 
     /// The area in place of the surface editor.
-    pub(super) fn device_editor(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn device_editor(&self, cx: &mut Context<Self>) -> Stateful<Div> {
         let mut editor = div()
             .id("device-settings")
             .debug_selector(|| "device-settings".into())
-            .w(px(272.))
-            .flex_shrink_0()
-            .h_full()
-            .overflow_y_scroll()
-            .flex()
-            .flex_col()
-            .gap_4()
-            .p_4()
-            .rounded_lg()
-            .bg(rgb(PANEL))
             .child(div().text_lg().child("Device settings"));
         let support = self.state.layout.as_ref().map(|l| l.settings);
         let (Some(support), Some(settings)) = (support, self.shown_settings()) else {
-            return editor
-                .child(
-                    div()
-                        .text_color(rgb(MUTED))
-                        .child("The device settings are not available yet."),
-                )
-                .into_any_element();
+            return editor.child(
+                div()
+                    .text_color(rgb(MUTED))
+                    .child("The device settings are not available yet."),
+            );
         };
         if let Some(slider) = &self.device.brightness {
             editor = editor.child(slider_row(
@@ -340,12 +328,10 @@ impl DeviceView {
         if support.knob_lights > 0 {
             editor = editor.child(self.knob_lights(settings, cx));
         }
-        editor
-            .child(div().text_xs().text_color(rgb(MUTED)).child(
-                "The engine keeps these settings for the device model, and sends them to the \
-                 device at each connection. You can change them with no device.",
-            ))
-            .into_any_element()
+        editor.child(div().text_xs().text_color(rgb(MUTED)).child(
+            "These settings are for all devices of this model. OpenCraft sends them to the \
+                 device each time that it connects.",
+        ))
     }
 
     fn knob_lights(&self, settings: &DeviceSettings, cx: &mut Context<Self>) -> AnyElement {

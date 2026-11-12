@@ -136,15 +136,22 @@ impl Transport for Shared {
 }
 
 /// A connector that gives the transports of a queue, in order. An empty
-/// queue means "the device is not present".
+/// queue means "the device is not present". While `refusals` is not zero,
+/// each try fails as when a different application holds the device, and
+/// counts down.
 struct FakeConnector {
     queue: Rc<RefCell<VecDeque<Shared>>>,
+    refusals: Rc<Cell<u32>>,
 }
 
 impl Connector for FakeConnector {
     type Transport = Shared;
 
     fn connect(&mut self) -> opencraft_core::Result<Option<Device<Shared>>> {
+        if self.refusals.get() > 0 {
+            self.refusals.set(self.refusals.get() - 1);
+            return Err(opencraft_core::Error::PermissionDenied);
+        }
         Ok(self.queue.borrow_mut().pop_front().map(|t| {
             let descriptor = t.descriptor;
             Device::new(t, descriptor)
@@ -178,6 +185,7 @@ struct Rig {
     engine: TestEngine,
     events: Rc<RefCell<Vec<Event>>>,
     queue: Rc<RefCell<VecDeque<Shared>>>,
+    refusals: Rc<Cell<u32>>,
     world: Rc<World>,
     dir: TempDir,
 }
@@ -210,9 +218,11 @@ impl Rig {
         });
         let queue = Rc::new(RefCell::new(VecDeque::new()));
         let events = Rc::new(RefCell::new(Vec::new()));
+        let refusals = Rc::new(Cell::new(0));
         let link = Link::with_clock(
             FakeConnector {
                 queue: Rc::clone(&queue),
+                refusals: Rc::clone(&refusals),
             },
             FakeClock {
                 world: Rc::clone(&world),
@@ -225,6 +235,7 @@ impl Rig {
             engine,
             events,
             queue,
+            refusals,
             world,
             dir,
         }
@@ -1188,4 +1199,22 @@ fn a_wake_with_no_device_sends_nothing_and_keeps_the_pending_write() {
 
     rig.poll_for(SAVE_DELAY);
     assert!(rig.profile_text().unwrap().contains("#C81E1E"));
+}
+
+#[test]
+fn a_device_that_a_different_application_holds_gives_one_problem_for_the_user() {
+    let mut rig = Rig::new();
+    rig.take_events();
+    // VSD Craft holds the device for some tries, and then quits.
+    rig.refusals.set(3);
+    rig.plug();
+    rig.poll_for(Duration::from_secs(5));
+    assert!(rig.engine.link().is_connected());
+    let events = rig.take_events();
+    let problems = problems(&events);
+    assert_eq!(problems.len(), 1, "{events:?}");
+    assert!(problems[0].contains("Quit VSD Craft"), "{}", problems[0]);
+    // The text of the device layer is for the log and the probe only.
+    assert!(!problems[0].contains("kIOReturn"), "{}", problems[0]);
+    assert!(events.contains(&Event::Connected));
 }

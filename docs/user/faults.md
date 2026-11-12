@@ -3,24 +3,28 @@
 ## Messages in the window
 
 When OpenCraft has a problem, the window shows a message at the bottom. The
-message stays until you click **Close** on it. A message that occurs when no
-window is open shows when you open the window.
+message stays until you click **Close** on it. If the same problem occurs
+again, the window shows the message one time only. A message that occurs
+when no window is open shows when you open the window. The log file also
+gets each message. See [The log file](background.md#the-log-file).
 
 | Message starts with | Cause | Correction |
 |---|---|---|
-| "Set … to …", "Select …" | An action has a setting that is missing or not correct | Select the control, and correct the setting of the action. See [Actions](actions.md). |
+| The name of an action kind and a colon, for example "Open a URL:" | An action has a setting that is missing or not correct. The message gives the field. | Select the control, and correct the field of the action. See [Actions](actions.md). |
+| "OpenCraft did not send the keys, because it does not have the Accessibility permission" | An action "Send a hotkey", "Type text", or "Media key" occurred, and OpenCraft does not have the permission | See [Give the Accessibility permission](install.md#give-the-accessibility-permission) |
 | "Cannot open the application" | macOS cannot find the application | Use the full name of the application, or click **Choose…** and select it |
 | "The shell command ends with code" | The command of "Run a shell command" stopped with an error | Run the command in Terminal to find the error. Give the full path of each program. |
 | "OpenCraft did not change the profile, because no profile has the name" | The action "Select a profile" names a profile that does not exist | Correct the name in the action, or rename the profile |
 | "The profile has no page" | The action "Change the page" names a page number that does not exist | Correct the page number |
-| "OpenCraft has a problem with the device" | OpenCraft cannot operate the device | See [The device is not found](#the-device-is-not-found) |
+| "A toggle or a sequence contains an action that this version of OpenCraft does not have" | A newer version of OpenCraft made the action | Select a different action in the toggle or the sequence |
+| "OpenCraft cannot open the device" | A different application, for example VSD Craft, holds the device | See [The vendor software runs](#the-vendor-software-runs) |
+| "OpenCraft found the device, but cannot open it", "OpenCraft has a problem with the device" | OpenCraft cannot operate the device | See [The device is not found](#the-device-is-not-found) |
 | "OpenCraft could not use the profile file" | The profile file has an error, or a newer version of OpenCraft wrote it | OpenCraft keeps the file with a different name, and starts with an empty profile. The message gives the name of the file. |
 | "OpenCraft could not use the image" | The file is not a PNG or JPEG image | Select a different file |
 
 ## The device is not found
 
-The connection shows "○ Not connected · You can edit", and the device does
-not change.
+The connection shows "○ Not connected", and the device does not change.
 
 1. Quit VSD Craft. See [The vendor software runs](#the-vendor-software-runs).
 2. Disconnect the USB cable of the device. Wait 5 seconds. Connect it again.
@@ -29,16 +33,17 @@ not change.
 4. Wait some seconds. OpenCraft looks for the device each second. You do not
    have to start OpenCraft again.
 
-If the window shows a message that starts with "OpenCraft has a problem with
-the device", read the full message. It gives the cause and the correction.
+If the window shows a message about the device, read the full message. It
+gives the correction. The log file gives the technical cause. See
+[The log file](background.md#the-log-file).
 
 ## The vendor software runs
 
 Two applications must not operate one device at the same time. If VSD Craft
 runs, these problems can occur:
 
-- OpenCraft cannot open the device. The window can show a message that says
-  that the operating system refused access to the device.
+- OpenCraft cannot open the device. The window shows the message "OpenCraft
+  cannot open the device".
 - The device shows the images of one application, and then of the other.
 - One gesture does an action in the two applications.
 
@@ -50,8 +55,12 @@ To correct the problem:
 
 ## "OpenCraft is already running."
 
-OpenCraft already runs, and a second start stopped. This is correct. Only
-one OpenCraft can operate the device.
+OpenCraft already runs, and a second start from the Terminal stopped. This is
+correct. Only one OpenCraft can operate the device. The OpenCraft that runs
+opens its window.
+
+If the message continues with "To open its window, click the OpenCraft item
+in the menu bar":
 
 1. Click the OpenCraft item in the menu bar.
 2. Click **Open OpenCraft**.
@@ -75,13 +84,14 @@ OpenCraft, and quit it.
    button with the blue frame is the active page.
 6. For "Send a hotkey", "Type text", and "Media key": make sure that
    OpenCraft has the Accessibility permission. If it does not have the
-   permission, these actions do nothing, and the window shows no message at
+   permission, these actions do nothing, and the window shows a message at
    the bottom. See
    [Give the Accessibility permission](install.md#give-the-accessibility-permission).
-7. If the editor shows "This action is not available", this version of
-   OpenCraft does not know the action kind. OpenCraft keeps the action in the
-   profile. Select a different action kind, or use the version of OpenCraft
-   that made the action.
+7. If the action button shows **Unknown action**, this version of OpenCraft
+   does not have the action kind. A newer version of OpenCraft made the
+   action. OpenCraft keeps the action in the profile. Select a different
+   action kind, or use a newer version of OpenCraft. The small text "Action
+   identifier" gives the name of the action kind in the profile file.
 
 If a hotkey operates in some applications only, the application in front can
 ignore that hotkey. Try the hotkey on the keyboard of the computer.
@@ -104,8 +114,8 @@ do the action again.
 - If OpenCraft started at login, it opens no window. Click the menu bar item,
   and click **Open OpenCraft**.
 - If OpenCraft already runs and you closed its window, a new start from the
-  Applications folder can show no window. Click the menu bar item, and click
-  **Open OpenCraft**.
+  Applications folder or a click on the Dock icon opens the window. If no
+  window opens, click the menu bar item, and click **Open OpenCraft**.
 
 ## Report a fault
 

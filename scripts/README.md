@@ -7,6 +7,7 @@ This directory holds the scripts for work on the computer of a developer.
 | `measure-footprint.sh` | Measures the memory and the processor use of all processes of one application |
 | `sign-dev.sh` | Builds the GUI application as a bundle and signs it with a stable identity, so that macOS keeps the Accessibility permission |
 | `release.sh` | Makes the release: the signed bundle, the disk image, the notarization, and the checksum. See [decision 0025](../docs/decisions/0025-release-form.md). |
+| `notices.sh` | Makes and checks `THIRD-PARTY-NOTICES.txt`, the licence notices of the dependencies. See [decision 0026](../docs/decisions/0026-licence-notices.md). |
 | `homebrew-cask.sh` | Writes the Homebrew cask file for one release. See [decision 0027](../docs/decisions/0027-homebrew-cask.md). |
 | `make-icon.swift` | Draws the application icon `assets/macos/OpenCraft.icns` |
 | `record-input.sh` | Records the input reports of each control of the N4 Pro. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
@@ -216,9 +217,42 @@ checks:
 
 ### The licence notices
 
-If the file `THIRD-PARTY-NOTICES.txt` is in the root of the repository, the
-script copies it into `OpenCraft.app/Contents/Resources/`. Issue
-[#146](https://github.com/shantanugoel/OpenCraft/issues/146) makes that file.
+Before the build, the script compares the key in `THIRD-PARTY-NOTICES.txt`
+with the key of the crates of `Cargo.lock` (`scripts/notices.sh --key`). It
+stops if the file is missing or the keys are not the same. Then run
+`scripts/notices.sh` and commit the file. The script copies the file into
+`OpenCraft.app/Contents/Resources/`, and stops if the bundle has no file.
+
+## notices.sh
+
+The script makes `THIRD-PARTY-NOTICES.txt` in the root of the repository:
+the licence texts of the crates that the release executable contains. The
+decision is [decision 0026](../docs/decisions/0026-licence-notices.md). The
+facts are in [kb/dependency-licences.md](../docs/kb/dependency-licences.md).
+
+It needs `cargo-about` and `jq`. Install `cargo-about` one time, and fetch
+the crates of all platforms one time:
+
+```sh
+cargo install cargo-about --locked --features cli
+cargo fetch --locked
+```
+
+```sh
+scripts/notices.sh           # write THIRD-PARTY-NOTICES.txt
+scripts/notices.sh --check   # compare; CI uses this
+scripts/notices.sh --key     # print the key; release.sh uses this
+```
+
+Run the script and commit the file when `Cargo.lock` or `about.toml`
+changes. CI fails if the file is not correct.
+
+If `cargo-about` stops with a checksum error for a clarification, a crate
+changed its licence file. Read the new file, and change the entry in
+`about.toml`. If `cargo-about` or `cargo deny` stops for a licence that is
+not accepted, read the duties of that licence first. Write them in
+[kb/dependency-licences.md](../docs/kb/dependency-licences.md), and add the
+licence to `deny.toml` and to `about.toml` only if the owner accepts it.
 
 ## homebrew-cask.sh
 

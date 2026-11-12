@@ -33,6 +33,7 @@ measurement. The other documents link to these facts and do not repeat them.
 | [footprint.md](footprint.md) | The footprint of OpenCraft: memory, processor use, and start time |
 | [macos-permissions.md](macos-permissions.md) | macOS privacy permissions that apply to OpenCraft |
 | [macos-start-at-login.md](macos-start-at-login.md) | LaunchAgent files, background items, and SMAppService for a start at login |
+| [dependency-licences.md](dependency-licences.md) | The licences of the crates in the release executable, their duties, and the tools for the notices |
 | [macos-distribution.md](macos-distribution.md) | The release bundle: signature, hardened runtime, disk image, notarization, and the lowest macOS version |
 | [homebrew.md](homebrew.md) | Homebrew: the rules for a cask, taps, the cask stanzas, and the files that OpenCraft makes |
 | [hidapi-macos.md](hidapi-macos.md) | What `hidapi` on macOS does at a disconnection, and after an error |

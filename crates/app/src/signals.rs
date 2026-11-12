@@ -1,7 +1,10 @@
 //! SIGTERM, SIGINT, and SIGHUP start the quit path (decisions 0020 and 0022).
+//! SIGUSR1 opens the window: a second start of OpenCraft sends it (decision
+//! 0028).
 //!
 //! The signal handler only writes one byte to a pipe. One thread reads the
-//! pipe and sends the quit command to the shell. The application does not
+//! pipe and sends the quit command, or the command to open the window, to the
+//! shell. The application does not
 //! block the signals: a child process gets the blocked mask, and then does not
 //! stop at SIGTERM. See `docs/kb/gpui.md`, "Quit".
 
@@ -13,6 +16,9 @@ use std::{
 
 /// The signals that start the quit path.
 pub const SIGNALS: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
+
+/// The signal that opens the window, or brings it to the front.
+pub const OPEN_SIGNAL: libc::c_int = libc::SIGUSR1;
 
 /// The end of the pipe that the handler writes to.
 static PIPE: AtomicI32 = AtomicI32::new(-1);
@@ -27,10 +33,23 @@ extern "C" fn on_signal(signal: libc::c_int) {
     }
 }
 
-/// Set the handlers for [`SIGNALS`], and start the thread that sends
-/// `ShellCommand::Quit` on `commands` for each signal.
+/// Set the handlers for [`SIGNALS`] and [`OPEN_SIGNAL`], and start the thread
+/// that sends `ShellCommand::Quit` or `ShellCommand::Open` on `commands` for
+/// each signal.
+///
+/// Call this before the lock file gets the number of this process. Without a
+/// handler, SIGUSR1 stops the process.
 pub fn forward(commands: async_channel::Sender<ShellCommand>) -> io::Result<()> {
-    forward_signals(&SIGNALS, commands)
+    forward_signals(&[SIGNALS[0], SIGNALS[1], SIGNALS[2], OPEN_SIGNAL], commands)
+}
+
+/// The command for a signal.
+fn command(signal: u8) -> ShellCommand {
+    if signal == OPEN_SIGNAL as u8 {
+        ShellCommand::Open
+    } else {
+        ShellCommand::Quit
+    }
 }
 
 /// Call this function one time only in a process.
@@ -64,8 +83,15 @@ fn forward_signals(
             // that `pipe` made.
             let count = unsafe { libc::read(read, (&mut byte as *mut u8).cast(), 1) };
             if count == 1 {
-                eprintln!("OpenCraft got signal {byte}, and quits.");
-                if commands.send_blocking(ShellCommand::Quit).is_err() {
+                let command = command(byte);
+                if command == ShellCommand::Open {
+                    eprintln!(
+                        "OpenCraft got signal {byte} from a second start, and opens its window."
+                    );
+                } else {
+                    eprintln!("OpenCraft got signal {byte}, and quits.");
+                }
+                if commands.send_blocking(command).is_err() {
                     return;
                 }
             } else if count == 0 || io::Error::last_os_error().kind() != io::ErrorKind::Interrupted
@@ -94,21 +120,26 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
-    fn a_signal_sends_one_quit_command() {
-        // SIGUSR1 keeps the usual result of SIGTERM and SIGINT for the
+    fn a_signal_sends_one_quit_command_and_sigusr1_one_open_command() {
+        // SIGUSR2 keeps the usual result of SIGTERM and SIGINT for the
         // test program.
         let (sender, receiver) = async_channel::unbounded();
-        forward_signals(&[libc::SIGUSR1], sender).unwrap();
-        // SAFETY: the handler for SIGUSR1 is set.
-        unsafe { libc::raise(libc::SIGUSR1) };
-        let start = Instant::now();
-        loop {
-            match receiver.try_recv() {
-                Ok(command) => break assert_eq!(command, ShellCommand::Quit),
-                Err(_) if start.elapsed() < Duration::from_secs(5) => {
-                    std::thread::sleep(Duration::from_millis(10))
+        forward_signals(&[libc::SIGUSR2, OPEN_SIGNAL], sender).unwrap();
+        for (signal, expected) in [
+            (libc::SIGUSR2, ShellCommand::Quit),
+            (OPEN_SIGNAL, ShellCommand::Open),
+        ] {
+            // SAFETY: the handler for the signal is set.
+            unsafe { libc::raise(signal) };
+            let start = Instant::now();
+            loop {
+                match receiver.try_recv() {
+                    Ok(command) => break assert_eq!(command, expected),
+                    Err(_) if start.elapsed() < Duration::from_secs(5) => {
+                        std::thread::sleep(Duration::from_millis(10))
+                    }
+                    Err(error) => panic!("No command for signal {signal}: {error}"),
                 }
-                Err(error) => panic!("No quit command: {error}"),
             }
         }
         assert!(receiver.try_recv().is_err());

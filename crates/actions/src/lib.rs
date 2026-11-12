@@ -2,6 +2,8 @@
 //!
 //! [`handlers`] gives the built-in handlers to the program that starts the
 //! engine. Each handler checks its settings and sends problems as messages.
+//! A problem with a setting names the action and the field as the editor
+//! shows them: see `descriptions::setting_problem`.
 //! Long shell commands and sequences do not delay the next request. Helper
 //! threads stop when their handler stops. A sequence ends after its last
 //! action. The volume helper also stops when no binding
@@ -9,7 +11,9 @@
 //! The volume handler uses field defaults for missing settings.
 //!
 //! The key handler sends Ready at the start if it has the permission. It
-//! sends NeedsUser otherwise. It checks the permission at each Invoke.
+//! sends NeedsUser otherwise. It checks the permission at each Invoke. With
+//! no permission, an Invoke also sends a problem, so that the user sees the
+//! cause at the time of the gesture.
 //!
 //! Tests use [`handlers_with_system`] and a fake [`backend::System`]. No
 //! handler test needs a device or changes the real system.

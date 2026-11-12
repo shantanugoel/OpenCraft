@@ -58,6 +58,11 @@ command.
 that the settings agree with the fields. A handler must accept settings that
 are incomplete or incorrect, and it sends a Problem message when it cannot
 use them.
+Note (2026-11-12): the built-in handlers make the text of such a problem from
+the description of the kind: the name of the kind, the label of the field,
+and what to do for its input type. The text never shows the key
+(`setting_problem` in `crates/actions/src/descriptions.rs`, issue
+[#162](https://github.com/shantanugoel/OpenCraft/issues/162)).
 
 **Status of a kind.** A handler can send a Status message for a kind:
 

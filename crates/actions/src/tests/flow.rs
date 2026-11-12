@@ -90,9 +90,15 @@ fn incorrect_page_settings_are_problems_without_a_request() {
     let mut rig = Rig::new("page", true);
     let number = || ("target", Value::Text("number".into()));
     for (settings, contains) in [
-        (vec![("target", Value::Text("sideways".into()))], "page"),
-        (vec![("target", Value::Integer(1))], "page"),
-        (vec![number(), ("page", Value::Integer(0))], "1 to 100"),
+        (
+            vec![("target", Value::Text("sideways".into()))],
+            "Change the page: select a value in the field \"Page\".",
+        ),
+        (vec![("target", Value::Integer(1))], "the field \"Page\""),
+        (
+            vec![number(), ("page", Value::Integer(0))],
+            "Change the page: set the field \"Page number\" to a number from 1 to 100.",
+        ),
         (vec![number(), ("page", Value::Integer(101))], "1 to 100"),
         (
             vec![number(), ("page", Value::Text("2".into()))],
@@ -118,10 +124,10 @@ fn a_profile_selection_asks_the_engine_with_the_name_of_the_user() {
         })
     );
     rig.invoke(action("profile", &[]));
-    rig.problem("profile");
+    rig.problem("Select a profile: type a value in the field \"Profile name\".");
     for bad in [Value::Text("  ".into()), Value::Integer(1)] {
         rig.invoke(action("profile", &[("profile", bad)]));
-        rig.problem("profile");
+        rig.problem("the field \"Profile name\"");
     }
     rig.none();
 }
@@ -274,15 +280,31 @@ fn a_toggle_in_a_toggle_keeps_its_own_state() {
 fn incorrect_toggle_settings_are_problems_and_change_nothing() {
     let mut rig = Rig::new("toggle", true);
     let kind_only = |kind: Value| Value::Table(Settings::from([("kind".into(), kind)]));
-    for (key, bad) in [
-        ("on", Value::Text("opencraft.hotkey".into())),
-        ("on", kind_only(Value::Text("".into()))),
-        ("off", kind_only(Value::Integer(3))),
-        ("off", Value::List(vec![])),
-        ("on_label", Value::Integer(1)),
+    for (key, bad, text) in [
+        (
+            "on",
+            Value::Text("opencraft.hotkey".into()),
+            "Toggle: select the action in the field \"Action for on\" again.",
+        ),
+        (
+            "on",
+            kind_only(Value::Text("".into())),
+            "the field \"Action for on\"",
+        ),
+        (
+            "off",
+            kind_only(Value::Integer(3)),
+            "the field \"Action for off\"",
+        ),
+        ("off", Value::List(vec![]), "the field \"Action for off\""),
+        (
+            "on_label",
+            Value::Integer(1),
+            "Toggle: type a value in the field \"Label for on\".",
+        ),
     ] {
         rig.invoke_at(1, action("toggle", &[(key, bad)]));
-        rig.problem(key);
+        rig.problem(text);
     }
     rig.none();
     // The state did not change: the next correct Invoke turns it on.
@@ -359,29 +381,34 @@ fn a_sequence_does_not_delay_the_next_request() {
 fn incorrect_sequence_settings_are_problems_without_a_request() {
     let mut rig = Rig::new("sequence", true);
     let good = Action::list_to_value(&[nested(1)]);
+    let delay = "Sequence of actions: set the field \"Delay between two actions, in \
+                 milliseconds\" to a number from 0 to 10000.";
     for (fields, contains) in [
-        (vec![("actions", Value::Text("x".into()))], "actions"),
+        (
+            vec![("actions", Value::Text("x".into()))],
+            "Sequence of actions: select the action in the field \"Actions\" again.",
+        ),
         (
             vec![(
                 "actions",
                 Value::List(vec![nested(1).to_value(), Value::Integer(2)]),
             )],
-            "actions",
+            "the field \"Actions\"",
         ),
         (
             vec![("actions", good.clone()), ("delay_ms", Value::Integer(-1))],
-            "delay_ms",
+            delay,
         ),
         (
             vec![
                 ("actions", good.clone()),
                 ("delay_ms", Value::Integer(10_001)),
             ],
-            "delay_ms",
+            delay,
         ),
         (
             vec![("actions", good), ("delay_ms", Value::Text("100".into()))],
-            "delay_ms",
+            delay,
         ),
     ] {
         rig.invoke(action("sequence", &fields));

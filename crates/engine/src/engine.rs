@@ -59,13 +59,36 @@ pub const SAVE_DELAY: Duration = Duration::from_millis(500);
 /// Write one line about the device to standard error, with the time of the
 /// system clock in seconds since 1970. The engine writes a line only for an
 /// event that is not frequent: a connection, a disconnection, a wake of the
-/// computer, a full draw, and the stop.
+/// computer, a full draw, the stop, each problem for the shell, and the
+/// detail of an error of the device.
 /// A person can read the result of a test on the device from a log file.
 fn log(text: &str) {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     eprintln!("opencraft-engine {:.3} {text}", now.as_secs_f64());
+}
+
+/// The text for the user about an error of the device: what occurred, and
+/// what to do. The text of the device layer names internal things, for
+/// example a return code of macOS, and it goes only to the log.
+fn device_problem(error: &DeviceError) -> &'static str {
+    match error {
+        DeviceError::PermissionDenied => {
+            "OpenCraft cannot open the device. A different application can hold it, for \
+             example VSD Craft. Quit VSD Craft. Then disconnect the device, and connect it \
+             again."
+        }
+        DeviceError::NoVendorInterface | DeviceError::DeviceNotFound => {
+            "OpenCraft found the device, but cannot open it. Disconnect the device, and \
+             connect it again."
+        }
+        DeviceError::Disconnected => "The device is disconnected. Connect the device again.",
+        _ => {
+            "OpenCraft has a problem with the device. Disconnect the device, and connect it \
+             again. If the problem stays, the log file has the details."
+        }
+    }
 }
 
 /// A command from a shell to the engine.
@@ -823,8 +846,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 let kind = action.kind.clone();
                 if !self.request(&kind, Request::Invoke { binding, action }) {
                     self.problem(format!(
-                        "OpenCraft cannot do the action '{kind}', because no handler has \
-                         this kind."
+                        "A toggle or a sequence contains an action that this version of \
+                         OpenCraft does not have ({kind}). Select a different action in it."
                     ));
                 }
             }
@@ -1531,17 +1554,50 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.link.clock().now()
     }
 
+    /// Tell the shell about a problem, and write it to the log.
     fn problem(&mut self, text: String) {
+        log(&format!("problem: {text}"));
         (self.sink)(Event::Problem(text));
     }
 
     /// Tell the shell about an error of the link. An error that stays gives
     /// one event, not one event for each try.
+    ///
+    /// The shell gets a text that tells the user what to do. The log gets the
+    /// text of the device layer, which is for a developer, as the probe shows
+    /// it.
     fn link_error(&mut self, error: &DeviceError) {
-        let text = format!("OpenCraft has a problem with the device: {error}");
-        if self.link_problem.as_deref() != Some(&text) {
-            self.link_problem = Some(text.clone());
-            self.problem(text);
+        let detail = error.to_string();
+        if self.link_problem.as_deref() != Some(&detail) {
+            log(&format!("device error: {}", detail.replace('\n', " ")));
+            self.link_problem = Some(detail);
+            self.problem(device_problem(error).to_string());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_device_problem_tells_the_user_what_to_do_with_no_internal_names() {
+        let errors = [
+            DeviceError::PermissionDenied,
+            DeviceError::NoVendorInterface,
+            DeviceError::DeviceNotFound,
+            DeviceError::Disconnected,
+            DeviceError::Transport("write failed".into()),
+            DeviceError::ShortReport(3),
+            DeviceError::NoSuchSlot(99),
+        ];
+        for error in &errors {
+            let text = device_problem(error);
+            for internal in ["opencraft-probe", "kIOReturn", "vendor interface", "HID"] {
+                assert!(!text.contains(internal), "{text}");
+            }
+            assert!(text.contains("connect"), "{text}");
+        }
+        assert!(device_problem(&DeviceError::PermissionDenied).contains("Quit VSD Craft"));
     }
 }
