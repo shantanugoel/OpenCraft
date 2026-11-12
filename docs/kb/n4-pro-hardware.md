@@ -346,7 +346,7 @@ are in [Knob lights](#knob-lights).
 
 ## Not known
 
-Phase 1 did not answer these questions. Each question has a reason.
+The project did not answer these questions. Each question has a reason.
 
 | Question | Reason that it stays |
 |---|---|
@@ -359,6 +359,7 @@ Phase 1 did not answer these questions. Each question has a reason.
 | What the other settings in "Device settings" do | No feature needs them. |
 | Why the knob lights show red after `DC` and `DIS` | OpenCraft sends the colours after each `DIS`, so the cause has no effect. |
 | Whether the device keeps its images when the computer sleeps and wakes | The owner deferred this check on 2026-11-11. It is now in issue [#143](https://github.com/shantanugoel/OpenCraft/issues/143). The engine draws all surfaces again after each wake ([decision 0023](../decisions/0023-wake-from-the-sleep-time-of-the-clocks.md)), so the engine does not depend on the answer. |
+| Whether a colour on a key face looks the same on the device as in the window | In the new-user test of Phase 6 (issue [#152](https://github.com/shantanugoel/OpenCraft/issues/152)), the teal of key 1 looked like a bright cyan in the camera picture. The yellow of an image looked correct. The camera can change colours. The owner can compare the device and the window with the eye. |
 
 ## Sources
 

@@ -267,8 +267,18 @@ fn kinds_defaults_no_action_gestures_and_control_selection(cx: &mut TestAppConte
     tx.try_send(Event::Kinds(vec![kind()])).unwrap();
     cx.run_until_parked();
     click(cx, "surface-key face 2");
+    // A focus in the label field does not stay after a click in the list.
+    cx.update(|window, cx| {
+        let input = view.read(cx).input.clone();
+        window.focus(&input.focus_handle(cx), cx);
+    });
+    cx.run_until_parked();
     click(cx, "action-kind");
     click(cx, "kind-0");
+    cx.update(|window, cx| {
+        let input = view.read(cx).input.clone();
+        assert!(!input.focus_handle(cx).is_focused(window));
+    });
     let defaults = Action {
         kind: "test.kind".into(),
         settings: kind()

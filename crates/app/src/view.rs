@@ -283,6 +283,17 @@ impl DeviceView {
         .detach();
     }
 
+    /// The surface with the blue frame of the selection. The device settings
+    /// are not for a surface, thus no surface has the frame while they show.
+    pub(crate) fn framed_surface(&self) -> Option<SurfaceId> {
+        self.state.selected.filter(|_| !self.device.open)
+    }
+
+    /// The control with no surface that has the blue frame of the selection.
+    pub(crate) fn framed_control(&self) -> Option<ControlId> {
+        self.state.selected_control.filter(|_| !self.device.open)
+    }
+
     fn surface(
         &self,
         surface: opencraft_engine::SurfaceLayout,
@@ -317,7 +328,7 @@ impl DeviceView {
                     .border_3()
                     .border_color(rgb(if active {
                         ACTIVE
-                    } else if self.state.selected == Some(id) {
+                    } else if self.framed_surface() == Some(id) {
                         SELECTED
                     } else {
                         BORDER
@@ -398,7 +409,7 @@ impl DeviceView {
                         .border_2()
                         .border_color(rgb(if highlight.is_some() {
                             ACTIVE
-                        } else if self.state.selected_control == Some(id) {
+                        } else if self.framed_control() == Some(id) {
                             SELECTED
                         } else {
                             BORDER
@@ -499,7 +510,7 @@ impl DeviceView {
                         .border_2()
                         .border_color(rgb(if highlight.is_some() {
                             ACTIVE
-                        } else if self.state.selected_control == Some(id) {
+                        } else if self.framed_control() == Some(id) {
                             SELECTED
                         } else {
                             BORDER

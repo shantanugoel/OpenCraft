@@ -34,9 +34,20 @@ with no vendor software.
 - Device settings: display brightness, haptic feedback, and knob lights.
 - A defined state when OpenCraft stops: the device goes dark.
 - A log file, `opencraft.log`, when the process has no terminal.
+- A second start of OpenCraft opens the window of the OpenCraft that runs.
+- Messages in the window that tell the user what to do, with no words for
+  developers.
+- A signed and notarized disk image for Mac computers with Apple silicon.
+- A Homebrew cask in the tap `shantanugoel/opencraft`.
+- The menu bar item shows the version of OpenCraft, and opens the licence
+  notices of the dependencies.
+- A user guide in `docs/user/`.
 
 ### Known limits
 
 - Only the N4 Pro is supported.
-- The application is not signed or notarized. There is no installer.
-- A key event, a hotkey, or a text action needs the Accessibility permission.
+- Only Mac computers with Apple silicon and macOS 12 or later. The project
+  tested OpenCraft on macOS 27 only.
+- "Send a hotkey", "Type text", and "Media key" need the Accessibility
+  permission.
+- OpenCraft has no plug-ins.

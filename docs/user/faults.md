@@ -132,7 +132,8 @@ occurred. Attach the log file if you have one. See
 | VSD StreamDock N4 Pro (VSDinside) | Supported. Tested on the device. |
 | Mirabox StreamDock N4 Pro, Mirabox StreamDock N4 Pro E | OpenCraft knows these models, because they have the same layout. Nobody tested them. |
 
-The platform is macOS on a Mac with Apple silicon.
+The Mac and the macOS version that OpenCraft needs are in
+[What you need](install.md#what-you-need).
 
 ## Limits
 

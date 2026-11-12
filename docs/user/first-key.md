@@ -29,7 +29,8 @@ remove the label, delete the text in the field.
 ## 3. Set an image (optional)
 
 1. Below **Image**, click **Select image…**.
-2. In the file dialog, select a PNG or JPEG file, and click **Open**.
+2. In the file dialog, select a PNG or JPEG file, and click
+   **Select an image**.
 
 The key face shows the image above the label. A transparent part of the image
 shows the colour of the key face.
@@ -46,11 +47,15 @@ Below **Action**, the editor shows the gestures of the key: **Press** and
 push the key down. An action on **Release** occurs when you let the key come
 back up. Most actions are on **Press**.
 
-1. Click **No action ▾**. The list of the action kinds opens.
+1. Click **No action ▾**. The list of the action kinds opens. The list is
+   longer than the editor. Scroll the editor to see all action kinds.
 2. Click **Open a URL**.
 3. Click the field **URL**. Type `https://example.com`.
 
-A gesture that has an action shows a dot, for example **Press •**.
+A gesture that has an action shows a dot, for example **Press •**. The
+action "Open a URL" does not need a permission of macOS.
+
+![Key 1 with a label, a colour, and the action "Open a URL"](images/first-key.png)
 
 ![The editor with the sound volume action on knob 1](images/action-editor.png)
 

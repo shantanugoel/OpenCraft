@@ -33,7 +33,7 @@ body:
     id: device
     attributes:
       label: Device model and firmware
-      description: "`opencraft-probe identify` shows the firmware. Do not write the serial number."
+      description: "Write the firmware if you know it. With a build from the source, `opencraft-probe identify` shows it. Quit OpenCraft first, because the command opens the device. Do not write the serial number."
       placeholder: "For example: VSD StreamDock N4 Pro, V4.VSD N4 Pro.02.010"
     validations:
       required: true

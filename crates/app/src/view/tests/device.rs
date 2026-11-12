@@ -85,6 +85,15 @@ fn the_area_shows_the_engine_settings_and_works_with_no_device(cx: &mut TestAppC
     // The surface editor comes back when the user selects a surface.
     click(cx, "surface-key face 2");
     assert!(cx.debug_bounds("device-settings").is_none());
+    cx.update(|_, cx| assert_eq!(view.read(cx).framed_surface(), Some(key())));
+    // While the device settings show, the selected key has no frame.
+    click(cx, "open-device-settings");
+    cx.update(|_, cx| {
+        assert_eq!(view.read(cx).framed_surface(), None);
+        assert_eq!(view.read(cx).framed_control(), None);
+    });
+    click(cx, "surface-key face 2");
+    cx.update(|_, cx| assert_eq!(view.read(cx).framed_surface(), Some(key())));
     assert!(cx.debug_bounds("editor").is_some());
     assert!(sent_settings(&sent).is_empty());
 }

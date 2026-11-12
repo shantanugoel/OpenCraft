@@ -76,7 +76,8 @@ are:
   reads the file at the next login, as for a start from the menu
   ([decision 0021](0021-start-at-login.md)).
 - **No `--no-quarantine`.** Homebrew has deprecated it. The installed bundle
-  keeps the quarantine attribute (measured). The notarization is what lets Gatekeeper accept the quarantined bundle.
+  keeps the quarantine attribute (measured). Gatekeeper accepts the
+  quarantined bundle because Apple notarized it.
 
 ## Results
 

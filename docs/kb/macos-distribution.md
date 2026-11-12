@@ -26,8 +26,9 @@ notarization is measured.
 | Before notarization, `spctl --assess --type exec` rejects the bundle, and `spctl --assess --type open --context context:primary-signature` rejects the disk image. Both give `source=Unnotarized Developer ID`. | Measured | `spctl` |
 | The release bundle is 22 MB. The disk image (UDZO) is 12 MB. | Measured | `du -sh`, 2026-11-12 |
 | `hdiutil verify` gives a valid checksum. The image has `OpenCraft.app` and a link `Applications` to `/Applications`. | Measured | `hdiutil attach` |
+| The volume of the disk image has the name `OpenCraft <version>`, for example `OpenCraft 0.1.0`. It holds only `OpenCraft.app` and the link `Applications`. It has no `.DS_Store` file, thus the Finder shows its default view and no window layout. | Measured | `hdiutil attach -nobrowse` and `ls -la` of the disk image of `main`, 2026-11-12 (new-user test, issue [#152](https://github.com/shantanugoel/OpenCraft/issues/152)) |
 | A UDZO disk image mounts read-only, also with no `-readonly` option. | Measured | `mount` |
-| On macOS 27.2, `hdiutil create` and `hdiutil attach` print a warning that they are deprecated, and give `diskutil image` as the replacement. They still make and mount the image. | Measured | `hdiutil` |
+| On macOS 27.2, `hdiutil create`, `hdiutil attach`, and `hdiutil detach` print a warning that they are deprecated, and give `diskutil image` or `diskutil eject` as the replacement. They still make, mount, and eject the image. | Measured | `hdiutil` |
 | `icns` files from `iconutil` are the same, byte for byte, for two runs of `scripts/make-icon.swift`. | Measured | `cmp` |
 
 ## The lowest macOS version
@@ -116,6 +117,11 @@ number.
 - An Intel build. This computer has no Rosetta.
 - An Apple Event to an application that asks for the Automation
   permission, from the hardened bundle with no entitlement.
+- Whether the actions "Send a hotkey", "Type text", and "Media key" operate
+  in the release bundle after a person gives the Accessibility permission.
+  The fact above is an inference. Nobody gave the permission to the release
+  bundle, also not in the new-user test of issue
+  [#152](https://github.com/shantanugoel/OpenCraft/issues/152).
 - Whether the Accessibility permission of `com.shantanugoel.opencraft`
   stays after an update. The designated requirement says yes. A second
   version is necessary for a measurement.

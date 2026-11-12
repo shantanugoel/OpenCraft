@@ -7,7 +7,7 @@
 
 Phase 5 adds device settings (brightness, haptic feedback, knob lights) and a
 defined device state when OpenCraft stops. See the
-[roadmap](../ROADMAP.md#phase-5-background-operation). Tasks
+[roadmap](../ROADMAP.md#phase-5-background-operation-complete). Tasks
 [#124](https://github.com/shantanugoel/OpenCraft/issues/124) and
 [#125](https://github.com/shantanugoel/OpenCraft/issues/125) implement this
 decision.

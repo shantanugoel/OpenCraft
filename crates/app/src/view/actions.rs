@@ -419,6 +419,8 @@ impl DeviceView {
         self.choose_in(menu, kind);
         // A contained action can have new text fields now.
         self.sync_form(window, cx);
+        // The click was on the list, thus no text field keeps the focus.
+        window.blur(cx);
         cx.notify();
     }
 
