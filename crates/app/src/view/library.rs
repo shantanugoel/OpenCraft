@@ -129,7 +129,10 @@ impl DeviceView {
     /// of the control, and open that card. With no selected control, only
     /// show "Select a control first". The right panel stays on its tab.
     pub(super) fn assign_kind(&mut self, kind: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(control) = self.framed_control() else {
+        // The page as the selection has the touch bar as its control, for
+        // the swipes. It is not a selected control (section 11).
+        let control = self.framed_control().filter(|_| !self.state.page_selected);
+        let Some(control) = control else {
             self.show_message(SELECT_FIRST, window, cx);
             self.focus_workspace(window, cx);
             return;
