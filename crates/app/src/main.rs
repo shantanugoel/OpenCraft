@@ -4,10 +4,15 @@
 //! The engine and the shell operate in one process, also when no window is
 //! open (decision 0019). The menu bar item opens the window again and quits
 //! the application (decision 0020).
+//!
+//! The argument `--login` starts the application with no window, for the
+//! start at login (decision 0021).
 
 mod images;
 #[cfg(unix)]
 mod lock;
+#[cfg(target_os = "macos")]
+mod login;
 mod menu;
 #[cfg(target_os = "macos")]
 mod menu_bar;
@@ -38,6 +43,24 @@ fn profiles_dir() -> PathBuf {
         .map(PathBuf::from)
         .or_else(opencraft_engine::default_profiles_dir)
         .expect("OpenCraft cannot find the profiles directory.")
+}
+
+/// The argument of a start at login (decision 0021).
+const LOGIN_ARGUMENT: &str = "--login";
+
+/// True if the arguments, with no program name, contain `--login`. The
+/// function prints each other argument and ignores it: an unknown argument
+/// does not stop the start.
+fn login_start(arguments: impl IntoIterator<Item = std::ffi::OsString>) -> bool {
+    let mut login = false;
+    for argument in arguments {
+        if argument == LOGIN_ARGUMENT {
+            login = true;
+        } else {
+            eprintln!("OpenCraft ignores the argument {argument:?}.");
+        }
+    }
+    login
 }
 
 /// Start the device before the GUI toolkit. The sink never waits for the GUI.
@@ -112,6 +135,20 @@ fn main() {
     if let Err(error) = signals::forward(commands.clone()) {
         eprintln!("OpenCraft cannot set the signal handlers: {error}");
     }
+    let login = login_start(std::env::args_os().skip(1));
+    // Only macOS has a menu bar item that opens the window later.
+    #[cfg(target_os = "macos")]
+    let open_window = !login;
+    #[cfg(not(target_os = "macos"))]
+    let open_window = {
+        if login {
+            eprintln!("OpenCraft has no menu bar item here, thus it opens the window.");
+        }
+        true
+    };
+    if !open_window {
+        eprintln!("OpenCraft starts with {LOGIN_ARGUMENT}. It opens no window.");
+    }
     let profiles_dir = profiles_dir();
     let config_dir = settings::config_dir(&profiles_dir);
     #[cfg(unix)]
@@ -170,10 +207,36 @@ fn main() {
             }
             shell
         });
-        shell.update(cx, |shell, cx| shell.open_window(cx));
+        if open_window {
+            shell.update(cx, |shell, cx| shell.open_window(cx));
+        }
         cx.set_global(ShellHandle(shell));
     });
     if let Some(engine) = fallback.borrow_mut().take() {
         engine.stop();
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    fn arguments(list: &[&str]) -> Vec<OsString> {
+        list.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn the_login_argument_is_found_and_other_arguments_are_ignored() {
+        assert!(!login_start(arguments(&[])));
+        assert!(login_start(arguments(&["--login"])));
+        assert!(login_start(arguments(&["-psn_0_12345", "--login", "x"])));
+        assert!(!login_start(arguments(&[
+            "--unknown",
+            "login",
+            "--login=1"
+        ])));
+        #[cfg(target_os = "macos")]
+        assert_eq!(LOGIN_ARGUMENT, login::ARGUMENT);
+    }
 }

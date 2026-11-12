@@ -4,6 +4,8 @@
 //! One [`Shell`] entity exists for the process. It gets the engine events
 //! also when no window is open. A new window starts from its state, and then
 //! gets each event from it. The menu bar item shows the same state.
+//!
+//! The shell also turns the start at login on and off (decision 0021).
 
 use crate::{
     menu::MenuState,
@@ -31,6 +33,8 @@ pub enum ShellCommand {
     Open,
     /// Show the Dock icon if it is hidden, and hide it if it shows.
     ToggleDockIcon,
+    /// Turn the start at login on if it is off, and off if it is on.
+    ToggleStartAtLogin,
     /// Start the quit path.
     Quit,
 }
@@ -46,6 +50,14 @@ pub struct Shell {
     send: Rc<dyn Fn(Command)>,
     #[cfg(target_os = "macos")]
     menu_bar: Option<crate::menu_bar::MenuBar>,
+    /// The directory of the LaunchAgent file. `None` if the home directory
+    /// is not known.
+    #[cfg(target_os = "macos")]
+    login_dir: Option<PathBuf>,
+    /// The LaunchAgent file exists. The shell reads this at the start and
+    /// after each change.
+    #[cfg(target_os = "macos")]
+    start_at_login: bool,
 }
 
 /// The shell sends each engine event to the open window after it applies the
@@ -54,6 +66,8 @@ impl EventEmitter<Event> for Shell {}
 
 impl Shell {
     pub fn new(config_dir: PathBuf, settings: Settings, send: Rc<dyn Fn(Command)>) -> Self {
+        #[cfg(target_os = "macos")]
+        let login_dir = crate::login::agents_dir();
         Self {
             state: ViewState::default(),
             settings,
@@ -61,7 +75,18 @@ impl Shell {
             send,
             #[cfg(target_os = "macos")]
             menu_bar: None,
+            #[cfg(target_os = "macos")]
+            start_at_login: login_dir.as_deref().is_some_and(crate::login::is_on),
+            #[cfg(target_os = "macos")]
+            login_dir,
         }
+    }
+
+    /// Use `dir` in place of `~/Library/LaunchAgents`.
+    #[cfg(all(test, target_os = "macos"))]
+    pub fn set_login_dir(&mut self, dir: PathBuf) {
+        self.start_at_login = crate::login::is_on(&dir);
+        self.login_dir = Some(dir);
     }
 
     /// Start the two tasks that receive the engine events and the shell
@@ -133,6 +158,7 @@ impl Shell {
             ShellCommand::ToggleDockIcon => {
                 self.set_show_dock_icon(!self.settings.show_dock_icon, cx)
             }
+            ShellCommand::ToggleStartAtLogin => self.toggle_start_at_login(cx),
             ShellCommand::Quit => cx.quit(),
         }
     }
@@ -158,6 +184,10 @@ impl Shell {
                     .map(|p| p.name.clone())
             }),
             show_dock_icon: self.settings.show_dock_icon,
+            #[cfg(target_os = "macos")]
+            start_at_login: self.start_at_login,
+            #[cfg(not(target_os = "macos"))]
+            start_at_login: false,
         }
     }
 
@@ -223,6 +253,47 @@ impl Shell {
         self.refresh_menu();
         cx.notify();
     }
+
+    /// Write or remove the LaunchAgent file. The new state comes from the
+    /// file, also after an error.
+    #[cfg(target_os = "macos")]
+    fn toggle_start_at_login(&mut self, cx: &mut Context<Self>) {
+        use crate::login;
+        let Some(dir) = self.login_dir.clone() else {
+            self.problem(
+                "OpenCraft cannot change the start at login: it cannot find the home directory."
+                    .into(),
+                cx,
+            );
+            return;
+        };
+        let result = if login::is_on(&dir) {
+            login::turn_off(&dir)
+        } else {
+            std::env::current_exe().and_then(|executable| login::turn_on(&dir, &executable))
+        };
+        if let Err(error) = result {
+            self.problem(
+                format!(
+                    "OpenCraft cannot change the start at login in {}: {error}",
+                    dir.join(login::FILE_NAME).display()
+                ),
+                cx,
+            );
+        }
+        self.start_at_login = login::is_on(&dir);
+        self.refresh_menu();
+        cx.notify();
+    }
+
+    /// Only macOS has a start at login (decision 0021).
+    #[cfg(not(target_os = "macos"))]
+    fn toggle_start_at_login(&mut self, cx: &mut Context<Self>) {
+        self.problem(
+            "OpenCraft has no start at login on this platform.".into(),
+            cx,
+        );
+    }
 }
 
 /// Show or hide the Dock icon at run time. An open window stays open.
@@ -271,6 +342,8 @@ mod tests {
         });
         let dir = tempfile::tempdir().unwrap();
         let config = dir.path().to_path_buf();
+        #[cfg(target_os = "macos")]
+        let config_for_login = config.clone();
         let (events, event_receiver) = async_channel::unbounded();
         let (commands, command_receiver) = async_channel::unbounded();
         let sent: Rc<RefCell<Vec<Command>>> = Default::default();
@@ -282,6 +355,9 @@ mod tests {
                     Settings::default(),
                     Rc::new(move |c| log.borrow_mut().push(c)),
                 );
+                // The tests never read or write `~/Library/LaunchAgents`.
+                #[cfg(target_os = "macos")]
+                shell.set_login_dir(config_for_login.join("LaunchAgents"));
                 shell.listen(event_receiver, command_receiver, cx);
                 shell
             })
@@ -339,7 +415,8 @@ mod tests {
             MenuState {
                 connected: false,
                 profile: None,
-                show_dock_icon: true
+                show_dock_icon: true,
+                start_at_login: false
             }
         );
         f.events.try_send(layout()).unwrap();
@@ -352,7 +429,8 @@ mod tests {
             MenuState {
                 connected: true,
                 profile: Some("Desk".into()),
-                show_dock_icon: true
+                show_dock_icon: true,
+                start_at_login: false
             }
         );
         f.events.try_send(Event::Disconnected).unwrap();
@@ -449,6 +527,52 @@ mod tests {
         cx.run_until_parked();
         assert!(cx.update(|cx| f.shell.read(cx).menu_state().show_dock_icon));
         assert_eq!(settings::load(f.dir.path()), (Settings::default(), None));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui_kit::test]
+    fn the_start_at_login_option_follows_the_launch_agent_file(cx: &mut TestAppContext) {
+        use crate::login;
+        let f = shell(cx);
+        let agents = f.dir.path().join("LaunchAgents");
+        let on =
+            |cx: &mut TestAppContext| cx.update(|cx| f.shell.read(cx).menu_state().start_at_login);
+        assert!(!on(cx));
+        f.commands
+            .try_send(ShellCommand::ToggleStartAtLogin)
+            .unwrap();
+        cx.run_until_parked();
+        assert!(on(cx));
+        let text = std::fs::read_to_string(agents.join(login::FILE_NAME)).unwrap();
+        let executable = std::env::current_exe().unwrap();
+        assert_eq!(text, login::content(executable.to_str().unwrap()));
+        f.commands
+            .try_send(ShellCommand::ToggleStartAtLogin)
+            .unwrap();
+        cx.run_until_parked();
+        assert!(!on(cx));
+        assert!(!login::is_on(&agents));
+        assert!(cx.update(|cx| f.shell.read(cx).state.problems.is_empty()));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui_kit::test]
+    fn an_error_of_the_start_at_login_shows_as_a_problem(cx: &mut TestAppContext) {
+        let f = shell(cx);
+        // A file in place of the directory: the directory cannot be made.
+        let blocked = f.dir.path().join("file");
+        std::fs::write(&blocked, "").unwrap();
+        f.shell.update(cx, |shell, _| {
+            shell.set_login_dir(blocked.join("LaunchAgents"))
+        });
+        f.commands
+            .try_send(ShellCommand::ToggleStartAtLogin)
+            .unwrap();
+        cx.run_until_parked();
+        assert!(!cx.update(|cx| f.shell.read(cx).menu_state().start_at_login));
+        let problems = cx.update(|cx| f.shell.read(cx).state.problems.clone());
+        assert_eq!(problems.len(), 1);
+        assert!(problems[0].contains("cannot change the start at login"));
     }
 
     #[gpui_kit::test]

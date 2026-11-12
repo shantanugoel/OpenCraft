@@ -45,6 +45,28 @@ Date: 2026-11-12. The computer and macOS are the same as in
 | `ProcessType` `Interactive` gives the job the resource limits of an application, that is none. With no `ProcessType`, launchd limits the processor use and the I/O of the job. | Source | `man 5 launchd.plist` |
 | The manual page says that `RunAtLoad` "should be avoided" because it has an effect on the time of a login. A start at login needs it. | Source | `man 5 launchd.plist` |
 
+## OpenCraft with the LaunchAgent file
+
+Date: 2026-11-12. The program is the release build of `opencraft` with the
+module `login` of [decision 0021](../decisions/0021-start-at-login.md),
+a bare executable. It used a copy of a real profile, and the device was
+connected. A helper program read the state through the Accessibility API
+and `CGWindowListCopyWindowInfo`, and pressed the menu items. Each result is
+from 1 try.
+
+For the start through launchd, the test used a copy of the file with a
+different label and the key `EnvironmentVariables`, to give the path of the
+copy of the profile. The copy was not in `~/Library/LaunchAgents`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| "Start at login" in the menu of the menu bar item wrote `~/Library/LaunchAgents/opencraft.login.plist`. The file was the same, byte for byte, as the content in decision 0021, with the path of the executable. `plutil -lint` found no error. The item then had a check mark. | Measured | File; `cmp`; AX attribute `AXMenuItemMarkChar` |
+| A second selection of the item removed the file, and the check mark went away. | Measured | File; AX |
+| `launchctl bootstrap` accepted a plist from a directory that is not `~/Library/LaunchAgents`, and started its program. | Measured | `launchctl print`: state "running", 1 run |
+| OpenCraft, started by launchd with `--login`, had the parent process 1, no window, and the menu bar item. The engine connected and drew the profile. A camera picture some seconds after the start showed the images of the profile on the device. | Measured | `ps`; window list; AX; log; USB camera picture |
+| `launchctl bootout` stopped OpenCraft through its quit path: the log showed signal 15, the stop sequence of the engine, and the quit. 19 seconds later, no OpenCraft process ran. | Measured | Log; `launchctl print`; `pgrep` |
+| OpenCraft, started from a terminal with `--login` and `show_dock_icon = false`, had the accessory policy. 71 checks of the Dock in the first 8 seconds did not find the Dock icon. | Measured | Dock items through AX; `NSRunningApplication` |
+
 ## Background Task Management
 
 macOS 13 and later keep a list of login items and background items. The
@@ -56,6 +78,8 @@ command `sfltool dumpbtm` prints it.
 | Each record stayed in the list after its plist was removed. It was there in each dump of the test, during some minutes. | Measured | `sfltool dumpbtm` |
 | `sfltool` has no command that removes one record. `sfltool resetbtm` resets all records of the computer. | Measured | The usage text of `sfltool` |
 | `sfltool dumpbtm` sometimes wrote no output. A second try gave the list. | Measured | 2 empty results in 6 tries |
+| Later on the same day, the records of the removed test plists were not in the list. A dump less than 2.5 hours after the test showed no "legacy agent" record for them. The cause of the removal is not known. | Measured | `sfltool dumpbtm`, 2026-11-12 |
+| 3 minutes after OpenCraft wrote and removed `opencraft.login.plist`, the list had no record for it. The file existed for less than 5 seconds. | Measured | `sfltool dumpbtm`, 2026-11-12 |
 | System Settings shows these records in Login Items, in the list "Allow in the Background", and the user can turn an item off there. | Inference | The record types; not looked at in System Settings |
 | The disposition "notified" means that macOS told the user about the new item with a notification. | Inference | The name of the flag |
 
@@ -75,7 +99,9 @@ command `sfltool dumpbtm` prints it.
   by the owner.
 - Whether a program in a signed bundle gets the Accessibility permission of
   that bundle when launchd starts its executable directly.
-- When macOS removes the record of a plist that was removed.
+- When macOS removes the record of a plist that was removed, and why. The
+  records of the first test stayed for some minutes, and went away in less than
+  2.5 hours.
 - How a program can find out that the user turned its item off in System
   Settings.
 - Whether a record from `SMAppService.mainApp` for a bare executable starts
