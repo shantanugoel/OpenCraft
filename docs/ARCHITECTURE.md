@@ -89,7 +89,12 @@ at the same time.
 
 The reason for these crates is in decisions
 [0008](decisions/0008-crate-boundaries.md) and
-[0012](decisions/0012-action-handler-interface.md). The GUI application does
+[0012](decisions/0012-action-handler-interface.md). The engine and the GUI
+application operate in one process, also when no window is open. See
+[decision 0019](decisions/0019-engine-in-the-gui-process.md). The code for
+the menu bar item and for the start at login is shell code in `crates/app`.
+See decisions [0020](decisions/0020-menu-bar-item-and-dock-icon.md) and
+[0021](decisions/0021-start-at-login.md). The GUI application does
 not depend on `crates/core`. The built-in action handlers are not a layer:
 they use only the handler interface of the engine (rule 8).
 
@@ -177,8 +182,6 @@ you make one, write a decision record and remove the row.
 
 | Decision | Phase | Note |
 |---|---|---|
-| Engine in the GUI process, or in a different process | 5 | Rules 2 and 3 keep the two options open. |
-| Menu bar item | 5 | GPUI has no API for this. |
 | Plug-in protocol, language, package format, and installation | After the first release | Rule 8 keeps this possible. |
 | Compatibility with Stream Deck plug-ins | After the first release | This is a different feature from our own plug-ins. See [kb/prior-art.md](kb/prior-art.md#stream-deck-plug-in-model). |
 | Async runtime | When a need shows | See [decision 0003](decisions/0003-blocking-device-layer.md). |
