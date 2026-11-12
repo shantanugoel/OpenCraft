@@ -30,8 +30,14 @@
 //! ```
 //!
 //! Control keys are `key-N`, `knob-N`, `bar-panel-N`, and `touch-bar-N`.
-//! Gesture keys are `press`, `release`, `turn-left`, `turn-right`, and `push`.
-//! Settings keep text, integer, boolean, list, and table values.
+//! Gesture keys are `press`, `release`, `turn-left`, `turn-right`, `push`,
+//! `tap`, `swipe-left`, and `swipe-right`. Settings keep text, integer,
+//! boolean, list, and table values.
+//!
+//! The keys `tap`, `swipe-left`, and `swipe-right` do not change the schema
+//! version. An engine that does not know them keeps the file as a backup,
+//! because the file has an error for it (decision 0009). The next schema
+//! version is 3: decision 0018 gives it, in the same phase as these keys.
 
 use crate::action::{Action, GestureKind};
 use crate::error::{Error, Result};
@@ -558,6 +564,38 @@ color = "#1E6FD9"
 image = "images/4f1c2a9be07d3356.png"
 "##;
         assert_eq!(text, want);
+    }
+
+    #[test]
+    fn touch_gestures_save_with_their_text_form_and_load_again() {
+        use opencraft_core::{ControlId, ControlKind};
+        let (_dir, store) = store();
+        let mut profile = Profile::default();
+        let page = profile.page_mut(0).unwrap();
+        let bar = ControlId::new(ControlKind::BarPanel, 2);
+        let touch_bar = ControlId::new(ControlKind::TouchBar, 1);
+        for (control, gesture) in [
+            (bar, GestureKind::Tap),
+            (touch_bar, GestureKind::SwipeLeft),
+            (touch_bar, GestureKind::SwipeRight),
+        ] {
+            let action = Action {
+                kind: format!("test.{gesture:?}"),
+                settings: Default::default(),
+            };
+            page.set_binding(control, gesture, Some(action));
+        }
+        store.save(&profile).unwrap();
+
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        for table in [
+            "[pages.bindings.bar-panel-2.tap]",
+            "[pages.bindings.touch-bar-1.swipe-left]",
+            "[pages.bindings.touch-bar-1.swipe-right]",
+        ] {
+            assert!(text.contains(table), "{table} in {text}");
+        }
+        assert_eq!(store.load().unwrap().profile, profile);
     }
 
     #[test]

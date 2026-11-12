@@ -91,6 +91,74 @@ fn each_phase_three_gesture_dispatches_once() {
     assert!(requests.try_recv().is_err());
 }
 
+/// The reports of a recording of the real device. The recordings are the
+/// fixtures of the input decoder in `crates/core`.
+fn recorded(name: &str) -> Vec<Vec<u8>> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../core/tests/fixtures/input")
+        .join(name);
+    let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{name}: {e}"));
+    opencraft_core::recording::parse(&text)
+        .unwrap_or_else(|e| panic!("{name}: {e}"))
+        .reports
+        .into_iter()
+        .map(|r| r.bytes)
+        .collect()
+}
+
+#[test]
+fn each_recorded_tap_and_swipe_invokes_its_binding_once() {
+    let kind = "test.touch";
+    let (port, requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let tap = |number| binding(ControlKind::BarPanel, number, GestureKind::Tap);
+    let swipe = |gesture| binding(ControlKind::TouchBar, 1, gesture);
+    let (left, right) = (
+        swipe(GestureKind::SwipeLeft),
+        swipe(GestureKind::SwipeRight),
+    );
+    // The recording, the binding that it invokes, and the number of invokes.
+    let cases = [
+        ("26-bar-tap-1.txt", tap(1), 1),
+        ("27-bar-tap-2.txt", tap(2), 1),
+        ("28-bar-tap-3.txt", tap(3), 1),
+        ("29-bar-tap-4.txt", tap(4), 1),
+        ("35-swipe-left-20.txt", left, 20),
+        ("36-swipe-right-20.txt", right, 20),
+        ("34-swipe-right-1.txt", right, 1),
+        // The device did not identify this swipe: the touch ends with no
+        // gesture, and nothing is invoked.
+        ("33-swipe-left-1.txt", left, 0),
+    ];
+    for id in [tap(1), tap(2), tap(3), tap(4), left, right] {
+        set_binding(&mut rig, id, Some(action(kind)));
+    }
+    assert_eq!(requests.try_iter().count(), 6, "one Appear each");
+    let device = rig.connect();
+    for (name, id, invokes) in cases {
+        // The touch start and the touch points of the recording invoke
+        // nothing. Only the gesture that the device identifies does.
+        let reports = recorded(name);
+        let count = reports.len();
+        for report in reports {
+            device.borrow_mut().push_input(report);
+        }
+        for _ in 0..count {
+            rig.engine.poll(POLL_INTERVAL);
+        }
+        let want = Request::Invoke {
+            binding: id,
+            action: action(kind),
+        };
+        assert_eq!(
+            requests.try_iter().collect::<Vec<_>>(),
+            vec![want; invokes],
+            "{name}"
+        );
+    }
+    assert_eq!(rig.engine.counters().invokes_sent, 45);
+}
+
 #[test]
 fn five_hundred_knob_reports_keep_every_input_and_invoke_in_order() {
     let kind = "test.knob";
@@ -382,9 +450,30 @@ fn newest_feedback_wins_and_removal_restores_the_previous_binding() {
 }
 
 #[test]
+fn tap_feedback_shows_on_the_bar_panel_of_the_control() {
+    let kind = "test.tap-feedback";
+    let (port, _requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let id = binding(ControlKind::BarPanel, 2, GestureKind::Tap);
+    set_binding(&mut rig, id, Some(action(kind)));
+    let device = rig.connect();
+    sent(&device);
+    rig.take_events();
+
+    feedback(&mut rig, id, "Tapped", 60);
+    let events = rig.take_events();
+    assert_eq!(events.len(), 1, "{events:?}");
+    let state = last_state(&events, BAR_2);
+    assert!(state.image.pixels().any(|p| *p != Rgb([0, 0, 0])));
+    let writes = sent(&device);
+    assert_eq!(writes.len(), 2, "one image and the commit");
+    assert_same_picture(&shown_at(&writes, 2), &state.image);
+}
+
+#[test]
 fn feedback_ignores_an_inactive_page_and_a_control_with_no_surface() {
     let mut rig = Rig::new();
-    let mut id = binding(ControlKind::TouchBar, 1, GestureKind::Push);
+    let mut id = binding(ControlKind::TouchBar, 1, GestureKind::SwipeLeft);
     set_binding(&mut rig, id, Some(action("test.no-surface")));
     rig.take_events();
     feedback(&mut rig, id, "No display", 20);

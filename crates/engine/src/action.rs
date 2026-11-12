@@ -29,7 +29,9 @@ pub struct Action {
 }
 
 /// A gesture with no position data. The text form is stable in the profile.
-/// Later phases can add tap and swipe variants.
+///
+/// A tap is on a bar panel control. A swipe is on the touch bar control. The
+/// reasons are in `docs/decisions/0015-four-bar-panels-and-touch-gestures.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum GestureKind {
@@ -38,9 +40,15 @@ pub enum GestureKind {
     TurnLeft,
     TurnRight,
     Push,
+    Tap,
+    SwipeLeft,
+    SwipeRight,
 }
 
 impl GestureKind {
+    /// The gesture of a binding for an input gesture. The start of a touch,
+    /// a touch point, and a touch end give `None`: a binding cannot have
+    /// them, because the device did not identify a gesture.
     pub fn from_gesture(gesture: Gesture) -> Option<Self> {
         Some(match gesture {
             Gesture::Press => Self::Press,
@@ -48,7 +56,12 @@ impl GestureKind {
             Gesture::TurnLeft => Self::TurnLeft,
             Gesture::TurnRight => Self::TurnRight,
             Gesture::Push => Self::Push,
-            _ => return None,
+            Gesture::Tap { .. } => Self::Tap,
+            Gesture::SwipeLeft => Self::SwipeLeft,
+            Gesture::SwipeRight => Self::SwipeRight,
+            Gesture::TouchStart { .. } | Gesture::TouchPoint { .. } | Gesture::TouchEnd => {
+                return None
+            }
         })
     }
 }
