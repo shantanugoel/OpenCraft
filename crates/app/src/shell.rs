@@ -367,7 +367,7 @@ mod tests {
     use crate::state::tests::{key, layout};
     use gpui_kit::{Entity, TestAppContext};
     use opencraft_engine::{ProfileEntry, RgbImage, SurfaceContent, SurfaceState};
-    use std::{cell::RefCell, path::Path, sync::Arc};
+    use std::{cell::RefCell, sync::Arc};
 
     struct Fixture {
         shell: Entity<Shell>,
@@ -604,7 +604,11 @@ mod tests {
         let f = shell(cx);
         let agents = f.dir.path().join("LaunchAgents");
         // The user moved the application after the option was on.
-        login::turn_on(&agents, Path::new("/old place/OpenCraft.app/opencraft")).unwrap();
+        login::turn_on(
+            &agents,
+            std::path::Path::new("/old place/OpenCraft.app/opencraft"),
+        )
+        .unwrap();
         f.shell
             .update(cx, |shell, _| shell.set_login_dir(agents.clone()));
         let on =
