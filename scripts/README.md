@@ -6,6 +6,8 @@ This directory holds the scripts for work on the computer of a developer.
 |---|---|
 | `measure-footprint.sh` | Measures the memory and the processor use of all processes of one application |
 | `sign-dev.sh` | Builds the GUI application as a bundle and signs it with a stable identity, so that macOS keeps the Accessibility permission |
+| `release.sh` | Makes the release: the signed bundle, the disk image, the notarization, and the checksum. See [decision 0025](../docs/decisions/0025-release-form.md). |
+| `make-icon.swift` | Draws the application icon `assets/macos/OpenCraft.icns` |
 | `record-input.sh` | Records the input reports of each control of the N4 Pro. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
 
 ## measure-footprint.sh
@@ -142,3 +144,91 @@ The script uses the first code signing identity of the keychain. To use a
 different identity, set `OPENCRAFT_SIGN_IDENTITY` to its name or to its SHA-1
 hash. `security find-identity -v -p codesigning` shows the identities. Do not
 write the name of an identity in the repository.
+
+The development bundle has the identifier `opencraft-dev`. The release of
+`release.sh` has a different identifier. Thus each one has its own
+permissions.
+
+## release.sh
+
+The script makes the release on the computer of a developer with Apple
+silicon. The form of the release is in
+[decision 0025](../docs/decisions/0025-release-form.md). The facts are in
+[kb/macos-distribution.md](../docs/kb/macos-distribution.md). The output is
+in `target/release-bundle/`:
+
+| File | Content |
+|---|---|
+| `OpenCraft.app` | The bundle with the Developer ID signature |
+| `OpenCraft-<version>-arm64.dmg` | The disk image to publish |
+| `OpenCraft-<version>-arm64.dmg.sha256` | The SHA-256 of the disk image, for the Homebrew cask |
+
+The version is the workspace version in `Cargo.toml`.
+
+### Before the first release
+
+1. Put a "Developer ID Application" identity in the login keychain. The
+   script uses the first one. To use a different identity, set
+   `OPENCRAFT_SIGN_IDENTITY` to its name or to its SHA-1 hash.
+2. Put the notary credentials in the keychain one time. Use an
+   app-specific password of the Apple ID. `notarytool` asks for it:
+
+   ```sh
+   xcrun notarytool store-credentials <profile> --apple-id <Apple ID> --team-id <team ID>
+   ```
+
+Do not write the name of the identity, the team ID, the Apple ID, or the
+profile in the repository.
+
+### Make a release
+
+```sh
+OPENCRAFT_NOTARY_PROFILE=<profile> scripts/release.sh
+```
+
+The script builds the release profile, makes and signs the bundle, makes
+and signs the disk image, notarizes and staples the bundle and the disk
+image, and prints the SHA-256 of the disk image. The two notarizations can
+take some minutes each.
+
+With no `OPENCRAFT_NOTARY_PROFILE`, the script stops after the signed disk
+image and says that it is not notarized. Do not publish that disk image. To
+notarize it later with no new build:
+
+```sh
+OPENCRAFT_NOTARY_PROFILE=<profile> scripts/release.sh --notarize-only
+```
+
+### Check the result
+
+The script checks each item and stops at the first error. It runs these
+checks:
+
+- `codesign --verify --deep --strict --verbose=2` on the bundle, and
+  `codesign -d --entitlements -`, which shows no entitlements.
+- The identifier, the hardened runtime, the secure timestamp, the Developer
+  ID authority, and the version of the bundle.
+- `codesign --verify --strict` on the disk image.
+- After notarization: `xcrun stapler validate`, and `spctl --assess` on the
+  bundle and on the disk image. Each must say `accepted` and
+  `source=Notarized Developer ID`.
+
+### The licence notices
+
+If the file `THIRD-PARTY-NOTICES.txt` is in the root of the repository, the
+script copies it into `OpenCraft.app/Contents/Resources/`. Issue
+[#146](https://github.com/shantanugoel/OpenCraft/issues/146) makes that file.
+
+## make-icon.swift
+
+The script draws the application icon at each size and writes
+`assets/macos/OpenCraft.icns` with `iconutil`. It needs only the Xcode
+command line tools.
+
+```sh
+swift scripts/make-icon.swift assets/macos/OpenCraft.icns
+```
+
+A second argument names a directory for PNG copies at 1024, 256, 64, 32,
+and 16 pixels, to look at the icon. To change the icon, change the script,
+run it, and commit the script and the `.icns` file together.

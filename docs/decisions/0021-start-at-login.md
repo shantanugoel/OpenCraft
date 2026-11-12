@@ -80,6 +80,12 @@ shell reads this at the start and after each change. The file names the
 executable of the build that turned the option on. To change the
 executable, the user turns the option off and on again.
 
+Note (2026-11-12): [decision 0025](0025-release-form.md) changes this. The
+option is on only if the file starts the executable of the process. A
+selection then writes the file for that executable. The shell does not
+write the file for an executable on a read-only volume, for example a disk
+image.
+
 **After a start at login.** The argument `--login` is the only difference
 from a normal start:
 
@@ -105,7 +111,10 @@ Accessibility permission.
 when OpenCraft has a signed and notarized bundle. It is the documented way
 for a bundle, and System Settings then shows the name of the application.
 For Phase 5 it has these problems: its behaviour for a bare executable is
-not documented, and it needs a new binding crate.
+not documented, and it needs a new binding crate. Note (2026-11-12): Phase 6
+looked at it again.
+[Decision 0025](0025-release-form.md#changes-in-the-shell) keeps the
+LaunchAgent file.
 
 ## Results
 
@@ -130,4 +139,6 @@ not documented, and it needs a new binding crate.
   decision again. A possible change is the program `/usr/bin/open` with the
   arguments `-a`, the bundle, `--args`, and `--login`.
 - If the executable moves or is removed, the start at login fails with no
-  message. The user turns the option off and on again.
+  message. The user turns the option off and on again. Note (2026-11-12):
+  after [decision 0025](0025-release-form.md), the moved application shows
+  the option as off, and one selection turns it on again.
