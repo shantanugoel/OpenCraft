@@ -19,6 +19,7 @@ executable. `Cargo.lock` of commit `5aeb977`.
 | All 853 packages of `Cargo.lock` come from crates.io. No dependency comes from a Git repository, from a path outside the workspace, or from a different registry. | Measured | `Cargo.lock`; `cargo deny check sources` |
 | Each crate of the set has an SPDX expression in the field `license`. No crate has only `license-file`, and no crate has no licence. | Measured | `cargo tree -f '{p} {l}'` |
 | The crate `mirajazz` is not in `Cargo.lock`. | Measured | `Cargo.lock` |
+| With `CARGO_TERM_COLOR=always`, as in CI, `cargo tree` writes colour codes also into a pipe, for example around the mark `(*)`. `scripts/notices.sh` uses `--color never`. | Measured | CI run of the pull request for issue #146 |
 
 ### The licence that applies to each crate
 

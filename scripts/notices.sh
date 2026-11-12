@@ -48,9 +48,10 @@ fail() {
 }
 
 # One line "<name> v<version>" for each crate of the set, in sort order.
-# A crate of the workspace has a path in parentheses after its version.
+# A crate of the workspace has a path in parentheses after its version. No
+# colour: CI sets CARGO_TERM_COLOR=always.
 crate_list() {
-    cargo tree --locked -p "$PACKAGE" --target "$TARGET" \
+    cargo tree --locked --color never -p "$PACKAGE" --target "$TARGET" \
         -e normal,no-proc-macro --prefix none -f '{p}' |
         sed 's/ (\*)$//' | grep -v ' (' | LC_ALL=C sort -u
 }
