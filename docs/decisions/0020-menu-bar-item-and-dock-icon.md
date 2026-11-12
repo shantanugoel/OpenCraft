@@ -69,6 +69,8 @@ The menu has these items, in this order:
 
 Note (2026-11-12): [decision 0025](0025-release-form.md) adds the first
 item "OpenCraft *version*", text, not enabled, with a separator after it.
+[Decision 0026](0026-licence-notices.md) adds the command "Licence notices"
+after it, before the separator, and the features `NSWorkspace` and `NSURL`.
 
 The menu has no control to select a profile or a page. The window and the
 device do this. Look at this again if the owner asks for it.

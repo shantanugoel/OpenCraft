@@ -13,6 +13,7 @@ use crate::shell::ShellCommand;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Item {
     Version,
+    Notices,
     Device,
     Profile,
     Open,
@@ -35,8 +36,9 @@ pub enum Kind {
 }
 
 /// The items, in their order in the menu.
-pub const ITEMS: [Item; 11] = [
+pub const ITEMS: [Item; 12] = [
     Item::Version,
+    Item::Notices,
     Item::Separator,
     Item::Device,
     Item::Profile,
@@ -53,7 +55,7 @@ impl Item {
     pub fn kind(self) -> Kind {
         match self {
             Item::Version | Item::Device | Item::Profile => Kind::Text,
-            Item::Open | Item::Quit => Kind::Command,
+            Item::Notices | Item::Open | Item::Quit => Kind::Command,
             Item::ShowDockIcon | Item::StartAtLogin => Kind::Check,
             Item::Separator => Kind::Separator,
         }
@@ -62,6 +64,7 @@ impl Item {
     /// The command that the item sends when the user selects it.
     pub fn command(self) -> Option<ShellCommand> {
         match self {
+            Item::Notices => Some(ShellCommand::OpenNotices),
             Item::Open => Some(ShellCommand::Open),
             Item::ShowDockIcon => Some(ShellCommand::ToggleDockIcon),
             Item::StartAtLogin => Some(ShellCommand::ToggleStartAtLogin),
@@ -108,6 +111,9 @@ pub struct MenuState {
     pub show_dock_icon: bool,
     /// The LaunchAgent file of decision 0021 exists.
     pub start_at_login: bool,
+    /// The bundle has the licence notices file (decision 0026). With no
+    /// file, for example after `cargo run`, the menu does not show the item.
+    pub notices: bool,
 }
 
 impl MenuState {
@@ -116,6 +122,8 @@ impl MenuState {
     pub fn title(&self, item: Item) -> Option<String> {
         Some(match item {
             Item::Version => format!("OpenCraft {VERSION}"),
+            Item::Notices if self.notices => "Licence notices".into(),
+            Item::Notices => return None,
             Item::Device if self.connected => "Device: connected".into(),
             Item::Device => "Device: not connected".into(),
             Item::Profile => format!("Profile: {}", self.profile.as_ref()?),
@@ -148,6 +156,7 @@ mod tests {
             profile: Some("Desk".into()),
             show_dock_icon: true,
             start_at_login: true,
+            notices: true,
         };
         let titles: Vec<_> = ITEMS
             .iter()
@@ -158,6 +167,7 @@ mod tests {
             titles,
             [
                 format!("OpenCraft {VERSION}").as_str(),
+                "Licence notices",
                 "Device: connected",
                 "Profile: Desk",
                 "Open OpenCraft",
@@ -190,10 +200,14 @@ mod tests {
         assert_eq!(Item::Device.command(), None);
         assert_eq!(Item::Version.command(), None);
         assert_eq!(Item::Version.kind(), Kind::Text);
-        // Decision 0025: the version is the first item, with a separator
-        // after it.
+        // Decision 0025: the version is the first item. Decision 0026: the
+        // licence notices are after it, with a separator after them.
         assert_eq!(Item::Version.tag(), 0);
-        assert_eq!(ITEMS[1], Item::Separator);
+        assert_eq!(Item::Notices.tag(), 1);
+        assert_eq!(ITEMS[2], Item::Separator);
+        assert_eq!(Item::Notices.kind(), Kind::Command);
+        assert_eq!(Item::Notices.command(), Some(ShellCommand::OpenNotices));
+        assert_eq!(Item::Notices.key(), "");
         assert_eq!(Item::Device.kind(), Kind::Text);
         assert_eq!(Item::Profile.kind(), Kind::Text);
     }
@@ -211,6 +225,9 @@ mod tests {
         );
         // No profile line before the engine sends the profiles.
         assert_eq!(state.title(Item::Profile), None);
+        // No licence notices item when the bundle has no notices file.
+        assert_eq!(state.title(Item::Notices), None);
+        assert!(!state.checked(Item::Notices));
         assert!(!state.checked(Item::ShowDockIcon));
         assert!(!state.checked(Item::StartAtLogin));
         assert!(!state.checked(Item::Open));

@@ -17,9 +17,10 @@ use objc2::{
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationOptions, NSControlStateValueOff, NSControlStateValueOn,
     NSImage, NSMenu, NSMenuItem, NSRunningApplication, NSStatusBar, NSStatusItem,
-    NSVariableStatusItemLength,
+    NSVariableStatusItemLength, NSWorkspace,
 };
-use objc2_foundation::NSString;
+use objc2_foundation::{NSString, NSURL};
+use std::path::Path;
 
 /// The SF Symbol on the button: a grid of keys.
 const SYMBOL: &str = "square.grid.3x2";
@@ -184,4 +185,14 @@ pub fn activate_dock_if_active() -> bool {
         dock.activateWithOptions(NSApplicationActivationOptions::empty());
     }
     true
+}
+
+/// Open the file at `path` with the default application for its type, for
+/// example TextEdit for a text file. False if macOS cannot open it.
+pub fn open_file(path: &Path) -> bool {
+    let Some(path) = path.to_str() else {
+        return false;
+    };
+    let url = NSURL::fileURLWithPath(&NSString::from_str(path));
+    NSWorkspace::sharedWorkspace().openURL(&url)
 }

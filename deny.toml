@@ -1,0 +1,31 @@
+# The configuration of cargo-deny. CI runs `cargo deny check licenses
+# sources`. The decision is docs/decisions/0026-licence-notices.md. The facts
+# are in docs/kb/dependency-licences.md.
+
+[graph]
+# The release is for Apple silicon only (decision 0025). CI runs on Linux,
+# and this target makes the check use the crates of the macOS build.
+targets = ["aarch64-apple-darwin"]
+
+[licenses]
+# The accepted licences. Each one is in the dependency tree. Before you add a
+# licence, read its duties and write them in docs/kb/dependency-licences.md.
+# Keep the same licences as `accepted` in about.toml.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+    "0BSD",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "MPL-2.0",
+]
+confidence-threshold = 0.93
+
+[sources]
+# All crates come from crates.io. A crate from a different registry or from
+# a Git repository fails the check.
+unknown-registry = "deny"
+unknown-git = "deny"
