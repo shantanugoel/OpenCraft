@@ -29,16 +29,23 @@ fn window(
     let (tx, rx) = async_channel::unbounded();
     let sent: Commands = Default::default();
     let commands = sent.clone();
+    let send: Rc<dyn Fn(Command)> = Rc::new(move |c| commands.borrow_mut().push(c));
+    let shell_send = send.clone();
+    // The events go through the shell entity, as in the application.
+    let shell = cx.update(|cx| {
+        cx.new(|cx| {
+            let mut shell = Shell::new(
+                std::path::PathBuf::from("not-written"),
+                crate::settings::Settings::default(),
+                shell_send,
+            );
+            shell.listen(rx, async_channel::unbounded().1, cx);
+            shell
+        })
+    });
     let mut child = None;
     let (_, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| {
-            DeviceView::new(
-                rx,
-                Rc::new(move |c| commands.borrow_mut().push(c)),
-                window,
-                cx,
-            )
-        });
+        let view = cx.new(|cx| DeviceView::new(&shell, ViewState::default(), send, window, cx));
         child = Some(view.clone());
         gpui_kit::base::Root::new(view, window, cx)
     });

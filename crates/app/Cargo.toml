@@ -15,6 +15,21 @@ opencraft-actions.workspace = true
 gpui-kit.workspace = true
 async-channel.workspace = true
 image.workspace = true
+# The file `shell.toml` of the shell (decision 0020).
+serde.workspace = true
+toml.workspace = true
+
+# The lock of decision 0019 and the signals of decision 0020.
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+# The menu bar item and the Dock icon (decision 0020). These are the versions
+# that GPUI already uses in `Cargo.lock`.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSObject", "NSArray"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView", "NSResponder", "NSMenu", "NSMenuItem", "NSCell", "NSApplication", "NSRunningApplication", "NSImage"] }
 
 [dev-dependencies]
 gpui-kit = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
