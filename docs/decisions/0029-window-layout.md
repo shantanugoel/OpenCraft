@@ -286,7 +286,7 @@ this record, for example "Hide the inspector".
   pane between its minimum and its maximum.
 - **Default window size.** 1440 × 900. If the screen is smaller, the window
   takes the visible area of the screen. At 1440 × 900 the canvas is 840 wide,
-  and the device shows at the scale 0.84 (section 8.2).
+  and the device shows at the scale 0.925 (section 8.2).
 - **Minimum window size.** 1080 × 700. Thus the panes do not overlap when
   both side panes are visible at their default widths.
 - **Title bar.** The window has a transparent title bar. The system draws the
@@ -548,7 +548,10 @@ drawing, then the help line.
 **Scale.** The drawing uses one scale *s* for all of its parts. *s* is the
 largest value between 0.5 and 1.0 for which the device body fits in the
 device area, with 24 of space at each side and the help line below. At the
-default window size, *s* is 0.84. The values below are in device pixels of
+default window size, *s* is (840 − 48) / 856 = 0.925: the width of the
+canvas sets it. (The wireframes show the scale 0.84, with more space at the
+sides. The rule above gives 0.925, and the application obeys the rule.)
+The values below are in device pixels of
 the 800 × 480 display. Multiply each value by *s* to get points.
 
 **The parts of the drawing**

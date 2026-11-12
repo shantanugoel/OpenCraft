@@ -47,6 +47,9 @@ pub struct ViewState {
     pub connected: bool,
     pub selected: Option<SurfaceId>,
     pub selected_control: Option<ControlId>,
+    /// True when the page is the selection (decision 0029, section 8.3).
+    /// Then no surface and no control is selected.
+    pub page_selected: bool,
     /// The gesture of the open gesture card of the selected control. The
     /// form of the inspector edits the binding of this gesture. With no open
     /// card, it is `None`.
@@ -102,6 +105,13 @@ impl ViewState {
                 self.clear_input();
                 self.knob_steps.clear();
                 self.layout = Some(layout);
+                // At the start, the selection is the first key of the layout
+                // (decision 0029, section 8.3).
+                if self.selected_control.is_none() && !self.page_selected {
+                    if let Some(first) = self.first_key() {
+                        self.select_control(first);
+                    }
+                }
             }
             Event::Surface(surface) => {
                 self.surfaces.insert(surface.id, surface);
@@ -238,6 +248,7 @@ impl ViewState {
         {
             return false;
         }
+        self.page_selected = false;
         self.selected = Some(id);
         self.selected_control = self.layout.as_ref().and_then(|l| {
             l.controls
@@ -260,6 +271,7 @@ impl ViewState {
         else {
             return false;
         };
+        self.page_selected = false;
         self.selected_control = Some(id);
         self.selected = control.surface;
         self.gesture = self.open_card_of(id);
@@ -299,6 +311,30 @@ impl ViewState {
         if let Some(control) = self.selected_control {
             self.gesture = self.open_card_of(control);
         }
+    }
+
+    /// Make the page the selection. Return false if it is the selection
+    /// already.
+    pub fn select_page(&mut self) -> bool {
+        if self.page_selected {
+            return false;
+        }
+        self.page_selected = true;
+        self.selected = None;
+        self.selected_control = None;
+        self.gesture = None;
+        true
+    }
+
+    /// The key of the top row and the first column of the layout.
+    fn first_key(&self) -> Option<ControlId> {
+        self.layout
+            .as_ref()?
+            .controls
+            .iter()
+            .filter(|c| c.id.kind == ControlKind::Key)
+            .min_by_key(|c| (c.row, c.column, c.id.number))
+            .map(|c| c.id)
     }
 
     pub fn binding_id(&self) -> Option<BindingId> {
@@ -515,7 +551,8 @@ pub(crate) mod tests {
         };
         s.apply(Event::Surface(surface.clone()), now);
         assert_eq!(s.surfaces[&key()], surface);
-        assert!(s.select(key()));
+        // The first key of the layout is the selection at the start.
+        assert_eq!(s.selected, Some(key()));
         assert!(!s.select(key()));
         assert!(s.select(bar()));
     }
@@ -533,7 +570,7 @@ pub(crate) mod tests {
         s.apply(Event::Kinds(vec![kind.clone()]), now);
         assert_eq!(s.kinds, vec![kind]);
         s.apply(layout(), now);
-        assert!(s.select(key()));
+        assert_eq!(s.selected, Some(key()));
         s.open_card(Some(GestureKind::Press));
         let id = s.binding_id().unwrap();
         assert_eq!(id.gesture, GestureKind::Press);
@@ -588,7 +625,7 @@ pub(crate) mod tests {
         let now = Instant::now();
         let mut s = ViewState::default();
         s.apply(layout(), now);
-        assert!(s.select(key()));
+        assert_eq!(s.selected, Some(key()));
         s.open_card(Some(GestureKind::Press));
         let id = s.binding_id().unwrap();
         assert_eq!(id.page, 0);
@@ -678,6 +715,49 @@ pub(crate) mod tests {
         s.apply(Event::Layout(empty), now);
         assert_eq!(s.selected_control, None);
         assert_eq!(s.binding_id(), None);
+    }
+
+    #[test]
+    fn the_first_key_is_the_selection_at_the_start_and_the_page_can_be_the_selection() {
+        let now = Instant::now();
+        let mut s = ViewState::default();
+        s.apply(layout(), now);
+        assert_eq!(s.selected_control, Some(control(ControlKind::Key)));
+        // The key has no action, thus no gesture card is open (section 10.3).
+        assert_eq!(s.gesture, None);
+        assert!(s.select_page());
+        assert!(!s.select_page());
+        assert!(s.page_selected);
+        assert_eq!(
+            (s.selected, s.selected_control, s.binding_id()),
+            (None, None, None)
+        );
+        // A new layout keeps the page as the selection.
+        s.apply(layout(), now);
+        assert!(s.page_selected && s.selected_control.is_none());
+        // A control is then the selection, and the page is not.
+        assert!(s.select_control(control(ControlKind::Knob)));
+        assert!(!s.page_selected);
+        assert!(s.select_page());
+        assert!(s.select(bar()));
+        assert!(!s.page_selected);
+        // The first key is the key of the top row and of the first column,
+        // not the first in the list.
+        let Event::Layout(mut two) = layout() else {
+            panic!()
+        };
+        let layout = Arc::make_mut(&mut two);
+        let mut first = layout.controls[0];
+        first.id = ControlId::new(ControlKind::Key, 7);
+        first.surface = None;
+        layout.controls[0].row = 2;
+        layout.controls.push(first);
+        let mut s = ViewState::default();
+        s.apply(Event::Layout(two), now);
+        assert_eq!(
+            s.selected_control,
+            Some(ControlId::new(ControlKind::Key, 7))
+        );
     }
 
     #[test]

@@ -59,11 +59,13 @@ VSD Craft, or in System Settings > General > Login Items.
 
 OpenCraft opens its window. If you have no profile, OpenCraft makes the
 profile "Default" with one empty page. The key faces and the bar panels are
-black. No control is selected. Thus the inspector at the right shows only the
-text "Select a control, the page, or the device." The knob lights on the device show colours that change slowly. This
-is the default of the [device settings](controls.md#device-settings).
+black. Each key face shows a plus (+), because the key has no action. The key
+at the top left is selected: it has a blue outline, and the inspector at the
+right shows its settings. The knob lights on the device show colours that
+change slowly. This is the default of the
+[device settings](controls.md#device-settings).
 
-![The OpenCraft window at the first start, with no control selected](images/first-start.png)
+![The OpenCraft window at the first start, with key 1 selected](images/first-start.png)
 
 The window has three panes: the sidebar at the left, the device picture in
 the middle, and the right panel. The parts:
@@ -73,8 +75,8 @@ the middle, and the right panel. The parts:
 | Sidebar | Left | At the top, the device: its model, for example "VSD StreamDock N4 Pro", and "Connected" or "Not connected". Below it, the [profiles and the pages](controls.md#pages). At the bottom, **Settings**, which is not available in this version. |
 | Toolbar | Top, above the device picture and the right panel | The name of the active page, the active profile and its number of pages, **Device settings**, and the connection |
 | Connection | Toolbar, right | "Live on the device", or "Not connected" |
-| Page title | Top of the device picture | The name of the active page, and its position, for example "Page 1 of 3" |
-| Device picture | Middle | The 10 key faces, the 4 bar panels, the touch bar, and the 4 knobs. Each key face and bar panel shows the same image as the device. |
+| Page header | Top of the device picture | The name of the active page, "Page 1 of 1", the buttons **Previous page** and **Next page**, and **Page settings** |
+| Device picture | Middle | The 10 key faces, the 4 bar panels, the touch bar, and the 4 knobs, at their real positions. Each key face and bar panel shows the same image as the device. Below the device is a line of help. See [The device picture](controls.md#the-device-picture). |
 | Right panel | Right | Two tabs. **Inspector** shows the settings of the control that you selected. **Library** is empty in this version. |
 | Status bar | Bottom of the device picture | At the left, the last gesture on the device, for example "Key 3 · Press · now". At the right, "All changes saved". |
 

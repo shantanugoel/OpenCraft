@@ -159,6 +159,10 @@ impl DeviceView {
     /// The inspector of the selected control (section 10.1).
     fn control_inspector(&self, window: &Window, cx: &mut Context<Self>) -> Stateful<Div> {
         let editor = div().id("editor").debug_selector(|| "editor".into());
+        // Until #181, the inspector shows nothing for the page.
+        if self.state.page_selected {
+            return editor;
+        }
         let control = self.state.selected_control.and_then(|id| {
             let layout = self.state.layout.as_ref()?;
             layout.controls.iter().find(|c| c.id == id).cloned()

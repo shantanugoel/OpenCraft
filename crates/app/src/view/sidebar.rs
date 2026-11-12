@@ -506,7 +506,7 @@ impl DeviceView {
             .when(!editing, |d| {
                 d.on_click(cx.listener(move |view, event: &ClickEvent, window, cx| {
                     if event.click_count() < 2 {
-                        view.select_page(page, window, cx);
+                        view.activate_page(page, window, cx);
                     } else {
                         view.start_rename(Row::Page(page), window, cx);
                     }
@@ -521,9 +521,10 @@ impl DeviceView {
             .into_any_element()
     }
 
-    /// A click on a page row makes the page the selection: the device is
-    /// not the selection now. The engine makes the page the active page.
-    fn select_page(&mut self, page: usize, window: &mut Window, cx: &mut Context<Self>) {
+    /// A click on a page row makes the page the active page. The device is
+    /// not the selection now. The selection of the canvas stays (decision
+    /// 0029, section 8.3).
+    fn activate_page(&mut self, page: usize, window: &mut Window, cx: &mut Context<Self>) {
         if self.device.open {
             self.toggle_device_panel(window, cx);
         }

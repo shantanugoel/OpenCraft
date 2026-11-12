@@ -139,6 +139,36 @@ pub const DEVICE_KNOB_RING: Rgba = hex(0x3a3c42);
 pub const DEVICE_TOUCH_BAR_BORDER: Rgba = hex_alpha(0xffffff, 0.10);
 /// The mark at the top of a knob.
 pub const DEVICE_KNOB_DOT: Rgba = hex(0xececee);
+/// The dashed border of an empty key face.
+pub const DEVICE_KEY_EMPTY_BORDER: Rgba = hex(0x3a3f4c);
+/// The plus icon on an empty key face.
+pub const DEVICE_KEY_EMPTY_ICON: Rgba = hex(0x5a5f6b);
+/// The "Touch bar" control under the pointer.
+pub const DEVICE_TOUCH_BAR_HOVER: Rgba = hex_alpha(0xffffff, 0.10);
+/// The outline of a control under the pointer: [`ACCENT_LINE`] at 50 %.
+pub const ACCENT_LINE_HOVER: Rgba = hex_alpha(0x3b95ff, 0.5);
+
+/// The shadow of the body of the device: 0 24 60, black at 45 %.
+pub fn device_body_shadow() -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: hex_alpha(0x000000, 0.45).into(),
+        offset: point(px(0.), px(24.)),
+        blur_radius: px(60.),
+        spread_radius: px(0.),
+        inset: false,
+    }]
+}
+
+/// The glow around a control that the user operates on the device.
+pub fn input_glow_shadow() -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: hex_alpha(0xffce73, 0.55).into(),
+        offset: point(px(0.), px(0.)),
+        blur_radius: px(14.),
+        spread_radius: px(1.),
+        inset: false,
+    }]
+}
 
 /// The shadow of a popover and of a menu that the window draws: 0 18 40,
 /// black at 50 %.
@@ -292,8 +322,7 @@ pub const SAMPLE: Pixels = px(22.);
 pub const DEVICE_TILE: Pixels = px(32.);
 /// The widest title block in the toolbar. A longer page name ends with "…".
 pub const TOOLBAR_TITLE_MAX: Pixels = px(220.);
-/// The height of the page row at the top of the canvas (the place of the
-/// page header of section 8.1).
+/// The height of the page header at the top of the canvas (section 8.1).
 pub const PAGE_HEADER_HEIGHT: Pixels = px(48.);
 /// The "+" button of a section header of the sidebar.
 pub const SIDEBAR_ADD_WIDTH: Pixels = px(24.);
@@ -304,6 +333,9 @@ pub const ROW_FIELD_HEIGHT: Pixels = px(22.);
 pub const ROW_FIELD_INSET: Pixels = px(5.);
 /// The leading padding of a page row and of the "Add a page" row.
 pub const SIDEBAR_PAGE_INDENT: Pixels = px(50.);
+/// The width of the previous page and the next page buttons of the page
+/// header. Their height is [`HEIGHT_SEGMENT`].
+pub const PAGE_HEADER_BUTTON_WIDTH: Pixels = px(28.);
 /// The space around the device drawing in the canvas.
 pub const DEVICE_MARGIN: f32 = 24.;
 
@@ -364,6 +396,62 @@ pub const WINDOW_MIN: (f32, f32) = (1080., 700.);
 /// The device drawing uses a scale between these values (section 8.2).
 pub const DEVICE_SCALE_MIN: f32 = 0.5;
 pub const DEVICE_SCALE_MAX: f32 = 1.0;
+
+// MARK: The device drawing (section 8.2)
+//
+// The values in pixels of the display. The canvas multiplies each one by
+// the scale of the drawing.
+
+/// The margin of the body at the left, the right, and the top of the
+/// display. With no knob, also below the display.
+pub const DEVICE_BODY_MARGIN: f32 = 28.;
+/// The margin of the body below the knob labels.
+pub const DEVICE_BODY_BOTTOM: f32 = 44.;
+/// The corner radius of the body.
+pub const DEVICE_BODY_RADIUS: f32 = 33.;
+/// The corner radius of the display.
+pub const DEVICE_DISPLAY_RADIUS: f32 = 12.;
+/// The corner radius of a key face.
+pub const DEVICE_KEY_RADIUS: f32 = 14.;
+/// The corner radius of a bar panel.
+pub const DEVICE_PANEL_RADIUS: f32 = 10.;
+/// The size of the plus icon on an empty key face.
+pub const DEVICE_KEY_EMPTY_ICON_SIZE: f32 = 28.;
+/// The diameter of a knob.
+pub const DEVICE_KNOB_DIAMETER: f32 = 90.;
+/// The space between the display and the top of a knob.
+pub const DEVICE_KNOB_TOP: f32 = 22.;
+/// The width of the ring of a knob.
+pub const DEVICE_KNOB_RING_WIDTH: f32 = 4.;
+/// The diameter of the mark at the top of a knob.
+pub const DEVICE_KNOB_MARK: f32 = 7.;
+/// The space between the mark and the ring of a knob.
+pub const DEVICE_KNOB_MARK_GAP: f32 = 5.;
+/// The space between a knob and its label.
+pub const DEVICE_KNOB_LABEL_GAP: f32 = 8.;
+
+// These values are in points. They do not change with the scale.
+
+/// The line height of a knob label.
+pub const DEVICE_KNOB_LABEL_HEIGHT: f32 = 14.;
+/// The width of the box of a knob label.
+pub const DEVICE_KNOB_LABEL_WIDTH: Pixels = px(80.);
+/// The "◀ Touch bar ▶" control: height and corner radius.
+pub const DEVICE_TOUCH_BAR_HEIGHT: Pixels = px(22.);
+pub const DEVICE_TOUCH_BAR_RADIUS: Pixels = px(11.);
+/// The diameter of the mark of the touch point.
+pub const DEVICE_TOUCH_POINT: f32 = 12.;
+/// The width of the outline of a selected control.
+pub const OUTLINE_WIDTH: f32 = 2.;
+/// The space between a control and its outline: for a key face, a bar
+/// panel, and a hover outline.
+pub const OUTLINE_GAP: f32 = 3.;
+/// The space between a knob or the body and its outline.
+pub const OUTLINE_GAP_ROUND: f32 = 4.;
+/// The gap between the device drawing and the help line (section 8.2).
+pub const DEVICE_AREA_GAP: Pixels = SPACE_18;
+/// The line height of the help line below the device.
+pub const HELP_LINE_HEIGHT: f32 = 16.;
 
 // MARK: Icons (section 3.6)
 

@@ -9,7 +9,7 @@
 //! | `panes` | The order and the widths of the panes, the dividers, show and hide |
 //! | `toolbar` | The toolbar above the canvas and the right panel |
 //! | `sidebar` | The sidebar |
-//! | `canvas` | The canvas: the page title, the device drawing |
+//! | `canvas` | The canvas: the page header, the device drawing, the help line |
 //! | `status_bar` | The status bar and the messages below the canvas |
 //! | `right_panel` | The right panel and its tabs |
 //! | `inspector` | The "Inspector" tab: the editor of the selection |

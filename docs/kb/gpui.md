@@ -519,6 +519,24 @@ repository. The window tests are in `crates/app/src/view/tests/sidebar.rs`.
 | `NativeMenu::menu_with_disabled` shows a disabled item, for example "Move Up" on the first page. `menu_with_check` shows a check mark. | Measured | Window pictures |
 | A native menu opens with its first item under the pointer, and that item is highlighted. Then the Up arrow key did not move the highlight. Move the pointer out of the menu before the arrow keys in a helper program. | Measured | Window pictures |
 
+## Device drawing on the canvas (2026-11-13)
+
+**Measured.** The application draws the device of
+[issue 178](https://github.com/shantanugoel/OpenCraft/issues/178) on the
+canvas. The window tests and the real window on the computer of
+[Release measurements](#release-measurements) gave these facts. A camera
+picture of the device agreed with the window picture: the positions of the
+key faces, the bar panels, and the knobs, and the colours of the knob lights.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `border_dashed()` with `rounded(..)` draws a dashed line that follows the rounded corners. A dashed line of 1 and of 2 shows in the real window. | Measured | `crates/app/src/view/canvas.rs`; real window picture |
+| `img(image).rounded(r)` clips the image to the rounded corners. | Measured | Real window picture |
+| GPUI rounds the layout to device pixels. In the test window, an element at 5.55 points from its parent was at 5.5. A test of positions that come from a scale needs a tolerance of one device pixel. | Measured | `view/tests/canvas.rs`, `near` |
+| A click handler that calls `cx.stop_propagation()` stops the click: the click handler of the parent element does not run. Thus a click on a control selects the control, and a click on the empty canvas around it selects the page. | Measured | `a_click_on_an_empty_part_of_the_canvas_selects_the_page` |
+| `group(name)` on a control and `group_hover(name, ..)` on an outline element outside the bounds of the control show the outline while the pointer is on the control. | Measured | Real window picture |
+| An outline outside a control is an absolute child with negative `left` and `top`. The parent has no border: the drawing puts each border on a separate layer of `size_full`, so that the positions of the children start at the edge of the parent. | Measured | `crates/app/src/view/canvas.rs`, `outline` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

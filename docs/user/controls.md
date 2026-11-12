@@ -12,7 +12,39 @@ own card, and each gesture can have a different action. The procedure is in
 | Key | Click its key face | Press, Release |
 | Knob | Click the knob below the bar panels | Turn left, Turn right, Push |
 | Bar panel | Click the bar panel | Tap |
-| Touch bar | Click the strip "◀ Touch bar ▶" below the bar panels | Swipe left, Swipe right |
+| Touch bar | Click the small control "◀ Touch bar ▶" above the bar panels | Swipe left, Swipe right |
+
+## The device picture
+
+The canvas in the middle of the window shows the device. Each key face and
+each bar panel is at its real position on the display of the device, and
+shows the same image as the device. The knobs are below the bar panels.
+Knob 1 is below bar panel 1.
+
+| Part | What it shows |
+|---|---|
+| A blue outline | The selected control. At the start, the selected control is the key at the top left. |
+| A thin blue outline | The control below the pointer |
+| A dashed blue outline on a bar panel | The bar panel that gives feedback for the selected knob. The line below the device tells which knob. |
+| A dashed border and a plus (+) on a key face | The key has no label, no colour, no image, and no action |
+| The ring of a knob | The colour of the knob light, when the knob lights are set to **Colours**. Else the ring is grey. |
+| A yellow glow | The control that you operate on the device now. A yellow dot shows where you touch the touch bar. |
+| "◀ Touch bar ▶" | The control for the swipe gestures, between the keys and the bar panels. It is blue when it is selected. |
+
+Click an empty part of the canvas to select the page. In this version, the
+inspector shows nothing for the page.
+
+Above the device is the page header. It shows the name of the active page
+and "Page 1 of 3", for example. At its right end are these buttons:
+
+| Button | What it does |
+|---|---|
+| The arrow to the left (**Previous page**) | Shows the page before the active page. It is dim on the first page. |
+| The arrow to the right (**Next page**) | Shows the page after the active page. It is dim on the last page. |
+| **Page settings** | Selects the page, and shows the **Inspector** tab of the right panel |
+
+The device shows the same page as the window. If the window is small, the
+device picture is smaller, down to half of its full size.
 
 ## Knobs
 
@@ -54,8 +86,8 @@ To set the action of a tap:
 
 To set the action of a swipe:
 
-1. Click the strip "◀ Touch bar ▶" below the bar panels. The inspector
-   shows the cards **Swipe left** and **Swipe right**.
+1. Click the small control "◀ Touch bar ▶" above the bar panels. The
+   inspector shows the cards **Swipe left** and **Swipe right**.
 2. On one of the cards, click **Add an action**, and set an action. A good
    action for a swipe is "Change the page".
 
@@ -130,7 +162,8 @@ profile or of the page does not change them.
 
 1. Click the device at the top of the sidebar, or **Device settings** in the
    toolbar. The **Inspector** tab of the right panel shows the device
-   settings. No control has the blue frame.
+   settings. The body of the device picture has a blue outline. No control
+   has a blue outline.
 2. Change a setting. To change a brightness, drag its slider. The number
    to the right of the setting name shows the value. The device shows the
    change immediately.
