@@ -1,8 +1,12 @@
 //! Tests for the descriptor table.
 //!
-//! The first tests check the rules that each descriptor must obey. The other
-//! tests check the N4 Pro entry against the measured facts in
+//! The first tests check the rules that each descriptor must obey. They also
+//! check the test model of `tests/support/test_model.rs`, which is not in the
+//! table. The other tests check the N4 Pro entry against the measured facts in
 //! `docs/kb/n4-pro-hardware.md` and in `tests/fixtures/input/layout.txt`.
+
+#[path = "support/test_model.rs"]
+mod test_model;
 
 use opencraft_core::device::{self, DESCRIPTORS};
 use opencraft_core::{ControlKind, Descriptor, ImageFormat, Rotation, SurfaceKind};
@@ -11,6 +15,12 @@ use std::path::PathBuf;
 
 fn n4pro() -> &'static Descriptor {
     device::find(0x5548, 0x1023).unwrap()
+}
+
+/// Each descriptor of the table, and the test model. A rule that is true for
+/// each model is also true for the test model.
+fn descriptors() -> impl Iterator<Item = &'static Descriptor> {
+    DESCRIPTORS.iter().chain([&test_model::TEST_MODEL])
 }
 
 // --- Rules for each descriptor ------------------------------------------------
@@ -69,7 +79,7 @@ fn a_model_identifier_has_one_layout_and_a_stable_form() {
 
 #[test]
 fn the_device_settings_are_in_range_and_agree_with_the_controls() {
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         let s = d.settings;
         assert!(s.lowest_brightness <= 100, "{}", d.name);
         // A knob light belongs to a knob.
@@ -84,7 +94,7 @@ fn the_device_settings_are_in_range_and_agree_with_the_controls() {
 #[test]
 fn no_two_controls_share_an_input_code() {
     // All codes are in control reports. The touch reports have no code.
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         let mut owner = HashMap::new();
         for c in d.controls {
             for code in c.codes.all() {
@@ -104,7 +114,7 @@ fn no_two_controls_share_an_input_code() {
 
 #[test]
 fn each_control_and_each_surface_has_one_identity() {
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         let controls: HashSet<_> = d.controls.iter().map(|c| c.id()).collect();
         assert_eq!(controls.len(), d.controls.len(), "{}", d.name);
         let surfaces: HashSet<_> = d.surfaces.iter().map(|s| s.id).collect();
@@ -142,7 +152,7 @@ fn each_control_and_each_surface_has_one_identity() {
 
 #[test]
 fn each_surface_of_a_control_exists_and_has_the_correct_kind() {
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         let mut used = HashSet::new();
         for c in d.controls {
             let expected = match c.kind() {
@@ -164,7 +174,7 @@ fn each_surface_of_a_control_exists_and_has_the_correct_kind() {
 
 #[test]
 fn feedback_surfaces_exist_and_keys_keep_their_own_display() {
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         for control in d.controls {
             if let Some(id) = control.feedback_surface() {
                 assert!(d.surface(id).is_some());
@@ -194,7 +204,7 @@ fn feedback_surfaces_exist_and_keys_keep_their_own_display() {
 
 #[test]
 fn each_slot_is_used_one_time_and_only_the_background_has_no_slot() {
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         let mut slots = HashSet::new();
         for s in d.surfaces {
             assert!(s.width > 0 && s.height > 0, "{}: {}", d.name, s.id);
@@ -223,7 +233,7 @@ fn each_slot_is_used_one_time_and_only_the_background_has_no_slot() {
 
 #[test]
 fn each_surface_is_on_the_display_and_no_two_slot_surfaces_overlap() {
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         let (width, height) = d.display_size();
         if let Some(bg) = d.background() {
             assert_eq!((bg.x, bg.y), (0, 0), "{}", d.name);
@@ -252,7 +262,7 @@ fn each_surface_is_on_the_display_and_no_two_slot_surfaces_overlap() {
 fn the_position_of_a_surface_agrees_with_the_position_of_its_control() {
     // A control more to the right has a surface more to the right. A control
     // in a lower row has a surface that is lower.
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         let with_surface: Vec<_> = d
             .controls
             .iter()
@@ -296,7 +306,7 @@ fn the_n4_pro_surfaces_are_at_the_measured_positions() {
 
 #[test]
 fn no_two_controls_of_one_kind_have_the_same_position() {
-    for d in DESCRIPTORS {
+    for d in descriptors() {
         let mut positions = HashSet::new();
         for c in d.controls {
             assert!(c.position.row >= 1 && c.position.column >= 1, "{}", c.id());

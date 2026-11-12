@@ -8,9 +8,8 @@
 
 use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 use opencraft_core::{
-    events, image, list_devices, protocol, recording, select, ControlKind, Decoded, Descriptor,
-    Device, Error, Found, Gesture, HidConnector, HidTransport, InputCodes, InputEvent, Link,
-    LinkEvent,
+    events, image, list_devices, protocol, recording, select, Decoded, Descriptor, Device, Error,
+    Found, Gesture, HidConnector, HidTransport, InputCodes, InputEvent, Link, LinkEvent,
 };
 use std::io::Write;
 use std::process::ExitCode;
@@ -94,8 +93,8 @@ COMMANDS:
                          are: brightness <0-100>..., knob-colors <rrggbb>...,
                          knob-brightness <0-100>..., sleep, keep-alive, start,
                          commit, haptic on|off. Prints the first 16 bytes.
-    bars                 Draw the 4 bar panels with a pattern that shows
-                         their edges
+    bars                 Draw each bar panel with a pattern that shows its
+                         edges
     wide <slot>          Send an image that is wider than the surface
                          (--size <w>x<h> is necessary)
     repaint              Draw all surfaces many times and print the time of
@@ -508,7 +507,7 @@ fn draw_test_pattern(
 /// Draw its slot number on each surface that has a slot, give each knob light
 /// a test colour, and commit. Return the number of surfaces.
 ///
-/// Surface `i` of the table and knob `i` get the test colour `i`.
+/// Surface `i` of the table and knob light `i` get the test colour `i`.
 fn draw_slot_surfaces(t: &mut Device<HidTransport>) -> opencraft_core::Result<usize> {
     let d = t.descriptor();
     let mut drawn = 0;
@@ -519,7 +518,9 @@ fn draw_slot_surfaces(t: &mut Device<HidTransport>) -> opencraft_core::Result<us
         drawn += 1;
     }
 
-    let led_colors: Vec<[u8; 3]> = (0..d.controls_of(ControlKind::Knob).count())
+    // Only a model with knob lights gets the colour command, as in the engine
+    // (decision 0022).
+    let led_colors: Vec<[u8; 3]> = (0..usize::from(d.settings.knob_lights))
         .map(image::test_color)
         .collect();
     if !led_colors.is_empty() {

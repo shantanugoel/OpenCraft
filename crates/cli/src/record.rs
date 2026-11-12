@@ -4,6 +4,9 @@
 //! gesture on the device, and the command goes to the next line by itself.
 //! The user does not use the keyboard. Each gesture goes to one file in the
 //! format of `opencraft_core::recording`.
+//!
+//! The steps are for the N4 Pro only (issue #157). For a different model,
+//! use `opencraft-probe raw --save`: see `docs/ADDING-A-DEVICE-MODEL.md`.
 
 use crate::{draw_test_pattern, flag_str, flag_u64, AnyResult};
 use opencraft_core::link::KEEP_ALIVE_INTERVAL;

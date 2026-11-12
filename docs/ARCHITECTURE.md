@@ -187,4 +187,4 @@ you make one, write a decision record and remove the row.
 | Compatibility with Stream Deck plug-ins | After the first release | This is a different feature from our own plug-ins. See [kb/prior-art.md](kb/prior-art.md#stream-deck-plug-in-model). |
 | Async runtime | When a need shows | See [decision 0003](decisions/0003-blocking-device-layer.md). |
 | Animation on surfaces | After the first release | |
-| More device models, Windows, Linux | After the first release | Rule 4 keeps new models low in cost. |
+| More device models, Windows, Linux | After the first release | Rule 4 keeps new models low in cost. The procedure for a new model is in [ADDING-A-DEVICE-MODEL.md](ADDING-A-DEVICE-MODEL.md). |
