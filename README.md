@@ -18,7 +18,7 @@ Mirabox.
 | | |
 |---|---|
 | Device | VSD StreamDock N4 Pro. The Mirabox N4 Pro and N4 Pro E have the same layout, but nobody tested them. |
-| Platform | macOS on a Mac with Apple silicon |
+| Platform | macOS 12 or later, on a Mac with Apple silicon |
 
 The limits are in the [user guide](docs/user/faults.md#limits).
 

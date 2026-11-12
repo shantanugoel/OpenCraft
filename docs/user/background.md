@@ -23,6 +23,7 @@ the menu.
 
 | Menu item | What it does |
 |---|---|
+| OpenCraft *version* | Shows the version of OpenCraft. You cannot click it. |
 | Device: connected, or Device: not connected | Shows the state of the device. You cannot click it. |
 | Profile: *name* | Shows the active profile. You cannot click it. |
 | Open OpenCraft | Opens the window, or brings it to the front |
@@ -59,7 +60,12 @@ goes away.
 
 - The option writes the file `~/Library/LaunchAgents/opencraft.login.plist`.
   The file contains the location of OpenCraft. If you move OpenCraft to a
-  different folder, turn the option off and on again.
+  different folder, the check mark goes away. Click **Start at login**
+  again.
+- The option operates only when OpenCraft is in a folder on your disk, for
+  example the Applications folder. If you start OpenCraft from the
+  downloaded disk image, OpenCraft shows a message and does not turn the
+  option on.
 - macOS can show a message that a background item was added. System
   Settings > General > Login Items can show the item with the name
   `opencraft`.
