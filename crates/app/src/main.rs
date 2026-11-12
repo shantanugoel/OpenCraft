@@ -1,5 +1,6 @@
 //! The OpenCraft shell. Only the engine opens the device and writes the
-//! profiles. The shell writes only its own file `shell.toml` (decision 0020).
+//! profiles. The shell writes only its own file `shell.toml` (decision 0020),
+//! and the log file when the process has no terminal (decision 0024).
 //!
 //! The engine and the shell operate in one process, also when no window is
 //! open (decision 0019). The menu bar item opens the window again and quits
@@ -11,6 +12,8 @@
 mod images;
 #[cfg(unix)]
 mod lock;
+#[cfg(unix)]
+mod log_file;
 #[cfg(target_os = "macos")]
 mod login;
 mod menu;
@@ -129,6 +132,17 @@ fn main() {
     if start_trace() {
         trace_now("main");
     }
+    let profiles_dir = profiles_dir();
+    let config_dir = settings::config_dir(&profiles_dir);
+    // Before each other message: a start through launchd or the Finder has
+    // no terminal, and the messages then go to the log file.
+    #[cfg(unix)]
+    {
+        if let Err(error) = log_file::use_if_no_output(&config_dir) {
+            eprintln!("OpenCraft cannot open its log file: {error}");
+        }
+        log_file::write_start_line();
+    }
     // All quit requests go to one path: the commands of the shell.
     let (commands, command_receiver) = async_channel::unbounded();
     #[cfg(unix)]
@@ -149,8 +163,6 @@ fn main() {
     if !open_window {
         eprintln!("OpenCraft starts with {LOGIN_ARGUMENT}. It opens no window.");
     }
-    let profiles_dir = profiles_dir();
-    let config_dir = settings::config_dir(&profiles_dir);
     #[cfg(unix)]
     let _lock = lock_or_stop(&config_dir);
     let (settings, settings_problem) = settings::load(&config_dir);

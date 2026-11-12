@@ -39,7 +39,11 @@ editor. The engine saves each change. You can edit with no device.
 Click "Device settings" to set the display brightness, the haptic feedback,
 and the knob lights. The engine keeps them for the device model in
 `device-settings.toml`, in the profiles directory.
-Close the window to stop the engine and quit.
+Close the window, and the engine continues to operate the device. The menu
+bar item opens the window again, sets the start at login, and quits
+OpenCraft. A quit makes the device dark.
+With no terminal, the messages go to `opencraft.log`, next to the profiles
+directory.
 
 The engine uses its default profiles directory. Each profile is a directory
 in it. Set `OPENCRAFT_PROFILES_DIR` to use a different profiles directory for
