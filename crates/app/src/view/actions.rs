@@ -132,6 +132,11 @@ impl DeviceView {
         }
     }
 
+    /// An edit in flight is for a binding that a page list event removes.
+    pub(super) fn forget_pending(&mut self) {
+        self.form.pending.clear();
+    }
+
     fn text_field(&mut self, key: &str, text: String) -> Option<Value> {
         let field = self
             .form

@@ -28,6 +28,8 @@ use tempfile::TempDir;
 
 #[path = "engine/actions.rs"]
 mod actions;
+#[path = "engine/pages.rs"]
+mod pages;
 
 const KEY_3: SurfaceId = SurfaceId::new(SurfaceKind::KeyFace, 3);
 const BAR_2: SurfaceId = SurfaceId::new(SurfaceKind::BarPanel, 2);
@@ -84,6 +86,9 @@ fn set_binding(rig: &mut Rig, binding: BindingId, action: Option<Action>) {
 /// The fake time. A read with no report, and a sleep, move it forward.
 struct World {
     now: Cell<Instant>,
+    /// A test can set this function. The fake transport calls it before each
+    /// write, so that the test can see the order of writes and requests.
+    before_write: RefCell<Option<Box<dyn FnMut()>>>,
 }
 
 /// A fake transport that the test and the engine share. The test looks at
@@ -96,6 +101,9 @@ struct Shared {
 
 impl Transport for Shared {
     fn write(&mut self, report: &[u8]) -> opencraft_core::Result<()> {
+        if let Some(before_write) = self.world.before_write.borrow_mut().as_mut() {
+            before_write();
+        }
         self.fake.borrow_mut().write(report)
     }
 
@@ -170,6 +178,7 @@ impl Rig {
     fn with_ports(dir: TempDir, ports: Vec<opencraft_engine::HandlerPort>) -> Self {
         let world = Rc::new(World {
             now: Cell::new(Instant::now()),
+            before_write: RefCell::new(None),
         });
         let queue = Rc::new(RefCell::new(VecDeque::new()));
         let events = Rc::new(RefCell::new(Vec::new()));
@@ -407,11 +416,18 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
     assert_eq!((layout.display_width, layout.display_height), (800, 480));
 
     // Each key face and each bar panel has a state: no content, and a black
-    // image of the size of the surface.
+    // image of the size of the surface. The list of pages comes last.
     let states = surfaces(&events);
     assert_eq!(states.len(), 14);
-    assert_eq!(events.len(), 16);
+    assert_eq!(events.len(), 17);
     assert_eq!(events[1], Event::Kinds(Vec::new()));
+    assert_eq!(
+        events[16],
+        Event::Pages {
+            names: vec!["Page 1".into()],
+            active: 0
+        }
+    );
     for state in states {
         let surface = DESCRIPTORS[0].surface(state.id).unwrap();
         assert!(state.content.is_empty());
@@ -745,10 +761,7 @@ fn a_file_that_is_not_an_image_gives_a_problem_and_no_change() {
     assert_eq!(problems(&events).len(), 1);
     assert_eq!(events.len(), 1, "no new state: {events:?}");
     assert!(sent(&device).is_empty());
-    assert_eq!(
-        rig.engine.profile().active_page().content(KEY_3).image,
-        None
-    );
+    assert_eq!(rig.engine.profile().pages()[0].content(KEY_3).image, None);
 }
 
 #[test]

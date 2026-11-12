@@ -2,7 +2,8 @@
 //! surface and the bindings.
 //!
 //! These types are the profile in memory. The file format is in
-//! [`crate::store`]. The active page is the first page.
+//! [`crate::store`]. The engine holds the number of the active page: see
+//! [`crate::engine`].
 
 use crate::action::{Action, GestureKind};
 use opencraft_core::{ControlId, ControlKind, SurfaceId, SurfaceKind};
@@ -187,9 +188,9 @@ impl Profile {
         &self.pages
     }
 
-    /// The page that the device shows. It is the first page.
-    pub fn active_page(&self) -> &Page {
-        &self.pages[0]
+    /// One page. Page numbers start at 0.
+    pub fn page(&self, page: usize) -> Option<&Page> {
+        self.pages.get(page)
     }
 
     /// Get one page for a change. Page numbers start at 0.
@@ -197,8 +198,40 @@ impl Profile {
         self.pages.get_mut(page)
     }
 
-    pub fn active_page_mut(&mut self) -> &mut Page {
-        &mut self.pages[0]
+    /// Put `page` after the last page. Return its number.
+    pub fn add_page(&mut self, page: Page) -> usize {
+        self.pages.push(page);
+        self.pages.len() - 1
+    }
+
+    /// Move the page `page` to the position `to`. The pages between the two
+    /// positions get new numbers. Return false if a number is not a page.
+    pub fn move_page(&mut self, page: usize, to: usize) -> bool {
+        if page >= self.pages.len() || to >= self.pages.len() {
+            return false;
+        }
+        let moved = self.pages.remove(page);
+        self.pages.insert(to, moved);
+        true
+    }
+
+    /// Remove the page `page`. Return false if it is not a page, or if it is
+    /// the only page: a profile keeps one page at the minimum.
+    pub fn remove_page(&mut self, page: usize) -> bool {
+        if page >= self.pages.len() || self.pages.len() == 1 {
+            return false;
+        }
+        self.pages.remove(page);
+        true
+    }
+
+    /// A name for a new page: `Page N`, where N is the number of pages after
+    /// the add. If a page has that name, N increases.
+    pub fn new_page_name(&self) -> String {
+        (self.pages.len() + 1..)
+            .map(|n| format!("Page {n}"))
+            .find(|name| self.pages.iter().all(|p| &p.name != name))
+            .expect("a name that no page has")
     }
 
     /// Each image path that a surface of the profile uses.
@@ -330,20 +363,51 @@ mod tests {
     fn a_profile_has_one_page_or_more() {
         assert_eq!(Profile::default().pages().len(), 1);
         assert_eq!(Profile::new("P", Vec::new()).pages().len(), 1);
-        assert_eq!(Profile::default().active_page().name, DEFAULT_PAGE_NAME);
+        assert_eq!(Profile::default().pages()[0].name, DEFAULT_PAGE_NAME);
+    }
+
+    fn names(profile: &Profile) -> Vec<&str> {
+        profile.pages().iter().map(|p| p.name.as_str()).collect()
+    }
+
+    #[test]
+    fn pages_can_be_added_moved_and_removed_and_one_page_stays() {
+        let mut profile = Profile::default();
+        assert_eq!(profile.new_page_name(), "Page 2");
+        assert_eq!(profile.add_page(Page::new("B")), 1);
+        assert_eq!(profile.add_page(Page::new("C")), 2);
+        assert_eq!(names(&profile), ["Page 1", "B", "C"]);
+
+        assert!(profile.move_page(2, 0));
+        assert_eq!(names(&profile), ["C", "Page 1", "B"]);
+        assert!(profile.move_page(0, 2));
+        assert_eq!(names(&profile), ["Page 1", "B", "C"]);
+        assert!(!profile.move_page(3, 0));
+        assert!(!profile.move_page(0, 3));
+
+        assert!(!profile.remove_page(3));
+        assert!(profile.remove_page(1));
+        assert!(profile.remove_page(0));
+        assert_eq!(names(&profile), ["C"]);
+        assert!(!profile.remove_page(0), "the only page stays");
+    }
+
+    #[test]
+    fn a_new_page_name_is_not_in_use() {
+        let mut profile = Profile::new("P", vec![Page::new("Page 2"), Page::new("Page 3")]);
+        assert_eq!(profile.new_page_name(), "Page 4");
+        profile.page_mut(1).unwrap().name = "Other".into();
+        assert_eq!(profile.new_page_name(), "Page 3");
     }
 
     #[test]
     fn a_profile_lists_the_image_paths_of_its_surfaces() {
         let mut profile = Profile::default();
-        profile
-            .active_page_mut()
-            .update(KEY_3, |c| c.image = Some("images/a.png".into()));
-        profile
-            .active_page_mut()
-            .update(SurfaceId::new(SurfaceKind::BarPanel, 1), |c| {
-                c.label = Some("x".into())
-            });
+        let page = profile.page_mut(0).unwrap();
+        page.update(KEY_3, |c| c.image = Some("images/a.png".into()));
+        page.update(SurfaceId::new(SurfaceKind::BarPanel, 1), |c| {
+            c.label = Some("x".into())
+        });
         assert_eq!(profile.image_paths().collect::<Vec<_>>(), ["images/a.png"]);
     }
 }
