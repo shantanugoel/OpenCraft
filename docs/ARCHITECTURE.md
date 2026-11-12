@@ -184,7 +184,7 @@ you make one, write a decision record and remove the row.
 | Decision | Phase | Note |
 |---|---|---|
 | Plug-in protocol, language, package format, and installation | After the first release | Rule 8 keeps this possible. |
-| Compatibility with Stream Deck plug-ins | After the first release | This is a different feature from our own plug-ins. See [kb/prior-art.md](kb/prior-art.md#stream-deck-plug-in-model). |
+| Compatibility with Stream Deck plug-ins | After the first release | This is a different feature from our own plug-ins. See [kb/prior-art.md](kb/prior-art.md#stream-deck-plug-in-model). The main window has no web view: [decision 0029](decisions/0029-window-layout.md#23-no-web-view-in-the-main-window). |
 | Async runtime | When a need shows | See [decision 0003](decisions/0003-blocking-device-layer.md). |
 | Animation on surfaces | After the first release | |
 | More device models, Windows, Linux | After the first release | Rule 4 keeps new models low in cost. The procedure for a new model is in [ADDING-A-DEVICE-MODEL.md](ADDING-A-DEVICE-MODEL.md). |
