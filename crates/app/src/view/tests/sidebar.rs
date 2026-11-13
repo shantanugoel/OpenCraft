@@ -327,6 +327,10 @@ fn a_page_name_is_edited_in_the_row(cx: &mut TestAppContext) {
     });
 }
 
+// The "+" button opens the native menu of macOS. On a different platform the
+// component library draws a menu that takes the focus, and the action of
+// the test does not get to the window. The application is for macOS only.
+#[cfg(target_os = "macos")]
 #[gpui_kit::test]
 fn the_profile_menu_and_the_add_button_send_the_profile_commands(cx: &mut TestAppContext) {
     let (view, cx, tx, sent) = sidebar_window(cx);
@@ -449,6 +453,10 @@ fn the_profile_menu_and_the_add_button_send_the_profile_commands(cx: &mut TestAp
     assert_eq!(sent.borrow().len(), count);
 }
 
+// The "+" button opens the native menu of macOS. On a different platform the
+// component library draws a menu that takes the focus, and the action of
+// the test does not get to the window. The application is for macOS only.
+#[cfg(target_os = "macos")]
 #[gpui_kit::test]
 fn the_profile_add_menu_imports_without_a_settings_sheet(cx: &mut TestAppContext) {
     let (view, cx, _tx, sent) = sidebar_window(cx);
