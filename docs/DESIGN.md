@@ -240,6 +240,10 @@ not repeat "focus" for them. A text field shows its focus with its border.
 | `keyboard_focus_tracked` | A group in which the arrow keys move the selection and the focus: the cards of the first start window | Other controls | focus ring |
 | `popover_focus` | Each drawn menu and popover (`popup_menu` adds it, the icon picker calls it): a focus trap, a click in it keeps the focus, and the focus goes back to the control that a key used to open it (`view/focus_return.rs`) | A sheet (`Modal` has its own trap and the same return of the focus) | — |
 
+The device inspector uses the shared popup button and menu for **Screen off
+after**. `WIDTH_SCREEN_OFF_MENU` is the width of that button and menu. The
+engine holds the inactivity deadline; the view makes no timer.
+
 ### 3.2 Inspector parts (`crates/app/src/view/form.rs`)
 
 | Function | Use it for | Do not use it for |

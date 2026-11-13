@@ -157,6 +157,7 @@ fn the_library_and_the_device_settings_have_labels(cx: &mut TestAppContext) {
         &tx,
         Event::DeviceSettings(opencraft_engine::DeviceSettings {
             brightness: 80,
+            screen_off_minutes: 0,
             haptic: true,
             knob_lights: opencraft_engine::KnobLights {
                 mode: opencraft_engine::KnobLightMode::Colors,
@@ -174,6 +175,7 @@ fn the_library_and_the_device_settings_have_labels(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::Group, "Test device");
     assert_has(&nodes, Role::Label, "Firmware: Not available");
     assert_has(&nodes, Role::Switch, "Haptic feedback");
+    assert_has(&nodes, Role::ComboBox, "Screen off after");
     assert_has(&nodes, Role::RadioButton, "Colours");
     assert_has(&nodes, Role::Button, "Knob 1 light colour #FFFFFF");
 }

@@ -104,6 +104,8 @@ pub struct DeviceSettings {
     /// The display brightness, from
     /// [`SettingsSupport::lowest_brightness`] to [`MAX_BRIGHTNESS`].
     pub brightness: u8,
+    /// Device inactivity before screen off, in minutes. Zero means Never.
+    pub screen_off_minutes: u16,
     /// Haptic feedback on or off.
     pub haptic: bool,
     pub knob_lights: KnobLights,
@@ -115,6 +117,7 @@ impl DeviceSettings {
     pub fn defaults(support: SettingsSupport) -> Self {
         Self {
             brightness: DEFAULT_BRIGHTNESS,
+            screen_off_minutes: 0,
             haptic: true,
             knob_lights: KnobLights {
                 mode: KnobLightMode::Effect,
@@ -133,6 +136,7 @@ impl DeviceSettings {
     pub fn fit(mut self, support: SettingsSupport) -> Self {
         let lowest = support.lowest_brightness.min(MAX_BRIGHTNESS);
         self.brightness = self.brightness.clamp(lowest, MAX_BRIGHTNESS);
+        self.screen_off_minutes = self.screen_off_minutes.min(1440);
         let lights = &mut self.knob_lights;
         lights.brightness = lights
             .brightness
@@ -282,6 +286,9 @@ pub fn load(
     if let Some(value) = integer(table, model, "brightness")? {
         settings.brightness = to_percent(value);
     }
+    if let Some(value) = integer(table, model, "screen_off_minutes")? {
+        settings.screen_off_minutes = value.clamp(0, 1440) as u16;
+    }
     if let Some(value) = table.get("haptic") {
         settings.haptic = value
             .as_bool()
@@ -350,6 +357,10 @@ pub fn save(dir: &Path, model: &str, settings: &DeviceSettings) -> Result<()> {
         toml::Value::Integer(settings.brightness.into()),
     );
     table.insert("haptic".into(), settings.haptic.into());
+    table.insert(
+        "screen_off_minutes".into(),
+        i64::from(settings.screen_off_minutes).into(),
+    );
     table.insert("knob_lights".into(), toml::Value::Table(knob));
     file.insert(model.to_string(), toml::Value::Table(table));
     let text = toml::to_string_pretty(&file)?;
@@ -424,6 +435,7 @@ mod tests {
     fn custom() -> DeviceSettings {
         DeviceSettings {
             brightness: 42,
+            screen_off_minutes: 0,
             haptic: false,
             knob_lights: KnobLights {
                 mode: KnobLightMode::Colors,
@@ -440,6 +452,37 @@ mod tests {
 
     fn write(dir: &Path, text: &str) {
         fs::write(settings_path(dir), text).unwrap();
+    }
+
+    #[test]
+    fn the_timer_defaults_to_never_and_saves_without_a_schema_change() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            load(dir.path(), "n4-pro", n4()).unwrap().screen_off_minutes,
+            0
+        );
+        let mut settings = DeviceSettings::defaults(n4());
+        settings.screen_off_minutes = 5;
+        save(dir.path(), "n4-pro", &settings).unwrap();
+        assert_eq!(
+            load(dir.path(), "n4-pro", n4()).unwrap().screen_off_minutes,
+            5
+        );
+        for (value, want) in [(-1, 0), (9999, 1440)] {
+            write(
+                dir.path(),
+                &format!("schema_version = 1\n[n4-pro]\nscreen_off_minutes = {value}\n"),
+            );
+            assert_eq!(
+                load(dir.path(), "n4-pro", n4()).unwrap().screen_off_minutes,
+                want
+            );
+        }
+        write(
+            dir.path(),
+            "schema_version = 1\n[n4-pro]\nscreen_off_minutes = 'soon'\n",
+        );
+        assert!(load(dir.path(), "n4-pro", n4()).is_err());
     }
 
     #[test]
@@ -590,6 +633,7 @@ mod tests {
 [n4-pro]
 brightness = 42
 haptic = false
+screen_off_minutes = 0
 
 [n4-pro.knob_lights]
 brightness = 30

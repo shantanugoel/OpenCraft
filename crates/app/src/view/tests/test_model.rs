@@ -174,6 +174,7 @@ fn the_device_settings_of_the_test_model_have_one_knob_light_and_no_haptic_feedb
         &tx,
         Event::DeviceSettings(DeviceSettings {
             brightness: 80,
+            screen_off_minutes: 0,
             haptic: true,
             knob_lights: KnobLights {
                 mode: KnobLightMode::Colors,

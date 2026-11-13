@@ -39,6 +39,7 @@ pub(super) struct DevicePanel {
     pub(super) knob_brightness: Option<Entity<SliderState>>,
     /// The knob light whose colour popover is open.
     pub(super) colour_open: Option<usize>,
+    pub(super) timer_open: bool,
     /// The field for `#RRGGBB` in that popover.
     pub(super) colour_input: Entity<InputState>,
     /// The settings support that the controls are for.
@@ -78,6 +79,7 @@ impl DevicePanel {
             brightness: None,
             knob_brightness: None,
             colour_open: None,
+            timer_open: false,
             colour_input,
             support: None,
             chosen: None,

@@ -7,6 +7,20 @@ This entry holds the measured values for the
 software: see [vsd-craft.md](vsd-craft.md#footprint-when-it-runs). Measure
 again at the end of each phase.
 
+## Screen-off timer spot check (2026-11-13)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| With the timer set to 1 minute, the signed release development bundle used 0.10 seconds of processor time in 65.021 seconds: 0.154 % of one core | Measured | `ps -p` cumulative processor time before and after the wait; scratch profile, real N4 Pro, one window open |
+| The camera saw the device dark after the wait. An open-window request restored the green page and knob lights. | Measured | Fresh camera frames, same run |
+| The idle deadline adds no thread or repeating timer. Never has no idle deadline. The runtime keeps its existing 20 ms device polls. | Source | `engine/power.rs`, `engine.rs`, `runtime.rs` |
+
+This is one short check, not the phase measurement of
+[#268](https://github.com/shantanugoel/OpenCraft/issues/268). It includes the
+transition to dark near the end. Other programs were open. The camera was
+opened only after the processor-time sample. No physical input occurred.
+The result is below the idle target of 0.5 % of one core for this interval.
+
 ## Phase 2
 
 The application is the program `opencraft` of Phase 2: the engine and one

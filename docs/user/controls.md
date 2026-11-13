@@ -346,9 +346,20 @@ device.
 | Section | Setting | Values | Default |
 |---|---|---|---|
 | Display | Brightness | 15 to 100 percent. The device gives the same light for all values from 0 to 15, thus the lowest value is 15. | 80 percent |
+| Display | Screen off after | Never, 1, 5, 10, 15, 30 or 60 minutes with no device input | Never |
 | Feedback | Haptic feedback | On or off. The device vibrates a little when you operate a control. Use the switch. | On |
 | Knob lights | Mode | **Effect**: the colours of the device change slowly. **Colours**: one colour for each knob. **Off**: no light. | Effect |
 | Knob lights | Light brightness | 1 to 100 percent. In the mode **Off**, the slider is dim and its value stays. | 100 percent |
+
+**Screen off after** measures input on the device, not input on the
+computer. At the chosen time, the device goes dark as with the **Screen off**
+action. The saved brightness stays. Select **Never** to stop the timer.
+Changing the timer does not wake a device that is already dark. To wake it,
+select **Wake Device** in the menu bar item or open the OpenCraft window.
+For the first device gesture and its firmware limit, see
+[Screen off and Device sleep](actions.md#screen-off-and-device-sleep).
+
+![The screen-off timer](images/screen-off-timer.png)
 
 To give each knob light a colour:
 

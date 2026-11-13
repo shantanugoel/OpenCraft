@@ -438,6 +438,7 @@ fn an_empty_key_face_shows_a_plus_and_the_knob_rings_show_the_light_colours(
         &tx,
         Event::DeviceSettings(DeviceSettings {
             brightness: 80,
+            screen_off_minutes: 0,
             haptic: true,
             knob_lights: KnobLights {
                 mode: KnobLightMode::Colors,

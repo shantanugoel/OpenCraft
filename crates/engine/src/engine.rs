@@ -753,6 +753,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         };
         engine.open_profiles();
         engine.load_settings();
+        engine.restart_idle();
         engine.show_model();
         engine.send_profiles();
         engine.send_pages();
@@ -815,7 +816,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
         let before = SettingCommands::new(&self.settings, support);
         let after = SettingCommands::new(&settings, support);
+        let timer_changed = self.settings.screen_off_minutes != settings.screen_off_minutes;
         self.settings = settings;
+        if timer_changed {
+            self.restart_idle();
+        }
         self.settings_can_save = true;
         self.settings_changed_at = Some(self.now());
         self.send_settings();
@@ -2311,9 +2316,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Call this function in a loop. It sends the keep-alive (through the
     /// link), so the time between two calls must be short.
     pub fn poll(&mut self, timeout: Duration) {
+        self.check_idle();
         if self.needs_draw && self.link.is_connected() {
             self.draw_all();
         }
+        let timeout = self.power.idle_deadline.map_or(timeout, |at| {
+            timeout.min(at.saturating_duration_since(self.now()))
+        });
         match self.link.next_event(timeout) {
             Ok(LinkEvent::Connected) => {
                 self.link_problem = None;
@@ -2350,6 +2359,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Ok(LinkEvent::Timeout) => {}
             Err(e) => self.link_error(&e),
         }
+        self.check_idle();
         self.save_if_due();
     }
 
@@ -2395,6 +2405,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if new_model {
             self.open_profiles();
             self.load_settings();
+            self.restart_idle();
         }
         self.show_model();
         if new_model {

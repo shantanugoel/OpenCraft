@@ -142,6 +142,7 @@ fn tab_reaches_the_switch_the_segments_and_the_sliders_of_the_device(cx: &mut Te
         &tx,
         Event::DeviceSettings(DeviceSettings {
             brightness: 80,
+            screen_off_minutes: 0,
             haptic: true,
             knob_lights: KnobLights {
                 mode: KnobLightMode::Effect,

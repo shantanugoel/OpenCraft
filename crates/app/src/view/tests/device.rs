@@ -11,6 +11,7 @@ use opencraft_engine::{DeviceLayout, DeviceSettings, KnobLightMode, KnobLights, 
 fn defaults() -> DeviceSettings {
     DeviceSettings {
         brightness: 80,
+        screen_off_minutes: 0,
         haptic: true,
         knob_lights: KnobLights {
             mode: KnobLightMode::Effect,
@@ -50,6 +51,35 @@ fn open(
     send(cx, &tx, Event::DeviceSettings(settings));
     click(cx, "device-card");
     (view, cx, tx, sent)
+}
+
+#[gpui_kit::test]
+fn the_screen_off_choice_uses_settings_and_closes_after_a_choice(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = open(cx, defaults());
+    click(cx, "screen-off-after");
+    assert!(cx.debug_bounds("screen-off-0").is_some());
+    cx.simulate_keystrokes("down down enter");
+    cx.run_until_parked();
+    wait_interval(cx);
+    assert_eq!(sent_settings(&sent).last().unwrap().screen_off_minutes, 5);
+    assert!(cx.debug_bounds("screen-off-menu").is_none());
+    let mut settings = defaults();
+    settings.screen_off_minutes = 5;
+    send(cx, &tx, Event::DeviceSettings(settings));
+    cx.update(|_, cx| {
+        assert_eq!(
+            view.read(cx).shown_settings().unwrap().screen_off_minutes,
+            5
+        )
+    });
+    click(cx, "screen-off-after");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("screen-off-menu").is_none());
+    click(cx, "screen-off-after");
+    click(cx, "screen-off-0");
+    wait_interval(cx);
+    assert_eq!(sent_settings(&sent).last().unwrap().screen_off_minutes, 0);
 }
 
 #[gpui_kit::test]

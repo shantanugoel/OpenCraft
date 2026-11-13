@@ -12,6 +12,8 @@ fn a_handler_dark_request_consumes_the_whole_wake_gesture() {
     let mut rig = Rig::new();
     let device = rig.connect();
     take_writes(&device);
+    device.borrow_mut().push_input(control_report(3, 1));
+    rig.engine.poll(Duration::ZERO);
     rig.take_events();
     rig.engine
         .handler_message(Message::Engine(EngineRequest::DeviceDisplay(
@@ -88,6 +90,78 @@ fn brightness_requests_fit_the_model_publish_settings_and_stay_dark() {
     );
     notice(&mut rig, PowerNotice::Unlocked);
     assert!(has(&take_writes(&device), protocol::set_brightness(35)));
+}
+
+#[test]
+fn the_idle_deadline_uses_device_input_and_wake_restarts_it() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    take_writes(&device);
+    let mut settings = rig.engine.device_settings().clone();
+    assert_eq!(settings.screen_off_minutes, 0);
+    settings.screen_off_minutes = 1;
+    rig.engine.command(Command::SetDeviceSettings(settings));
+    rig.poll_for(Duration::from_secs(40));
+    device.borrow_mut().push_input(control_report(3, 1));
+    rig.engine.poll(Duration::ZERO);
+    rig.poll_for(Duration::from_secs(59));
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    rig.engine.poll(Duration::from_secs(10));
+    assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
+    assert!(has(&take_writes(&device), protocol::sleep()));
+    rig.poll_for(Duration::from_secs(65));
+    assert!(
+        !has(&take_writes(&device), protocol::sleep()),
+        "one transition only"
+    );
+    rig.engine.command(Command::WakeDevice);
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    rig.poll_for(Duration::from_secs(59));
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    rig.poll_for(Duration::from_secs(2));
+    assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
+}
+
+#[test]
+fn never_cancels_the_deadline_and_reconnection_does_not_cancel_dark() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    let mut settings = rig.engine.device_settings().clone();
+    settings.screen_off_minutes = 1;
+    rig.engine
+        .command(Command::SetDeviceSettings(settings.clone()));
+    rig.poll_for(Duration::from_secs(59));
+    settings.screen_off_minutes = 0;
+    rig.engine
+        .command(Command::SetDeviceSettings(settings.clone()));
+    take_writes(&device);
+    rig.poll_for(Duration::from_secs(180));
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    assert!(!has(&take_writes(&device), protocol::sleep()));
+    settings.screen_off_minutes = 1;
+    rig.engine.command(Command::SetDeviceSettings(settings));
+    rig.poll_for(Duration::from_secs(61));
+    device.borrow_mut().disconnect();
+    let second = rig.plug();
+    rig.poll_for(Duration::from_secs(2));
+    assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
+    let writes = take_writes(&second);
+    assert!(!has(&writes, protocol::init()));
+    assert!(has(&writes, protocol::sleep()));
+}
+
+#[test]
+fn a_release_report_with_no_prior_press_can_wake_a_dark_device() {
+    use opencraft_engine::{EngineRequest, Message};
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    rig.engine
+        .handler_message(Message::Engine(EngineRequest::DeviceDisplay(
+            DisplayState::DeviceSleep,
+        )));
+    device.borrow_mut().push_input(control_report(3, 0));
+    rig.poll_for(Duration::from_millis(200));
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
 }
 
 fn notice(rig: &mut Rig, notice: PowerNotice) {

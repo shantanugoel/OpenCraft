@@ -988,7 +988,10 @@ The sections show only the settings that the model has
   the filled part `accent`; a white thumb of 16. Range 15 to 100. The window
   sends the commands as now (`SETTINGS_INTERVAL`).
 
-"Screen off after" is a LATER place.
+Note (2026-11-13), from #262: "Screen off after" is a popup button below
+brightness. Never is the default. Its choices and engine policy are in
+[decision 0034](0034-device-dark-state.md). It uses the shared popup controls
+and the token `WIDTH_SCREEN_OFF_MENU`.
 
 **"Feedback" section.** Gap 10.
 
@@ -1524,7 +1527,7 @@ screen.
 | Inspector | "Show the level on bar panel *N*" | A row in the "Turn" card |
 | Inspector | The settings forms of a plug-in | Gesture cards, from the settings description (section 22, rule 4) |
 | Inspector | "Use the same swipes on all pages of this profile"; "One image across the touch bar"; "Video" background | The page inspector. "Video" shows as a disabled segment now. |
-| Inspector | "Screen off after"; "Release the device to other software" | The device inspector |
+| Inspector | "Release the device to other software" | The device inspector |
 | Inspector | A "Wait" step | The kind menu of a step list |
 | Library | Filters "Icons", "Backgrounds", "Starter pages"; icon packs; video backgrounds | The chip row (section 11) |
 | Library | "Open a folder", "Wait"; a group for each plug-in, with "Browse plug-ins…" | Rows and groups (section 11) |
