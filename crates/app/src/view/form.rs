@@ -5,13 +5,10 @@
 //! and the body of a gesture card is a form of these rows. The parts are
 //! layout only: the caller gives the content and the click handlers.
 
-use super::theme;
+use super::{controls, theme};
 use gpui_kit::{
-    assets::IconName,
-    component::{tooltip::Tooltip, Icon},
-    div,
-    prelude::*,
-    AnyElement, Div, FontWeight, Pixels, SharedString, Stateful, TextRun, Window,
+    assets::IconName, div, prelude::*, AnyElement, Div, FontWeight, Pixels, SharedString, Stateful,
+    TextRun, Window,
 };
 
 /// The header of an inspector: a picture of 64 at the start, the name and
@@ -61,31 +58,14 @@ pub(super) fn header(
 /// tooltip, for example "More for Key 1". A button that is not enabled
 /// shows a dim icon; the caller adds no click handler to it.
 pub(super) fn more_button(label: impl Into<SharedString>, enabled: bool) -> Stateful<Div> {
-    let label: SharedString = label.into();
-    div()
-        .id("more-button")
-        .debug_selector(|| "more-button".into())
-        .flex_shrink_0()
-        .size(theme::HEIGHT_CONTROL)
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded(theme::RADIUS_CONTROL)
-        .bg(theme::BG_FIELD)
-        .border_1()
-        .border_color(theme::BORDER_FIELD)
-        .text_color(if enabled {
-            theme::TEXT_SECONDARY
-        } else {
-            theme::TEXT_DISABLED
-        })
-        .when(enabled, |d| {
-            d.cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_CONTROL))
-                .active(|d| d.bg(theme::PRESSED))
-        })
-        .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
-        .child(Icon::new(IconName::Ellipsis).size(theme::ICON_MORE))
+    controls::square_icon_button(
+        "more-button",
+        IconName::Ellipsis,
+        theme::ICON_MORE,
+        label,
+        enabled,
+        theme::HEIGHT_CONTROL,
+    )
 }
 
 /// A section of an inspector: a line at the top, the padding of section
@@ -114,14 +94,7 @@ pub(super) fn section(id: &'static str, title: &str, hint: Option<&str>) -> Stat
                 .flex()
                 .items_baseline()
                 .when(hint.is_some(), |d| d.pb(theme::SECTION_HINT_GAP))
-                .child(
-                    div()
-                        .flex_1()
-                        .text_size(theme::TEXT_SECTION)
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme::TEXT_TERTIARY)
-                        .child(title.to_uppercase()),
-                )
+                .child(controls::section_title(title).flex_1())
                 .children(hint.map(|hint| {
                     div()
                         .text_size(theme::TEXT_CAPTION)

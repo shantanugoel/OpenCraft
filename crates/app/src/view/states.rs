@@ -31,7 +31,7 @@ pub(super) struct StateFaces {
 
 impl StateFaces {
     pub(super) fn new(window: &mut Window, cx: &mut Context<DeviceView>) -> Self {
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Label"));
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
         let subscription = cx.subscribe_in(&input, window, |view, input, event, _, cx| {
             view.text_edit_event(input.entity_id(), event, cx);
             if matches!(event, TextEvent::Change) {

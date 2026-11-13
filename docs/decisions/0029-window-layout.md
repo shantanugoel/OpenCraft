@@ -60,11 +60,15 @@ for each task.
 
 ### 3. Visual constants
 
+**Replaced (2026-11-13).** [DESIGN.md](../DESIGN.md) replaces this section
+for the visual constants, the states, and the text rules. The values are in
+`crates/app/src/view/theme.rs` only. If this section and DESIGN.md
+disagree, DESIGN.md and `theme.rs` are correct. This section stays as the
+history of the first values.
+
 These constants give one style to all parts of the window. Issue
-[#209](https://github.com/shantanugoel/OpenCraft/issues/209) puts each one
-into one module of `crates/app` and writes `docs/DESIGN.md`. Until then, a
-task that needs a constant adds it to one shared module of `crates/app`
-(for example `crates/app/src/view/style.rs`) and uses it from there. Do not
+[#209](https://github.com/shantanugoel/OpenCraft/issues/209) put each one
+into `crates/app/src/view/theme.rs` and wrote `docs/DESIGN.md`. Do not
 write a colour or a size as a number in more than one place.
 
 #### 3.1 Font and text sizes
@@ -505,7 +509,7 @@ The bottom group contains no critical command
 
 | Row | Right-click menu |
 |---|---|
-| Profile | "Rename", "Duplicate", "Profile settings…" (#195), separator, "Remove…" |
+| Profile | "Rename", "Duplicate", "Profile Settings…" (#195), separator, "Remove…" |
 | Page | "Rename", "Duplicate", "Move Up", "Move Down", separator, "Remove…" |
 
 - "Rename" and a double-click on a name start an edit in the row: the name
@@ -663,7 +667,7 @@ The content follows the selection.
   key", from the order of the surfaces in the layout. For a bar panel:
   "Touch bar, first panel" to "fourth panel". Use the words "first",
   "second", "third", "fourth", "fifth"; above five, use "key *N*".
-- With no selection, the inspector shows "Select a control, the page, or the
+- With no selection, the inspector shows "Select a control, the page or the
   device." (`label`, `text-tertiary`, centred, 40 from the top).
 
 #### 10.2 The header, the sections, the form, and "Appearance"
@@ -748,7 +752,7 @@ order, with the field labels:
 | `Integer` | A text field 56 wide that takes digits only, in the range |
 | `Choice` | A popup button with the option labels, height 28 |
 | `Toggle` | A switch 30 × 18 |
-| `Hotkey` | The current hotkey recorder. It shows the hotkey with the symbols of the short value of section 10.5, for example "⇧ ⌘ A". The profile keeps the text of decision 0014. |
+| `Hotkey` | The current hotkey recorder. It shows the hotkey with the symbols of the short value of section 10.5, for example "⇧⌘A". The profile keeps the text of decision 0014. |
 | `Path` | A text field and a button "Choose…" |
 | `Action` | A nested card (section 10.5) |
 | `ActionList` | A step list (section 10.5) |
@@ -886,7 +890,7 @@ description to "From Off to On" (field `on`) and "From On to Off" (field
   for example "2 steps".
 - Closed: one row of height 32, radius 6, background `bg-control`, border
   `border-control`, with the tile, the kind name, and at the end a short
-  value (`label`, `text-secondary`), for example "⌘ ⇧ A". A click opens it.
+  value (`label`, `text-secondary`), for example "⌘⇧A". A click opens it.
 - Open: the fields of the kind, as in section 10.3.
 - An empty nested card is a dashed card "Add an action" (section 10.3), of
   height 32.
@@ -908,7 +912,7 @@ description to "From Off to On" (field `on`) and "From On to Off" (field
 - Below the step list, the field "Delay between two actions, in
   milliseconds" stays, as a normal row.
 - The short value of a step: the value of its first field, as text. For a
-  hotkey, the keys with symbols, for example "⇧ ⌘ A" (the order of macOS: ⌃ ⌥ ⇧ ⌘, and then the
+  hotkey, the keys with symbols, for example "⇧⌘A" (the order of macOS: ⌃ ⌥ ⇧ ⌘, and then the
   key). For a choice, the
   option label. For a nested toggle or sequence: "2 steps" or "Toggle".
 
@@ -941,7 +945,7 @@ comes with the drag of a page row.
 - "Image": a preview 140 × 84, radius 8, border `border-field`, with the
   image, and the text "800 × 480" (`badge` weight 400, `text-secondary`) at
   the bottom left, 6 from the edges. Next to it, gap 12, a column of two
-  controls, gap 6: the button "Choose image…" and a popup button for the fit
+  controls, gap 6: the button "Image file…" and a popup button for the fit
   ("Fill" or "Fit"). The default is "Fill":
   [decision 0032](0032-page-background.md).
 - "Colour": the fill samples of section 10.2, with no "No fill" sample:
@@ -1200,7 +1204,7 @@ closes the palette.
 
 ### 16. The profile settings sheet (#195)
 
-"Profile settings…" in the right-click menu of a profile opens a sheet on
+"Profile Settings…" in the right-click menu of a profile opens a sheet on
 the main window.
 
 - Width 600, height from the content. Radius 14, background `bg-card`,

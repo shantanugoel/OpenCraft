@@ -1,6 +1,10 @@
-//! Controls that more than one part of the window uses (decision 0029,
-//! sections 3.5 and 3.7): buttons, a popup button and its menu, a switch,
-//! a segmented control, a slider, a text field, and a colour sample.
+//! Controls that more than one part of the window uses: buttons, a popup
+//! button and its menu, a switch, a segmented control, a slider, a text
+//! field, and a colour sample.
+//!
+//! Read `docs/DESIGN.md` before you change the window. Its section 3 says
+//! when to use each control. Use a control of this module before you make a
+//! new one, and put a new shared control here, not a copy at a call site.
 
 use super::{
     menu::{MenuKeys, MenuRow},
@@ -77,7 +81,7 @@ pub(crate) fn button(id: impl Into<SharedString>, text: impl Into<SharedString>)
 
 /// A normal button that can be disabled. A button that is not enabled
 /// shows dim text; the caller adds no click handler to it.
-pub(super) fn button_if(
+pub(crate) fn button_if(
     id: impl Into<SharedString>,
     text: impl Into<SharedString>,
     enabled: bool,
@@ -135,6 +139,7 @@ pub(super) fn icon_button(
         .cursor_pointer()
         .hover(|d| d.bg(theme::HOVER_ICON))
         .active(|d| d.bg(theme::PRESSED))
+        .aria_label(label.clone())
         .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         .child(Icon::new(icon).size(theme::ICON_PANE))
 }
@@ -172,6 +177,7 @@ pub(super) fn toolbar_button(
                 .hover(|d| d.bg(theme::HOVER_ICON))
                 .active(|d| d.bg(theme::PRESSED))
         })
+        .aria_label(label.clone())
         .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         .child(Icon::new(icon).size(theme::ICON_TOOLBAR))
 }
@@ -193,13 +199,28 @@ pub(super) fn dot(colour: gpui_kit::Rgba) -> Div {
 pub(super) fn square_button(
     id: &'static str,
     icon: IconName,
-    label: &'static str,
+    label: impl Into<SharedString>,
     enabled: bool,
     height: Pixels,
 ) -> Stateful<Div> {
+    square_icon_button(id, icon, theme::ICON_BUTTON, label, enabled, height)
+}
+
+/// A [`square_button`] with the icon size `icon_size`, for example the "⋯"
+/// button of the inspector header (icon 16).
+pub(super) fn square_icon_button(
+    id: &'static str,
+    icon: IconName,
+    icon_size: Pixels,
+    label: impl Into<SharedString>,
+    enabled: bool,
+    height: Pixels,
+) -> Stateful<Div> {
+    let label: SharedString = label.into();
     div()
         .id(id)
         .debug_selector(move || id.to_string())
+        .aria_label(label.clone())
         .flex_shrink_0()
         .w(theme::WIDTH_SQUARE_BUTTON)
         .h(height)
@@ -220,8 +241,8 @@ pub(super) fn square_button(
                 .hover(|d| d.bg(theme::HOVER_CONTROL))
                 .active(|d| d.bg(theme::PRESSED))
         })
-        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
-        .child(Icon::new(icon).size(theme::ICON_BUTTON))
+        .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
+        .child(Icon::new(icon).size(icon_size))
 }
 
 /// A popup button (section 10.3): `content` at the start, and an up and
@@ -472,7 +493,7 @@ pub(super) fn text_field_sized(
         AnyInputState::Input(state) => frame.h(size.height).flex().items_center().child(
             Input::new(state)
                 .appearance(false)
-                .h(size.height - px(2.))
+                .h(size.height - theme::BORDER * 2.)
                 .px(size.padding)
                 .py_0()
                 .text_size(theme::TEXT_BODY),
@@ -482,7 +503,7 @@ pub(super) fn text_field_sized(
             Textarea::new(state)
                 .small()
                 .appearance(false)
-                .min_h(theme::HEIGHT_LONG_TEXT - px(2.))
+                .min_h(theme::HEIGHT_LONG_TEXT - theme::BORDER * 2.)
                 .py(theme::SPACE_4)
                 .text_size(theme::TEXT_BODY),
         ),
@@ -522,7 +543,8 @@ pub(super) fn colour_sample(
                 .border_color(theme::BORDER_OVERLAY),
         })
         .when_some(label, |d, label| {
-            d.tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
+            d.aria_label(label.clone())
+                .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         })
         .when(selected, |d| {
             d.child(
@@ -537,6 +559,9 @@ pub(super) fn colour_sample(
             )
         })
 }
+
+/// The help text below a field for a colour value, in each colour popover.
+pub(super) const HEX_HELP: &str = "Type #RRGGBB and push Return.";
 
 /// Where a menu of [`popup_menu`] shows.
 #[derive(Clone, Copy)]
@@ -686,19 +711,24 @@ pub(super) fn menu_row(id: impl Into<SharedString>) -> MenuRow {
     )
 }
 
-/// The title of a group of rows, in the library and in a menu (decision
-/// 0029, section 11): padding 4 6, the text in `section`, `text-tertiary`,
-/// in capital letters.
-pub(super) fn group_title(title: impl Into<SharedString>) -> Div {
+/// The text of a section header or of a group title (section 3.1): `section`
+/// weight 600, `text-tertiary`, in capital letters, for example "PROFILES".
+/// Each section header and group title of the window uses it; the caller
+/// adds the padding of its place.
+pub(crate) fn section_title(title: impl Into<SharedString>) -> Div {
     let title: SharedString = title.into();
     div()
         .flex_shrink_0()
-        .py(theme::SPACE_4)
-        .px(theme::SPACE_6)
         .text_size(theme::TEXT_SECTION)
         .font_weight(gpui_kit::FontWeight::SEMIBOLD)
         .text_color(theme::TEXT_TERTIARY)
         .child(title.to_uppercase())
+}
+
+/// The title of a group of rows, in the library and in a menu (decision
+/// 0029, section 11): a [`section_title`] with padding 4 6.
+pub(super) fn group_title(title: impl Into<SharedString>) -> Div {
+    section_title(title).py(theme::SPACE_4).px(theme::SPACE_6)
 }
 
 /// A search field of a panel (decision 0029, section 11): `height`, padding
@@ -742,7 +772,7 @@ pub(super) fn search_field(
             Input::new(input)
                 .appearance(false)
                 .flex_1()
-                .h(height - px(2.))
+                .h(height - theme::BORDER * 2.)
                 .px_0()
                 .py_0()
                 .text_size(theme::TEXT_CONTROL),
@@ -785,6 +815,7 @@ pub(super) fn toggle_button(
             }
         })
         .active(|d| d.bg(theme::PRESSED))
+        .aria_label(tooltip.clone())
         .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
         .child(content)
 }
@@ -814,6 +845,7 @@ pub(super) fn colour_button(
             theme::BORDER_CONTROL
         })
         .cursor_pointer()
+        .aria_label(tooltip.clone())
         .when(!open, |d| {
             d.tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
         })
@@ -925,6 +957,7 @@ pub(super) fn colour_circle(
             Some(fill) => d.bg(fill),
             None => d.border_1().border_color(theme::BORDER_NO_COLOUR),
         })
+        .aria_label(label.clone())
         .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         .when(selected, |d| {
             d.child(
@@ -965,8 +998,8 @@ pub(crate) fn main_button(
         .text_size(theme::TEXT_BODY)
         .font_weight(gpui_kit::FontWeight::SEMIBOLD)
         .cursor_pointer()
-        .hover(|d| d.opacity(0.9))
-        .active(|d| d.opacity(0.8))
+        .hover(|d| d.opacity(theme::MAIN_HOVER_OPACITY))
+        .active(|d| d.opacity(theme::MAIN_PRESSED_OPACITY))
         .child(label(text))
 }
 

@@ -156,7 +156,7 @@ impl DeviceView {
                 .id("problems")
                 .debug_selector(|| "problems".into())
                 .flex_shrink_0()
-                .max_h(px(MESSAGES_HEIGHT))
+                .max_h(px(theme::MESSAGES_HEIGHT))
                 .overflow_y_scroll()
                 .flex()
                 .flex_col()
@@ -194,9 +194,6 @@ impl DeviceView {
         )
     }
 }
-
-/// The highest height of the messages. More messages scroll.
-pub(super) const MESSAGES_HEIGHT: f32 = 120.;
 
 #[cfg(test)]
 mod tests {

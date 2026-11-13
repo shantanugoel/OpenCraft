@@ -494,7 +494,7 @@ impl DeviceView {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some("Select a background image".into()),
+            prompt: Some("Choose".into()),
         });
         cx.spawn_in(window, async move |view, cx| {
             let result = paths.await;
@@ -584,14 +584,14 @@ impl DeviceView {
                         "The background shows around and behind each key face and bar panel.",
                     )
                     .mt(theme::SPACE_10)
-                    .line_height(relative(theme::NOTE_LINE_HEIGHT)),
+                    .line_height(relative(theme::LINE_HEIGHT_TEXT)),
                 )
                 .into_any_element(),
         )
     }
 
     /// The controls of "Image": the preview with the size of the display,
-    /// "Choose image…", and the popup button of the fit.
+    /// "Image file…", and the popup button of the fit.
     fn background_image_row(
         &self,
         (width, height): (u16, u16),
@@ -661,7 +661,7 @@ impl DeviceView {
                     .flex_col()
                     .gap(theme::SPACE_6)
                     .child(
-                        button("background-choose", "Choose image…")
+                        button("background-choose", "Image file…")
                             .justify_center()
                             .on_click(cx.listener(|view, _, window, cx| {
                                 view.background_dialog(window, cx)

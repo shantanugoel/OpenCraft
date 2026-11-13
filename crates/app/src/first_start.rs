@@ -337,7 +337,7 @@ impl FirstStartView {
                             .debug_selector(|| "first-start-device-text".into())
                             .text_size(theme::TEXT_LABEL)
                             .text_color(theme::TEXT_SECONDARY)
-                            .line_height(relative(theme::NOTE_TEXT_LINE_HEIGHT))
+                            .line_height(relative(theme::LINE_HEIGHT_TEXT))
                             .child(text),
                     ),
             )
@@ -543,7 +543,7 @@ impl FirstStartView {
                     .gap(theme::SPACE_10)
                     .text_size(theme::TEXT_LABEL)
                     .text_color(theme::TEXT_SECONDARY)
-                    .line_height(relative(theme::NOTE_TEXT_LINE_HEIGHT))
+                    .line_height(relative(theme::LINE_HEIGHT_TEXT))
                     .child(
                         div().flex_shrink_0().pt(theme::SPACE_1).child(
                             Icon::new(IconName::Shield)
@@ -645,7 +645,7 @@ impl FirstStartView {
                 div()
                     .text_size(theme::TEXT_HELP)
                     .text_color(theme::TEXT_SECONDARY)
-                    .line_height(relative(theme::STARTER_LINE_HEIGHT))
+                    .line_height(relative(theme::LINE_HEIGHT_TEXT))
                     .child(starter.description),
             )
             .on_click(

@@ -6,7 +6,7 @@ use super::SettingsView;
 use crate::{
     shell::{ShellCommand, NOTICES_FILE},
     view::{
-        controls::{button, small_button},
+        controls::{button, button_if},
         theme,
     },
 };
@@ -62,7 +62,7 @@ impl SettingsView {
                     .on_click(self.on_click(ShellCommand::OpenNotices))
                     .into_any_element()
             } else {
-                small_button("licence-notices", "Licence notices", false).into_any_element()
+                button_if("licence-notices", "Licence notices", false).into_any_element()
             })
             .when(!notices, |d| {
                 d.child(

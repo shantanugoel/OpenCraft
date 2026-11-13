@@ -224,7 +224,7 @@ To set the background, select the page (see
 |---|---|
 | **None** | Removes the background. The display is black behind the controls. |
 | **Colour** | Shows the colour samples. Click a colour. Or click **+**, type the colour as `#RRGGBB`, and push Return. |
-| **Image** | Shows a preview of the background, **Choose image…**, and the fit. Click **Choose image…**, and select a PNG or a JPEG file. |
+| **Image** | Shows a preview of the background, **Image file…**, and the fit. Click **Image file…**, and select a PNG or a JPEG file. |
 | **Video** | Dim. A later version of OpenCraft can show a video. |
 
 The fit tells how an image that is not 800 × 480 goes on the display:
@@ -268,7 +268,7 @@ the mark **ON DEVICE**, and its pages are below it.
 
 ### Profile settings
 
-Right-click a profile in the sidebar, and select **Profile settings…**. A
+Right-click a profile in the sidebar, and select **Profile Settings…**. A
 sheet opens on the window. You can open the settings of each profile, also
 of a profile that is not active. The window does not operate while the
 sheet is open.

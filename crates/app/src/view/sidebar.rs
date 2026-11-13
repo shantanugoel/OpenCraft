@@ -295,14 +295,7 @@ impl DeviceView {
             .pl(theme::SPACE_18)
             .flex()
             .items_center()
-            .child(
-                div()
-                    .flex_1()
-                    .text_size(theme::TEXT_SECTION)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(theme::TEXT_TERTIARY)
-                    .child("PROFILES"),
-            )
+            .child(controls::section_title("Profiles").flex_1())
             .child(
                 div()
                     .id("profile-add")
@@ -318,6 +311,7 @@ impl DeviceView {
                     .cursor_pointer()
                     .hover(|d| d.bg(theme::HOVER_ICON))
                     .active(|d| d.bg(theme::PRESSED))
+                    .aria_label("Add a profile")
                     .tooltip(|window, cx| Tooltip::new("Add a profile").build(window, cx))
                     .child(Icon::new(IconName::Plus).size(theme::ICON_BUTTON))
                     .on_click(
@@ -392,10 +386,7 @@ impl DeviceView {
                 // (section 7.3).
                 Icon::new(IconName::Layers)
                     .size(theme::ICON_ROW)
-                    .text_color(colour.map_or(theme::TEXT_SECONDARY, |c| {
-                        let [r, g, b] = c.0;
-                        gpui_kit::rgb(u32::from_be_bytes([0, r, g, b]))
-                    })),
+                    .text_color(colour.map_or(theme::TEXT_SECONDARY, theme::colour)),
             )
     }
 

@@ -655,7 +655,7 @@ impl DeviceView {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some("Choose a path".into()),
+            prompt: Some("Choose".into()),
         });
         cx.spawn_in(window, async move |view, cx| {
             let result = paths.await;
@@ -1146,7 +1146,7 @@ impl DeviceView {
                 // value of a nested card and of a step does. The profile
                 // keeps the text of decision 0014.
                 let (text, colour) = if recording {
-                    ("Press a key…".to_string(), theme::TEXT_SECONDARY)
+                    ("Push a key…".to_string(), theme::TEXT_SECONDARY)
                 } else if text.is_empty() {
                     ("Record hotkey…".to_string(), theme::TEXT_TERTIARY)
                 } else {

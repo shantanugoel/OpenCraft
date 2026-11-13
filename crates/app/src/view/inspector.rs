@@ -10,16 +10,15 @@
 //! `gesture_card`.
 
 use super::*;
-use gpui_kit::{assets::IconName, component::input::AnyInputState, component::Icon, rgb, Rgba};
+use gpui_kit::{assets::IconName, component::input::AnyInputState, component::Icon};
 use opencraft_engine::{
     label_color, ControlLayout, DeviceLayout, LabelChange, LabelPosition, SurfaceContent,
     LABEL_SIZES,
 };
 
 /// The text colours of the popover of the label colour, before the fill
-/// colours of [`COLOURS`]: white and black. These are data: the profile
-/// keeps them.
-const TEXT_COLOURS: [u32; 2] = [0xffffff, 0x000000];
+/// colours of [`COLOURS`]: white and black (data, in the theme).
+use theme::TITLE_COLOURS as TEXT_COLOURS;
 
 /// The state of the inspector that is not in the form of the cards.
 pub(super) struct InspectorState {
@@ -144,12 +143,6 @@ fn colour_text(colour: Color) -> String {
     format!("#{r:02X}{g:02X}{b:02X}")
 }
 
-/// The colour of a fill sample.
-fn sample_fill(colour: Color) -> Rgba {
-    let [r, g, b] = colour.0;
-    rgb((u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b))
-}
-
 /// "first" to "fifth" for 1 to 5 (decision 0029, section 10.1).
 fn ordinal(number: u8) -> Option<&'static str> {
     ["first", "second", "third", "fourth", "fifth"]
@@ -258,7 +251,7 @@ impl DeviceView {
                     .text_center()
                     .text_size(theme::TEXT_LABEL)
                     .text_color(theme::TEXT_TERTIARY)
-                    .child("Select a control, the page, or the device."),
+                    .child("Select a control, the page or the device."),
             );
         };
         let name = control_name(control.id);
@@ -585,7 +578,7 @@ impl DeviceView {
                 .map(|(index, value)| {
                     controls::colour_sample(
                         format!("label-colour-{index}"),
-                        Some(rgb(value)),
+                        Some(theme::sample(value)),
                         current == Some(colour(value)),
                         Some(format!("Text #{value:06X}").into()),
                     )
@@ -641,7 +634,7 @@ impl DeviceView {
                         .id("label-colour-field")
                         .debug_selector(|| "label-colour-field".into()),
                     )
-                    .child(form::help("Type #RRGGBB and push Return."))
+                    .child(form::help(controls::HEX_HELP))
                     .into_any_element()],
                 window,
                 cx.listener(|view, _, window, cx| {
@@ -655,7 +648,7 @@ impl DeviceView {
             .relative()
             .flex_shrink_0()
             .child(
-                controls::colour_button("label-colour", sample_fill(shown), open, tooltip)
+                controls::colour_button("label-colour", theme::colour(shown), open, tooltip)
                     .on_click(cx.listener(move |view, _, window, cx| {
                         view.close_kinds();
                         if open {
@@ -711,7 +704,7 @@ impl DeviceView {
         let custom = current.filter(|c| !COLOURS.iter().any(|&v| colour(v) == *c));
         let other = controls::colour_sample(
             "other-colour",
-            custom.map(sample_fill),
+            custom.map(theme::colour),
             custom.is_some(),
             (!self.inspector.colour_open).then(|| "Other colour".into()),
         )
@@ -783,7 +776,7 @@ impl DeviceView {
                         .id("other-colour-field")
                         .debug_selector(|| "other-colour-field".into()),
                     )
-                    .child(form::help("Type #RRGGBB and push Return."))
+                    .child(form::help(controls::HEX_HELP))
                     .into_any_element()],
                 window,
                 cx.listener(|view, _, window, cx| {
@@ -814,7 +807,7 @@ impl DeviceView {
             .children(COLOURS.into_iter().enumerate().map(|(index, value)| {
                 controls::colour_sample(
                     format!("colour-{index}"),
-                    Some(rgb(value)),
+                    Some(theme::sample(value)),
                     current == Some(colour(value)),
                     Some(format!("{what} #{value:06X}").into()),
                 )

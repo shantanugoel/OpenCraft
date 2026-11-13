@@ -49,6 +49,8 @@ issues are organized. The roadmap issue is
    `opencraft-probe test` and writes the result in the pull request.
 10. **Write no personal data.** Do not put a device serial number, a home path,
     or a host name in the code, a document, an issue, or a commit.
+11. **Changes to the window.** Read [DESIGN.md](DESIGN.md) first. Obey its
+    rules, and do the checklist of its section 9 in the pull request.
 
 ## For a person outside the project
 

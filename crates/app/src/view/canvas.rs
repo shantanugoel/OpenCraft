@@ -113,9 +113,7 @@ pub(crate) fn knob_ring(settings: Option<&DeviceSettings>, knob: ControlId) -> R
                 .get(usize::from(knob.number.max(1) - 1))
         })
         .filter(|c| **c != Color::BLACK)
-        .map_or(theme::DEVICE_KNOB_RING, |c| {
-            gpui_kit::rgb(u32::from(c.0[0]) << 16 | u32::from(c.0[1]) << 8 | u32::from(c.0[2]))
-        })
+        .map_or(theme::DEVICE_KNOB_RING, |c| theme::colour(*c))
 }
 
 /// An outline around an element of `width` × `height` with the corner
@@ -142,8 +140,8 @@ fn hover_outline(group: SharedString, width: f32, height: f32, radius: f32, gap:
         height,
         radius,
         gap,
-        1.,
-        gpui_kit::transparent_black().into(),
+        theme::HOVER_OUTLINE_WIDTH,
+        theme::TRANSPARENT,
     )
     .group_hover(group, |s| s.border_color(theme::ACCENT_LINE_HOVER))
 }
@@ -183,7 +181,7 @@ impl DeviceView {
             - f32::from(theme::STATUS_BAR_HEIGHT)
             - f32::from(theme::PAGE_HEADER_HEIGHT);
         if !self.state.problems.is_empty() {
-            height -= super::status_bar::MESSAGES_HEIGHT;
+            height -= theme::MESSAGES_HEIGHT;
         }
         div()
             .id("canvas")
@@ -483,7 +481,9 @@ impl DeviceView {
                         d.border_1().border_color(theme::DEVICE_SURFACE_BORDER)
                     }),
             )
-            .when(empty, |d| {
+            // During a drag the plus icon is not there, so that the text
+            // "Drop here" of the drop target is readable on an empty key.
+            .when(empty && !drag, |d| {
                 d.child(
                     div()
                         .id(format!("empty-{id}"))
@@ -579,7 +579,7 @@ impl DeviceView {
             return Some(
                 div()
                     .text_color(theme::TEXT_TERTIARY)
-                    .child("Load the device layout…")
+                    .child("The device layout is not available yet.")
                     .into_any_element(),
             );
         };

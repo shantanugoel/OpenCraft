@@ -6,7 +6,7 @@
 
 use super::*;
 use crate::settings::RightPanelTab;
-use gpui_kit::{FontWeight, Pixels};
+use gpui_kit::Pixels;
 
 /// The tabs, in their order. To add a tab, add it here and to
 /// [`RightPanelTab`].
@@ -51,40 +51,17 @@ impl DeviceView {
             .px(theme::SPACE_16)
             .border_b_1()
             .border_color(theme::LINE_SECTION)
-            .child(
-                div()
-                    .id("right-tabs")
-                    .flex()
-                    .p(theme::SPACE_2)
-                    .rounded(theme::RADIUS_TRACK)
-                    .bg(theme::BG_FIELD)
-                    .children(TABS.into_iter().map(|(tab, id, name)| {
-                        let on = tab == selected;
-                        div()
-                            .id(id)
-                            .debug_selector(move || id.into())
-                            .flex_1()
-                            .h(theme::HEIGHT_SEGMENT)
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded(theme::RADIUS_SEGMENT)
-                            .text_size(theme::TEXT_LABEL)
-                            .font_weight(FontWeight::MEDIUM)
-                            .when(on, |d| {
-                                d.bg(theme::BG_SEGMENT_ON).text_color(theme::TEXT_ON_ACCENT)
-                            })
-                            .when(!on, |d| {
-                                d.text_color(theme::TEXT_SECONDARY)
-                                    .cursor_pointer()
-                                    .hover(|d| d.bg(theme::HOVER_ROW))
-                            })
-                            .child(name)
+            .child(controls::segmented(
+                "right-tabs",
+                TABS.into_iter()
+                    .map(|(tab, id, name)| {
+                        controls::segment(id, name, tab == selected, theme::HEIGHT_SEGMENT)
                             .on_click(cx.listener(move |view, _, window, cx| {
                                 view.select_tab(tab, window, cx)
                             }))
-                    })),
-            )
+                    })
+                    .collect(),
+            ))
             .into_any_element()
     }
 }

@@ -58,7 +58,7 @@ fn centre(cx: &mut VisualTestContext, id: &'static str) -> gpui_kit::Point<Pixel
         .center()
 }
 
-/// The right click on a profile row, and "Profile settings…".
+/// The right click on a profile row, and "Profile Settings…".
 fn open_sheet(cx: &mut VisualTestContext, row: &'static str) {
     let position = centre(cx, row);
     cx.simulate_event(MouseDownEvent {

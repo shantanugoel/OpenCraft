@@ -333,7 +333,7 @@ impl GestureCard {
     }
 
     /// A short text at the end of the head of a nested card: the short value
-    /// of a closed card (`label`, `text-secondary`), for example "⇧ ⌘ A", or
+    /// of a closed card (`label`, `text-secondary`), for example "⇧⌘A", or
     /// the summary of an open card (`caption`, `text-tertiary`), for
     /// example "2 steps" (section 10.5).
     pub(super) fn summary(mut self, summary: impl Into<SharedString>) -> Self {

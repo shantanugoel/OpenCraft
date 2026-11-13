@@ -651,16 +651,11 @@ impl DeviceView {
                 if number == 0 || items[number - 1].group != item.group {
                     let group = item.group;
                     children.push(
-                        div()
-                            .flex_shrink_0()
+                        controls::section_title(group.title())
                             .pt(theme::SPACE_8)
                             .px(theme::SPACE_10)
                             .pb(theme::SPACE_4)
-                            .text_size(theme::TEXT_SECTION)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(theme::TEXT_TERTIARY)
                             .debug_selector(move || format!("palette-group-{}", group.title()))
-                            .child(group.title().to_uppercase())
                             .into_any_element(),
                     );
                 }
