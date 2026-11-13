@@ -115,6 +115,117 @@ footprint or the processor use: see [Phase 6](#phase-6). The executable has
 | Cold start to a ready device | Not measured in this issue | |
 | Lost input events: none | Not measured in this issue | |
 
+## Phase 8: the new action kinds (2026-11-13)
+
+Issue [#283](https://github.com/shantanugoel/OpenCraft/issues/283) measures
+the release build with the new action kinds of Phase 8 on the active page.
+
+The application is the bundle from `scripts/sign-dev.sh --release` at commit
+`0be88a0`, with the development signature (see
+[Phase 6](#phase-6) for the signature). The executable has 25,267,168
+bytes. The computer is the same as in [Phase 2](#phase-2). The procedure is
+the same as in [Phase 7](#phase-7-the-screen-off-timer-2026-11-13): new
+`HOME` and profiles directories, `open -n`, one sample each 5 seconds for 300
+seconds, a start 60 seconds before the first sample, and a click on the
+close button for "window closed" (the measurement then starts 30 seconds
+later). The screen-off timer was Never. No person used the device or the
+window during a measurement.
+
+The profile had 2 pages. The active page 1 had content on all 14 surfaces
+and 18 bindings. Page 2 was empty. The page 1 bindings had these action
+kinds:
+
+| Surface | Action |
+|---|---|
+| Key 1 | Microphone mute: the key shows the state "Microphone on" |
+| Key 2 and bar panel 4 | Sound output, "Next device": the key and the bar panel show the name of the output |
+| Key 3 | Change the page, with "Show the page number" On: the key shows `1` |
+| Key 4 | Play a sound (a system sound file, volume 50) |
+| Key 5 | Stop all sound |
+| Key 6 | Quit an application (Calculator) |
+| Key 7 | Mac system function (Mission Control) |
+| Key 8 | Media key (Fast forward) |
+| Key 9 | Device brightness (Up) |
+| Key 10 | Screen off |
+| Bar panel 1 | Type text, paste on |
+| Bar panel 2 | Open a URL, with a browser (Safari) |
+| Bar panel 3 | Send a hotkey with a right-side modifier |
+| Knob 1, turn | Mouse event, scroll |
+| Knob 2, turn | Device brightness (Up, Down) |
+
+The profile had no binding with the kind `opencraft.volume`. Thus the volume
+handler did not read the volume each 2 seconds, and the values are
+not the same as those of [Phase 7](#phase-7-the-screen-off-timer-2026-11-13),
+whose profile had 6 such bindings. A camera picture at the end of each
+measurement showed the 14 surfaces with their content.
+
+| Measurement | Window open | Window closed | Start with `--login` | Confidence |
+|---|---|---|---|---|
+| Processes | 1 | 1 | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 52.5, 52.5, 54.8 MiB | 37.1, 37.1, 37.1 MiB | 26.9, 27.0, 27.0 MiB | Measured |
+| Resident size, median | 118.6 MiB | 117.6 MiB | 102.8 MiB | Measured |
+| Processor time in 300 seconds | 0.67 s | 0.55 s | 0.52 s | Measured |
+| Processor use, mean (100 % is one core) | 0.22 % | 0.18 % | 0.17 % | Measured |
+| Processor use, maximum of a sample | 2.4 % | 0.2 % | 0.2 % | Measured |
+| Threads at the start and at the end of the measurement | 21, 21 | 22, 21 | 20, 19 | Measured: `ps -M` |
+
+- The footprint is 57.5 MB at the most (window open), 38.9 MB (window
+  closed), and 28.3 MB (start with `--login`). All are below the target of
+  80 MB. (Inference from the measured values)
+- The mean processor use is 0.17 to 0.22 % of one core, with and with no
+  window. This is below the target of 0.5 %. (Inference from the measured
+  values)
+- One sample with the window open had 2.4 % (0.12 s in 5 seconds). It was
+  the first interval of the measurement. The other 59 samples had 0.2 % or
+  less. The cause is not known. A sample of this
+  kind did not occur in the 3 runs of the same kind in the
+  [UI overhaul](#memory-and-processor-use-2026-11-13) (0.6 % at the most),
+  and it did not occur in 4 of the 5 runs of [Phase 7](#phase-7-the-screen-off-timer-2026-11-13).
+  (Measured)
+- The new kinds do not add memory or processor use that is easy to see. With
+  the window open, the footprint is in the range of the 5 runs of Phase 7
+  (48.5 to 56.0 MiB). The processor time is 0.52 to 0.67 s, and Phase 7 had
+  0.47 to 0.64 s with the volume handler. (Inference from the measured values)
+- The engine thread used 0.51 to 0.54 s in 300 seconds, in all three runs. A
+  second thread used 0.11 s, only in the run with the window open. No other
+  thread used 0.02 s or more. (Measured: `ps -M` at the start and at the
+  end. The names of the threads are not known, except the engine thread
+  by its order: Inference.)
+- The process has 19 to 22 threads. [Phase 7](#phase-7-the-screen-off-timer-2026-11-13)
+  had 19 to 21 with the profile "Everyday Mac", and the start with
+  `--login` of the [UI overhaul](#memory-and-processor-use-2026-11-13) had
+  13. The two audio handlers each have a worker thread (see the source
+  below), and they are two of the extra threads. The other extra threads are
+  not analysed. (Inference from the counts and the source)
+
+**Microphone state and output name: listener, not poll.** (Source)
+
+- The state of the microphone and the name of the sound output use the
+  Core Audio function `AudioObjectAddPropertyListener`. The functions
+  `watch_microphone` and `watch_output` in `crates/actions/src/system/macos.rs`
+  add the listeners. The microphone watch follows the default input, the
+  list of devices, and the mute property of the default input device. The
+  output watch follows the default output and the list of devices.
+- A listener callback sends one message on a channel. The thread of the
+  handler (`AudioWorker` in `crates/actions/src/audio.rs`) waits for that
+  message with a blocking `recv`, and it has no timer. It reads the state
+  again only after a message. Thus, with no change, the two features use no
+  processor time. (Source. The thread time in the table agrees: no other thread than the
+  engine thread and one thread with the window open used 0.02 s or more.)
+- The watch starts when the first binding of the kind appears on the active
+  page.
+- The volume handler, an older kind, does poll one time each 2 seconds. See
+  [Phase 3](#phase-3). This profile did not have it.
+
+### Product targets with the new action kinds (2026-11-13)
+
+| Target | Value with the new kinds | Result |
+|---|---|---|
+| Memory in the steady state: less than 80 MB | 57.5 MB at the most with the window open, 38.9 MB with the window closed, 28.3 MB after a start with `--login` | Met |
+| Processor use when idle: less than 0.5 % of one core | 0.17 to 0.22 % mean, with and with no window. One sample of 5 seconds with 2.4 %. | Met |
+| Cold start to a ready device | Not measured in this issue | |
+| Lost input events: none | Not measured in this issue | |
+
 ## Phase 2
 
 The application is the program `opencraft` of Phase 2: the engine and one
