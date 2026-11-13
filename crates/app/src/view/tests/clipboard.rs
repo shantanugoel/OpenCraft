@@ -125,14 +125,27 @@ fn delete_clears_a_control_with_content(cx: &mut TestAppContext) {
     assert!(!available(cx, &Copy));
 }
 
+/// Choose `item` in the open menu. The native menu of macOS sends its action
+/// to the root element of the window. A different platform can show its
+/// own menu with the focus in it: the test gives the focus back first.
+fn choose(view: &Entity<DeviceView>, cx: &mut VisualTestContext, item: impl gpui_kit::Action) {
+    cx.update(|window, cx| {
+        let focus = view.read(cx).focus.clone();
+        window.focus(&focus, cx)
+    });
+    cx.run_until_parked();
+    cx.dispatch_action(item);
+    cx.run_until_parked();
+}
+
 #[gpui_kit::test]
 fn copy_to_all_pages_and_the_menus_send_the_command_for_the_selection(cx: &mut TestAppContext) {
-    let (_, cx, _, sent) = window(cx);
+    let (view, cx, _, sent) = window(cx);
     click(cx, "surface-key face 2");
     // The "⋯" button is enabled for a control. The native menu shows
     // nothing on the test platform: the test sends the action of the item.
     click(cx, "more-button");
-    cx.dispatch_action(CopyToAllPages);
+    choose(&view, cx, CopyToAllPages);
     cx.run_until_parked();
     assert_eq!(
         clipboard_commands(&sent),
@@ -141,8 +154,8 @@ fn copy_to_all_pages_and_the_menus_send_the_command_for_the_selection(cx: &mut T
 
     // A right click selects the control, and its menu is for it.
     right_click(cx, "control-knob 2");
-    cx.dispatch_action(Copy);
-    cx.run_until_parked();
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.selected_control, Some(KNOB)));
+    choose(&view, cx, Copy);
     assert_eq!(
         clipboard_commands(&sent).last(),
         Some(&Command::CopyControl { control: KNOB })
@@ -159,10 +172,18 @@ fn a_focused_text_field_keeps_its_copy_paste_and_delete(cx: &mut TestAppContext)
         window.focus(&input.focus_handle(cx), cx);
     });
     cx.run_until_parked();
-    keys(cx, "cmd-a cmd-c backspace");
-    cx.update(|_, cx| assert_eq!(view.read(cx).input.read(cx).value().as_ref(), ""));
-    keys(cx, "cmd-v");
-    cx.update(|_, cx| assert_eq!(view.read(cx).input.read(cx).value().as_ref(), "Mail"));
+    let value = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| view.read(cx).input.read(cx).value().to_string())
+    };
+    keys(cx, "backspace");
+    assert_eq!(value(cx), "Mai");
+    // The keys of the text field are those of macOS: ⌘A, ⌘C, and ⌘V.
+    if cfg!(target_os = "macos") {
+        keys(cx, "cmd-a cmd-c backspace");
+        assert_eq!(value(cx), "");
+        keys(cx, "cmd-v");
+        assert_eq!(value(cx), "Mai");
+    }
     // The Edit menu item goes to the field too.
     cx.update(|window, cx| window.dispatch_action(Box::new(Clear), cx));
     cx.run_until_parked();
