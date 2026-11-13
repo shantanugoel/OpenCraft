@@ -1,7 +1,8 @@
 //! The menu bar item and the Dock activation, with AppKit (decision 0020).
 //!
-//! This module is for macOS only. It is the only module with `unsafe` code
-//! for AppKit. The content of the menu is in the module `menu`.
+//! This module is for macOS only. The content of the menu is in the module
+//! `menu`. The scan of application icons also calls AppKit
+//! (`applications`).
 
 use crate::{
     menu::{same_shape, Brightness, MenuState, Row, HIGHEST_BRIGHTNESS},

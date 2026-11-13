@@ -923,8 +923,8 @@ pub(super) fn popup_menu(
         .into_any_element()
 }
 
-/// The focus of a popover: a drawn menu, a colour popover, or the icon
-/// picker.
+/// The focus of a popover: a drawn menu, a colour popover, the icon
+/// picker, or the application picker.
 ///
 /// - The popover is a focus trap: with the focus in it, Tab and Shift-Tab
 ///   move the focus between its controls only.

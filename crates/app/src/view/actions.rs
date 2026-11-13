@@ -24,8 +24,8 @@ use gpui_kit::{
 const PROFILE_AGAIN: &str = "Select the profile again, so that a rename does not break this key.";
 
 use opencraft_engine::{
-    Action, BindingId, ChoiceOption, Color, Field, GestureKind, InputType, KindDescription, Status,
-    Value,
+    Action, BindingId, ChoiceOption, Color, Field, GestureKind, InputType, KindDescription,
+    PathKind, Status, Value,
 };
 
 /// The function that makes the body rows of an open gesture card from its
@@ -230,6 +230,7 @@ impl DeviceView {
             self.form.menu = None;
             self.form.nested = Default::default();
             self.form.owner = owner;
+            self.clear_application_picker();
         }
         let Some((_, binding)) = owner else {
             return;
@@ -600,7 +601,7 @@ impl DeviceView {
         }
     }
 
-    fn set_field(&mut self, binding: BindingId, path: &FieldPath, value: Value) {
+    pub(super) fn set_field(&mut self, binding: BindingId, path: &FieldPath, value: Value) {
         let key = path.key.clone();
         self.edit(binding, |root| {
             change(root, &path.action, |action| {
@@ -771,7 +772,12 @@ impl DeviceView {
         (self.send)(Command::SetBinding { binding, action });
     }
 
-    fn path_field(&mut self, path: FieldPath, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn path_field(
+        &mut self,
+        path: FieldPath,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(binding) = self.form_binding() else {
             return;
         };
@@ -839,10 +845,17 @@ impl DeviceView {
         let escape = event.keystroke.key == "escape"
             && event.keystroke.modifiers == gpui_kit::Modifiers::default();
         if escape
-            && (self.form.menu.is_some() || self.inspector.is_open() || self.device.timer_open)
+            && (self.form.menu.is_some()
+                || self.inspector.is_open()
+                || self.device.timer_open
+                || self.application_picker_is_open())
         {
+            let picker = self.application_picker_is_open();
             cx.stop_propagation();
             self.close_kinds();
+            if picker {
+                self.focus_workspace(window, cx);
+            }
             cx.notify();
             return;
         }
@@ -887,6 +900,7 @@ impl DeviceView {
         self.inspector.close();
         self.device.colour_open = None;
         self.device.timer_open = false;
+        self.clear_application_picker();
     }
 
     /// The label of the popup of `action`.
@@ -1646,19 +1660,39 @@ impl DeviceView {
                     )
                     .when(integer, |d| d.flex_none().w(theme::WIDTH_INTEGER_FIELD))
                 });
-                let path_button = matches!(input, InputType::Path { .. }).then(|| {
-                    button(format!("{id}path-{index}"), "Choose…")
-                        .px(theme::SPACE_10)
-                        .on_click(cx.listener(move |view, _, window, cx| {
-                            view.path_field(field_path.clone(), window, cx)
-                        }))
-                });
+                let stored = match value {
+                    Some(Value::Text(text)) => text.as_str(),
+                    _ => "",
+                };
+                let path_button = match input {
+                    InputType::Path {
+                        kind: PathKind::File,
+                    } => Some(
+                        button(format!("{id}path-{index}"), "Choose…")
+                            .px(theme::SPACE_10)
+                            .on_click(cx.listener(move |view, _, window, cx| {
+                                view.path_field(field_path.clone(), window, cx)
+                            }))
+                            .into_any_element(),
+                    ),
+                    InputType::Path {
+                        kind: PathKind::Application,
+                    } => Some(self.application_choose(&id, index, &field_path, window, cx)),
+                    _ => None,
+                };
+                let application_icon = match input {
+                    InputType::Path {
+                        kind: PathKind::Application,
+                    } if !stored.is_empty() => self.application_field_icon(stored),
+                    _ => None,
+                };
                 let value = div()
                     .flex_1()
                     .min_w_0()
                     .flex()
                     .items_center()
                     .gap(theme::GAP_ITEMS)
+                    .children(application_icon)
                     .children(text)
                     .children(path_button);
                 if matches!(input, InputType::LongText) {

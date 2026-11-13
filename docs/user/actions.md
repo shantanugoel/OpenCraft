@@ -108,7 +108,8 @@ each row. The control of a setting agrees with its type:
 | Colour | The fill colour samples and a field for `#RRGGBB`. An incomplete value changes nothing. |
 | On or off | A switch |
 | Hotkey | A field that records a hotkey. See [Send a hotkey](#send-a-hotkey). |
-| File or application | A text field and **Choose…** |
+| File | A text field and **Choose…**. **Choose…** opens the file dialog. |
+| Application | A text field and **Choose…**. **Choose…** opens the list of installed applications. |
 | Action | A card in the card, with its own action kind and settings. See [Toggle](#toggle). |
 | List of actions | A list of steps above the other settings. See [Sequence of actions](#sequence-of-actions). |
 
@@ -167,11 +168,17 @@ OpenCraft saves each change immediately, as in
 | Application, file or folder | The name of an application, for example `Safari`, or the path of an application, a file, or a folder |
 | Arguments | Optional. Words that macOS gives to the application when it starts the application |
 
-1. Type the name of the application. Or click **Choose…** and select an
-   application, a file, or a folder in the file dialog. You can also type
-   the path of a folder. A path can start with `~/` for your home folder.
-2. If the application needs arguments, type them in the field
+1. Type the name of the application, or type a path. A path can start with
+   `~/` for your home folder.
+2. Or click **Choose…**. OpenCraft shows the installed applications. Type
+   in the search field to shorten the list. Click an application.
+3. To use an application that is not in the list, click **Choose a
+   different application…**. Select the application, a file, or a folder
+   in the file dialog.
+4. If the application needs arguments, type them in the field
    **Arguments**.
+
+![The application picker. The search is Safari, and the list shows Safari.](images/application-picker.png)
 
 - A name with no `/` is the name of an application. A path that ends with
   `.app` is an application. Each other path is a file or a folder. macOS

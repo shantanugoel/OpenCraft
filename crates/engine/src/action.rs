@@ -360,9 +360,15 @@ pub struct ChoiceOption {
     pub label: String,
 }
 
+/// Which path the shell asks for. The value in the profile is text for
+/// both kinds: a name or a path. Kind `Application` tells the shell to
+/// show the list of installed applications. The handler does not read
+/// the kind.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PathKind {
+    /// A file or a folder. The shell opens the file dialog.
     File,
+    /// An application. The shell opens the list of installed applications.
     Application,
 }
 

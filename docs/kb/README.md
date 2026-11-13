@@ -38,6 +38,7 @@ measurement. The other documents link to these facts and do not repeat them.
 | [macos-media-keys.md](macos-media-keys.md) | The key types of the media key action, the missing Stop key, and what was observed on macOS 27 |
 | [macos-front-application.md](macos-front-application.md) | The notices and calls that give the front application, and its bundle identifier |
 | [macos-open-and-quit.md](macos-open-and-quit.md) | Public calls to open applications, files, folders, and URLs, and to quit an application |
+| [installed-applications.md](installed-applications.md) | The list of installed applications: where the scan looks, how it reads a bundle, and how it draws an icon |
 | [macos-start-at-login.md](macos-start-at-login.md) | LaunchAgent files, background items, and SMAppService for a start at login |
 | [dependency-licences.md](dependency-licences.md) | The licences of the crates in the release executable, their duties, and the tools for the notices |
 | [macos-distribution.md](macos-distribution.md) | The release bundle: signature, hardened runtime, disk image, notarization, and the lowest macOS version |

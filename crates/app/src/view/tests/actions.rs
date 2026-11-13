@@ -406,19 +406,23 @@ fn all_field_types_send_full_settings_and_keep_unknown_keys(cx: &mut TestAppCont
         "file",
         Value::Text("/tmp/test-file".into()),
     );
-    click(cx, "path-7");
-    assert!(cx.did_prompt_for_paths());
-    cx.simulate_path_prompt_response(|options| {
-        assert!(options.files);
-        assert!(!options.multiple);
-        Some(vec!["/Applications/Test.app".into()])
-    });
-    cx.run_until_parked();
+    type_field(&view, cx, "application", "Safari");
     expect_change(
         &sent,
         &mut expected,
         "application",
-        Value::Text("/Applications/Test.app".into()),
+        Value::Text("Safari".into()),
+    );
+    use_sample_applications(&view, cx);
+    click(cx, "path-7");
+    assert!(!cx.did_prompt_for_paths());
+    assert!(cx.debug_bounds("application-picker").is_some());
+    click(cx, "app-row-0");
+    expect_change(
+        &sent,
+        &mut expected,
+        "application",
+        Value::Text("/Applications/OpenCraftTestCalendar.app".into()),
     );
     cx.update(|_, cx| {
         // Sending commands does not change confirmed bindings.
@@ -796,20 +800,21 @@ fn old_replies_keep_later_edits_and_new_events_replace_the_form(cx: &mut TestApp
 
 #[gpui_kit::test]
 fn editor_scrolls_at_the_minimum_window_size(cx: &mut TestAppContext) {
-    let (_, cx, tx, _) = window(cx);
+    let (view, cx, tx, _) = window(cx);
     cx.simulate_resize(size(px(900.), px(640.)));
     tx.try_send(Event::Kinds(vec![kind()])).unwrap();
     tx.try_send(event(binding(GestureKind::Press), action(), true))
         .unwrap();
     cx.run_until_parked();
     click(cx, "surface-key face 2");
+    use_sample_applications(&view, cx);
     for _ in 0..20 {
         let editor = cx.debug_bounds("editor").unwrap();
         let target = cx.debug_bounds("path-7").unwrap();
         if editor.contains(&target.center()) {
             click(cx, "path-7");
-            assert!(cx.did_prompt_for_paths());
-            cx.simulate_path_prompt_response(|_| None);
+            assert!(cx.debug_bounds("application-picker").is_some());
+            cx.simulate_keystrokes("escape");
             cx.run_until_parked();
             return;
         }
@@ -905,4 +910,171 @@ fn a_saved_device_sleep_binding_shows_as_not_available(cx: &mut TestAppContext) 
         );
         assert!(!state.available);
     });
+}
+
+fn sample_applications() -> Vec<crate::applications::InstalledApplication> {
+    use crate::applications::InstalledApplication;
+    vec![
+        InstalledApplication {
+            name: "Calendar".into(),
+            bundle_identifier: "com.example.calendar".into(),
+            path: std::path::PathBuf::from("/Applications/OpenCraftTestCalendar.app"),
+        },
+        InstalledApplication {
+            name: "Mail".into(),
+            bundle_identifier: "com.example.mail".into(),
+            path: std::path::PathBuf::from("/Applications/OpenCraftTestMail.app"),
+        },
+    ]
+}
+
+fn use_sample_applications(view: &Entity<DeviceView>, cx: &mut VisualTestContext) {
+    let applications = sample_applications();
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| view.use_fixed_applications(applications, cx));
+    });
+}
+
+fn open_application_form(
+    cx: &mut TestAppContext,
+) -> (Entity<DeviceView>, &mut VisualTestContext, Commands) {
+    let (view, cx, tx, sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(2400.)));
+    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
+    tx.try_send(event(binding(GestureKind::Press), action(), true))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    use_sample_applications(&view, cx);
+    (view, cx, sent)
+}
+
+#[gpui_kit::test]
+fn the_application_picker_searches_and_keeps_a_typed_name(cx: &mut TestAppContext) {
+    let (view, cx, _sent) = open_application_form(cx);
+    click(cx, "path-7");
+    assert!(cx.debug_bounds("application-picker").is_some());
+    cx.simulate_input("mail");
+    cx.run_until_parked();
+    assert_eq!(
+        cx.update(|_, cx| view.read(cx).shown_application_names()),
+        ["Mail"]
+    );
+    assert!(cx.debug_bounds("app-row-1").is_none());
+    cx.simulate_input("zzzz");
+    cx.run_until_parked();
+    assert!(cx
+        .update(|_, cx| view.read(cx).shown_application_names())
+        .is_empty());
+    assert!(cx.debug_bounds("application-empty").is_some());
+}
+
+#[gpui_kit::test]
+fn the_keyboard_selects_an_application_and_escape_closes_the_picker(cx: &mut TestAppContext) {
+    let (view, cx, sent) = open_application_form(cx);
+    click(cx, "path-7");
+    cx.simulate_keystrokes("down");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(!view_open(&view, cx));
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&Command::SetBinding {
+            binding: binding(GestureKind::Press),
+            action: Some(with_application("/Applications/OpenCraftTestMail.app")),
+        })
+    );
+    click(cx, "path-7");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!view_open(&view, cx));
+    assert!(cx.debug_bounds("application-picker").is_none());
+}
+
+#[gpui_kit::test]
+fn a_click_outside_closes_the_picker_and_a_second_click_opens_it(cx: &mut TestAppContext) {
+    let (view, cx, sent) = open_application_form(cx);
+    click(cx, "path-7");
+    let before = sent.borrow().len();
+    click(cx, "canvas");
+    assert!(!view_open(&view, cx));
+    assert_eq!(sent.borrow().len(), before);
+    click(cx, "path-7");
+    assert!(view_open(&view, cx));
+    click(cx, "path-7");
+    assert!(!view_open(&view, cx));
+}
+
+#[gpui_kit::test]
+fn choose_a_different_application_opens_the_file_dialog(cx: &mut TestAppContext) {
+    let (view, cx, sent) = open_application_form(cx);
+    click(cx, "path-6");
+    assert!(cx.did_prompt_for_paths());
+    cx.simulate_path_prompt_response(|_| None);
+    cx.run_until_parked();
+    click(cx, "path-7");
+    click(cx, "choose-different-application");
+    assert!(cx.did_prompt_for_paths());
+    cx.simulate_path_prompt_response(|options| {
+        assert!(options.files);
+        assert!(options.directories);
+        assert!(!options.multiple);
+        Some(vec!["/Applications/OpenCraftTestOther.app".into()])
+    });
+    cx.run_until_parked();
+    assert!(!view_open(&view, cx));
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&Command::SetBinding {
+            binding: binding(GestureKind::Press),
+            action: Some(with_application("/Applications/OpenCraftTestOther.app")),
+        })
+    );
+}
+
+#[gpui_kit::test]
+fn a_scratch_directory_fills_the_picker_off_the_interface(cx: &mut TestAppContext) {
+    let root = tempfile::tempdir().unwrap();
+    let contents = root.path().join("Scratch.app/Contents");
+    std::fs::create_dir_all(&contents).unwrap();
+    std::fs::write(
+        contents.join("Info.plist"),
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleDisplayName</key><string>Scratch Mail</string>
+<key>CFBundleIdentifier</key><string>com.example.scratch</string>
+</dict></plist>"#,
+    )
+    .unwrap();
+    let (view, cx, tx, _sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(2400.)));
+    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
+    tx.try_send(event(binding(GestureKind::Press), action(), true))
+        .unwrap();
+    cx.run_until_parked();
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.use_application_directories(vec![root.path().to_path_buf()]);
+        });
+    });
+    click(cx, "surface-key face 2");
+    click(cx, "path-7");
+    cx.run_until_parked();
+    assert_eq!(
+        cx.update(|_, cx| view.read(cx).shown_application_names()),
+        ["Scratch Mail"]
+    );
+}
+
+fn view_open(view: &Entity<DeviceView>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|_, cx| view.read(cx).application_picker_is_open())
+}
+
+fn with_application(path: &str) -> Action {
+    let mut action = action();
+    action
+        .settings
+        .insert("application".into(), Value::Text(path.into()));
+    action
 }
