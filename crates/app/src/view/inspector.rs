@@ -389,6 +389,7 @@ impl DeviceView {
                 "Title",
                 controls::text_field(
                     &AnyInputState::Input(self.input.clone()),
+                    "Title",
                     theme::BG_FIELD,
                     window,
                     cx,
@@ -525,6 +526,8 @@ impl DeviceView {
             .child(
                 controls::popup_button(
                     "label-size",
+                    "Text size",
+                    format!("{size} pt"),
                     theme::HEIGHT_CONTROL,
                     open,
                     div().truncate().child(format!("{size} pt")),
@@ -561,7 +564,8 @@ impl DeviceView {
                 "label-colour-automatic",
                 None,
                 current.is_none(),
-                Some("Automatic: black or white for the fill".into()),
+                "Automatic: black or white for the fill",
+                true,
             )
             .flex()
             .items_center()
@@ -580,7 +584,8 @@ impl DeviceView {
                         format!("label-colour-{index}"),
                         Some(theme::sample(value)),
                         current == Some(colour(value)),
-                        Some(format!("Text #{value:06X}").into()),
+                        format!("Text #{value:06X}"),
+                        true,
                     )
                     .on_click(choose_text_colour(Some(colour(value)), cx))
                 })
@@ -627,6 +632,7 @@ impl DeviceView {
                     .child(
                         controls::text_field(
                             &AnyInputState::Input(self.inspector.text_colour_input.clone()),
+                            "Text colour",
                             theme::BG_FIELD,
                             window,
                             cx,
@@ -706,7 +712,8 @@ impl DeviceView {
             "other-colour",
             custom.map(theme::colour),
             custom.is_some(),
-            (!self.inspector.colour_open).then(|| "Other colour".into()),
+            "Other colour",
+            !self.inspector.colour_open,
         )
         .when(custom.is_none(), |d| {
             d.flex()
@@ -720,6 +727,7 @@ impl DeviceView {
                 .text_color(theme::TEXT_SECONDARY)
                 .child("+")
         })
+        .aria_expanded(self.inspector.colour_open)
         .on_click(cx.listener(move |view, _, window, cx| {
             let open = !view.inspector.colour_open;
             view.close_kinds();
@@ -769,6 +777,7 @@ impl DeviceView {
                     .child(
                         controls::text_field(
                             &AnyInputState::Input(self.inspector.colour_input.clone()),
+                            "Other colour",
                             theme::BG_FIELD,
                             window,
                             cx,
@@ -792,16 +801,11 @@ impl DeviceView {
             .gap(theme::SPACE_6)
             .when(none, |d| {
                 d.child(
-                    controls::colour_sample(
-                        "no-colour",
-                        None,
-                        current.is_none(),
-                        Some("No fill".into()),
-                    )
-                    .on_click(cx.listener(|view, _, _, cx| {
-                        view.pick_colour(None);
-                        cx.notify();
-                    })),
+                    controls::colour_sample("no-colour", None, current.is_none(), "No fill", true)
+                        .on_click(cx.listener(|view, _, _, cx| {
+                            view.pick_colour(None);
+                            cx.notify();
+                        })),
                 )
             })
             .children(COLOURS.into_iter().enumerate().map(|(index, value)| {
@@ -809,7 +813,8 @@ impl DeviceView {
                     format!("colour-{index}"),
                     Some(theme::sample(value)),
                     current == Some(colour(value)),
-                    Some(format!("{what} #{value:06X}").into()),
+                    format!("{what} #{value:06X}"),
+                    true,
                 )
                 .on_click(cx.listener(move |view, _, _, _| view.pick_colour(Some(colour(value)))))
             }))

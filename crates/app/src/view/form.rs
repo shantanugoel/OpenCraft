@@ -5,10 +5,13 @@
 //! and the body of a gesture card is a form of these rows. The parts are
 //! layout only: the caller gives the content and the click handlers.
 
-use super::{controls, theme};
+use super::{
+    controls::{self, Accessible},
+    theme,
+};
 use gpui_kit::{
-    assets::IconName, div, prelude::*, AnyElement, Div, FontWeight, Pixels, SharedString, Stateful,
-    TextRun, Window,
+    assets::IconName, div, prelude::*, AnyElement, Div, FontWeight, Pixels, Role, SharedString,
+    Stateful, TextRun, Window,
 };
 
 /// The header of an inspector: a picture of 64 at the start, the name and
@@ -20,9 +23,12 @@ pub(super) fn header(
     second_line: impl IntoElement,
     end: Option<AnyElement>,
 ) -> Stateful<Div> {
+    let name: SharedString = name.into();
     div()
         .id("inspector-header")
         .debug_selector(|| "inspector-header".into())
+        // A group with the name as its accessible label.
+        .accessible(Role::Group, name.clone())
         .flex_shrink_0()
         .p(theme::SPACE_16)
         .flex()
@@ -42,7 +48,7 @@ pub(super) fn header(
                         .text_size(theme::TEXT_HEADING)
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(theme::TEXT_PRIMARY)
-                        .child(name.into()),
+                        .child(name),
                 )
                 .child(
                     div()
@@ -71,11 +77,14 @@ pub(super) fn more_button(label: impl Into<SharedString>, enabled: bool) -> Stat
 /// A section of an inspector: a line at the top, the padding of section
 /// 3.3, and the header text in capital letters. With a `hint`, the hint is
 /// at the end of the header line, and the content has a gap of 8. Add the
-/// content with `child`.
+/// content with `child`. The section is a group with the title as its
+/// accessible label, and the hint as its description.
 pub(super) fn section(id: &'static str, title: &str, hint: Option<&str>) -> Stateful<Div> {
     div()
         .id(id)
         .debug_selector(move || id.into())
+        .accessible(Role::Group, title.to_string())
+        .when_some(hint, |d, hint| d.aria_description(hint.to_string()))
         .flex_shrink_0()
         .pt(theme::SECTION_PADDING_TOP)
         .px(theme::SECTION_PADDING_SIDE)

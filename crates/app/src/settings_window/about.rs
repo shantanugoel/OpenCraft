@@ -6,7 +6,7 @@ use super::SettingsView;
 use crate::{
     shell::{ShellCommand, NOTICES_FILE},
     view::{
-        controls::{button, button_if},
+        controls::{button, button_if, Accessible},
         theme,
     },
 };
@@ -44,6 +44,8 @@ impl SettingsView {
             )
             .child(
                 div()
+                    .id("about-name")
+                    .readable_text("OpenCraft")
                     .text_size(theme::TEXT_SHEET_TITLE)
                     .font_weight(FontWeight::SEMIBOLD)
                     .child("OpenCraft"),
@@ -52,6 +54,7 @@ impl SettingsView {
                 div()
                     .id("about-version")
                     .debug_selector(|| "about-version".into())
+                    .readable_text(format!("Version {VERSION}"))
                     .text_size(theme::TEXT_LABEL)
                     .text_color(theme::TEXT_SECONDARY)
                     .child(format!("Version {VERSION}")),
@@ -69,6 +72,7 @@ impl SettingsView {
                     div()
                         .id("no-notices")
                         .debug_selector(|| "no-notices".into())
+                        .readable_text(no_notices_text())
                         .text_center()
                         .text_size(theme::TEXT_HELP)
                         .text_color(theme::TEXT_TERTIARY)

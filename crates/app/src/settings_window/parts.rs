@@ -1,6 +1,6 @@
 //! The group box and its rows (decision 0029, section 17).
 
-use crate::view::theme;
+use crate::view::{controls::Accessible, theme};
 use gpui_kit::{div, prelude::*, Div, IntoElement, SharedString};
 
 /// A group box: radius 10, the card colour, and a border. Between two rows
@@ -26,11 +26,15 @@ pub(super) fn group(rows: impl IntoIterator<Item = Div>) -> Div {
 /// at the end. The name and the description have one line each, so that the
 /// rows of a pane have the same height: a long text, for example a long
 /// folder path, ends with "…".
+/// VoiceOver reads the name and the description as one text, before the
+/// control.
 pub(super) fn row(
     name: impl Into<SharedString>,
     description: impl Into<SharedString>,
     control: impl IntoElement,
 ) -> Div {
+    let name: SharedString = name.into();
+    let description: SharedString = description.into();
     div()
         .flex()
         .items_center()
@@ -39,25 +43,30 @@ pub(super) fn row(
         .py(theme::SPACE_10)
         .child(
             div()
+                .id(name.clone())
+                .readable_text(format!("{name}, {description}"))
                 .flex_1()
                 .min_w_0()
                 .flex()
                 .flex_col()
                 .gap(theme::SPACE_2)
-                .child(div().truncate().child(name.into()))
+                .child(div().truncate().child(name))
                 .child(
                     div()
                         .truncate()
                         .text_size(theme::TEXT_HELP)
                         .text_color(theme::TEXT_TERTIARY)
-                        .child(description.into()),
+                        .child(description),
                 ),
         )
         .child(control)
 }
 
 /// A row with one line: a name at the leading side, and a value at the end.
+/// VoiceOver reads the name and the value as one text.
 pub(super) fn line_row(name: impl Into<SharedString>, value: impl Into<SharedString>) -> Div {
+    let name: SharedString = name.into();
+    let value: SharedString = value.into();
     div()
         .flex()
         .items_center()
@@ -65,6 +74,11 @@ pub(super) fn line_row(name: impl Into<SharedString>, value: impl Into<SharedStr
         .gap(theme::SPACE_12)
         .px(theme::SPACE_14)
         .py(theme::SPACE_10)
-        .child(div().child(name.into()))
-        .child(div().text_color(theme::TEXT_SECONDARY).child(value.into()))
+        .child(
+            div()
+                .id(name.clone())
+                .readable_text(format!("{name}, {value}"))
+                .child(name),
+        )
+        .child(div().text_color(theme::TEXT_SECONDARY).child(value))
 }

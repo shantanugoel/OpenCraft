@@ -6,17 +6,20 @@
 //! The state of the controls and the commands are in `device`.
 
 use super::*;
-use controls::{segment, segmented, slider, switch};
+use controls::{segment, segmented, slider, switch, Accessible};
 use gpui_kit::{
     assets::IconName,
     component::{input::AnyInputState, slider::SliderState, Icon},
-    relative, FontWeight,
+    relative, FontWeight, Role,
 };
 use opencraft_engine::{DeviceSettings, KnobLightMode};
 
 /// The note at the bottom of the inspector.
 const NOTE: &str = "These settings are for this device. A change of the profile or the page \
                     does not change them. You can change them when no device is connected.";
+
+/// The name of the haptic switch.
+const HAPTIC: &str = "Haptic feedback";
 
 /// The help text of the haptic switch.
 const HAPTIC_HELP: &str = "The device vibrates a little when you operate a control.";
@@ -137,13 +140,13 @@ impl DeviceView {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .child(value_label("Haptic feedback"))
+                    .child(value_label(HAPTIC))
                     .child(
-                        switch("haptic-switch", on, theme::SWITCH_INSPECTOR).on_click(cx.listener(
-                            move |view, _, window, cx| {
+                        switch("haptic-switch", HAPTIC, on, theme::SWITCH_INSPECTOR).on_click(
+                            cx.listener(move |view, _, window, cx| {
                                 view.change_settings(|s| s.haptic = !on, window, cx)
-                            },
-                        )),
+                            }),
+                        ),
                     ),
             )
             .child(form::help(HAPTIC_HELP))
@@ -241,6 +244,8 @@ impl DeviceView {
                     })
                     .cursor_pointer()
                     .hover(|d| d.bg(theme::HOVER_CONTROL))
+                    .accessible(Role::Button, tooltip.clone())
+                    .aria_expanded(open)
                     // A button with an open popover has no tooltip: it
                     // would cover the popover.
                     .when(!open, |d| {
@@ -301,6 +306,7 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let title = format!("Knob {} light colour", index + 1);
         controls::popup_menu(
             "knob-colour-popover",
             controls::MenuPlace {
@@ -326,7 +332,7 @@ impl DeviceView {
                     div()
                         .text_size(theme::TEXT_LABEL)
                         .text_color(theme::TEXT_SECONDARY)
-                        .child(format!("Knob {} light colour", index + 1)),
+                        .child(title.clone()),
                 )
                 .child(
                     div().flex().justify_between().children(
@@ -338,7 +344,8 @@ impl DeviceView {
                                     format!("knob-{}-colour-{n}", index + 1),
                                     Some(theme::sample(value)),
                                     current == colour(value),
-                                    Some(format!("#{value:06X}").into()),
+                                    format!("#{value:06X}"),
+                                    true,
                                 )
                                 .on_click(cx.listener(
                                     move |view, _, window, cx| {
@@ -352,6 +359,7 @@ impl DeviceView {
                 .child(
                     controls::text_field(
                         &AnyInputState::Input(self.device.colour_input.clone()),
+                        title,
                         theme::BG_FIELD,
                         window,
                         cx,

@@ -42,6 +42,15 @@ use std::collections::BTreeSet;
 // for the step of the menu (`NestedState::step_menu`).
 actions!(nested, [MoveStepUp, MoveStepDown, RemoveStep]);
 
+/// The dashed button below the steps.
+const ADD_A_STEP: &str = "Add a step";
+
+/// The tooltip and the accessible label of the drag handle of a step.
+const DRAG_TO_REORDER: &str = "Drag to reorder";
+
+/// The tooltip of the "⋯" button of an open step.
+const MORE_FOR_THIS_STEP: &str = "More for this step";
+
 /// A field of the input type Action list: the path of the action that has
 /// the field, and the key of the field.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -505,8 +514,10 @@ impl DeviceView {
                             .cursor_pointer()
                             .hover(|d| d.bg(theme::HOVER_ROW))
                             .active(|d| d.bg(theme::PRESSED))
+                            .accessible(Role::Button, ADD_A_STEP)
+                            .aria_expanded(menu_open)
                             .child(Icon::new(IconName::Plus).size(theme::ICON_KIND_NESTED))
-                            .child("Add a step")
+                            .child(ADD_A_STEP)
                             .on_click(cx.listener(move |view, _, window, cx| {
                                 view.toggle_menu(toggle.clone(), window, cx)
                             })),
@@ -544,7 +555,10 @@ impl DeviceView {
                     .justify_center()
                     .text_color(theme::TEXT_DISABLED)
                     .cursor_grab()
-                    .tooltip(|window, cx| Tooltip::new("Drag to reorder").build(window, cx))
+                    // The label of decision 0029, section 10.4. The handle
+                    // has no click: it is a picture for VoiceOver.
+                    .accessible(Role::Image, DRAG_TO_REORDER)
+                    .tooltip(|window, cx| Tooltip::new(DRAG_TO_REORDER).build(window, cx))
                     .child(Icon::new(IconName::GripVertical).size(theme::HEIGHT_DRAG_HANDLE))
                     .when_some(drag, |d, drag| {
                         d.on_drag(drag, |drag, offset, _, cx| {
@@ -613,9 +627,20 @@ impl DeviceView {
                 view.move_step(dropped.clone(), drag.from, item, window, cx);
             }));
         let menu_list = list.clone();
+        let step = format!("Step {}", item + 1);
         if !open {
             let toggle = path.clone();
+            let value = self.short_value(inner);
             return row
+                .accessible(
+                    Role::Button,
+                    if value.is_empty() {
+                        format!("{step}: {}", label.name())
+                    } else {
+                        format!("{step}: {}, {value}", label.name())
+                    },
+                )
+                .aria_expanded(false)
                 .h(theme::HEIGHT_STEP_ROW)
                 .items_center()
                 .cursor_pointer()
@@ -638,7 +663,7 @@ impl DeviceView {
                         .truncate()
                         .text_size(theme::TEXT_LABEL)
                         .text_color(theme::TEXT_SECONDARY)
-                        .child(self.short_value(inner)),
+                        .child(value),
                 )
                 .on_click(cx.listener(move |view, _, window, cx| {
                     view.toggle_nested(toggle.clone(), window, cx)
@@ -674,7 +699,8 @@ impl DeviceView {
             .cursor_pointer()
             .hover(|d| d.bg(theme::HOVER_ICON))
             .active(|d| d.bg(theme::PRESSED))
-            .tooltip(|window, cx| Tooltip::new("More for this step").build(window, cx))
+            .accessible(Role::Button, MORE_FOR_THIS_STEP)
+            .tooltip(|window, cx| Tooltip::new(MORE_FOR_THIS_STEP).build(window, cx))
             .child(Icon::new(IconName::Ellipsis).size(theme::ICON_BUTTON))
             .on_click(|_, _, cx| cx.stop_propagation())
             .on_mouse_down(
@@ -687,7 +713,9 @@ impl DeviceView {
         // The handle and the number are at the height of the head of the
         // card: the kind button, its padding, and the two borders.
         let head = theme::HEIGHT_NESTED_KIND + theme::SPACE_6 * 2. + theme::SPACE_2;
-        row.py(theme::SPACE_6)
+        row.accessible(Role::Group, step)
+            .aria_expanded(true)
+            .py(theme::SPACE_6)
             .items_start()
             .child(
                 div()

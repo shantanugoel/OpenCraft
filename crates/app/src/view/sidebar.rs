@@ -49,6 +49,25 @@ impl MenuItem {
     }
 }
 
+/// The section title above the profiles, and the accessible label of the
+/// tree of the rows.
+const PROFILES: &str = "Profiles";
+
+/// The badge of the active profile.
+const ON_DEVICE: &str = "ON DEVICE";
+
+/// The tooltip of the "+" button of the profiles.
+const ADD_A_PROFILE: &str = "Add a profile";
+
+/// The row below the pages.
+const ADD_A_PAGE: &str = "Add a page";
+
+/// The row of the bottom group.
+const SETTINGS: &str = "Settings";
+
+/// The tooltip of the chevrons of the device card.
+const DEVICE_SWITCHER: &str = "Choose a device";
+
 /// The parts of a row of the sidebar that all rows have: height 28, radius
 /// 6, and the background under the pointer.
 fn row(id: impl Into<SharedString>, selected: bool) -> Stateful<Div> {
@@ -75,6 +94,7 @@ impl DeviceView {
         div()
             .id("sidebar")
             .debug_selector(|| "sidebar".into())
+            .accessible(Role::Navigation, "Devices, profiles and pages")
             .flex_shrink_0()
             .w(width)
             .h_full()
@@ -109,6 +129,9 @@ impl DeviceView {
             .child(
                 div()
                     .id("sidebar-rows")
+                    // The rows are a tree of two levels: the profiles, and
+                    // the pages of the active profile.
+                    .accessible(Role::Tree, PROFILES)
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
@@ -173,9 +196,23 @@ impl DeviceView {
         let connected = self.state.connected;
         let selected = self.device.open;
         let name = self.device_name();
+        let state = if connected {
+            "Connected"
+        } else {
+            "Not connected"
+        };
         div()
             .id("device-card")
             .debug_selector(|| "device-card".into())
+            // The label of decision 0029, section 7.2.
+            .accessible(
+                Role::Button,
+                format!(
+                    "Device {name}, {}. Select to show the device settings.",
+                    state.to_lowercase()
+                ),
+            )
+            .aria_selected(selected)
             .p(theme::SPACE_8)
             .flex()
             .items_center()
@@ -243,17 +280,16 @@ impl DeviceView {
                             } else {
                                 theme::TEXT_DISABLED
                             }))
-                            .child(if connected {
-                                "Connected"
-                            } else {
-                                "Not connected"
-                            }),
+                            .child(state),
                     ),
             )
             .child(
                 div()
                     .id("device-switcher")
                     .debug_selector(|| "device-switcher".into())
+                    .accessible(Role::Button, DEVICE_SWITCHER)
+                    .tooltip(|window, cx| Tooltip::new(DEVICE_SWITCHER).build(window, cx))
+                    .cursor_pointer()
                     .flex_shrink_0()
                     .text_color(if selected {
                         theme::TEXT_ON_ACCENT
@@ -295,7 +331,7 @@ impl DeviceView {
             .pl(theme::SPACE_18)
             .flex()
             .items_center()
-            .child(controls::section_title("Profiles").flex_1())
+            .child(controls::section_title(PROFILES).flex_1())
             .child(
                 div()
                     .id("profile-add")
@@ -311,8 +347,8 @@ impl DeviceView {
                     .cursor_pointer()
                     .hover(|d| d.bg(theme::HOVER_ICON))
                     .active(|d| d.bg(theme::PRESSED))
-                    .aria_label("Add a profile")
-                    .tooltip(|window, cx| Tooltip::new("Add a profile").build(window, cx))
+                    .accessible(Role::Button, ADD_A_PROFILE)
+                    .tooltip(|window, cx| Tooltip::new(ADD_A_PROFILE).build(window, cx))
                     .child(Icon::new(IconName::Plus).size(theme::ICON_BUTTON))
                     .on_click(
                         cx.listener(|view, _, window, cx| view.start_new_profile(window, cx)),
@@ -410,11 +446,20 @@ impl DeviceView {
         // On a different profile, a click selects that profile, as a click
         // on the row does.
         let triangle = if active {
-            triangle.on_click(cx.listener(|view, _, _, cx| {
-                cx.stop_propagation();
-                view.lists.pages_hidden = !view.lists.pages_hidden;
-                cx.notify();
-            }))
+            triangle
+                .accessible(
+                    Role::Button,
+                    if open {
+                        "Hide the pages"
+                    } else {
+                        "Show the pages"
+                    },
+                )
+                .on_click(cx.listener(|view, _, _, cx| {
+                    cx.stop_propagation();
+                    view.lists.pages_hidden = !view.lists.pages_hidden;
+                    cx.notify();
+                }))
         } else {
             triangle
         };
@@ -425,7 +470,18 @@ impl DeviceView {
             after_pages,
             profile.color,
         )
-        .cursor_pointer();
+        .cursor_pointer()
+        .accessible(
+            Role::TreeItem,
+            if active {
+                format!("{}, {}", profile.name, ON_DEVICE.to_lowercase())
+            } else {
+                profile.name.clone()
+            },
+        )
+        .aria_level(1)
+        .aria_selected(false)
+        .when(active, |d| d.aria_expanded(open));
         element = if editing {
             element.child(self.name_field(cx))
         } else {
@@ -438,7 +494,7 @@ impl DeviceView {
                             .text_size(theme::TEXT_BADGE)
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(theme::SUCCESS)
-                            .child("ON DEVICE"),
+                            .child(ON_DEVICE),
                     )
                 })
         };
@@ -472,7 +528,11 @@ impl DeviceView {
         // a selected row in a pane that does not have the selection.
         let focused = selected && !self.device.open;
         let editing = self.lists.edit == Some(NameEdit::Rename(Row::Page(page)));
+        let title = page_title(&self.state.pages, page);
         row(format!("page-{page}"), selected)
+            .accessible(Role::TreeItem, title.clone())
+            .aria_level(2)
+            .aria_selected(selected)
             .pl(theme::SIDEBAR_PAGE_INDENT)
             .pr(theme::SPACE_8)
             .gap(theme::SPACE_8)
@@ -486,7 +546,7 @@ impl DeviceView {
             .child(if editing {
                 self.name_field(cx)
             } else {
-                row_text(page_title(&self.state.pages, page)).into_any_element()
+                row_text(title).into_any_element()
             })
             .child(
                 div()
@@ -537,6 +597,7 @@ impl DeviceView {
 
     fn add_page_row(&self, cx: &mut Context<Self>) -> AnyElement {
         row("page-add", false)
+            .accessible(Role::Button, ADD_A_PAGE)
             .pl(theme::SIDEBAR_PAGE_INDENT)
             .pr(theme::SPACE_8)
             .gap(theme::SPACE_6)
@@ -544,7 +605,7 @@ impl DeviceView {
             .text_color(theme::TEXT_TERTIARY)
             .cursor_pointer()
             .child(Icon::new(IconName::Plus).size(theme::ICON_SMALL))
-            .child("Add a page")
+            .child(ADD_A_PAGE)
             .on_click(cx.listener(|view, _, _, _| (view.send)(Command::AddPage { copy_of: None })))
             .into_any_element()
     }
@@ -574,6 +635,7 @@ impl DeviceView {
             .ml(-theme::ROW_FIELD_INSET)
             .child(
                 Input::new(&self.lists.name)
+                    .aria_label("Name")
                     .small()
                     .h(theme::ROW_FIELD_HEIGHT)
                     .px(theme::ROW_FIELD_INSET - theme::SPACE_1)
@@ -599,6 +661,7 @@ impl DeviceView {
             .border_color(theme::LINE_SIDEBAR)
             .child(
                 row("sidebar-settings", false)
+                    .accessible(Role::Button, SETTINGS)
                     .px(theme::SPACE_8)
                     .gap(theme::SPACE_8)
                     .text_color(theme::TEXT_SECONDARY)
@@ -609,7 +672,7 @@ impl DeviceView {
                         })
                     }))
                     .child(Icon::new(IconName::Settings).size(theme::ICON_ROW))
-                    .child(row_text("Settings"))
+                    .child(row_text(SETTINGS))
                     .children(
                         crate::settings_window::shortcuts::keys(&OpenSettings, cx).map(|keys| {
                             div()

@@ -25,12 +25,16 @@ use crate::{
     settings::{Settings, SettingsPane},
     shell::{Shell, ShellCommand},
     state::ViewState,
-    view::{controls::small_button, theme},
+    view::{
+        controls::{small_button, Accessible},
+        theme,
+    },
 };
 use gpui_kit::{
     assets::IconName, component::Icon, div, point, prelude::*, px, relative, size, AnyElement, App,
     Bounds, ClickEvent, Context, Div, Entity, EntityId, FocusHandle, FontWeight, Pixels, Render,
-    SharedString, Stateful, Subscription, TitlebarOptions, Window, WindowBounds, WindowOptions,
+    Role, SharedString, Stateful, Subscription, TitlebarOptions, Window, WindowBounds,
+    WindowOptions,
 };
 use opencraft_engine::{Action, Status};
 use std::{
@@ -506,6 +510,7 @@ impl SettingsView {
                 div()
                     .id("settings-title")
                     .debug_selector(|| "settings-title".into())
+                    .readable_text(pane.name())
                     .h(theme::SETTINGS_TITLE_HEIGHT)
                     .flex()
                     .items_center()
@@ -515,6 +520,8 @@ impl SettingsView {
             )
             .child(
                 div()
+                    .id("settings-tabs")
+                    .role(Role::RadioGroup)
                     .flex()
                     .justify_center()
                     .gap(theme::SPACE_4)
@@ -535,6 +542,9 @@ impl SettingsView {
         div()
             .id(id.clone())
             .debug_selector(move || id.to_string())
+            // A tab is one of a group of choices, as a segment is.
+            .accessible(Role::RadioButton, pane.name())
+            .checked(selected)
             .w(width)
             .h(height)
             .flex()
@@ -585,6 +595,8 @@ impl SettingsView {
                 )
                 .child(
                     div()
+                        .id("settings-message-text")
+                        .readable_text(text.clone())
                         .flex_1()
                         .min_w_0()
                         .max_h(theme::SETTINGS_MESSAGE_TEXT_MAX)

@@ -953,3 +953,42 @@ fn the_application_menu_has_about_settings_and_quit(cx: &mut TestAppContext) {
         ["About OpenCraft", "-", "Settings…", "-", "Quit OpenCraft"]
     );
 }
+
+// MARK: Accessibility
+
+/// The roles and the labels of one new frame of the window (issue 243).
+fn accessible_nodes(cx: &mut VisualTestContext) -> Vec<(gpui_kit::Role, String)> {
+    crate::view::controls::accessibility_log::take();
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    crate::view::controls::accessibility_log::take()
+}
+
+#[gpui_kit::test]
+fn each_part_of_the_settings_window_has_a_role_and_a_label(cx: &mut TestAppContext) {
+    use gpui_kit::Role;
+    let (_f, cx) = window(cx);
+    let nodes = accessible_nodes(cx);
+    let has = |role: Role, label: &str| nodes.iter().any(|(r, l)| *r == role && l == label);
+    assert!(has(Role::Label, "General"), "{nodes:#?}");
+    for tab in ["General", "Shortcuts", "About"] {
+        assert!(has(Role::RadioButton, tab), "No tab {tab}: {nodes:#?}");
+    }
+    assert!(has(Role::Switch, "Start at login"), "{nodes:#?}");
+    assert!(has(Role::Switch, "Show the Dock icon"), "{nodes:#?}");
+    assert!(has(Role::Switch, "Show the window at start"), "{nodes:#?}");
+    assert!(
+        has(
+            Role::Label,
+            "Start at login, The device operates after you log in, with no window"
+        ),
+        "{nodes:#?}"
+    );
+    assert!(has(Role::Button, "Open System Settings"), "{nodes:#?}");
+    assert!(has(Role::Button, "Show in Finder"), "{nodes:#?}");
+    click(cx, "settings-tab-about");
+    let nodes = accessible_nodes(cx);
+    let has = |role: Role, label: &str| nodes.iter().any(|(r, l)| *r == role && l == label);
+    assert!(has(Role::Label, "OpenCraft"), "{nodes:#?}");
+    assert!(has(Role::Button, "Licence notices"), "{nodes:#?}");
+}

@@ -29,12 +29,16 @@ use crate::{
     shell::Shell,
     starters::{Starter, STARTERS},
     state::ViewState,
-    view::{canvas::knob_ring, controls, theme},
+    view::{
+        canvas::knob_ring,
+        controls::{self, Accessible},
+        theme,
+    },
 };
 use gpui_kit::{
     assets::IconName, component::Icon, div, img, point, prelude::*, px, relative, size, AnyElement,
     App, Bounds, Context, Div, Entity, FocusHandle, FontWeight, KeyDownEvent, ObjectFit, Render,
-    RenderImage, SharedString, Stateful, Subscription, TitlebarOptions, Window, WindowBounds,
+    RenderImage, Role, SharedString, Stateful, Subscription, TitlebarOptions, Window, WindowBounds,
     WindowOptions,
 };
 use opencraft_engine::{
@@ -44,6 +48,9 @@ use std::{collections::BTreeMap, sync::Arc};
 
 #[cfg(test)]
 mod tests;
+
+/// The text below the title.
+const INTRO: &str = "Choose a profile to start with. You can change each key later.";
 
 /// The text below the device name with a device.
 pub const CONNECTED_TEXT: &str = "Connected by USB";
@@ -327,6 +334,7 @@ impl FirstStartView {
                         div()
                             .id("first-start-device")
                             .debug_selector(|| "first-start-device".into())
+                            .readable_text(title.clone())
                             .text_size(theme::TEXT_DEVICE_STATE)
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(title),
@@ -335,6 +343,7 @@ impl FirstStartView {
                         div()
                             .id("first-start-device-text")
                             .debug_selector(|| "first-start-device-text".into())
+                            .readable_text(text)
                             .text_size(theme::TEXT_LABEL)
                             .text_color(theme::TEXT_SECONDARY)
                             .line_height(relative(theme::LINE_HEIGHT_TEXT))
@@ -507,19 +516,24 @@ impl FirstStartView {
                 div()
                     .id("first-start-title")
                     .debug_selector(|| "first-start-title".into())
+                    .readable_text(title)
                     .text_size(theme::TEXT_DISPLAY)
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(title),
             )
             .child(
                 div()
+                    .id("first-start-intro")
+                    .readable_text(INTRO)
                     .mt(theme::SPACE_6)
                     .text_color(theme::TEXT_SECONDARY)
                     .line_height(relative(theme::FIRST_START_LINE_HEIGHT))
-                    .child("Choose a profile to start with. You can change each key later."),
+                    .child(INTRO),
             )
             .child(
                 div()
+                    .id("first-start-cards")
+                    .role(Role::RadioGroup)
                     .mt(theme::SPACE_20)
                     .flex()
                     .flex_col()
@@ -551,7 +565,14 @@ impl FirstStartView {
                                 .text_color(theme::TEXT_SECONDARY),
                         ),
                     )
-                    .child(div().flex_1().min_w_0().child(text))
+                    .child(
+                        div()
+                            .id("first-start-permission-text")
+                            .readable_text(text.clone())
+                            .flex_1()
+                            .min_w_0()
+                            .child(text),
+                    )
             }))
             .child(div().flex().justify_end().child(start))
     }
@@ -608,8 +629,9 @@ impl FirstStartView {
         div()
             .id(id.clone())
             .debug_selector(move || selector.to_string())
-            .role(gpui_kit::Role::RadioButton)
-            .aria_label(SharedString::from(starter.name))
+            .accessible(Role::RadioButton, starter.name)
+            .aria_description(starter.description)
+            .checked(selected)
             .flex_1()
             .min_w_0()
             .p(theme::SPACE_12)

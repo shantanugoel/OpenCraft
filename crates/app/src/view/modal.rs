@@ -26,7 +26,7 @@
 //! element of the window, outside the element of the key context
 //! `"Workspace"`.
 
-use super::theme;
+use super::{controls::Accessible, theme};
 use gpui_kit::{
     div, prelude::*, AnyElement, App, Div, FocusHandle, KeyDownEvent, MouseButton, Pixels, Rgba,
     Role, SharedString, Window,
@@ -148,8 +148,7 @@ impl Modal {
                 div()
                     .id(self.id.clone())
                     .debug_selector(move || id.to_string())
-                    .role(Role::Dialog)
-                    .aria_label(self.label)
+                    .accessible(Role::Dialog, self.label)
                     .key_context(MODAL)
                     .track_focus(&self.focus)
                     .capture_key_down(move |event: &KeyDownEvent, window, cx| {
@@ -207,12 +206,16 @@ pub(crate) fn sheet_title(
         .gap(theme::SPACE_4)
         .child(
             div()
+                .id("sheet-title")
+                .readable_text(title.clone())
                 .text_size(theme::TEXT_SHEET_TITLE)
                 .font_weight(gpui_kit::FontWeight::SEMIBOLD)
                 .child(title),
         )
         .child(
             div()
+                .id("sheet-subtitle")
+                .readable_text(subtitle.clone())
                 .debug_selector(|| "sheet-subtitle".into())
                 .text_size(theme::TEXT_LABEL)
                 .text_color(theme::TEXT_SECONDARY)

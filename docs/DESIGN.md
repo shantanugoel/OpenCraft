@@ -256,6 +256,45 @@ inspector part). Do not copy a component and change it at the call site.
 | Native menu (`NativeMenu`) | `view/sidebar.rs`, `view/clipboard.rs`, `view/nested.rs` | A command menu at the pointer: a right-click menu, the "⋯" menu, the device switcher |
 | Native alert (`window.prompt`) | `view/pages.rs` (`confirm_remove`) | The confirmation of a destructive command |
 
+### 3.4 Role and accessible label (`controls::Accessible`)
+
+VoiceOver reads only an element that has an ID and a role. Plain text and
+an element with no role are not in the accessibility tree
+([kb/gpui.md](kb/gpui.md#accessibility-tree-of-the-window-2026-11-13)).
+
+- Each shared control of `controls.rs`, `form.rs`, `gesture_card.rs`,
+  `menu.rs`, and `modal.rs` sets its role and its label. A new control that
+  uses them gets both. Do not set them again at the call site.
+- The label is the visible name or the tooltip of the control. Do not write
+  a second text for it. A control with a value from a row label gets the
+  row label as a parameter: `switch`, `text_field`, `popup_button`,
+  `search_field`. Use one constant for the row label and the control.
+- A new clickable element that is not a shared control: call
+  `.accessible(role, label)`. A text that VoiceOver must read, for example a
+  title or a state: call `.readable_text(text)`. A control that is on or
+  off: call `.checked(on)`. Add `aria_selected`, `aria_expanded`, or
+  `aria_description` for a state or a hint.
+- A part with children that the user operates is a group (`Role::Group`),
+  not a button: VoiceOver goes into a group, for example the device body
+  and the head of a gesture card.
+
+| Element | Role | Label |
+|---|---|---|
+| A button, a square button, an icon button, a sheet button, the main button | `Button` | The text or the tooltip |
+| A toggle button ("B") | `Button` with `checked` | The tooltip |
+| A switch | `Switch` with `checked` | The row label |
+| A segment, a chip, a colour sample, a colour circle, a starter card, a tab of the Settings window | `RadioButton` with `checked` | The text or the tooltip |
+| A segmented control | `RadioGroup` | None |
+| A popup button | `ComboBox` with the value | The row label |
+| A menu, a menu row | `Menu`, `MenuItem` | The text of the row (`MenuRow::child` or `MenuRow::label`) |
+| A text field, a search field | The role of the kit field | The row label |
+| A link | `Link` | The text |
+| An inspector header, a section | `Group` | The name, the section title; the hint is the description |
+| A sheet, the palette, the icon picker | `Dialog` | The label of decision 0029 |
+| The sidebar, its rows | `Navigation`, `Tree` with `TreeItem` rows | "Devices, profiles and pages"; the name of the row |
+| The toolbar, the right panel, the status bar | `Toolbar`, `Complementary`, `Status` | None, the tab name, none |
+| A key face, a bar panel, a knob, the touch bar | `Button` with `aria_selected` | The control name and the title: "Key 2, “Mail”" |
+
 ## 4. Layout rules
 
 - Each part and each new feature has its place in
@@ -298,7 +337,7 @@ inspector part). Do not copy a component and change it at the call site.
 | Status bar | The last input at the start, "All changes saved" at the end. A short result of an operation is a message for `MESSAGE_TIME` (4 s) with `show_message`. Do not add a second bar. | `view/status_bar.rs` |
 | Drag and drop | The drag picture is `KindLabel::drag_chip` at `DRAG_PICTURE_OFFSET`. Only the control under the pointer shows the drop target. A drop and a click use one path (`assign_to`). | `view/library.rs`, `view/canvas.rs` |
 | One code path | The mouse, the menu, the keys, and the palette call the same function for the same operation. A command of the window is one row of `app_menu::commands`: the menus, the "Shortcuts" pane, and the palette read that table. An action kind goes to a control through `assign_kind`. | `app_menu.rs`, `view/library.rs` |
-| Tooltip and label | Each icon button has a tooltip. The tooltip text is also the accessible label (`aria_label`); the shared controls set both. | `controls.rs` |
+| Tooltip and label | Each icon button has a tooltip. The tooltip text is also the accessible label; the shared controls set both. Each clickable element has a role and a label (section 3.4). | `controls.rs` |
 
 ## 6. Text rules
 
@@ -404,6 +443,8 @@ corrections.
       new token or component has a comment, and this document lists it.
 - [ ] The test `no_literal_colour_or_size_outside_the_theme` passes.
 - [ ] Each new text obeys section 6 and the word list.
+- [ ] Each new clickable element has a role and a label (section 3.4), and
+      `view/tests/accessibility.rs` reads the labels of a new part.
 - [ ] Each change of the profile is one undo step, and the same operation
       from the mouse, the menu, the keys, and the palette uses one path.
 - [ ] Window tests (`crates/app/src/view/tests/`) cover the new behaviour.
@@ -424,5 +465,7 @@ These parts do not obey this document yet. Each one has an issue.
 | Difference | Issue |
 |---|---|
 | A control other than a text field does not take the keyboard focus, and has no focus ring. Tab does not move the focus. | [#242](https://github.com/shantanugoel/OpenCraft/issues/242) |
-| Only the shared controls have an accessible label. Rows, cards, and canvas controls have no role and no label. VoiceOver was not tested. | [#243](https://github.com/shantanugoel/OpenCraft/issues/243) |
+| Nobody listened to the window with VoiceOver. The accessibility tree was read with the Accessibility API only. The procedure for the owner is in the issue. | [#243](https://github.com/shantanugoel/OpenCraft/issues/243) |
+| A disabled control has no disabled state in the accessibility tree: GPUI 0.3.12 has no setter for it. It has no click action. | Accepted until GPUI has the setter |
+| The knob name below a knob is a second click target of the knob. It has no role, so that VoiceOver reads the knob one time. | Accepted |
 | Three highlight looks for a row that the keys select: `MENU_HIGHLIGHT` in a drawn menu, `ACCENT` in the palette, the system accent in a native menu. | Accepted: the palette row is a selection, the menu row is a highlight. |

@@ -8,7 +8,7 @@ use super::{
 };
 use crate::shell::{Place, ShellCommand};
 use crate::view::{
-    controls::{button, small_button, switch},
+    controls::{button, small_button, switch, Accessible},
     theme,
 };
 use gpui_kit::{
@@ -28,6 +28,9 @@ pub const SHOW_WINDOW_AT_START: (&str, &str) = (
     "Show the window at start",
     "Off: the window opens from the menu bar item",
 );
+
+/// The name of the permission row, before its state.
+const PERMISSION_NAME: &str = "Accessibility permission:";
 
 /// The two texts of the permission row: the state, and the kinds that need
 /// the permission. The second text is empty if no kind needs it.
@@ -58,14 +61,20 @@ impl SettingsView {
                 row(
                     START_AT_LOGIN.0,
                     START_AT_LOGIN.1,
-                    switch("switch-start-at-login", login, theme::SWITCH_SETTINGS)
-                        .on_click(self.on_click(ShellCommand::ToggleStartAtLogin)),
+                    switch(
+                        "switch-start-at-login",
+                        START_AT_LOGIN.0,
+                        login,
+                        theme::SWITCH_SETTINGS,
+                    )
+                    .on_click(self.on_click(ShellCommand::ToggleStartAtLogin)),
                 ),
                 row(
                     SHOW_DOCK_ICON.0,
                     SHOW_DOCK_ICON.1,
                     switch(
                         "switch-dock-icon",
+                        SHOW_DOCK_ICON.0,
                         settings.show_dock_icon,
                         theme::SWITCH_SETTINGS,
                     )
@@ -76,6 +85,7 @@ impl SettingsView {
                     SHOW_WINDOW_AT_START.1,
                     switch(
                         "switch-window-at-start",
+                        SHOW_WINDOW_AT_START.0,
                         settings.show_window_at_start,
                         theme::SWITCH_SETTINGS,
                     )
@@ -104,7 +114,8 @@ impl SettingsView {
             .into_any_element()
     }
 
-    /// The group box of the Accessibility permission.
+    /// The group box of the Accessibility permission. VoiceOver reads its
+    /// texts as one text.
     fn permission_group(&self, permission: &Permission) -> Stateful<Div> {
         let (state, kinds) = permission_texts(permission);
         let colour = if permission.given {
@@ -135,6 +146,12 @@ impl SettingsView {
             )
             .child(
                 div()
+                    .id("permission-texts")
+                    .readable_text(if kinds.is_empty() {
+                        format!("{PERMISSION_NAME} {state}")
+                    } else {
+                        format!("{PERMISSION_NAME} {state}. {kinds}")
+                    })
                     .flex_1()
                     .min_w_0()
                     .flex()
@@ -144,7 +161,7 @@ impl SettingsView {
                         div()
                             .flex()
                             .gap(theme::SPACE_4)
-                            .child("Accessibility permission:")
+                            .child(PERMISSION_NAME)
                             .child(
                                 div()
                                     .id("permission-state")
