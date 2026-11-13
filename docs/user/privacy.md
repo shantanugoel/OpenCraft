@@ -23,6 +23,10 @@ When you turn on **Start at login**, OpenCraft writes the file
 When you export a profile, you choose the folder and the name of the file.
 See [Export and import a profile](controls.md#export-and-import-a-profile).
 
+The **User guide** and **Report a fault** links in Settings > About ask
+macOS to open a fixed page in your browser. The browser uses the network
+only when you click a link. OpenCraft fetches nothing for the About tab.
+
 ## Actions that you start
 
 OpenCraft itself does not use the network. These two actions can use the

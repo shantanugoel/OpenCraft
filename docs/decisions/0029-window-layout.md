@@ -1308,7 +1308,9 @@ exist. The user cannot change them.
 "Licence notices", which opens the notices file
 ([decision 0026](0026-licence-notices.md)). Below it, "Copy diagnostics"
 copies the local support report. Its contents and privacy filter are in
-[decision 0024](0024-log-file-with-no-terminal.md).
+[decision 0024](0024-log-file-with-no-terminal.md). Below the buttons, the
+links "User guide" and "Report a fault" open fixed GitHub pages in the
+user\'s default browser. OpenCraft fetches nothing for this pane.
 
 The options that move here leave the menu bar item (section 19).
 

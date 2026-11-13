@@ -4,9 +4,9 @@
 
 use super::SettingsView;
 use crate::{
-    shell::{ShellCommand, NOTICES_FILE},
+    shell::{HelpPage, ShellCommand, NOTICES_FILE},
     view::{
-        controls::{button, button_if, Accessible},
+        controls::{button, button_if, link, Accessible},
         theme,
     },
 };
@@ -70,6 +70,20 @@ impl SettingsView {
             .child(
                 button("copy-diagnostics", "Copy diagnostics")
                     .on_click(self.on_click(ShellCommand::CopyDiagnostics)),
+            )
+            .child(
+                div()
+                    .flex()
+                    .gap(theme::SPACE_16)
+                    .mt(theme::SPACE_6)
+                    .child(
+                        link("user-guide", "User guide")
+                            .on_click(self.on_click(ShellCommand::OpenHelp(HelpPage::UserGuide))),
+                    )
+                    .child(
+                        link("issue-page", "Report a fault")
+                            .on_click(self.on_click(ShellCommand::OpenHelp(HelpPage::Issues))),
+                    ),
             )
             .when(!notices, |d| {
                 d.child(
