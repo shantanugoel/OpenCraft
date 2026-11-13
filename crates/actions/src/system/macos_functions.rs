@@ -27,6 +27,21 @@ fn call(function: MacFunction) -> Call {
     }
 }
 
+/// `kIOReturnNotPermitted`: `IOPMSleepSystem` gives it when the sleep
+/// switch of user space is on (`pmset disablesleep 1`, the "SleepDisabled"
+/// property of the root power domain). See
+/// `docs/kb/macos-system-functions.md`.
+const NOT_PERMITTED: i32 = 0xE000_02E2_u32 as i32;
+
+/// The result of `IOPMSleepSystem`.
+fn sleep_result(status: i32) -> Result<()> {
+    match status {
+        0 => Ok(()),
+        NOT_PERMITTED => Err(Error::SleepNotAllowed),
+        status => Err(Error::System(status)),
+    }
+}
+
 #[link(name = "IOKit", kind = "framework")]
 extern "C" {
     fn IOPMFindPowerManagement(master_port: u32) -> u32;
@@ -67,11 +82,7 @@ pub(super) fn run(function: MacFunction) -> Result<()> {
                 IOServiceClose(connection);
                 status
             };
-            if status == 0 {
-                Ok(())
-            } else {
-                Err(Error::System(status))
-            }
+            sleep_result(status)
         }
     }
 }
@@ -79,6 +90,17 @@ pub(super) fn run(function: MacFunction) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_refused_sleep_names_the_cause() {
+        assert_eq!(NOT_PERMITTED, -536_870_174);
+        assert!(sleep_result(0).is_ok());
+        assert!(matches!(
+            sleep_result(NOT_PERMITTED),
+            Err(Error::SleepNotAllowed)
+        ));
+        assert!(matches!(sleep_result(-1), Err(Error::System(-1))));
+    }
 
     #[test]
     fn public_calls_are_selected_without_executing_them() {

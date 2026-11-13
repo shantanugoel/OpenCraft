@@ -313,7 +313,10 @@ This action uses only the Accessibility permission.
 - **Screen saver** starts the screen saver. Move the pointer or push a key
   to return. macOS can ask for the login password.
 - **Sleep** requests computer sleep, not only display sleep. Push a key or
-  use the power button to wake the computer.
+  use the power button to wake the computer. If a setting turns off all
+  sleep, for example `pmset disablesleep 1` from an application that keeps
+  the Mac awake, macOS does not allow the sleep, and OpenCraft shows a
+  message. The Apple menu then cannot put the Mac to sleep either.
 - **Lock** locks the screen. Sign in again to return.
 - **Show desktop** moves the windows aside. Invoke it again to restore them.
 
