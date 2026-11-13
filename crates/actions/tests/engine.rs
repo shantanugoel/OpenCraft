@@ -266,6 +266,31 @@ fn device_actions_use_the_handler_path_and_do_not_change_brightness() {
     }
 }
 
+#[test]
+fn a_brightness_key_uses_the_same_settings_event_as_the_window() {
+    let mut world = World::new();
+    world.bind_key_3(built_in(
+        "device-brightness",
+        vec![
+            ("operation", Value::Text("set".into())),
+            ("value", Value::Integer(35)),
+        ],
+    ));
+    world.take_events();
+    world.press_key_3();
+    assert_eq!(world.engine.device_settings().brightness, 35);
+    assert!(world
+        .take_events()
+        .iter()
+        .any(|e| matches!(e, Event::DeviceSettings(s) if s.brightness == 35)));
+    world.bind_key_3(built_in(
+        "device-brightness",
+        vec![("operation", Value::Text("down".into()))],
+    ));
+    world.press_key_3();
+    assert_eq!(world.engine.device_settings().brightness, 30);
+}
+
 fn key_3(page: usize) -> BindingId {
     BindingId {
         page,
@@ -335,6 +360,7 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Sound volume", "Media", Some("Knob"), false),
             ("Screen off", "Device", Some("Computer wake"), false),
             ("Device sleep", "Device", Some("Computer wake"), false),
+            ("Device brightness", "Device", Some("Knob"), false),
             ("Change the page", "Navigation", None, false),
             ("Select a profile", "Navigation", None, false),
             ("Toggle", "Logic", None, false),
@@ -374,6 +400,7 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Sound volume", "volume-2"),
             ("Screen off", "monitor-off"),
             ("Device sleep", "moon"),
+            ("Device brightness", "sun"),
             ("Change the page", "arrow-right"),
             ("Select a profile", "layers"),
             ("Toggle", "toggle-left"),

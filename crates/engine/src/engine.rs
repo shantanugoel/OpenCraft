@@ -1246,6 +1246,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Message::Choices { id, options } => (self.sink)(Event::Choices { id, options }),
             Message::Status { kind, status } => (self.sink)(Event::Status { kind, status }),
             Message::Problem(text) => self.problem(text),
+            Message::Engine(EngineRequest::DeviceBrightness(change)) => {
+                let mut settings = self.settings.clone();
+                settings.brightness = match change {
+                    crate::BrightnessChange::Set(value) => value,
+                    crate::BrightnessChange::Step(step) => {
+                        (i32::from(settings.brightness) + i32::from(step)).clamp(0, 100) as u8
+                    }
+                };
+                self.set_device_settings(settings);
+            }
             Message::Engine(EngineRequest::DeviceDisplay(state)) => {
                 if !self.power.locked && !self.power.sleeping {
                     self.set_display_state(state);

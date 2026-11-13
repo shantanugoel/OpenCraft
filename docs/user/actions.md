@@ -17,6 +17,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | Media | [Media key](#media-key) | Yes |
 | Media | [Sound volume](#sound-volume) | No |
 | Device | [Screen off and Device sleep](#screen-off-and-device-sleep) | No |
+| Device | [Device brightness](#device-brightness) | No |
 | Navigation | [Change the page](#change-the-page) | No |
 | Navigation | [Select a profile](#select-a-profile) | No |
 | Logic | [Toggle](#toggle) | Only for the actions that it contains |
@@ -248,6 +249,25 @@ OpenCraft sends the media key, as the media keys of a keyboard do.
   The "Turn" card sets Up for a turn to the right and Down for a turn to the
   left. See [The Turn card](controls.md#the-turn-card). The bar shows on the
   bar panel above the knob.
+
+## Device brightness
+
+This action changes the displays of the controller, not the computer display.
+It is in the **Device** group. No Accessibility permission is necessary.
+
+- **Up** or **Down** changes the brightness by **Step** percentage points.
+  The default step is 5. The value stops at the limits of the device.
+- **Set value** uses **Brightness**. Values below the lowest brightness of
+  the model use that lowest brightness. On the N4 Pro it is 15 %. Brightness
+  0 does not switch off the display: use **Screen off** for that.
+- On a knob, assign this kind to **Turn**. Right goes up and left goes down.
+  On a key, select Up, Down or Set value.
+
+The new value shows in the device inspector, in **Device settings**, and in
+the menu bar brightness slider. OpenCraft saves it for the next start. The
+knob lights do not change. The action does not wake a dark or locked device.
+
+![Device brightness settings](images/device-brightness-action.png)
 
 ## Screen off and Device sleep
 

@@ -46,6 +46,50 @@ fn a_handler_dark_request_consumes_the_whole_wake_gesture() {
     assert!(has(&take_writes(&device), protocol::init()));
 }
 
+#[test]
+fn brightness_requests_fit_the_model_publish_settings_and_stay_dark() {
+    use opencraft_engine::{BrightnessChange, EngineRequest, Message};
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    take_writes(&device);
+    rig.take_events();
+    for (request, expected) in [
+        (BrightnessChange::Set(40), 40),
+        (BrightnessChange::Step(5), 45),
+        (BrightnessChange::Step(i16::MIN), 15),
+        (BrightnessChange::Step(i16::MAX), 100),
+    ] {
+        rig.engine
+            .handler_message(Message::Engine(EngineRequest::DeviceBrightness(request)));
+        assert_eq!(rig.engine.device_settings().brightness, expected);
+        assert!(has(
+            &take_writes(&device),
+            protocol::set_brightness(expected)
+        ));
+        assert!(rig
+            .take_events()
+            .iter()
+            .any(|e| matches!(e, Event::DeviceSettings(s) if s.brightness == expected)));
+    }
+    notice(&mut rig, PowerNotice::Locked);
+    take_writes(&device);
+    rig.engine
+        .handler_message(Message::Engine(EngineRequest::DeviceBrightness(
+            BrightnessChange::Set(35),
+        )));
+    assert!(take_writes(&device).is_empty());
+    rig.poll_for(SAVE_DELAY);
+    assert!(
+        fs::read_to_string(opencraft_engine::device_settings::settings_path(
+            rig.dir.path()
+        ))
+        .unwrap()
+        .contains("brightness = 35")
+    );
+    notice(&mut rig, PowerNotice::Unlocked);
+    assert!(has(&take_writes(&device), protocol::set_brightness(35)));
+}
+
 fn notice(rig: &mut Rig, notice: PowerNotice) {
     assert!(rig.engine.command(Command::PowerNotice(notice)));
 }

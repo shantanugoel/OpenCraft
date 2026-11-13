@@ -609,9 +609,9 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 13);
+    assert_eq!(real.len(), 14);
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 13);
+    assert_eq!(kinds.len(), 14);
     for (kind, name, key, input) in [
         (
             "open-application",
@@ -785,7 +785,7 @@ fn sound_volume_has_a_direction_for_a_turn_and_no_other_kind_has_one() {
     assert_eq!(label(&direction.left), Some("Down"));
     assert!(kinds
         .iter()
-        .filter(|d| d.kind != volume.kind)
+        .filter(|d| d.kind != volume.kind && d.kind != "opencraft.device-brightness")
         .all(|d| d.direction.is_none()));
 }
 
