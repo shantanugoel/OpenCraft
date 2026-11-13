@@ -9,7 +9,7 @@
 
 use super::{
     controls::{dot, icon_button, keyboard_focus, Ring},
-    pages::{page_title, MenuItem, NameEdit, Row},
+    pages::{in_profile, page_title, MenuItem, NameEdit, Row},
     *,
 };
 use crate::{app_menu::OpenSettings, shell::ShellCommand};
@@ -172,6 +172,7 @@ impl DeviceView {
     fn open_menu(
         &mut self,
         row: Row,
+        shown: Option<String>,
         event: &MouseDownEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -187,6 +188,7 @@ impl DeviceView {
             };
         }
         self.lists.menu_row = Some(row);
+        self.lists.menu_profile = shown;
         menu.show(event.position, window, cx);
     }
 
@@ -530,7 +532,7 @@ impl DeviceView {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |view, event: &MouseDownEvent, window, cx| {
-                    view.open_menu(Row::Profile(id.clone()), event, window, cx)
+                    view.open_menu(Row::Profile(id.clone()), None, event, window, cx)
                 }),
             )
             .into_any_element()
@@ -543,6 +545,9 @@ impl DeviceView {
         let focused = selected && !self.device.open;
         let editing = self.lists.edit == Some(NameEdit::Rename(Row::Page(page)));
         let title = page_title(&self.state.pages, page);
+        // The profile of this frame: a click acts on what the user saw.
+        let shown = self.state.profile.clone();
+        let menu_shown = shown.clone();
         row(format!("page-{page}"), selected)
             .accessible(Role::TreeItem, title.clone())
             .aria_level(2)
@@ -578,7 +583,7 @@ impl DeviceView {
             .when(!editing, |d| {
                 d.on_click(cx.listener(move |view, event: &ClickEvent, window, cx| {
                     if event.click_count() < 2 {
-                        view.activate_page(page, window, cx);
+                        view.activate_page(page, shown.clone(), window, cx);
                     } else {
                         view.start_rename(Row::Page(page), window, cx);
                     }
@@ -587,7 +592,7 @@ impl DeviceView {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |view, event: &MouseDownEvent, window, cx| {
-                    view.open_menu(Row::Page(page), event, window, cx)
+                    view.open_menu(Row::Page(page), menu_shown.clone(), event, window, cx)
                 }),
             )
             .into_any_element()
@@ -595,22 +600,25 @@ impl DeviceView {
 
     /// A click on a page row makes the page the active page. The device is
     /// not the selection now. The selection of the canvas stays (decision
-    /// 0029, section 8.3).
+    /// 0029, section 8.3). `shown` is the active profile in the frame that
+    /// the user clicked (`pages::in_profile`).
     pub(super) fn activate_page(
         &mut self,
         page: usize,
+        shown: Option<String>,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if std::mem::take(&mut self.device.open) {
             cx.notify();
         }
-        if page != self.state.page {
-            (self.send)(Command::SelectPage { page });
+        if page != self.state.page || shown != self.state.profile {
+            (self.send)(in_profile(shown, Command::SelectPage { page }));
         }
     }
 
     fn add_page_row(&self, cx: &mut Context<Self>) -> AnyElement {
+        let shown = self.state.profile.clone();
         row("page-add", false)
             .accessible(Role::Button, ADD_A_PAGE)
             .pl(theme::SIDEBAR_PAGE_INDENT)
@@ -622,7 +630,12 @@ impl DeviceView {
             .child(Icon::new(IconName::Plus).size(theme::ICON_SMALL))
             .child(ADD_A_PAGE)
             .map(|d| keyboard_focus(d, Ring::Inside))
-            .on_click(cx.listener(|view, _, _, _| (view.send)(Command::AddPage { copy_of: None })))
+            .on_click(cx.listener(move |view, _, _, _| {
+                (view.send)(in_profile(
+                    shown.clone(),
+                    Command::AddPage { copy_of: None },
+                ))
+            }))
             .into_any_element()
     }
 

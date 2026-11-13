@@ -4,7 +4,7 @@
 //! give a control the focus, and the key commands of the window keep their
 //! work while a control has the focus.
 
-use super::pages::{pages, profiles, send};
+use super::pages::{on, pages, profiles, send};
 use super::*;
 use crate::{
     settings::RightPanelTab,
@@ -197,7 +197,7 @@ fn space_and_return_operate_the_control_with_the_focus(cx: &mut TestAppContext) 
     assert!(sent
         .borrow()
         .iter()
-        .any(|c| matches!(c, Command::SelectPage { page: 1 })));
+        .any(|c| *c == on("default", Command::SelectPage { page: 1 })));
     tab_to(cx, "tab-library");
     push(cx, "enter");
     cx.update(|_, cx| assert_eq!(view.read(cx).panes.right_panel_tab, RightPanelTab::Library));

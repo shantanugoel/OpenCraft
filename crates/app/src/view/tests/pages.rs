@@ -14,6 +14,15 @@ pub(super) fn pages(names: &[&str], active: usize) -> Event {
     }
 }
 
+/// `command` for a page of the profile `profile`, as a click on a page row
+/// sends it (issue #321).
+pub(super) fn on(profile: &str, command: Command) -> Command {
+    Command::InProfile {
+        profile: profile.into(),
+        command: Box::new(command),
+    }
+}
+
 pub(super) fn profiles(entries: &[(&str, &str)], active: &str) -> Event {
     Event::Profiles {
         profiles: entries

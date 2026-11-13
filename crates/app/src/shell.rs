@@ -22,19 +22,29 @@ use crate::{
     settings_window::{kind_waiting_for_permission, SettingsView, Snapshot},
     starters::{self, STARTERS},
     state::ViewState,
-    view::{theme, DeviceView},
+    view::{force_frame, theme, DeviceView},
 };
 use gpui_kit::{
     point, prelude::*, px, size, ActivationPolicy, AnyWindowHandle, App, Bounds, Context,
     EventEmitter, Task, TitlebarOptions, WindowBounds, WindowHandle, WindowOptions,
 };
-use opencraft_engine::{Command, Event};
+use opencraft_engine::{Command, Event, PowerNotice};
 use std::{
     path::{Path, PathBuf},
     rc::Rc,
     time::Duration,
     time::Instant,
 };
+
+/// The times after a wake, an unlock, or a display wake at which the main
+/// window draws a forced frame (issue #321). AppKit can show the window
+/// again some time after the notice, for example after the animation of the
+/// unlock.
+const WAKE_FRAMES: [Duration; 3] = [
+    Duration::ZERO,
+    Duration::from_secs(1),
+    Duration::from_secs(3),
+];
 
 /// The time from the change to the regular activation policy to the
 /// activation of the application. See `docs/kb/gpui.md`, "Windows, Dock icon,
@@ -371,6 +381,25 @@ impl Shell {
         self.refresh_menu();
     }
 
+    /// Make the main window draw at the times of [`WAKE_FRAMES`]. The
+    /// state of the window does not change: it follows the engine events.
+    /// See `view::repaint`.
+    fn frames_after_wake(&mut self, cx: &mut Context<Self>) {
+        for delay in WAKE_FRAMES {
+            cx.spawn(async move |shell, cx| {
+                if !delay.is_zero() {
+                    cx.background_executor().timer(delay).await;
+                }
+                let _ = shell.update(cx, |shell, cx| {
+                    if let Some(window) = shell.main_window.filter(|w| cx.windows().contains(w)) {
+                        let _ = window.update(cx, |_, window, _| force_frame(window));
+                    }
+                });
+            })
+            .detach();
+        }
+    }
+
     pub fn receive(&mut self, event: Event, cx: &mut Context<Self>) {
         let history = matches!(event, Event::History { .. });
         self.state.apply(event.clone(), Instant::now());
@@ -398,7 +427,15 @@ impl Shell {
     pub fn command(&mut self, command: ShellCommand, cx: &mut Context<Self>) {
         match command {
             ShellCommand::Open => self.open_window(cx),
-            ShellCommand::PowerNotice(notice) => (self.send)(Command::PowerNotice(notice)),
+            ShellCommand::PowerNotice(notice) => {
+                (self.send)(Command::PowerNotice(notice));
+                if matches!(
+                    notice,
+                    PowerNotice::DidWake | PowerNotice::DisplaysWake | PowerNotice::Unlocked
+                ) {
+                    self.frames_after_wake(cx);
+                }
+            }
             ShellCommand::WakeDevice => (self.send)(Command::WakeDevice),
             ShellCommand::SelectProfile(profile) => {
                 if self.state.profile.as_ref() != Some(&profile) {

@@ -487,7 +487,9 @@ leading side, radius 6, gap 8, `body` weight 400, `text-primary`.
   text and number `text-on-accent`, weight 500. When the device is the
   selection, the active page row has the look "selected row in a pane that
   does not have the selection".
-- A click selects the page (`Command::SelectPage`).
+- A click selects the page (`Command::SelectPage`). The command carries
+  the profile of the frame that the user clicked (`Command::InProfile`,
+  issue #321).
 
 **"Add a page" row.** Below the page rows of the active profile. Height 28,
 padding 50 at the leading side, gap 6, `control` weight 400,

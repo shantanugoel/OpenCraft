@@ -36,6 +36,9 @@ pub(super) struct Lists {
     pub(super) name: Entity<InputState>,
     /// The row of the right-click menu. A menu item does its work on it.
     pub(super) menu_row: Option<Row>,
+    /// The active profile in the frame that the user clicked to open the
+    /// right-click menu. See [`in_profile`].
+    pub(super) menu_profile: Option<String>,
     /// True when the user closed the pages of the active profile with its
     /// disclosure triangle.
     pub(super) pages_hidden: bool,
@@ -56,6 +59,7 @@ impl Lists {
             edit: None,
             name,
             menu_row: None,
+            menu_profile: None,
             pages_hidden: false,
             _subscription: subscription,
         }
@@ -183,29 +187,39 @@ impl DeviceView {
         let Some(row) = self.lists.menu_row.take() else {
             return;
         };
+        let shown = self.lists.menu_profile.take();
         if !self.menu_items(&row).contains(&(item, true)) {
             return;
         }
         match (item, &row) {
             (MenuItem::Rename, _) => self.start_rename(row, window, cx),
             (MenuItem::Duplicate, Row::Page(page)) => {
-                (self.send)(Command::AddPage {
-                    copy_of: Some(*page),
-                });
+                (self.send)(in_profile(
+                    shown,
+                    Command::AddPage {
+                        copy_of: Some(*page),
+                    },
+                ));
             }
             (MenuItem::Duplicate, Row::Profile(id)) => self.duplicate_profile(id),
-            (MenuItem::MoveUp, Row::Page(page)) => (self.send)(Command::MovePage {
-                page: *page,
-                to: page - 1,
-            }),
-            (MenuItem::MoveDown, Row::Page(page)) => (self.send)(Command::MovePage {
-                page: *page,
-                to: page + 1,
-            }),
+            (MenuItem::MoveUp, Row::Page(page)) => (self.send)(in_profile(
+                shown,
+                Command::MovePage {
+                    page: *page,
+                    to: page - 1,
+                },
+            )),
+            (MenuItem::MoveDown, Row::Page(page)) => (self.send)(in_profile(
+                shown,
+                Command::MovePage {
+                    page: *page,
+                    to: page + 1,
+                },
+            )),
             (MenuItem::ProfileSettings, Row::Profile(id)) => {
                 self.open_profile_sheet(id.clone(), window, cx)
             }
-            (MenuItem::Remove, _) => self.confirm_remove(row, window, cx),
+            (MenuItem::Remove, _) => self.confirm_remove(row, shown, window, cx),
             _ => {}
         }
         cx.notify();
@@ -348,8 +362,15 @@ impl DeviceView {
 
     /// Ask the user to confirm the removal of `row`. The question names the
     /// profile or the page. The removal occurs only if the row is the same
-    /// row when the user answers.
-    pub(super) fn confirm_remove(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
+    /// row when the user answers. `shown` is the active profile in the
+    /// frame that the user clicked (see [`in_profile`]).
+    pub(super) fn confirm_remove(
+        &mut self,
+        row: Row,
+        shown: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(name) = self.row_name(&row) else {
             return;
         };
@@ -386,12 +407,28 @@ impl DeviceView {
                 // number to a different page.
                 Row::Page(page) => {
                     if view.state.pages == pages {
-                        (view.send)(Command::RemovePage { page });
+                        (view.send)(in_profile(shown, Command::RemovePage { page }));
                     }
                 }
             });
         })
         .detach();
+    }
+}
+
+/// `command` for a page of the profile `shown`: the active profile in the
+/// frame that the user clicked. The engine does the command only if that
+/// profile is still the active profile (`Command::InProfile`). A click acts
+/// on the frame that the user saw, also when the window did not draw a newer
+/// frame (issue #321). A click on a row gets `shown` from the render that
+/// made the row, not from the state at the time of the click.
+pub(super) fn in_profile(shown: Option<String>, command: Command) -> Command {
+    match shown {
+        Some(profile) => Command::InProfile {
+            profile,
+            command: Box::new(command),
+        },
+        None => command,
     }
 }
 

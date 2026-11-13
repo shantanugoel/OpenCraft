@@ -305,6 +305,15 @@ pub enum Command {
     TestAction { binding: BindingId },
     /// Send the current counters in an event.
     ReadCounters,
+    /// Obey `command` only if `profile` is the identity of the active
+    /// profile. Else give a problem and change nothing. A shell sends a
+    /// command of a page row in this form, with the profile that its
+    /// window showed when the user clicked (issue #321): a window that
+    /// shows an old picture must not change a different profile.
+    InProfile {
+        profile: String,
+        command: Box<Command>,
+    },
     /// Stop the engine: write the profile and the device settings if they
     /// changed, make the device dark with the stop sequence, and close the
     /// device. See [`Engine::finish`].
@@ -367,6 +376,7 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         // active, the pages do not change, and no step occurs.
         Command::SetFirstPage { .. } => step("Set First Page", None),
         Command::Group { name, commands } => step(name, group_target(commands, active)),
+        Command::InProfile { command, .. } => step_of(command, active),
         Command::PasteControl { .. } => step("Paste", None),
         Command::ClearControl { .. } => step("Clear", None),
         Command::CopyToAllPages { .. } => step("Copy to All Pages", None),
@@ -1996,9 +2006,33 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Obey one command. Return false if the engine must stop. A command
     /// that changes the pages is one step of the history: see `step_of`.
     pub fn command(&mut self, command: Command) -> bool {
+        let Some(command) = self.for_active_profile(command) else {
+            return true;
+        };
         match step_of(&command, self.active) {
             Some((name, target)) => self.step(name, target, command),
             None => self.obey(command),
+        }
+    }
+
+    /// The command in `command`, with no [`Command::InProfile`] around it.
+    /// `None` if it is for a profile that is not the active profile: then
+    /// the engine gives a problem.
+    fn for_active_profile(&mut self, command: Command) -> Option<Command> {
+        match command {
+            Command::InProfile { profile, command } => {
+                if profile == self.profile_id {
+                    self.for_active_profile(*command)
+                } else {
+                    self.problem(
+                        "OpenCraft did not do the change: the window showed a different \
+                         profile than the active profile. Look at the window, and do it again."
+                            .to_string(),
+                    );
+                    None
+                }
+            }
+            command => Some(command),
         }
     }
 
@@ -2138,6 +2172,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Command::Redo => self.redo(),
             Command::StartTextEdit => self.history.start_text_edit(),
             Command::EndTextEdit => self.history.end_text_edit(),
+            Command::InProfile { .. } => {
+                return match self.for_active_profile(command) {
+                    Some(command) => self.obey(command),
+                    None => true,
+                };
+            }
             Command::Group { commands, .. } => {
                 let mut go_on = true;
                 // A command for the history has no meaning in a step.

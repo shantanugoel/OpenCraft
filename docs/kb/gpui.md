@@ -1,6 +1,6 @@
 # GPUI
 
-Last update: 2026-11-13
+Last update: 2026-11-14
 
 GPUI is the GUI toolkit of the Zed editor. The decision that uses these facts
 is [decision 0005](../decisions/0005-gpui.md).
@@ -1067,6 +1067,54 @@ the shared fill samples and the hex field. A choice changed the field.
 to the last row. The pictures show the window only, with no personal data.
 The automated window tests cover the roles, edits and late replies.
 
+## Frames after sleep, lock, and occlusion (2026-11-14)
+
+These facts are for
+[issue #321](https://github.com/shantanugoel/OpenCraft/issues/321). The
+checks used a debug build, scratch profiles, no device, the GUI lock, and
+temporary log lines for each frame, each visibility change, and each engine
+event of the window. The log lines are not in the code.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| On macOS 14 and later, a `CAMetalDisplayLink` on the layer of the window asks for each frame. `start_display_link` does nothing when the occlusion state of the window is not "visible". `windowDidChangeOcclusionState:` starts the link when the window becomes visible and stops it when the window is covered. | Source | `gpui-pre-macos` 0.3.12, `window.rs`, `display_link.rs` |
+| Only these calls start the link again: an occlusion change to "visible", `windowDidChangeScreen:`, `displayLayer:`, and a later `windowDidBecomeKey:`. `displayLayer:` and `windowDidBecomeKey:` also draw one frame at once. A change of the model alone does not start the link. | Source | Same files |
+| GPUI wakes the frame source only when the window changes from "not dirty" to "dirty". A second change of a dirty window does not wake it again. | Source | `gpui-pre` 0.3.12, `WindowInvalidator` in `window.rs` |
+| The hit areas and the click handlers of a window come from the last frame that GPUI drew. A handler keeps the values that the render gave it. Thus, with no new frame, a click acts on the rows of the old frame. | Source, Inference | `gpui-pre` 0.3.12, `window.rs`; the handlers of `view/sidebar.rs` |
+| With no input, each engine page change showed in the window within one picture (about 1 s). The frame came within 50 ms of the event in the log. | Measured | A sequence of 36 page changes, 5 s apart, started with "Test the action"; a picture each second with cua-driver |
+| The screen saver made the window "hidden" in GPUI. An engine event then gave no frame. When the screen saver stopped by itself, the window became "visible" and drew the new page 11 ms later. | Measured | Same sequence; `open -a ScreenSaverEngine` |
+| "Show desktop" and "Mission Control" did not change the visibility of the window. Each engine page change drew within 35 ms. | Measured | Same sequence, with the Mac system functions in a sequence of the profile |
+| `pmset displaysleepnow` turned the displays off for 1 to 2 s only on this computer. Then they turned on again, also with no pictures. A longer display sleep was not possible. | Measured | `pmset -g log`, "Display is turned off/on" |
+| After the process of the screen saver was stopped with a signal, macOS kept the session locked (`CGSSessionScreenIsLocked` = Yes). Each window stayed "hidden" in GPUI while the screen was locked. | Measured | `ioreg -n Root -d1`; the frame log |
+| While the screen was locked, a new window drew its first frame only. The engine events of the start came 50 ms later and gave no frame. The window pictures showed "The device layout is not available yet" and no profile, while the state of the window had the profile. The lock screen covered the window, thus a person could not see this. | Measured | Frame log; window pictures with cua-driver, which work while the screen is locked |
+| In the same state, a window with the guard of `view/repaint.rs` drew a forced frame 0.5 s after each engine event. The pictures showed each page change. The engine events kept their 5 s interval. | Measured | Frame log and pictures of the window |
+| When the lock ended, both windows became "visible" in the same 30 ms, and drew the current state within 15 ms. This includes the window with no guard. Thus, at this one end of a lock, AppKit sent the occlusion change and GPUI started its frames again with no help. | Measured | Frame log of the two windows |
+| While a native menu (`NativeMenu`) is open, the quit path of a signal waits until the menu closes. SIGTERM quit the process only after the menu closed. | Measured | Two test processes; the log line "OpenCraft got signal 15, and quits." came after the menu closed |
+| The Zed editor has reports of a window that stops its updates after a sleep, but still acts on input, and of a window that never draws when it opens while the screen is locked. | Source | [Zed 7940]; [Zed 63217] |
+
+The guard of `view/repaint.rs` (issue #321) is in the application:
+
+- After each engine event, the window expects a frame within 500 ms. If none
+  comes while the window is shown, not in the Dock and on the active Space,
+  it forces a frame. It does not use the occlusion state for this check,
+  because the occlusion state is the part that can be incorrect.
+- After a wake, an unlock, or a display wake notice, the window forces a
+  frame at once, after 1 s and after 3 s. When GPUI reports the window as
+  visible or active, it forces a frame.
+- A mouse button or a key in a window that GPUI takes as hidden forces a
+  frame.
+- A forced frame is `refresh` and `NSView::setNeedsDisplay(true)`. AppKit
+  then calls `displayLayer:`, which draws at once and starts the link again
+  if the window is visible. GPUI uses the same call in `MacWindow::activate`.
+
+### Not known
+
+- Whether macOS always sends the occlusion change to "visible" after an
+  unlock with a password. One end of a lock was seen, and it sent the
+  change. Nobody here saw how that lock ended.
+- Whether the fault of issue #321 was a stale frame. If it was, the guard
+  makes the window draw. The fault of the owner was not seen again.
+
 ## Platform functions and CI
 
 | Fact | Confidence | Source |
@@ -1129,6 +1177,8 @@ The automated window tests cover the roles, edits and late replies.
 [kit CI]: <https://github.com/longbridge/gpui-kit/blob/38a54f0220024f7394dd07d7e6685688168d64e6/.github/workflows/ci.yml>
 [Linux setup]: <https://github.com/longbridge/gpui-kit/blob/38a54f0220024f7394dd07d7e6685688168d64e6/script/install-linux.sh>
 [tray PR]: <https://github.com/zed-industries/zed/pull/44047>
+[Zed 7940]: <https://github.com/zed-industries/zed/issues/7940>
+[Zed 63217]: <https://github.com/zed-industries/zed/issues/63217>
 
 - GPUI 0.3.12 published source:
   <https://docs.rs/crate/gpui-pre/0.3.12/source/>

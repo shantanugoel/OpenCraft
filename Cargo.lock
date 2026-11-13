@@ -5025,6 +5025,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "opencraft-actions",
  "opencraft-engine",
+ "raw-window-handle",
  "serde",
  "tempfile",
  "toml 1.2.1+spec-1.1.0",

@@ -327,7 +327,7 @@ impl DeviceView {
                     let id = id.clone();
                     d.on_click(cx.listener(move |view, _, window, cx| {
                         view.save_sheet_name(cx);
-                        view.confirm_remove(Row::Profile(id.clone()), window, cx)
+                        view.confirm_remove(Row::Profile(id.clone()), None, window, cx)
                     }))
                 })
                 .into_any_element();

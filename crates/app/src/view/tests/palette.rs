@@ -561,7 +561,13 @@ fn return_selects_a_control_a_page_and_a_profile(cx: &mut TestAppContext) {
     // A page of the active profile.
     search(&view, cx, "meetings");
     keys(cx, "enter");
-    assert_eq!(sent.borrow().last(), Some(&Command::SelectPage { page: 1 }));
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&super::pages::on(
+            "default",
+            Command::SelectPage { page: 1 }
+        ))
+    );
     // A page of a different profile: the profile, then the page.
     search(&view, cx, "calls");
     keys(cx, "enter");
