@@ -2331,6 +2331,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     self.change_model(model);
                 }
                 log("connected");
+                // The idle time is the time with no input on a connected
+                // device. A device that connects late starts it again.
+                self.restart_idle();
                 self.draw_all();
                 self.announce_connected();
             }

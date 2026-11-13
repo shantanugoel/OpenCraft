@@ -37,11 +37,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             PowerNotice::DidWake => {
                 self.power.sleeping = false;
-                self.power.displays_asleep = false;
-                if self.power.locked {
+                // A wake of the computer is not a wake of its displays: a
+                // maintenance wake leaves them dark. `DisplaysWake`, an
+                // unlock, or a device input lights the device then.
+                if self.power.locked || self.power.displays_asleep {
                     self.set_display_state(DisplayState::ScreenOff);
                 } else {
-                    self.wake_device();
+                    // The device can have started again during the sleep,
+                    // also when no notice came before it. Draw it again.
+                    self.wake(true);
                 }
             }
             PowerNotice::Locked => {
@@ -68,11 +72,25 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
-    /// An explicit computer-side wake. It never overrides a lock or system sleep.
+    /// An explicit wake: a device input, the window, or the menu bar item.
+    /// It never overrides a lock or system sleep. A device that is awake
+    /// stays as it is: only the idle time starts again.
     pub(super) fn wake_device(&mut self) {
-        if self.power.locked || self.power.sleeping || self.power.displays_asleep {
+        self.wake(false);
+    }
+
+    /// `redraw_if_awake` is for a wake of the computer, where the device
+    /// can have lost its picture although the engine state is awake.
+    fn wake(&mut self, redraw_if_awake: bool) {
+        if self.power.locked || self.power.sleeping {
             return;
         }
+        if self.power.state == DisplayState::Awake && !redraw_if_awake {
+            self.restart_idle();
+            return;
+        }
+        // The user is at the computer or at the device.
+        self.power.displays_asleep = false;
         if self.power.state == DisplayState::DeviceSleep {
             self.link.set_keep_alive_interval(Some(KEEP_ALIVE_INTERVAL));
         }

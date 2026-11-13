@@ -227,7 +227,7 @@ fn missing_empty_and_wrong_type_text_settings_are_problems_without_work() {
         (
             "open-application",
             "application",
-            "Open an application: type a value in the field \"Application, file, or folder\".",
+            "Open an application: type a value in the field \"Application, file or folder\".",
         ),
         (
             "open-url",
@@ -283,7 +283,7 @@ fn incorrect_choices_hotkeys_and_blank_open_or_command_settings_do_no_work() {
             "open-application",
             "application",
             "  ",
-            "Application, file, or folder",
+            "Application, file or folder",
         ),
         ("open-url", "url", "\n", "URL"),
         ("shell-command", "command", " \n ", "Command"),

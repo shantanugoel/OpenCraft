@@ -139,7 +139,7 @@ fn the_open_form_has_a_path_field_and_an_optional_arguments_field() {
     assert!(!description.needs_accessibility);
     let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
     assert_eq!(keys, ["application", "arguments"]);
-    assert_eq!(description.fields[0].label, "Application, file, or folder");
+    assert_eq!(description.fields[0].label, "Application, file or folder");
     assert_eq!(description.fields[1].input, InputType::Text);
     assert_eq!(description.fields[1].default, None);
 }

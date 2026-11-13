@@ -360,7 +360,9 @@ pub enum InputType {
     /// An RGB colour as text #RRGGBB, with no alpha channel.
     Colour,
     Toggle,
-    /// Modifiers ctrl, alt, shift, cmd, then one key; small letters and `+`.
+    /// Modifiers, then one key; small letters and `+`. Decision 0014 gives
+    /// the names: also the right-side modifiers, `fn`, and modifiers with
+    /// no key.
     Hotkey,
     Path {
         kind: PathKind,

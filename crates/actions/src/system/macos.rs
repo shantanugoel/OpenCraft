@@ -259,7 +259,10 @@ pub fn paste_text(text: &str) -> Result<()> {
                     let kind: *mut AnyObject = msg_send![types, objectAtIndex: index];
                     let data: *mut AnyObject = msg_send![item, dataForType: kind];
                     if data.is_null() {
-                        return Err(Error::NotSupported);
+                        // The owner of the clipboard gives this format
+                        // later, or not at all. Paste, and put back the
+                        // formats that can be read.
+                        continue;
                     }
                     let ok: bool = msg_send![&*copy, setData: data, forType: kind];
                     if !ok {
@@ -861,7 +864,7 @@ pub fn open_file(path: &str) -> Result<()> {
 }
 
 pub fn quit_application(application: &str, force: bool) -> Result<()> {
-    super::macos_quit::quit(application, force)
+    super::macos_quit::quit(&expand_home(application), force)
 }
 
 pub fn open_url(url: &str, application: Option<&str>) -> Result<()> {

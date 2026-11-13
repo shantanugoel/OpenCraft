@@ -163,7 +163,7 @@ OpenCraft saves each change immediately, as in
 
 | Setting | What to give |
 |---|---|
-| Application, file, or folder | The name of an application, for example `Safari`, or the path of an application, a file, or a folder |
+| Application, file or folder | The name of an application, for example `Safari`, or the path of an application, a file, or a folder |
 | Arguments | Optional. Words that macOS gives to the application when it starts the application |
 
 1. Type the name of the application. Or click **Choose…** and select an
@@ -336,12 +336,13 @@ The calls and their verification limits are in the
 |---|---|
 | Text | One or more lines of text |
 | Paste with clipboard | On to paste long text with Command-V. Off to type it. |
-| Press Return after | On to press Return after the text. |
+| Push Return after | On to push Return after the text. |
 
 OpenCraft types the text into the application in front. The text can have
 letters with accents, currency signs, and emoji. Both switches are Off in
-old profiles. Paste mode keeps all clipboard formats and puts them back
-300 ms after the paste. If another application changes the clipboard in
+old profiles. Paste mode keeps the clipboard formats that it can read and puts them
+back 300 ms after the paste. A format that its application gives only on
+request can be lost. If another application changes the clipboard in
 that time, OpenCraft keeps that new content. An application that reads the
 clipboard later can miss the paste. Use typing mode for that application.
 

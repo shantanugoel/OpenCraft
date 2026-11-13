@@ -433,7 +433,8 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 
 - Recovery after computer sleep, a screen lock, and a start at login.
 - Keys for screen off, device sleep, and device brightness.
-- Media keys for stop, fast forward, and rewind.
+- Media keys for fast forward and rewind. macOS has no public key for
+  stop: see [kb/macos-media-keys.md](kb/macos-media-keys.md).
 - A timer that makes the device dark.
 - The firmware version in the window, and a support report with no serial
   number.
@@ -443,15 +444,17 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 
 - [ ] After a computer sleep of 1 minute or more, the device shows the
   profile in 10 s or less, and a key operates. The owner did this check.
-- [ ] At a screen lock and an unlock, the device does what decision P7-D1
-  says. Engine tests with the fake transport cover it.
+- [ ] At a screen lock and an unlock, the device does what
+  [decision 0034](decisions/0034-device-dark-state.md) says. Engine tests
+  with the fake transport cover it.
 - [ ] After a start at login, a key with "Send a hotkey" operates with no
   restart of OpenCraft. The owner did this check with the release bundle.
-- [ ] A "Screen off" key makes the device dark, and the wake that P7-D1
-  gives operates on the device. Engine tests with a fake clock cover the
+- [ ] A "Screen off" key makes the device dark, and the wake that decision
+  0034 gives operates on the device. Engine tests with a fake clock cover the
   screen-off timer.
-- [ ] Play/pause, next, previous, and stop operate in the release bundle on
-  macOS 27.
+- [ ] Play/pause, next, previous, fast forward, and rewind operate in the
+  release bundle on macOS 27. Stop is not in this criterion, because macOS
+  has no public key for it.
 - [ ] The window shows the firmware version. "Copy diagnostics" gives no
   serial number and no home path. A test checks this.
 - [ ] The user guide has the USB guidance, the privacy statement, and the

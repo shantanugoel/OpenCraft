@@ -121,6 +121,7 @@ pub fn permission_note(permission: &Permission) -> Option<String> {
         2 => "Two actions need".to_string(),
         3 => "Three actions need".to_string(),
         4 => "Four actions need".to_string(),
+        5 => "Five actions need".to_string(),
         n => format!("{n} actions need"),
     };
     Some(format!(
