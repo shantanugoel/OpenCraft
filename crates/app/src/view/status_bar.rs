@@ -108,9 +108,15 @@ impl DeviceView {
     pub(super) fn status_bar(&self) -> AnyElement {
         let message = self.status_message.clone();
         let input = self.state.last_input.as_ref().filter(|_| message.is_none());
+        let text = match (message, input) {
+            (Some(message), _) => message.to_string(),
+            (None, Some(input)) => input_text(input, std::time::Instant::now()),
+            (None, None) => NO_INPUT.to_string(),
+        };
         div()
             .id("status-bar")
             .debug_selector(|| "status-bar".into())
+            .role(Role::Status)
             .flex_shrink_0()
             .h(theme::STATUS_BAR_HEIGHT)
             .px(theme::SPACE_16)
@@ -127,19 +133,17 @@ impl DeviceView {
                 div()
                     .id("last-input")
                     .debug_selector(|| "last-input".into())
+                    .readable_text(text.clone())
                     .flex_1()
                     .min_w_0()
                     .truncate()
-                    .child(match (message, input) {
-                        (Some(message), _) => message.to_string(),
-                        (None, Some(input)) => input_text(input, std::time::Instant::now()),
-                        (None, None) => NO_INPUT.to_string(),
-                    }),
+                    .child(text),
             )
             .child(
                 div()
                     .id("save-state")
                     .debug_selector(|| "save-state".into())
+                    .readable_text(SAVED)
                     .flex_shrink_0()
                     .child(SAVED),
             )
@@ -181,7 +185,14 @@ impl DeviceView {
                                         .size(theme::ICON_MESSAGE)
                                         .text_color(theme::WARNING),
                                 )
-                                .child(div().flex_1().min_w_0().child(problem.clone()))
+                                .child(
+                                    div()
+                                        .id(index)
+                                        .readable_text(problem.clone())
+                                        .flex_1()
+                                        .min_w_0()
+                                        .child(problem.clone()),
+                                )
                                 .child(
                                     small_button(format!("dismiss-{index}"), "Close", true)
                                         .on_click(cx.listener(move |view, _, _, cx| {

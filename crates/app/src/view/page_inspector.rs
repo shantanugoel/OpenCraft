@@ -337,6 +337,7 @@ impl DeviceView {
                             .child(
                                 controls::text_field(
                                     &AnyInputState::Input(self.page_inspector.name.clone()),
+                                    "Name",
                                     theme::BG_FIELD,
                                     window,
                                     cx,
@@ -721,8 +722,12 @@ impl DeviceView {
                 }),
             )
         });
+        // The record names this popup button "the fit" (decision 0029,
+        // section 10.6).
         let button = controls::popup_button(
             "background-fit",
+            "Fit",
+            fit_text(fit),
             theme::HEIGHT_CONTROL,
             open,
             div().truncate().child(fit_text(fit)),

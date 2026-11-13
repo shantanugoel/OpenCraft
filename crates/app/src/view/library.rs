@@ -295,6 +295,7 @@ impl DeviceView {
             div()
                 .id("library-no-result")
                 .debug_selector(|| "library-no-result".into())
+                .readable_text(no_result(&text))
                 .pt(theme::EMPTY_STATE_TOP)
                 .px(theme::SECTION_PADDING_SIDE)
                 .text_center()
@@ -340,6 +341,7 @@ impl DeviceView {
                     // "Actions" is the only filter, the row is not drawn.
                     .child(controls::search_field(
                         "library-search",
+                        "Search actions",
                         &self.library.search,
                         theme::HEIGHT_SEARCH_FIELD,
                         window,
@@ -412,6 +414,9 @@ impl DeviceView {
                     .text_size(theme::TEXT_BODY)
                     .font_weight(FontWeight::MEDIUM)
                     .cursor_grab()
+                    // A click gives the kind to the selected control.
+                    .accessible(Role::Button, label.name().clone())
+                    .when_some(kind.help.clone(), |d, help| d.aria_description(help))
                     .map(|d| {
                         if in_drag {
                             // The row in a drag (section 11).

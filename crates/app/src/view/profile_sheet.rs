@@ -323,6 +323,7 @@ impl DeviceView {
                 "Name",
                 controls::text_field_sized(
                     &AnyInputState::Input(self.sheet.name.clone()),
+                    "Name",
                     theme::BG_BAR,
                     FieldSize::sheet(),
                     window,
@@ -443,6 +444,7 @@ impl DeviceView {
                 .map(|page| {
                     let id = id.to_string();
                     controls::menu_row(format!("first-page-{page}"))
+                        .label(page_title(pages, page))
                         .child(
                             div()
                                 .flex_shrink_0()
@@ -494,6 +496,8 @@ impl DeviceView {
             .child(
                 controls::popup_button(
                     "first-page",
+                    "First page",
+                    page_title(pages, first),
                     theme::HEIGHT_SHEET_CONTROL,
                     open,
                     div()

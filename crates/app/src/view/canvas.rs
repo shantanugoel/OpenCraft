@@ -22,6 +22,12 @@ pub(super) const DROP_HERE: &str = "Drop here";
 
 /// The parts of the body below the display: in pixels of the display (they
 /// change with the scale), and in points (they do not change).
+/// The tooltip and the accessible label of the touch bar control.
+const TOUCH_BAR_LABEL: &str = "Touch bar: swipe gestures";
+
+/// The accessible label of the display of the device drawing.
+const DISPLAY: &str = "Display";
+
 fn body_below_display(layout: &DeviceLayout) -> (f32, f32) {
     if layout
         .controls
@@ -197,6 +203,9 @@ impl DeviceView {
                 div()
                     .id("device-area")
                     .debug_selector(|| "device-area".into())
+                    // A click on an empty part selects the page: the group
+                    // has the name of the page.
+                    .accessible(Role::Group, self.page_name())
                     .flex_1()
                     .min_h_0()
                     .overflow_hidden()
@@ -237,11 +246,13 @@ impl DeviceView {
         let count = names.len();
         let previous = page > 0;
         let next = page + 1 < count;
+        let page_count = format!("Page {} of {count}", page + 1);
         header
             .child(
                 div()
                     .id("page-header-name")
                     .debug_selector(|| "page-header-name".into())
+                    .readable_text(pages::page_title(names, page))
                     .min_w_0()
                     .truncate()
                     .text_size(theme::TEXT_HEADING)
@@ -252,10 +263,11 @@ impl DeviceView {
                 div()
                     .id("page-header-count")
                     .debug_selector(|| "page-header-count".into())
+                    .readable_text(page_count.clone())
                     .flex_shrink_0()
                     .text_size(theme::TEXT_LABEL)
                     .text_color(theme::TEXT_TERTIARY)
-                    .child(format!("Page {} of {count}", page + 1)),
+                    .child(page_count),
             )
             .child(div().flex_1())
             .child(
@@ -310,9 +322,18 @@ impl DeviceView {
                         .any(|c| c.id == *id && c.feedback_surface.is_some())
                 })
             });
+        let text = match knob {
+            _ if self.kind_drag(cx) => HELP_DRAG.into(),
+            Some(id) => format!(
+                "The dashed outline shows the bar panel that gives feedback for {}",
+                control_name(id)
+            ),
+            None => HELP_NORMAL.into(),
+        };
         div()
             .id("help-line")
             .debug_selector(|| "help-line".into())
+            .readable_text(text.clone())
             .flex_shrink_0()
             .h(px(theme::HELP_LINE_HEIGHT))
             .line_height(px(theme::HELP_LINE_HEIGHT))
@@ -321,14 +342,7 @@ impl DeviceView {
             .text_size(theme::TEXT_LABEL)
             .text_color(theme::TEXT_TERTIARY)
             .truncate()
-            .child(match knob {
-                _ if self.kind_drag(cx) => HELP_DRAG.into(),
-                Some(id) => format!(
-                    "The dashed outline shows the bar panel that gives feedback for {}",
-                    control_name(id)
-                ),
-                None => HELP_NORMAL.into(),
-            })
+            .child(text)
             .into_any_element()
     }
 
@@ -398,6 +412,36 @@ impl DeviceView {
         self.focus_workspace(window, cx);
     }
 
+    /// The name of the active page, as the page header shows it.
+    fn page_name(&self) -> String {
+        if self.state.pages.is_empty() {
+            String::new()
+        } else {
+            pages::page_title(&self.state.pages, self.state.page)
+        }
+    }
+
+    /// The accessible label of a key face or a bar panel: the name of its
+    /// control and its title, for example "Key 2, “Mail”".
+    fn surface_label(&self, id: SurfaceId) -> String {
+        let name = self
+            .state
+            .layout
+            .as_ref()
+            .and_then(|l| l.controls.iter().find(|c| c.surface == Some(id)))
+            .map_or_else(|| id.to_string(), |c| control_name(c.id));
+        let title = self
+            .state
+            .surfaces
+            .get(&id)
+            .and_then(|s| s.content.label.clone())
+            .filter(|title| !title.trim().is_empty());
+        match title {
+            Some(title) => format!("{name}, “{title}”"),
+            None => name,
+        }
+    }
+
     /// True if the key face has no label, no colour, no image, no icon, and no
     /// binding. It then shows a dashed border and a plus icon.
     fn empty_key_face(&self, id: SurfaceId) -> bool {
@@ -447,6 +491,8 @@ impl DeviceView {
         div()
             .id(format!("surface-{id}"))
             .debug_selector(move || format!("surface-{id}"))
+            .accessible(Role::Button, self.surface_label(id))
+            .aria_selected(selected)
             .group(group.clone())
             .absolute()
             .left(px(f32::from(surface.x) * scale))
@@ -598,6 +644,7 @@ impl DeviceView {
         let mut display = div()
             .id("display")
             .debug_selector(|| "display".into())
+            .accessible(Role::Group, DISPLAY)
             .absolute()
             .left(px(margin))
             .top(px(margin))
@@ -653,6 +700,10 @@ impl DeviceView {
             div()
                 .id("device-body")
                 .debug_selector(|| "device-body".into())
+                // A group, not a button: VoiceOver goes into it to the
+                // controls. A click on the body selects the device.
+                .accessible(Role::Group, format!("Device {}", layout.name))
+                .aria_selected(self.device.open)
                 .flex_shrink_0()
                 .relative()
                 .w(px(body_width))
@@ -737,6 +788,8 @@ impl DeviceView {
                 div()
                     .id(format!("control-{id}"))
                     .debug_selector(move || format!("control-{id}"))
+                    .accessible(Role::Button, control_name(id))
+                    .aria_selected(selected)
                     .group(group.clone())
                     .absolute()
                     .left(px(centre - diameter / 2.))
@@ -822,6 +875,9 @@ impl DeviceView {
                     })),
             )
             .child(
+                // A second click target of the knob. It has no role, so that
+                // VoiceOver reads the knob one time (`docs/DESIGN.md`,
+                // section 10).
                 div()
                     .id(format!("label-{id}"))
                     .debug_selector(move || format!("label-{id}"))
@@ -897,6 +953,9 @@ impl DeviceView {
                     div()
                         .id(format!("control-{id}"))
                         .debug_selector(move || format!("control-{id}"))
+                        // The label of decision 0029, section 8.2.
+                        .accessible(Role::Button, TOUCH_BAR_LABEL)
+                        .aria_selected(selected)
                         .h(theme::DEVICE_TOUCH_BAR_HEIGHT)
                         .px(theme::SPACE_10)
                         .flex()
@@ -921,9 +980,7 @@ impl DeviceView {
                             d.border_color(theme::INPUT_GLOW)
                                 .shadow(theme::input_glow_shadow())
                         })
-                        .tooltip(|window, cx| {
-                            Tooltip::new("Touch bar: swipe gestures").build(window, cx)
-                        })
+                        .tooltip(|window, cx| Tooltip::new(TOUCH_BAR_LABEL).build(window, cx))
                         .child(arrow(Gesture::SwipeLeft, IconName::ChevronLeft))
                         .child("Touch bar")
                         .child(arrow(Gesture::SwipeRight, IconName::ChevronRight))

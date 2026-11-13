@@ -26,9 +26,14 @@ impl DeviceView {
             RightPanelTab::Inspector => self.inspector(window, cx),
             RightPanelTab::Library => self.library(window, cx),
         };
+        let name = TABS
+            .into_iter()
+            .find(|(tab, _, _)| *tab == self.panes.right_panel_tab)
+            .map_or("", |(_, _, name)| name);
         div()
             .id("right-panel")
             .debug_selector(|| "right-panel".into())
+            .accessible(Role::Complementary, name)
             .flex_shrink_0()
             .w(width)
             .h_full()

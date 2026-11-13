@@ -605,6 +605,7 @@ impl DeviceView {
                     .min_w_0()
                     .child(
                         Input::new(&self.palette.query)
+                            .aria_label(LABEL)
                             .appearance(false)
                             .h(theme::HEIGHT_PALETTE_FIELD)
                             .px_0()
@@ -613,9 +614,11 @@ impl DeviceView {
                     ),
             )
             .children(self.palette_control().map(|control| {
+                let text = format!("{} selected", control_name(control));
                 div()
                     .id("palette-context")
                     .debug_selector(|| "palette-context".into())
+                    .readable_text(text.clone())
                     .flex_shrink_0()
                     .py(theme::SPACE_3)
                     .px(theme::SPACE_8)
@@ -623,7 +626,7 @@ impl DeviceView {
                     .bg(theme::BG_CONTEXT_CHIP)
                     .text_size(theme::TEXT_HELP)
                     .text_color(theme::TEXT_SECONDARY)
-                    .child(format!("{} selected", control_name(control)))
+                    .child(text)
             }))
     }
 
@@ -638,6 +641,7 @@ impl DeviceView {
                 div()
                     .id("palette-no-result")
                     .debug_selector(|| "palette-no-result".into())
+                    .readable_text(no_result(&text))
                     .pt(theme::EMPTY_STATE_TOP)
                     .px(theme::SECTION_PADDING_SIDE)
                     .text_center()
@@ -713,6 +717,9 @@ impl DeviceView {
         div()
             .id(SharedString::from(format!("palette-row-{number}")))
             .debug_selector(move || format!("palette-row-{number}"))
+            .accessible(Role::Button, item.name.clone())
+            .when_some(item.hint.clone(), |d, hint| d.aria_description(hint))
+            .aria_selected(selected)
             .flex_shrink_0()
             .h(theme::HEIGHT_PALETTE_ROW)
             .px(theme::SPACE_10)
@@ -806,8 +813,7 @@ impl DeviceView {
         div()
             .id("toolbar-search")
             .debug_selector(|| "toolbar-search".into())
-            .role(Role::Button)
-            .aria_label(LABEL)
+            .accessible(Role::Button, LABEL)
             .flex_shrink_0()
             .w(theme::WIDTH_TOOLBAR_SEARCH)
             .h(theme::HEIGHT_CONTROL)

@@ -460,6 +460,7 @@ impl DeviceView {
                         div()
                             .id("icon-picker")
                             .debug_selector(|| "icon-picker".into())
+                            .accessible(Role::Dialog, "Choose an icon")
                             .occlude()
                             .relative()
                             .w(theme::ICON_PICKER_WIDTH)
@@ -530,6 +531,7 @@ impl DeviceView {
             .child(
                 controls::search_field(
                     "icon-search",
+                    "Search icons",
                     &picker.search,
                     theme::HEIGHT_SEARCH_FIELD,
                     window,
@@ -666,6 +668,8 @@ impl DeviceView {
                         .active(|d| d.bg(theme::PRESSED))
                 }
             })
+            .accessible(Role::RadioButton, title.clone())
+            .checked(selected)
             .tooltip(move |window, cx| Tooltip::new(title.clone()).build(window, cx))
             .on_click(cx.listener(move |view, _, _, cx| view.choose_icon(id, name, cx)))
             .child(
@@ -788,6 +792,7 @@ fn footer_button(id: &'static str, text: &'static str, background: Rgba) -> Stat
         .cursor_pointer()
         .hover(|d| d.bg(theme::HOVER_CONTROL))
         .active(|d| d.bg(theme::PRESSED))
+        .accessible(Role::Button, text)
         .child(text)
 }
 

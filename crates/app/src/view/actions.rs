@@ -1108,6 +1108,8 @@ impl DeviceView {
                     .child(
                         controls::popup_button(
                             format!("{id}choice-{index}"),
+                            field.label.clone(),
+                            current.to_string(),
                             theme::HEIGHT_CONTROL,
                             open,
                             div().truncate().child(current.to_string()),
@@ -1122,6 +1124,7 @@ impl DeviceView {
             }
             InputType::Toggle => row(controls::switch(
                 format!("{id}toggle-{index}"),
+                field.label.clone(),
                 value == Some(&Value::Boolean(true)),
                 theme::SWITCH_INSPECTOR,
             )
@@ -1165,6 +1168,10 @@ impl DeviceView {
                                 let id = format!("{id}hotkey-{index}");
                                 move || id.clone()
                             })
+                            // The label of the row, and the text of the
+                            // recorder as the value.
+                            .accessible(Role::Button, field.label.clone())
+                            .aria_value(text.clone())
                             .flex_1()
                             .min_w_0()
                             .h(theme::HEIGHT_CONTROL)
@@ -1232,8 +1239,14 @@ impl DeviceView {
             input => {
                 let integer = matches!(input, InputType::Integer { .. });
                 let text = self.form.inputs.get(&field_path).map(|input| {
-                    controls::text_field(&input.state, theme::BG_BAR, window, cx)
-                        .when(integer, |d| d.flex_none().w(theme::WIDTH_INTEGER_FIELD))
+                    controls::text_field(
+                        &input.state,
+                        field.label.clone(),
+                        theme::BG_BAR,
+                        window,
+                        cx,
+                    )
+                    .when(integer, |d| d.flex_none().w(theme::WIDTH_INTEGER_FIELD))
                 });
                 let path_button = matches!(input, InputType::Path { .. }).then(|| {
                     button(format!("{id}path-{index}"), "Choose…")

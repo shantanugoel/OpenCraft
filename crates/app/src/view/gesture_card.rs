@@ -33,15 +33,24 @@
 //! | `{id}-kind` | The action popup, the kind button of an open nested card, or the full card with no action. A click opens the kind menu. |
 //! | `{id}-test` | The button "Test the action" |
 
-use super::{controls, form, theme};
+use super::{
+    controls::{self, Accessible},
+    form, theme,
+};
 use gpui_kit::{
     assets::IconName, component::Icon, div, prelude::*, relative, AnyElement, App, ClickEvent, Div,
-    FontWeight, Pixels, Rgba, SharedString, Stateful, Window,
+    FontWeight, Pixels, Rgba, Role, SharedString, Stateful, Window,
 };
 use opencraft_engine::KindDescription;
 use std::rc::Rc;
 
 type Handler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+
+/// The text of a card with no action.
+const ADD_AN_ACTION: &str = "Add an action";
+
+/// The accessible label of the kind button of an open nested card.
+const ACTION: &str = "Action";
 
 /// The text and the tile of the action of a card.
 #[derive(Clone, Debug, PartialEq)]
@@ -388,6 +397,16 @@ impl GestureCard {
         self
     }
 
+    /// The accessible label of a control of the card: `text`, after the
+    /// name of the card if it has one, for example "Press: Action".
+    fn label(&self, text: SharedString) -> SharedString {
+        if self.name.is_empty() {
+            text
+        } else {
+            format!("{}: {text}", self.name).into()
+        }
+    }
+
     fn name_cell(&self) -> Option<Stateful<Div>> {
         (!self.name.is_empty()).then(|| {
             let id = SharedString::from(format!("{}-name", self.id));
@@ -407,6 +426,7 @@ impl GestureCard {
     /// The card with no action: a dashed button of full width.
     fn empty(self) -> AnyElement {
         let id = self.id.clone();
+        let label = self.label(ADD_AN_ACTION.into());
         let kind_id = SharedString::from(format!("{id}-kind"));
         let selector = kind_id.clone();
         let on_menu = self.on_menu.clone();
@@ -441,6 +461,8 @@ impl GestureCard {
                     })
                     .cursor_pointer()
                     .hover(|d| d.bg(theme::HOVER_ROW))
+                    .accessible(Role::Button, label)
+                    .aria_expanded(self.menu_open)
                     .children(self.name_cell())
                     .child(
                         Icon::new(IconName::Plus)
@@ -452,7 +474,7 @@ impl GestureCard {
                             .text_size(theme::TEXT_LABEL)
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(theme::TEXT_SECONDARY)
-                            .child("Add an action"),
+                            .child(ADD_AN_ACTION),
                     )
                     .when_some(on_menu, |d, on_menu| {
                         d.on_click(move |event, window, cx| on_menu(event, window, cx))
@@ -471,6 +493,10 @@ impl GestureCard {
         let head_id = SharedString::from(format!("{id}-head"));
         let head_selector = head_id.clone();
         let on_toggle = self.on_toggle.clone();
+        let label = match &self.summary {
+            Some(summary) => format!("{}, {summary}", action.name()),
+            None => action.name().to_string(),
+        };
         div()
             .id(id.clone())
             .debug_selector(move || id.to_string())
@@ -480,6 +506,8 @@ impl GestureCard {
             .child(
                 div()
                     .id(head_id)
+                    .accessible(Role::Button, label)
+                    .aria_expanded(false)
                     .debug_selector(move || head_selector.to_string())
                     .h(theme::HEIGHT_EMPTY_NESTED)
                     .px(theme::SPACE_8)
@@ -556,6 +584,9 @@ impl GestureCard {
                             .cursor_pointer()
                             .hover(|d| d.bg(theme::HOVER_ICON))
                             .active(|d| d.bg(theme::PRESSED))
+                            .accessible(Role::ComboBox, ACTION)
+                            .aria_value(action.name().clone())
+                            .aria_expanded(menu_open)
                             .child(action.content(true))
                             .child(
                                 Icon::new(IconName::ChevronsUpDown)
@@ -617,6 +648,12 @@ impl RenderOnce for GestureCard {
         let on_toggle = self.on_toggle.clone();
         let open = self.open;
         let name = self.name_cell();
+        // The name of the card, or the kind name of a card with no name.
+        let head_label = if self.name.is_empty() {
+            action.name().clone()
+        } else {
+            self.name.clone()
+        };
         let content = if self.nested {
             self.nested_head(&action)
         } else {
@@ -628,6 +665,8 @@ impl RenderOnce for GestureCard {
                 .child(
                     controls::popup_button(
                         kind_id,
+                        head_label.clone(),
+                        action.name().clone(),
                         popup_height,
                         self.menu_open,
                         action.content(false),
@@ -646,6 +685,11 @@ impl RenderOnce for GestureCard {
         let head = div()
             .id(head_id)
             .debug_selector(move || head_selector.to_string())
+            // The head is a group, not a button: VoiceOver goes into a group
+            // to its popup button, and a click on the group opens or closes
+            // the card.
+            .accessible(Role::Group, head_label)
+            .aria_expanded(open)
             .px(head_x)
             .py(head_y)
             .flex()

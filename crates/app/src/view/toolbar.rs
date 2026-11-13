@@ -13,6 +13,9 @@ use super::{
 use crate::app_menu::{redo_title, undo_title};
 use gpui_kit::{assets::IconName, FontWeight, MouseButton, MouseDownEvent, MouseMoveEvent};
 
+/// The tooltip of "Not connected", and its accessible description.
+const NOT_CONNECTED_HELP: &str = "Connect the device with a USB cable. If VSD Craft runs, quit it.";
+
 /// The text below the page name: the profile and the number of pages.
 pub(super) fn profile_line(profile: &str, pages: usize) -> String {
     format!(
@@ -59,6 +62,7 @@ impl DeviceView {
         div()
             .id("toolbar")
             .debug_selector(|| "toolbar".into())
+            .role(Role::Toolbar)
             .flex_shrink_0()
             .h(theme::TOOLBAR_HEIGHT)
             .pl(if sidebar {
@@ -139,10 +143,17 @@ impl DeviceView {
         } else {
             page_title(pages, self.state.page)
         };
+        let line = profile
+            .filter(|_| !pages.is_empty())
+            .map(|profile| profile_line(&profile.name, pages.len()));
         self.moves_window(
             div()
                 .id("toolbar-title")
                 .debug_selector(|| "toolbar-title".into())
+                .readable_text(match &line {
+                    Some(line) => format!("{title}, {line}"),
+                    None => title.clone(),
+                })
                 .flex_shrink_0()
                 .max_w(theme::TOOLBAR_TITLE_MAX)
                 .mr(theme::SPACE_4)
@@ -155,12 +166,12 @@ impl DeviceView {
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(title),
                 )
-                .children(profile.filter(|_| !pages.is_empty()).map(|profile| {
+                .children(line.map(|line| {
                     div()
                         .truncate()
                         .text_size(theme::TEXT_CAPTION)
                         .text_color(theme::TEXT_TERTIARY)
-                        .child(profile_line(&profile.name, pages.len()))
+                        .child(line)
                 })),
             cx,
         )
@@ -170,9 +181,15 @@ impl DeviceView {
     /// "Live on the device" or "Not connected".
     fn live_pill(&self) -> AnyElement {
         let connected = self.state.connected;
+        let text = if connected {
+            "Live on the device"
+        } else {
+            "Not connected"
+        };
         div()
             .id("connection")
             .debug_selector(|| "connection".into())
+            .readable_text(text)
             .flex_shrink_0()
             .h(theme::HEIGHT_PILL)
             .px(theme::SPACE_10)
@@ -186,19 +203,15 @@ impl DeviceView {
                 d.bg(theme::SUCCESS_TINT)
                     .text_color(theme::SUCCESS_TEXT)
                     .child(dot(theme::SUCCESS))
-                    .child("Live on the device")
+                    .child(text)
             })
             .when(!connected, |d| {
                 d.bg(theme::NEUTRAL_TINT)
                     .text_color(theme::TEXT_SECONDARY)
                     .child(dot(theme::TEXT_DISABLED))
-                    .child("Not connected")
-                    .tooltip(|window, cx| {
-                        Tooltip::new(
-                            "Connect the device with a USB cable. If VSD Craft runs, quit it.",
-                        )
-                        .build(window, cx)
-                    })
+                    .child(text)
+                    .aria_description(NOT_CONNECTED_HELP)
+                    .tooltip(|window, cx| Tooltip::new(NOT_CONNECTED_HELP).build(window, cx))
             })
             .into_any_element()
     }

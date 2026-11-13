@@ -189,6 +189,8 @@ impl DeviceView {
         div()
             .id(id)
             .debug_selector(move || id.into())
+            .accessible(Role::RadioButton, text.clone())
+            .checked(selected)
             .flex_1()
             .min_w_0()
             .py(theme::SPACE_10)
@@ -258,6 +260,7 @@ impl DeviceView {
                     theme::FORM_GAP,
                     controls::text_field(
                         &gpui_kit::component::input::AnyInputState::Input(self.faces.input.clone()),
+                        "Title",
                         theme::BG_FIELD,
                         window,
                         cx,

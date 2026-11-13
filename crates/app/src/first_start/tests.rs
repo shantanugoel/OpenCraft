@@ -406,3 +406,27 @@ fn a_closed_first_start_window_opens_again_until_the_user_starts(cx: &mut TestAp
     cx.run_until_parked();
     assert_eq!(windows(cx), 1, "the same window comes to the front");
 }
+
+#[gpui_kit::test]
+fn each_part_of_the_first_start_window_has_a_role_and_a_label(cx: &mut TestAppContext) {
+    use gpui_kit::Role;
+    let f = shell(cx);
+    f.events.try_send(Event::Connected).unwrap();
+    cx.run_until_parked();
+    let (_view, mut visual) = open(&f, cx);
+    crate::view::controls::accessibility_log::take();
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    let nodes = crate::view::controls::accessibility_log::take();
+    let has = |role: Role, label: &str| nodes.iter().any(|(r, l)| *r == role && l == label);
+    assert!(has(Role::Label, "Your device is ready"), "{nodes:#?}");
+    assert!(has(Role::Label, "Test device found"), "{nodes:#?}");
+    for starter in crate::starters::STARTERS {
+        assert!(
+            has(Role::RadioButton, starter.name),
+            "No card {}: {nodes:#?}",
+            starter.name
+        );
+    }
+    assert!(has(Role::Button, "Start"), "{nodes:#?}");
+}

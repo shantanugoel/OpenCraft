@@ -21,9 +21,65 @@ use gpui_kit::{
     },
     deferred, div, point,
     prelude::*,
-    px, Anchor, AnyElement, App, Div, Entity, MouseButton, MouseDownEvent, Pixels, Rgba,
-    SharedString, Stateful, Window,
+    px, Anchor, AnyElement, App, Div, Entity, MouseButton, MouseDownEvent, Pixels, Rgba, Role,
+    SharedString, Stateful, Toggled, Window,
 };
+
+/// The accessible role and label of an element (`docs/DESIGN.md`, section
+/// 3.4). VoiceOver reads only an element that has an ID and a role: plain
+/// text and an element with no role are not in the accessibility tree.
+/// The label is the visible name or the tooltip of the element, not a second
+/// text. Each shared control of this module sets it.
+pub(crate) trait Accessible: StatefulInteractiveElement + Sized {
+    /// Give the element the role `role` and the accessible label `label`.
+    fn accessible(self, role: Role, label: impl Into<SharedString>) -> Self {
+        let label: SharedString = label.into();
+        #[cfg(test)]
+        accessibility_log::record(role, &label);
+        self.role(role).aria_label(label)
+    }
+
+    /// Make the element a text that VoiceOver reads, for example the page
+    /// name of the toolbar. GPUI gives a text element the role `Label` and
+    /// the text as its value; this does the same for a `div`.
+    fn readable_text(self, text: impl Into<SharedString>) -> Self {
+        let text: SharedString = text.into();
+        #[cfg(test)]
+        accessibility_log::record(Role::Label, &text);
+        self.role(Role::Label).aria_value(text)
+    }
+
+    /// The state of a control that is on or off: a switch, a toggle button,
+    /// a segment, a chip, or a colour sample.
+    fn checked(self, on: bool) -> Self {
+        self.aria_toggled(if on { Toggled::True } else { Toggled::False })
+    }
+}
+
+impl<E: StatefulInteractiveElement> Accessible for E {}
+
+/// The roles and labels that the window made, for the window tests. The
+/// test platform of GPUI does not make an accessibility tree, thus
+/// [`Accessible`] writes each role and label here when it makes an element.
+#[cfg(test)]
+pub(crate) mod accessibility_log {
+    use gpui_kit::Role;
+    use std::cell::RefCell;
+
+    thread_local! {
+        static NODES: RefCell<Vec<(Role, String)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub(super) fn record(role: Role, label: &str) {
+        NODES.with(|nodes| nodes.borrow_mut().push((role, label.to_string())));
+    }
+
+    /// The roles and labels since the last call, in the order of the
+    /// render.
+    pub(crate) fn take() -> Vec<(Role, String)> {
+        NODES.with(|nodes| std::mem::take(&mut *nodes.borrow_mut()))
+    }
+}
 
 /// A button with a small padding. A button that is not enabled shows dim
 /// text; the caller adds no click handler to it.
@@ -32,7 +88,10 @@ pub(crate) fn small_button(
     text: impl Into<SharedString>,
     enabled: bool,
 ) -> Stateful<Div> {
-    small_button_frame(id, enabled).child(label(text.into()))
+    let text: SharedString = text.into();
+    small_button_frame(id, enabled)
+        .accessible(Role::Button, text.clone())
+        .child(label(text))
 }
 
 /// A small button with an icon before its text, for example "Test the
@@ -42,10 +101,12 @@ pub(super) fn small_icon_button(
     icon: IconName,
     text: impl Into<SharedString>,
 ) -> Stateful<Div> {
+    let text: SharedString = text.into();
     small_button_frame(id, true)
+        .accessible(Role::Button, text.clone())
         .gap(theme::SPACE_6)
         .child(Icon::new(icon).size(theme::ICON_PLAY))
-        .child(label(text.into()))
+        .child(label(text))
 }
 
 /// The frame of a small button, with no content.
@@ -108,6 +169,7 @@ pub(crate) fn button_if(
                 .active(|d| d.bg(theme::PRESSED))
         })
         .when(!enabled, |d| d.text_color(theme::TEXT_DISABLED))
+        .accessible(Role::Button, text.clone())
         .child(label(text))
 }
 
@@ -139,7 +201,7 @@ pub(super) fn icon_button(
         .cursor_pointer()
         .hover(|d| d.bg(theme::HOVER_ICON))
         .active(|d| d.bg(theme::PRESSED))
-        .aria_label(label.clone())
+        .accessible(Role::Button, label.clone())
         .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         .child(Icon::new(icon).size(theme::ICON_PANE))
 }
@@ -177,7 +239,7 @@ pub(super) fn toolbar_button(
                 .hover(|d| d.bg(theme::HOVER_ICON))
                 .active(|d| d.bg(theme::PRESSED))
         })
-        .aria_label(label.clone())
+        .accessible(Role::Button, label.clone())
         .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         .child(Icon::new(icon).size(theme::ICON_TOOLBAR))
 }
@@ -220,7 +282,7 @@ pub(super) fn square_icon_button(
     div()
         .id(id)
         .debug_selector(move || id.to_string())
-        .aria_label(label.clone())
+        .accessible(Role::Button, label.clone())
         .flex_shrink_0()
         .w(theme::WIDTH_SQUARE_BUTTON)
         .h(height)
@@ -248,9 +310,13 @@ pub(super) fn square_icon_button(
 /// A popup button (section 10.3): `content` at the start, and an up and
 /// down chevron at the end. `height` is 30 for the action popup of a
 /// gesture card and 28 in a form. While its menu is open, the button has
-/// the focus border.
+/// the focus border. `label` is the name of the choice (the label of its
+/// row) and `value` is the text of the current choice, which `content`
+/// shows: VoiceOver reads both.
 pub(super) fn popup_button(
     id: impl Into<SharedString>,
+    label: impl Into<SharedString>,
+    value: impl Into<SharedString>,
     height: Pixels,
     open: bool,
     content: impl IntoElement,
@@ -279,6 +345,9 @@ pub(super) fn popup_button(
         .cursor_pointer()
         .hover(|d| d.bg(theme::HOVER_CONTROL))
         .active(|d| d.bg(theme::PRESSED))
+        .accessible(Role::ComboBox, label)
+        .aria_value(value)
+        .aria_expanded(open)
         .child(
             div()
                 .flex_1()
@@ -297,10 +366,12 @@ pub(super) fn popup_button(
 
 /// A switch (section 3.5): on is `accent` with the knob at the end, off is
 /// `bg-segment-on` with the knob at the start. The knob is white. `size` is
-/// [`theme::SWITCH_INSPECTOR`] or [`theme::SWITCH_SETTINGS`]. The caller adds
-/// the click handler, and keeps the value.
+/// [`theme::SWITCH_INSPECTOR`] or [`theme::SWITCH_SETTINGS`]. `label` is the
+/// name of its row, the accessible label. The caller adds the click handler,
+/// and keeps the value.
 pub(crate) fn switch(
     id: impl Into<SharedString>,
+    label: impl Into<SharedString>,
     on: bool,
     size: theme::SwitchSize,
 ) -> Stateful<Div> {
@@ -323,6 +394,8 @@ pub(crate) fn switch(
             theme::BG_SEGMENT_ON
         })
         .cursor_pointer()
+        .accessible(Role::Switch, label)
+        .checked(on)
         .child(
             div()
                 .debug_selector(move || format!("{id}-knob"))
@@ -352,6 +425,7 @@ pub(crate) fn segmented(
         .p(theme::SPACE_2)
         .rounded(theme::RADIUS_TRACK)
         .bg(theme::BG_FIELD)
+        .role(Role::RadioGroup)
         .children(segments)
 }
 
@@ -379,6 +453,7 @@ pub(crate) fn segment_if(
     height: Pixels,
 ) -> Stateful<Div> {
     let id: SharedString = id.into();
+    let text: SharedString = text.into();
     div()
         .id(id.clone())
         .debug_selector(move || id.to_string())
@@ -401,7 +476,9 @@ pub(crate) fn segment_if(
         .when(!selected && !enabled, |d| {
             d.text_color(theme::TEXT_DISABLED)
         })
-        .child(text.into())
+        .accessible(Role::RadioButton, text.clone())
+        .checked(selected)
+        .child(text)
 }
 
 /// A slider (section 10.7): the filled part of the track is `accent`, and
@@ -422,14 +499,16 @@ pub(super) fn slider(state: &Entity<SliderState>, label: &'static str, disabled:
 /// A text field (section 10.2): height 28, radius 6, `body` text, the
 /// border `border-field`, and `accent-line` when it has the focus. A
 /// multi-line field is at least 60 high. `background` is `bg-field`, or
-/// `bg-bar` in a gesture card.
+/// `bg-bar` in a gesture card. `label` is the label of its row, the
+/// accessible label.
 pub(super) fn text_field(
     input: &AnyInputState,
+    label: impl Into<SharedString>,
     background: Rgba,
     window: &Window,
     cx: &App,
 ) -> Div {
-    text_field_sized(input, background, FieldSize::default(), window, cx)
+    text_field_sized(input, label, background, FieldSize::default(), window, cx)
 }
 
 /// The height, the corner radius, and the side padding of a one-line
@@ -467,12 +546,16 @@ impl FieldSize {
 /// [`text_field`].
 pub(super) fn text_field_sized(
     input: &AnyInputState,
+    label: impl Into<SharedString>,
     background: Rgba,
     size: FieldSize,
     window: &Window,
     cx: &App,
 ) -> Div {
     let focused = input.focus_handle(cx).is_focused(window);
+    let label: SharedString = label.into();
+    #[cfg(test)]
+    accessibility_log::record(Role::TextInput, &label);
     let frame = div()
         .w_full()
         .flex_1()
@@ -492,6 +575,7 @@ pub(super) fn text_field_sized(
     match input {
         AnyInputState::Input(state) => frame.h(size.height).flex().items_center().child(
             Input::new(state)
+                .aria_label(label)
                 .appearance(false)
                 .h(size.height - theme::BORDER * 2.)
                 .px(size.padding)
@@ -501,6 +585,7 @@ pub(super) fn text_field_sized(
         AnyInputState::Textarea(state) => frame.min_h(theme::HEIGHT_LONG_TEXT).child(
             // The small size of the kit has the horizontal padding 8.
             Textarea::new(state)
+                .aria_label(label)
                 .small()
                 .appearance(false)
                 .min_h(theme::HEIGHT_LONG_TEXT - theme::BORDER * 2.)
@@ -514,15 +599,18 @@ pub(super) fn text_field_sized(
 /// A fill sample, 22 × 22, radius 5 (section 10.2). `fill` `None` is the
 /// sample "No fill". A colour has a light border, so that a dark colour
 /// shows on the panel. A selected sample has an outline of 2 in
-/// `accent-line`, 2 outside the sample. `label` is the tooltip; a sample
-/// with an open popover has no tooltip.
+/// `accent-line`, 2 outside the sample. `label` is the tooltip and the
+/// accessible label. A sample with an open popover has no tooltip
+/// (`tooltip` false).
 pub(super) fn colour_sample(
     id: impl Into<SharedString>,
     fill: Option<Rgba>,
     selected: bool,
-    label: Option<SharedString>,
+    label: impl Into<SharedString>,
+    tooltip: bool,
 ) -> Stateful<Div> {
     let id: SharedString = id.into();
+    let label: SharedString = label.into();
     let outside = theme::SAMPLE_OUTLINE + theme::SAMPLE_OUTLINE_GAP;
     div()
         .id(id.clone())
@@ -542,9 +630,10 @@ pub(super) fn colour_sample(
                 .border_1()
                 .border_color(theme::BORDER_OVERLAY),
         })
-        .when_some(label, |d, label| {
-            d.aria_label(label.clone())
-                .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
+        .accessible(Role::RadioButton, label.clone())
+        .checked(selected)
+        .when(tooltip, |d| {
+            d.tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         })
         .when(selected, |d| {
             d.child(
@@ -657,6 +746,7 @@ pub(super) fn popup_menu(
                                     div()
                                         .id(id)
                                         .debug_selector(move || menu_id.to_string())
+                                        .role(Role::Menu)
                                         .occlude()
                                         .w(place.width)
                                         .max_h(theme::MENU_MAX_HEIGHT.min(
@@ -692,7 +782,8 @@ pub(super) fn popup_menu(
 
 /// A row of a menu: height 28, radius 6. The menu paints the highlight
 /// under the row that a key or the pointer selected
-/// ([`MenuRow`]). The caller adds the content and the click handler.
+/// ([`MenuRow`]). The caller adds the content and the click handler. The
+/// text of the row is its accessible label ([`MenuRow::child`]).
 pub(super) fn menu_row(id: impl Into<SharedString>) -> MenuRow {
     let id: SharedString = id.into();
     MenuRow::new(
@@ -734,15 +825,20 @@ pub(super) fn group_title(title: impl Into<SharedString>) -> Div {
 /// A search field of a panel (decision 0029, section 11): `height`, padding
 /// 0 8, radius 7, `bg-field`, the border `border-field` and `accent-line`
 /// with the focus, a search icon 14 in `text-tertiary`, and the text in
-/// `control`. The placeholder is the placeholder of `input`.
+/// `control`. The placeholder is the placeholder of `input`, and `label` is
+/// the accessible label, for example "Search actions".
 pub(super) fn search_field(
     id: &'static str,
+    label: impl Into<SharedString>,
     input: &gpui_kit::Entity<InputState>,
     height: Pixels,
     window: &Window,
     cx: &App,
 ) -> Stateful<Div> {
     let focused = gpui_kit::Focusable::focus_handle(input.read(cx), cx).is_focused(window);
+    let label: SharedString = label.into();
+    #[cfg(test)]
+    accessibility_log::record(Role::SearchInput, &label);
     div()
         .id(id)
         .debug_selector(move || id.to_string())
@@ -770,6 +866,7 @@ pub(super) fn search_field(
         )
         .child(
             Input::new(input)
+                .aria_label(label)
                 .appearance(false)
                 .flex_1()
                 .h(height - theme::BORDER * 2.)
@@ -815,7 +912,8 @@ pub(super) fn toggle_button(
             }
         })
         .active(|d| d.bg(theme::PRESSED))
-        .aria_label(tooltip.clone())
+        .accessible(Role::Button, tooltip.clone())
+        .checked(on)
         .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
         .child(content)
 }
@@ -845,7 +943,8 @@ pub(super) fn colour_button(
             theme::BORDER_CONTROL
         })
         .cursor_pointer()
-        .aria_label(tooltip.clone())
+        .accessible(Role::Button, tooltip.clone())
+        .aria_expanded(open)
         .when(!open, |d| {
             d.tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
         })
@@ -887,6 +986,8 @@ pub(super) fn chip(
                     .hover(|d| d.bg(theme::HOVER_ROW))
             }
         })
+        .accessible(Role::RadioButton, text.clone())
+        .checked(selected)
         .child(text)
 }
 
@@ -921,6 +1022,7 @@ pub(super) fn key_hint(keys: impl Into<SharedString>) -> Div {
 /// example "Set left and right apart" in the "Turn" card of a knob.
 pub(super) fn link(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
     let id: SharedString = id.into();
+    let text: SharedString = text.into();
     div()
         .id(id.clone())
         .debug_selector(move || id.to_string())
@@ -929,7 +1031,8 @@ pub(super) fn link(id: impl Into<SharedString>, text: impl Into<SharedString>) -
         .text_color(theme::ACCENT_TEXT)
         .cursor_pointer()
         .hover(|d| d.text_color(theme::ACCENT_TEXT_HOVER))
-        .child(text.into())
+        .accessible(Role::Link, text.clone())
+        .child(text)
 }
 
 /// A colour circle of 20 (sections 14 and 16). `fill` `None` is the circle
@@ -957,7 +1060,8 @@ pub(super) fn colour_circle(
             Some(fill) => d.bg(fill),
             None => d.border_1().border_color(theme::BORDER_NO_COLOUR),
         })
-        .aria_label(label.clone())
+        .accessible(Role::RadioButton, label.clone())
+        .checked(selected)
         .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         .when(selected, |d| {
             d.child(
@@ -1000,6 +1104,7 @@ pub(crate) fn main_button(
         .cursor_pointer()
         .hover(|d| d.opacity(theme::MAIN_HOVER_OPACITY))
         .active(|d| d.opacity(theme::MAIN_PRESSED_OPACITY))
+        .accessible(Role::Button, text.clone())
         .child(label(text))
 }
 
@@ -1038,5 +1143,6 @@ pub(crate) fn sheet_button(
                 .hover(|d| d.bg(theme::HOVER_ICON))
                 .active(|d| d.bg(theme::PRESSED))
         })
+        .accessible(Role::Button, text.clone())
         .child(label(text))
 }

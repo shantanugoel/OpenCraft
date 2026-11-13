@@ -40,7 +40,7 @@ use crate::{
     shell::Shell,
     state::{ViewState, HIGHLIGHT_TIME},
 };
-use controls::{button, button_if, small_button};
+use controls::{button, button_if, small_button, Accessible};
 use gpui_kit::base::{Scrollbar, ScrollbarMode};
 use gpui_kit::{
     component::{
@@ -50,7 +50,7 @@ use gpui_kit::{
     div, img,
     prelude::*,
     px, AnyElement, App, ClickEvent, Context, Div, Entity, FocusHandle, PathPromptOptions, Render,
-    RenderImage, ScrollHandle, SharedString, Stateful, Subscription, Task, Window,
+    RenderImage, Role, ScrollHandle, SharedString, Stateful, Subscription, Task, Window,
 };
 use opencraft_engine::{
     Color, Command, ControlId, ControlKind, Event, Gesture, SurfaceId, SurfaceKind,

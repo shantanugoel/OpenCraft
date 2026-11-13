@@ -30,11 +30,11 @@
 //! popover) keeps the keys of the field. A menu with no [`MenuRow`] has no
 //! keys at all.
 
-use super::theme;
+use super::{controls::Accessible, theme};
 use gpui_kit::{
     component::WindowExt, fill, point, prelude::*, px, AnyElement, App, Bounds, ClickEvent,
     DispatchPhase, Div, Element, ElementId, GlobalElementId, Hitbox, HitboxBehavior,
-    InspectorElementId, KeystrokeEvent, LayoutId, MouseMoveEvent, Pixels, ScrollHandle,
+    InspectorElementId, KeystrokeEvent, LayoutId, MouseMoveEvent, Pixels, Role, ScrollHandle,
     SharedString, Stateful, Subscription, Window,
 };
 use std::{any::Any, cell::RefCell, panic::Location, rc::Rc, time::Duration, time::Instant};
@@ -86,6 +86,13 @@ impl MenuRow {
         self
     }
 
+    /// The name of the item, for a row whose name is not a text child, for
+    /// example a text in a `div` that truncates it.
+    pub(super) fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
     /// The function that runs at a click, and at Return on the highlighted
     /// item.
     pub(super) fn on_click(
@@ -106,8 +113,13 @@ impl IntoElement for MenuRow {
     type Element = MenuItem;
 
     fn into_element(self) -> MenuItem {
+        // The name of the item is also its accessible label.
+        let frame = match &self.label {
+            Some(label) => self.frame.accessible(Role::MenuItem, label.clone()),
+            None => self.frame.role(Role::MenuItem),
+        };
         MenuItem {
-            child: self.frame.into_any_element(),
+            child: frame.into_any_element(),
             label: self.label,
             on_click: self.on_click,
         }

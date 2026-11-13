@@ -214,6 +214,7 @@ impl DeviceView {
                                 div()
                                     .id("permission-title")
                                     .debug_selector(|| "permission-title".into())
+                                    .readable_text(REQUEST_TITLE)
                                     .text_size(theme::TEXT_SHEET_TITLE)
                                     .font_weight(FontWeight::SEMIBOLD)
                                     .child(REQUEST_TITLE),
@@ -222,6 +223,7 @@ impl DeviceView {
                                 div()
                                     .id("permission-text")
                                     .debug_selector(|| "permission-text".into())
+                                    .readable_text(request_text(&kind))
                                     .text_color(theme::TEXT_SECONDARY)
                                     .line_height(relative(theme::LINE_HEIGHT_TEXT))
                                     .child(request_text(&kind)),
