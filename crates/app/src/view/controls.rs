@@ -1182,7 +1182,7 @@ pub(super) fn key_hint(keys: impl Into<SharedString>) -> Div {
 /// A link (section 3.7): `label`, `accent-text`, no underline, and
 /// `accent-text-hover` under the pointer. A link does the work at once, for
 /// example "Set left and right apart" in the "Turn" card of a knob.
-pub(super) fn link(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
+pub(crate) fn link(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
     let id: SharedString = id.into();
     let text: SharedString = text.into();
     keyboard_focus(div().id(id.clone()), Ring::Inside)

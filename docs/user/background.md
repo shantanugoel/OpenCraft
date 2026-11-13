@@ -117,6 +117,11 @@ TextEdit or in your default text editor. If OpenCraft does not run from its
 application package, for example after a build from the source code, the button
 is dim, and the tab names the file that has the notices.
 
+**Copy diagnostics** copies a private support report. See
+[Report a fault](faults.md#report-a-fault). **User guide** opens this guide,
+and **Report a fault** opens the issue page. Both links open in your default
+browser. OpenCraft fetches nothing when you open the tab.
+
 ![The tab About of the Settings window](images/settings-about.png)
 
 If a change in the Settings window fails, a red message shows at the bottom of

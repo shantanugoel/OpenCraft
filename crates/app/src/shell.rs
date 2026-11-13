@@ -111,6 +111,24 @@ pub enum Place {
     LogFile,
 }
 
+/// Fixed help destinations. No address comes from a server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HelpPage {
+    UserGuide,
+    Issues,
+}
+
+impl HelpPage {
+    pub fn url(self) -> &'static str {
+        match self {
+            Self::UserGuide => {
+                "https://github.com/shantanugoel/OpenCraft/blob/main/docs/user/README.md"
+            }
+            Self::Issues => "https://github.com/shantanugoel/OpenCraft/issues",
+        }
+    }
+}
+
 /// A command to the shell, from the menu bar item, from a click on the Dock
 /// icon, or from a signal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,6 +163,8 @@ pub enum ShellCommand {
     OpenNotices,
     /// Copy a local support report, with private log details removed.
     CopyDiagnostics,
+    /// Open a fixed help page in the default browser.
+    OpenHelp(HelpPage),
     /// Show a folder or a file of OpenCraft in the Finder.
     ShowInFinder(Place),
     /// Open the pane "Accessibility" of System Settings, and ask the engine
@@ -401,6 +421,7 @@ impl Shell {
             }
             ShellCommand::OpenNotices => self.open_notices(cx),
             ShellCommand::CopyDiagnostics => self.copy_diagnostics(cx),
+            ShellCommand::OpenHelp(page) => self.open_help(page, cx),
             ShellCommand::ShowInFinder(place) => self.show_in_finder(place, cx),
             ShellCommand::OpenAccessibilitySettings => self.open_accessibility_settings(cx),
             ShellCommand::Quit => cx.quit(),
@@ -609,6 +630,15 @@ impl Shell {
     /// file exists only after a start with no terminal (decision 0024).
     pub fn log_file(&self) -> PathBuf {
         self.config_dir.join(LOG_FILE_NAME)
+    }
+
+    fn open_help(&mut self, page: HelpPage, cx: &mut Context<Self>) {
+        if !(self.desktop.open_url)(page.url()) {
+            self.settings_problem(
+                "OpenCraft cannot open the help page in your browser.".into(),
+                cx,
+            );
+        }
     }
 
     /// Read the bounded log tail and system version off the UI thread.

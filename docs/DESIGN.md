@@ -229,7 +229,7 @@ not repeat "focus" for them. A text field shows its focus with its border.
 | `colour_button` | A square button that shows a colour and opens a popover | A colour sample | open (`ACCENT_LINE`, no tooltip) |
 | `toggle_button` | A square toggle with a short text, for example "B" | An on/off setting (use a switch) | on, off, hover, pressed |
 | `chip` | A tab chip or a filter chip: "Icons", "Recent" | The tabs of a pane (use a segmented control) | selected, hover |
-| `link` | An operation in a form that changes the view, not the data: "Set left and right apart" | A command that changes the profile | hover |
+| `link` | An operation that changes the view, not the data: "Set left and right apart"; a fixed browser link in Settings > About | A command that changes the profile | hover |
 | `section_title` | The text of each section title and group title | Other text in capital letters | none |
 | `group_title` | A group title in a list or a menu: the library, the kind menu | A section of the inspector (`form::section`) | none |
 | `key_hint` | A key command in a box: "⌘K" | A key command in a row (plain text) | none |

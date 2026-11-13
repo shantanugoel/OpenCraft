@@ -731,6 +731,26 @@ fn a_path_in_the_home_folder_shows_with_a_tilde() {
 // MARK: About
 
 #[gpui_kit::test]
+fn the_help_links_open_only_the_fixed_pages_in_the_browser(cx: &mut TestAppContext) {
+    let (_f, cx) = window(cx);
+    click(cx, "settings-tab-about");
+    assert!(shown().is_empty(), "Opening About fetches nothing");
+    assert_eq!(
+        focus_order(cx, "tab", 5).last().map(String::as_str),
+        Some("user-guide")
+    );
+    push(cx, "space");
+    click(cx, "issue-page");
+    assert_eq!(
+        shown(),
+        [
+            "https://github.com/shantanugoel/OpenCraft/blob/main/docs/user/README.md",
+            "https://github.com/shantanugoel/OpenCraft/issues",
+        ]
+    );
+}
+
+#[gpui_kit::test]
 fn copy_diagnostics_copies_a_local_private_report(cx: &mut TestAppContext) {
     let (f, cx) = window(cx);
     std::fs::write(f.dir.path().join(crate::log_file::FILE_NAME),
@@ -1012,6 +1032,8 @@ fn each_part_of_the_settings_window_has_a_role_and_a_label(cx: &mut TestAppConte
     assert!(has(Role::Label, "OpenCraft"), "{nodes:#?}");
     assert!(has(Role::Button, "Licence notices"), "{nodes:#?}");
     assert!(has(Role::Button, "Copy diagnostics"), "{nodes:#?}");
+    assert!(has(Role::Link, "User guide"), "{nodes:#?}");
+    assert!(has(Role::Link, "Report a fault"), "{nodes:#?}");
 }
 
 /// Push the key `key`: the key goes down and up. GPUI operates a control
