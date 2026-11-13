@@ -648,3 +648,52 @@ fn editor_scrolls_at_the_minimum_window_size(cx: &mut TestAppContext) {
     }
     panic!("The editor does not scroll to the last field.");
 }
+
+#[gpui_kit::test]
+fn the_button_test_the_action_sends_the_command_for_the_gesture_of_its_card(
+    cx: &mut TestAppContext,
+) {
+    let (view, cx, tx, sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(2400.)));
+    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
+    tx.try_send(event(binding(GestureKind::Press), action(), true))
+        .unwrap();
+    let missing = Action {
+        kind: "test.missing".into(),
+        settings: Settings::new(),
+    };
+    tx.try_send(event(binding(GestureKind::Release), missing, false))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+
+    // The open card has the button as its last row. The closed card has no
+    // button.
+    assert_eq!(open_card(&view, cx), Some(GestureKind::Press));
+    let test = cx.debug_bounds("gesture-Press-test").unwrap();
+    assert!(test.top() > cx.debug_bounds("field-7").unwrap().bottom());
+    assert!(cx.debug_bounds("gesture-Release-test").is_none());
+    let count = sent.borrow().len();
+    click(cx, "gesture-Press-test");
+    assert_eq!(sent.borrow().len(), count + 1);
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&Command::TestAction {
+            binding: binding(GestureKind::Press)
+        })
+    );
+    // The window tells that the test went to the engine. The card stays open.
+    cx.update(|_, cx| {
+        assert_eq!(
+            view.read(cx).status_message.as_ref().map(|m| m.to_string()),
+            Some("Testing “Test action” of Key 2 for Press".to_string())
+        )
+    });
+    assert_eq!(open_card(&view, cx), Some(GestureKind::Press));
+
+    // An action with no handler cannot run: its open card has no button.
+    click(cx, "gesture-Release-name");
+    assert_eq!(open_card(&view, cx), Some(GestureKind::Release));
+    assert!(cx.debug_bounds("unavailable").is_some());
+    assert!(cx.debug_bounds("gesture-Release-test").is_none());
+}

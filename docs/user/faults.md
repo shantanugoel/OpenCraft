@@ -75,7 +75,9 @@ OpenCraft, and quit it.
 ## An action does nothing
 
 1. Look above the status bar for a message. See
-   [Messages in the window](#messages-in-the-window).
+   [Messages in the window](#messages-in-the-window). To make the action
+   run with no push on the device, click **Test the action** in the open
+   card. See [Test an action](actions.md#test-an-action).
 2. Make sure that the connection in the toolbar shows "Live on the device".
 3. Look at the left side of the status bar, and do the gesture again. If the
    status bar does not show the gesture with "now", OpenCraft does not get

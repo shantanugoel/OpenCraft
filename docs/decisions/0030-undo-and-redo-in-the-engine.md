@@ -125,6 +125,10 @@ always a step of its own.
   the active profile stays after an undo.
 - **The device settings.** They are not in the profile
   ([decision 0022](0022-device-settings-and-stop-state.md)).
+- **A test of an action.** `Command::TestAction` runs the action of a
+  binding as a gesture does ([#188](https://github.com/shantanugoel/OpenCraft/issues/188)).
+  It changes no page, thus it is not a step. Its line in `step_of` gives
+  `None`.
 - **A restart.** The history is in memory only.
 - **A page change.** It changes no page content. An undo shows the page of
   the change.
