@@ -31,9 +31,9 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0013](0013-action-feedback-on-a-surface.md) | An action changes a surface with feedback data, and the engine makes the image | Accepted |
 | [0014](0014-action-settings-description.md) | An action kind describes its settings as a list of fields | Accepted |
 | [0015](0015-four-bar-panels-and-touch-gestures.md) | The touch bar shows four bar panels, and the device identifies the touch gestures | Accepted |
-| [0016](0016-pages-and-engine-requests-from-a-handler.md) | The engine holds the active page, and a handler asks the engine with a message | Accepted |
+| [0016](0016-pages-and-engine-requests-from-a-handler.md) | The engine holds the active page, and a handler asks the engine with a message | Accepted. 0036 adds the open folders to the active page. |
 | [0017](0017-toggle-and-sequence-actions.md) | An action can contain actions, and the engine draws the state of a toggle | Accepted |
-| [0018](0018-many-profiles.md) | Each profile is a directory in the profiles directory, and names its device model | Accepted |
+| [0018](0018-many-profiles.md) | Each profile is a directory in the profiles directory, and names its device model | Accepted. 0035 changes the request "select a profile" and adds keys to `state.toml`. |
 | [0019](0019-engine-in-the-gui-process.md) | The engine stays in the process of the GUI application | Accepted. 0028 changes what a second start does. |
 | [0020](0020-menu-bar-item-and-dock-icon.md) | The shell makes the menu bar item with AppKit, and has one quit path | Accepted |
 | [0021](0021-start-at-login.md) | A LaunchAgent file starts OpenCraft at login, with the argument `--login` | Accepted. 0025 changes the state of the option, and keeps the LaunchAgent file. |
@@ -44,13 +44,14 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0026](0026-licence-notices.md) | cargo-about makes a committed notices file, CI checks it, and the menu bar item opens it | Accepted |
 | [0027](0027-homebrew-cask.md) | Homebrew installs OpenCraft with a cask in a tap of the owner | Accepted |
 | [0028](0028-second-start-opens-the-window.md) | A second start opens the window of the OpenCraft that runs | Accepted |
-| [0029](0029-window-layout.md) | The main window has a sidebar, a canvas, and a right panel, and each new feature has one place in it | Accepted. It is the text specification of the UI overhaul, thus it is longer than the other records. [DESIGN.md](../DESIGN.md) replaces its section 3. |
-| [0030](0030-undo-and-redo-in-the-engine.md) | The engine keeps the history of undo and redo, as copies of the pages | Accepted |
+| [0029](0029-window-layout.md) | The main window has a sidebar, a canvas, and a right panel, and each new feature has one place in it | Accepted. It is the text specification of the UI overhaul, thus it is longer than the other records. [DESIGN.md](../DESIGN.md) replaces its section 3. 0035 and 0036 use places of its section 21. |
+| [0030](0030-undo-and-redo-in-the-engine.md) | The engine keeps the history of undo and redo, as copies of the pages | Accepted. 0036 adds the folders and the open folders to a step. |
 | [0031](0031-profile-export-file.md) | A profile goes to one TOML file with its images as Base64 text | Accepted |
 | [0032](0032-page-background.md) | Each page has a background, and a surface with no fill shows it | Accepted |
 | [0033](0033-surface-icons.md) | The engine draws a Lucide icon on a surface from a name in the profile | Accepted |
-
 | [0034](0034-device-dark-state.md) | The engine holds the dark state and the computer can always wake it | Accepted |
+| [0035](0035-front-application-selects-the-profile.md) | The shell reports the front application, and the engine selects the linked profile | Accepted |
+| [0036](0036-folders.md) | A folder is a page of keys outside the page cycle, with the actions "Open a folder" and "Back" | Accepted |
 
 ## Template
 
