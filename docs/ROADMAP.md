@@ -24,8 +24,8 @@ application that other persons can adopt.
 | 5 | Background operation | Complete |
 | 6 | First public release | Complete |
 | — | UI overhaul, after Phase 6 | Complete, with owner checks open |
-| 7 | A reliable daily driver | In work |
-| 8 | Everyday actions | In work |
+| 7 | A reliable daily driver | Tasks complete, owner checks open |
+| 8 | Everyday actions | Tasks complete, owner checks open |
 
 ## Checks for each phase
 
@@ -421,7 +421,7 @@ record of the checks.
   with a page background (#191), VoiceOver (#243), and a drag of the window
   with a real mouse (#176).
 
-## Phase 7: A reliable daily driver (In work)
+## Phase 7: A reliable daily driver (tasks complete, owner checks open)
 
 **Goal.** The N4 Pro operates after a sleep, a screen lock, and a login with
 no user action. The user can make the device dark from a key. A user can
@@ -455,12 +455,21 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 - [ ] Play/pause, next, previous, fast forward, and rewind operate in the
   release bundle on macOS 27. Stop is not in this criterion, because macOS
   has no public key for it.
-- [ ] The window shows the firmware version. "Copy diagnostics" gives no
+- [x] The window shows the firmware version. "Copy diagnostics" gives no
   serial number and no home path. A test checks this.
-- [ ] The user guide has the USB guidance, the privacy statement, and the
+- [x] The user guide has the USB guidance, the privacy statement, and the
   help links.
-- [ ] The idle processor use stays below 0.5 % of one core with the timer
+- [x] The idle processor use stays below 0.5 % of one core with the timer
   on. The value is in `kb/footprint.md`.
+
+**State on 2026-11-13.** All tasks are merged. The four criteria with no
+tick need the hands of the owner: a real sleep, a screen lock, a start at
+login, and a key press on the dark device. The engine tests for the lock,
+the unlock, and the screen-off timer are done, and the camera showed the
+dark device and the wake from the computer. The one sitting for the owner
+is in [issue #255](https://github.com/shantanugoel/OpenCraft/issues/255).
+The measured footprint is in
+[kb/footprint.md](kb/footprint.md).
 
 **Decisions that this phase forces.** The dark state of the device: what
 the device does at a screen lock, after an idle time, and at a key press
@@ -469,7 +478,7 @@ decisions
 [0022](decisions/0022-device-settings-and-stop-state.md) and
 [0023](decisions/0023-wake-from-the-sleep-time-of-the-clocks.md).
 
-## Phase 8: Everyday actions (In work)
+## Phase 8: Everyday actions (tasks complete, owner checks open)
 
 **Goal.** The keys and knobs do the daily Mac tasks that VSD Craft users
 expect, with no shell command. The phase issue is
@@ -492,17 +501,24 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 
 **Exit criteria.**
 
-- [ ] Each new kind has handler tests with the fake `System`.
-- [ ] Each new kind shows in its group of the library, with a form that comes
+- [x] Each new kind has handler tests with the fake `System`.
+- [x] Each new kind shows in its group of the library, with a form that comes
   from its description.
 - [ ] The owner pressed each new key in the release bundle, and each key did
   its work.
 - [ ] A knob turn scrolls the front window with the mouse action.
-- [ ] A sequence runs each step after its own delay. Old profiles with one
+- [x] A sequence runs each step after its own delay. Old profiles with one
   delay load with no change of behaviour.
 - [ ] OpenCraft asks for no new permission. Mouse and key actions use the
   Accessibility permission only.
-- [ ] `docs/user/actions.md` describes each new kind.
+- [x] `docs/user/actions.md` describes each new kind.
+
+**State on 2026-11-13.** All tasks are merged. The three criteria with no
+tick need the owner: a press of each new key, a knob turn that scrolls, and
+the check that no new permission request shows. The procedure and its
+profile are in [checks/phase-7-8-checks.md](checks/phase-7-8-checks.md).
+An agent ran "Test the action" in the window for the kinds that are safe to
+run. The measured footprint is in [kb/footprint.md](kb/footprint.md).
 
 **Decisions that this phase forces.** No new record. New field types are
 amendments of
