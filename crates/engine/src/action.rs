@@ -217,6 +217,8 @@ pub enum EngineRequest {
     SelectPage(PageTarget),
     /// Change the device light state. The engine applies decision 0034.
     DeviceDisplay(crate::DisplayState),
+    /// Change and save device brightness through the usual settings path.
+    DeviceBrightness(BrightnessChange),
     /// Make the profile with the name `name` for the user the active
     /// profile, as [`crate::Command::SelectProfile`] does. If two profiles of
     /// the model have the name, the first in the order of the identities
@@ -230,6 +232,13 @@ pub enum EngineRequest {
     /// result. The reasons are in
     /// `docs/decisions/0017-toggle-and-sequence-actions.md`.
     Invoke { binding: BindingId, action: Action },
+}
+
+/// A brightness change. The engine fits the result to the device range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrightnessChange {
+    Set(u8),
+    Step(i16),
 }
 
 /// The page that [`EngineRequest::SelectPage`] selects.

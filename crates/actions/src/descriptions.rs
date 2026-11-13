@@ -18,6 +18,7 @@ pub(crate) const TOGGLE: &str = "opencraft.toggle";
 pub(crate) const SEQUENCE: &str = "opencraft.sequence";
 pub(crate) const SCREEN_OFF: &str = "opencraft.screen-off";
 pub(crate) const DEVICE_SLEEP: &str = "opencraft.device-sleep";
+pub(crate) const DEVICE_BRIGHTNESS: &str = "opencraft.device-brightness";
 
 /// The groups of the built-in kinds in the library (decision 0029, section
 /// 11). The shell shows the groups in the order of their first kind.
@@ -72,6 +73,23 @@ pub(crate) fn description(kind: &str) -> KindDescription {
                 },
             )],
         ),
+        DEVICE_BRIGHTNESS => {
+            let mut operation = field(
+                "operation",
+                "Operation",
+                choice(&[("up", "Up"), ("down", "Down"), ("set", "Set value")]),
+            );
+            operation.default = Some(Value::Text("up".into()));
+            let mut value = field(
+                "value",
+                "Brightness",
+                InputType::Integer { min: 0, max: 100 },
+            );
+            value.default = Some(Value::Integer(80));
+            let mut step = field("step", "Step", InputType::Integer { min: 1, max: 100 });
+            step.default = Some(Value::Integer(5));
+            ("Device brightness", vec![operation, value, step])
+        }
         SCREEN_OFF => ("Screen off", vec![]),
         DEVICE_SLEEP => ("Device sleep", vec![]),
         URL => ("Open a URL", vec![field("url", "URL", InputType::Text)]),
@@ -203,6 +221,7 @@ fn icon(kind: &str) -> &'static str {
         SEQUENCE => "list",
         SCREEN_OFF => "monitor-off",
         DEVICE_SLEEP => "moon",
+        DEVICE_BRIGHTNESS => "sun",
         _ => "circle-help",
     }
 }
@@ -212,7 +231,7 @@ fn icon(kind: &str) -> &'static str {
 /// the left.
 fn direction(kind: &str) -> Option<Direction> {
     match kind {
-        VOLUME => Some(Direction {
+        VOLUME | DEVICE_BRIGHTNESS => Some(Direction {
             key: "operation".into(),
             right: "up".into(),
             left: "down".into(),
@@ -227,6 +246,7 @@ fn direction(kind: &str) -> Option<Direction> {
 fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
         SCREEN_OFF | DEVICE_SLEEP => ("Device", Some("Computer wake")),
+        DEVICE_BRIGHTNESS => ("Device", Some("Knob")),
         HOTKEY | TEXT => (SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
