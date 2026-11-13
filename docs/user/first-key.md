@@ -36,7 +36,7 @@ The key face in the window and key 1 on the device show the title on the
 colour. OpenCraft selects black or white for the text, so that you can read
 it on the colour. The selected colour has a blue frame.
 
-- To remove the fill colour, click the first sample of the row. Its name is
+- To remove the fill, click the first sample of the row. Its name is
   "No fill".
 - To use a different colour, click **+** at the end of the row. Type the
   colour as `#RRGGBB`, for example `#1A6FD8`, and push Return. To close the
@@ -54,7 +54,7 @@ below the field **Title**.
 |---|---|---|
 | **Position** | **Top**, **Middle**, **Bottom**, **None** | Puts the title at the top, at the centre, or at the bottom of the key face. **None** hides the title. The text stays in the field **Title**. |
 | **Text** | The size button, for example "20 pt" | Click it, and click a size from 10 pt to 32 pt. |
-| **Text** | The colour button | Click it, and click a colour. Or type the colour as `#RRGGBB`, and push Return. **A** (Automatic) selects black or white for the fill colour. To close the colour list with no change, push Esc. |
+| **Text** | The colour button | Click it, and click a colour. Or type the colour as `#RRGGBB`, and push Return. **A** (Automatic) selects black or white for the fill. To close the colour list with no change, push Esc. |
 | **Text** | **B** | Bold. Click it to change the title to bold or to normal. **B** is light when the title is bold. |
 
 - At the start, a title is bold, 20 pt, and in the automatic colour. With
@@ -71,17 +71,17 @@ below the field **Title**.
 
 OpenCraft has a set of 1,818 line icons. You do not need an image file.
 
-1. In the row **Icon**, click **Choose icon…**. A window with the icons
-   opens next to the button.
+1. In the row **Icon**, click **Choose icon…**. The icon picker opens below
+   the button.
 2. Type a word in the field **Search icons**, for example `globe`. The grid
    shows the icons that agree with the word. The field has the cursor when
-   the window opens.
+   the icon picker opens.
 3. Click an icon.
 
 ![The icon picker with the search "globe". The icon "globe" is selected, and the key face shows it.](images/icon-picker.png)
 
 The key face in the window and key 1 on the device show the icon above the
-title. The icon of the key has a blue cell in the grid. The window stays
+title. The icon of the key has a blue cell in the grid. The icon picker stays
 open, so that you can try more icons.
 
 | To do this | Do this in the icon picker |
@@ -91,10 +91,10 @@ open, so that you can try more icons.
 | Change the colour of the icon | In the row **Icon colour**, click a colour. The icon changes immediately. If the key has no icon yet, the next icon that you click gets the colour. |
 | Use an image file in place of the icon | Click **Image file…**. See [Set an image](#set-an-image). |
 | Remove the icon or the image | Click **No icon**. |
-| Close the icon picker | Push Esc, or click out of the window of the icon picker. |
+| Close the icon picker | Push Esc, or click outside the icon picker. |
 
 - At the start, an icon has the automatic colour: black or white, the
-  colour that shows best on the fill colour.
+  colour that shows best on the fill.
 - The tile at the start of the row **Icon** shows the icon on the fill
   colour of the key.
 - A key has an icon or an image, not both. A new icon removes the image, and
@@ -110,11 +110,10 @@ You can use an image file in place of an icon.
 
 1. In the row **Icon**, click **Image file…**. Or click **Image file…** in
    the icon picker.
-2. In the file dialog, select a PNG or JPEG file, and click
-   **Select an image**.
+2. In the file dialog, select a PNG or JPEG file, and click **Choose**.
 
 The key face shows the image above the title. A transparent part of the
-image shows the fill colour of the key face.
+image shows the fill of the key face.
 
 - OpenCraft makes a copy of the image in the profile. You can move or delete
   the original file after this step.
@@ -137,7 +136,7 @@ up. Most actions are on **Press**. A card with no action shows
 
 The action "Open a URL" does not need a permission of macOS.
 
-![Key 1 with a title, a fill colour, and the action "Open a URL" on Press](images/first-key.png)
+![Key 1 with a title, a fill, an icon, and the action "Open a URL" on Press](images/first-key.png)
 
 - A card with an action shows the name of the action on a button. One card
   is open at a time. Click the gesture name of a card to open or close the
@@ -158,10 +157,7 @@ The action "Open a URL" does not need a permission of macOS.
   that starts with it. Push Return to select the highlighted item.
 - To close a menu with no change, push Esc, or click out of the menu.
 
-![The inspector with the sound volume action on knob 1](images/action-editor.png)
-
-The picture shows a different action: the sound volume on knob 1. Each
-action kind has its own settings. They are in [Actions](actions.md).
+Each action kind has its own settings. They are in [Actions](actions.md).
 
 ## 5. Push the key
 
@@ -197,10 +193,10 @@ You can undo each change to the pages of the profile, and then do it again.
 - When a text field has the cursor, Command-Z and **Edit > Undo** undo the
   typing in that field only. The toolbar button undoes the last change of
   the profile.
-- The undo covers the label and its position, size, colour, and weight, the
-  colour, the icon and its colour, the image, the actions, the
-  add, rename, move, duplicate, and removal of a page, and **Paste**,
-  **Clear**, and **Copy to All Pages**.
+- The undo covers the title and its position, size, colour, and weight, the
+  fill, the icon and its colour, the image, the actions, the background of
+  a page, the add, rename, move, duplicate, and removal of a page, and
+  **Paste**, **Clear**, and **Copy to All Pages**.
 - The undo does not cover the profiles and the device settings. When you
   select a different profile, or when you quit OpenCraft, the list of changes
   becomes empty.
@@ -236,22 +232,23 @@ the same with a bar panel and a knob.
 - Each **Paste**, **Clear**, and **Copy to All Pages** is one change. You can
   undo it. See [Undo a change](#undo-a-change).
 
-## Search with Command-K
+## The command palette (Command-K)
 
-The search finds action kinds, controls, pages, profiles, and commands. You
-can do all of this procedure with the keyboard.
+The command palette finds action kinds, controls, pages, profiles, and
+commands. You can do all of this procedure with the keyboard.
 
-![The search with an empty field: the action kinds, the controls, the pages, the profiles, and the commands](images/command-palette.png)
+![The command palette with an empty field: the action kinds, the controls, the pages, the profiles, and the commands](images/command-palette.png)
 
 1. Push Command-K. Or click the search field at the right of the toolbar.
-   Or select **Edit > Search…**. The search opens in the centre of the
-   window. Command-K also operates when a text field has the cursor.
+   Or select **Edit > Search…**. The command palette opens in the centre of
+   the window. Command-K also operates when a text field has the cursor.
 2. Type a part of a name, for example `url`, `key 3`, `audio`, or
    `sidebar`. The list shows the results in five groups. Each group shows
    five results at the most.
 3. Push the Down arrow or the Up arrow to select a result. The list scrolls
    with the selection.
-4. Push Return. The bottom line of the search tells what Return does.
+4. Push Return. The bottom line of the command palette tells what Return
+   does.
 
 | Group | What it finds | What Return does |
 |---|---|---|
@@ -268,9 +265,10 @@ can do all of this procedure with the keyboard.
   or the selected page.
 - A command shows only when you can do it now. For example, **Undo** shows
   only when there is a change to undo.
-- Push Escape, or click outside the search, to close it with no change.
-- If nothing agrees with your text, the search shows "No result for" and
-  your text.
+- Push Escape, or click outside the command palette, to close it with no
+  change.
+- If nothing agrees with your text, the command palette shows "No result
+  for" and your text.
 
 ## Operate the window with the keyboard
 
@@ -293,13 +291,16 @@ and card of the window with the keyboard.
   removes the ring.
 - Tab goes through the sidebar, the toolbar, the page header, the tabs of
   the right panel, and the inspector, in this order. In a sheet, in the
-  search, and in a popover, Tab stays in that part.
+  command palette, and in a popover, Tab stays in that part. When you open
+  one of them with the keyboard and then close it, the focus goes back to
+  the control that opened it.
 - In a sheet, Return clicks the blue button (for example **Done**), also
   when a different button has the focus. Space clicks the button with the
   focus. Escape closes the sheet.
 - The controls of the device picture and the actions of the library are not
   in the Tab order. Use Command-K: type `key 3` to select a key, or the name
-  of an action to set it. See [Search with Command-K](#search-with-command-k).
+  of an action to set it. See
+  [The command palette](#the-command-palette-command-k).
 - The key commands of the window, for example Command-Z and Command-K,
   operate also when a control has the focus.
 - When a button has the focus, Delete clears the selected control, as
@@ -308,17 +309,8 @@ and card of the window with the keyboard.
 
 ## If the key does nothing
 
-- Look above the status bar. If a message shows, read it. See
-  [Messages in the window](faults.md#messages-in-the-window).
-- Make sure that the connection in the toolbar shows "Live on the device".
-- Make sure that the action is on the card **Press**, not on the card
-  **Release**.
-- For "Send a hotkey", "Type text", and "Media key", OpenCraft needs the
-  Accessibility permission. When you add the first of these actions, the
-  window asks for the permission. See
-  [Give the Accessibility permission](install.md#give-the-accessibility-permission).
-
-More corrections are in [Faults and corrections](faults.md).
+Look above the status bar. If a message shows, read it. Then do the steps
+in [An action does nothing](faults.md#an-action-does-nothing).
 
 ## Next steps
 

@@ -94,7 +94,9 @@ application operate in one process, also when no window is open. See
 [decision 0019](decisions/0019-engine-in-the-gui-process.md). The code for
 the menu bar item and for the start at login is shell code in `crates/app`.
 See decisions [0020](decisions/0020-menu-bar-item-and-dock-icon.md) and
-[0021](decisions/0021-start-at-login.md). The GUI application does
+[0021](decisions/0021-start-at-login.md). The layout of the window is in
+[decision 0029](decisions/0029-window-layout.md), and its design language is
+in [DESIGN.md](DESIGN.md). The GUI application does
 not depend on `crates/core`. The built-in action handlers are not a layer:
 they use only the handler interface of the engine (rule 8).
 

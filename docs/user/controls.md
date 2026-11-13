@@ -26,7 +26,7 @@ Knob 1 is below bar panel 1.
 | A blue outline | The selected control. At the start, the selected control is the key at the top left. |
 | A thin blue outline | The control below the pointer |
 | A dashed blue outline on a bar panel | The bar panel that gives feedback for the selected knob. The line below the device tells which knob. |
-| A dashed border and a plus (+) on a key face | The key has no label, no colour, no icon, no image, and no action |
+| A dashed border and a plus (+) on a key face | The key has no title, no fill, no icon, no image, and no action |
 | A dashed blue border and "Drop here" | The control below the pointer during a drag from the library. See [Drag an action onto a control](actions.md#drag-an-action-onto-a-control). |
 | The ring of a knob | The colour of the knob light, when the knob lights are set to **Colours**. Else the ring is grey. |
 | A yellow glow | The control that you operate on the device now. A yellow dot shows where you touch the touch bar. |
@@ -113,7 +113,7 @@ The colours of the knob lights are device settings. See
 ## The touch bar
 
 The touch bar is one long touch display. OpenCraft shows it as four bar
-panels. Each bar panel has its own label, colour, and icon or image, as a
+panels. Each bar panel has its own title, fill, and icon or image, as a
 key face does.
 
 There are two types of touch gesture:
@@ -126,7 +126,7 @@ There are two types of touch gesture:
 To set the action of a tap:
 
 1. Click a bar panel in the device picture.
-2. Set the label, the colour, the icon, and the action, as for a key. See
+2. Set the title, the fill, the icon, and the action, as for a key. See
    [Configure a key](first-key.md).
 
 To set the action of a swipe:
@@ -210,9 +210,9 @@ Each page can have a background. The device shows it on its full display,
 800 × 480 pixels, behind the key faces and the bar panels. The window shows
 the same background behind the controls in the device picture.
 
-A key face or a bar panel with no fill colour shows the part of the
-background at its position, behind its title and its image. A fill colour
-covers the background. To show the background on a key face, click the
+A key face or a bar panel with no fill shows the part of the background at
+its position, behind its title and its image. A fill covers the
+background. To show the background on a key face, click the
 sample "No fill" in its **Fill** row. The automatic text colour is black or
 white for the background behind the title.
 
@@ -324,8 +324,9 @@ profile or of the page does not change them.
    display, and the knobs. The **Inspector** tab of the right panel shows the
    device settings. The body of the device picture has a blue outline. No
    control has a blue outline.
-2. Change a setting. To change a brightness, drag its slider. The number
-   above the slider shows the value. The device shows the change at once.
+2. Change a setting. To change a brightness, drag its slider. The number at
+   the right of the setting name shows the value. The device shows the
+   change at once.
 3. To go back to the settings of a control, click a control in the device
    picture, or click the active page in the sidebar.
 
@@ -333,7 +334,10 @@ profile or of the page does not change them.
 
 The inspector has a header and three sections. The header shows the model of
 the device and "Connected by USB" or "Not connected". A device model that
-does not have a setting does not show the section of that setting.
+does not have a setting does not show the section of that setting. The
+arrows at the right of the device in the sidebar open the list of the
+devices. OpenCraft operates one device at a time, thus the list has one
+device.
 
 | Section | Setting | Values | Default |
 |---|---|---|---|

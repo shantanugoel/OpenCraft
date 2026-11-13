@@ -40,16 +40,18 @@ one device at the same time. The full procedure is in
 
 ## Your first key
 
-1. Connect the device, and open OpenCraft.
+1. Connect the device, and open OpenCraft. At the first start, select a
+   starter profile, and click **Start**.
 2. In the window, click a key face.
-3. Type a label, and click a colour.
-4. Click **No action ▾**, and select an action, for example **Open a URL**.
-   Type a URL.
+3. In the inspector at the right, type a title, and click a fill colour.
+4. On the card **Press**, click **Add an action**, and select an action,
+   for example **Open a URL**. Type a URL.
 5. Push the key on the device.
 
-The [user guide](docs/user/README.md) gives all procedures: the actions,
-the knobs, the touch bar, pages, profiles, the device settings, the menu
-bar item, the start at login, and the faults.
+The [user guide](docs/user/README.md) gives all procedures: the icons, the
+actions, the library, undo, the command palette, the knobs, the touch bar,
+pages and their backgrounds, profiles, the device settings, the menu bar
+item, the Settings window, the start at login, and the faults.
 
 ## For developers
 

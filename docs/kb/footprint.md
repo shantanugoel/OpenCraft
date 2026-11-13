@@ -548,7 +548,161 @@ program, not in the repository, in a release build of the engine crate.
 | The image of a key face of 112 × 112 with an icon and a label takes 0.67 ms. With the label only, it takes 0.23 ms. | Measured: the mean of 100 images |
 | One search of all icons ("arrow") takes 0.39 ms. | Measured: the mean of 100 searches |
 | The data of the set in memory, after the first use, is approximately 100 KB: one entry of 56 bytes for each icon, with references into the data of the executable. | Inference: the size of the entry |
-| The memory and the processor use of the application were not measured again with icons on the surfaces. An icon changes only the time to make an image, as a label does. | Inference |
+| The memory and the processor use of the application with icons on 28 surfaces are in [UI overhaul](#memory-and-processor-use-2026-11-13). An icon changes only the time to make an image, as a label does. | Inference |
+
+## UI overhaul (2026-11-13)
+
+The window changed in the UI overhaul (issue
+[#173](https://github.com/shantanugoel/OpenCraft/issues/173),
+[decision 0029](../decisions/0029-window-layout.md)): three panes, the
+library, the command palette, the Settings window, the first start window,
+icons on surfaces, and page backgrounds. Issue
+[#197](https://github.com/shantanugoel/OpenCraft/issues/197) measured the
+release bundle again after the last change of the window.
+
+### The release bundle (2026-11-13)
+
+The application is the bundle `OpenCraft.app` of `scripts/release.sh`, from
+the commit `259a20d`, with no `OPENCRAFT_NOTARY_PROFILE`: a Developer ID
+signature and the hardened runtime, not notarized. The computer is the same
+as in [Phase 2](#phase-2). The procedure is the same as in
+[Phase 6](#phase-6), with these differences:
+
+- `open -n <bundle> --env HOME=<directory> --env OPENCRAFT_PROFILES_DIR=<directory>`
+  started each process. The home directory was a new directory, thus the
+  files of the shell (`shell.toml`, the log file, the lock) were in it, and
+  not in the folder of the owner.
+- The profiles directory had 2 profiles: the starter profiles "Everyday
+  Mac" (active) and "Media and sound" of the first start
+  ([decision 0029](../decisions/0029-window-layout.md#18-the-first-start-196)).
+  The active profile had 2 pages, content on 28 surfaces, each with a title
+  and an icon of the built-in set, and 36 bindings of 5 action kinds. Six
+  bindings had the kind `opencraft.volume`. No surface had an image file,
+  and no page had a background. The Phase 6 profile had 22 surfaces with
+  labels, colours, and 4 image files, and 16 bindings. The directory had no
+  file `device-settings.toml`.
+- The device was connected. A camera picture 10 seconds after each start,
+  and 10 seconds after the start of each measurement, showed the profile
+  on the device, also after the window closed.
+- No person used the device or the window during a measurement. A lock in
+  the scratch directory of the agents kept other OpenCraft processes away
+  from the device. Other programs of the owner ran.
+
+| Fact | Value | Confidence |
+|---|---|---|
+| The executable | 24,966,464 bytes. Phase 6: 22,016,160 bytes. | Measured |
+| The bundle | 25,999,055 bytes in its files, 25 MB on the disk (`du`). Phase 6: 22 MB. | Measured |
+| The disk image | 12,389,785 bytes. Phase 6: 12 MB. | Measured |
+
+- The executable is 2,950,304 bytes (13 %) larger than in Phase 6. The
+  icon data is 499,309 bytes of it, and the icon code is 130,000 to
+  196,000 bytes ([Icons on surfaces](#icons-on-surfaces-2026-11-13)). The
+  rest, approximately 2.3 MB, is the new window code and the starter
+  profiles. (Measured: the sizes. Inference: the parts.)
+
+### Memory and processor use (2026-11-13)
+
+`scripts/measure-footprint.sh --pid` made one sample each 5 seconds for 300
+seconds, as in [Phase 6](#phase-6). Each measurement started 60 seconds
+after the start of the application. For "Window closed", the close button
+got a click through the Accessibility API 60 seconds after the start, and
+the measurement started 30 seconds after that. Each column is a new process.
+
+| Measurement | Window open | Window closed | Start with `--login` | Confidence |
+|---|---|---|---|---|
+| Processes | 1 | 1 | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 54.6, 54.6, 54.6 MiB | 36.0, 36.0, 36.0 MiB | 26.4, 26.4, 26.8 MiB | Measured |
+| Resident size, median | 117.4 MiB | 115.9 MiB | 101.8 MiB | Measured |
+| Processor time in 300 seconds | 0.57 s | 0.67 s | 0.66 s | Measured |
+| Processor use, mean (100 % is one core) | 0.19 % | 0.22 % | 0.22 % | Measured |
+| Processor use, maximum of a sample | 0.4 % | 0.4 % | 0.6 % | Measured |
+| Threads at the start and at the end of the measurement | 15, 15 | 16, 15 | 13, 13 | Measured: `ps -M` |
+
+- The footprint is 57.3 MB with the window open, 37.7 MB after the window
+  closed, and 27.7 MB after a start with `--login`. All are below the
+  target of 80 MB. (Inference from the measured values)
+- The mean processor use is 0.19 to 0.22 % of one core, with and with no
+  window. This is below the target of 0.5 %. (Inference from the measured
+  values)
+- Compared with [Phase 6](#memory-and-processor-use-2026-11-12-2), the
+  footprint is 4.1 MiB more with the window open, 1.0 MiB more after the
+  window closed (Phase 6: 35.0 MiB, then 32.8 MiB after 3 minutes), and
+  2.2 MiB more after a start with `--login`. The processor time is the same
+  or less: 0.57 to 0.67 s in 300 seconds, in Phase 6 0.65 to 0.69 s.
+  (Measured)
+- The cause of the larger footprint is not measured. The profile is
+  different (28 icons, no image files), the executable is 2.9 MB larger,
+  and the window has more parts. (Inference)
+- The engine thread used 0.47 to 0.49 s in 300 seconds, and the volume
+  handler used 0.11 to 0.16 s, in all three measurements. The main thread
+  used 0.00 to 0.02 s. In Phase 6 the engine thread used 0.47 to 0.54 s, and
+  the volume handler 0.14 s. (Measured: `ps -M` at the start and at the end
+  of each measurement. Thread names: Inference, as in Phase 5)
+- Thus the window does not keep the processor awake when it is closed, and
+  a closed window uses no more processor time than an open window. No timer
+  of the window runs when no window is open. (Inference from Measured)
+- One sample of the start with `--login` had 0.6 %: 0.03 s in 5 seconds.
+  The other 179 samples with a processor value had 0.4 % or less.
+  (Measured)
+
+### Start time (2026-11-13)
+
+The procedure is the same as in [Phase 6](#start-time-2026-11-12-1): the
+start line of the log file, the engine lines `connected` and
+`full draw done`, and the lines of `OPENCRAFT_START_TRACE`. A script
+started the bundle with `open`, waited for the last line, and stopped the
+process with the signal TERM. A first start is the first start of a new
+copy of the bundle, made with `ditto`. Each time is from the start of the
+process.
+
+| Step | First start: 3 new copies (window, window, `--login`) | Repeated start with a window: 6 starts, minimum, median, maximum | Repeated start with `--login`: 6 starts, minimum, median, maximum | Confidence |
+|---|---|---|---|---|
+| The start line ("main began") | 582, 295, 292 ms | 35, 42, 49 ms | 33, 46, 52 ms | Measured |
+| `connected` in the engine log | 633, 335, 337 ms | 84, 87, 93 ms | 62, 89, 95 ms | Measured |
+| `full draw done` in the engine log | 666, 369, 368 ms | 115, 120, 124 ms | 93, 121, 126 ms | Measured |
+| The device is ready (the event `Connected`) | 666, 369, 368 ms | 115, 120, 124 ms | 93, 121, 126 ms | Measured |
+| The first frame of the window | 1268, 610 ms, no window | 375, 389, 411 ms | No window | Measured |
+
+- For a repeated start, the device is ready 93 to 126 ms after the start of
+  the process, and the median of the 12 starts is 120 ms. This meets the
+  target of 300 ms. In Phase 6 the median was 101 ms. (Measured)
+- From the start line to the ready device, the time was 60 to 82 ms in the
+  12 repeated starts. In Phase 6 it was 56 to 78 ms. The first draw
+  (`connected` to `full draw done`) was 31 to 33 ms; in Phase 6 it was
+  approximately 25 ms. Each surface of this profile has an icon, and an
+  image with an icon takes 0.44 ms more than an image with a label only
+  ([Icons on surfaces](#icons-on-surfaces-2026-11-13)): 14 images take
+  approximately 6 ms more. (Measured: the times. Inference: the cause)
+- The first start of a new file does not meet the target: 368 to 666 ms to
+  the ready device. Most of this time is before the start line: 292 to 582
+  ms. This is the same as in Phase 6. (Measured)
+- From the `open` command to the start of the process, the time was 22 to
+  42 ms in a repeated start, and 60 to 79 ms in a first start. (Measured)
+
+### Checks with the camera (2026-11-13)
+
+A program for the window (Quartz events, not in the repository) used the
+window of the release build with a scratch profiles directory, and the USB
+camera recorded the device.
+
+| Fact | Confidence |
+|---|---|
+| A new fill of a key from the window showed on the device, and ⌘Z put the old fill back on the device | Measured: camera |
+| A click on a page in the sidebar showed that page on the device, with its background image behind the key faces and the bar panels with no fill | Measured: camera |
+| "Test the action" on the card "Swipe left" of the page ("Change the page", next page) showed the next page on the device | Measured: camera |
+| The knob lights in the mode "Colours" showed the four colours that the device inspector set | Measured: camera |
+| ⌘Q made the displays and the knob lights dark. The next start showed the profile and the knob light colours again. | Measured: camera |
+| With the window closed, the device showed the profile during 300 seconds | Measured: camera at the start of the measurement; the process ran to the end |
+| Each key face and bar panel of the starter profile "Everyday Mac" showed its icon and its title on the device | Measured: camera |
+
+### Product targets after the UI overhaul (2026-11-13)
+
+| Target | Value with the release bundle | Result |
+|---|---|---|
+| Memory in the steady state: less than 80 MB | 27.7 MB after a start with `--login`, 37.7 MB after the window closed, 57.3 MB with the window open | Met |
+| Processor use when idle: less than 0.5 % of one core | 0.19 to 0.22 % mean, with and with no window. No sample of 5 seconds above 0.6 %. | Met |
+| Cold start to a ready device: less than 300 ms | 120 ms median (93 to 126 ms) for a repeated start; 368 to 666 ms for the first start of a new file | Met for a repeated start only, as in Phase 6. Issue [#143](https://github.com/shantanugoel/OpenCraft/issues/143) and issue [#151](https://github.com/shantanugoel/OpenCraft/issues/151). |
+| Lost input events: none | Not measured: nobody turned a knob. The input path of the engine did not change in the overhaul. | Met in Phase 3 and Phase 4. Not measured with the bundle. |
 
 ## Not known
 
@@ -572,6 +726,10 @@ program, not in the repository, in a release build of the engine crate.
   core more than the build of Phase 5. The signature is not the cause. See
   [Memory and processor use](#memory-and-processor-use-2026-11-12-2) of
   Phase 6.
+- Why the release bundle after the UI overhaul uses 1.0 to 4.1 MiB more
+  memory than the bundle of Phase 6. See
+  [Memory and processor use](#memory-and-processor-use-2026-11-13) of the
+  UI overhaul.
 - The cause of the samples with 1.2 % and 1.6 % of one core: see
   [Samples with high processor use](#samples-with-high-processor-use-2026-11-12),
   and the sample with 1.6 % in Phase 6.

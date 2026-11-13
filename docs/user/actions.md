@@ -138,10 +138,11 @@ stays in the profile."
 - To use a different action, click **Not available**, and click an action
   kind. To remove the action, click **Remove the action**.
 
-## How OpenCraft saves a setting
+## How OpenCraft checks a setting
 
-- OpenCraft saves each change immediately. The window has no "Save" button
-  for an action.
+OpenCraft saves each change immediately, as in
+[Configure a key](first-key.md#how-opencraft-saves-your-changes).
+
 - OpenCraft does not check a setting when you type it. It checks the
   setting when you operate the control. If OpenCraft cannot use a setting,
   the window shows a message above the status bar. See
@@ -303,8 +304,8 @@ of **Tap** of a bar panel, is a toggle, the inspector shows the section
   as the device shows them. The face of the state now has the text "· now".
   The second line of the inspector header also shows the state, for example
   "Toggle · the state now is Off".
-- Click **Off** to change the image, the title, the label options, and the
-  fill of the key.
+- Click **Off** to change the image, the title, the look of the title, and
+  the fill of the key.
 - Click **On** to change the label for on in **Title**. The face On uses the
   fill and the image of the face Off, with a frame.
 
@@ -313,7 +314,7 @@ Notes:
 - A toggle starts in the state off. Thus the first operation does the
   action for on.
 - In the state on, the key face or the bar panel shows a frame. The frame
-  has the colour of the label.
+  has the colour of the title.
 - OpenCraft keeps the state while it runs. When OpenCraft starts again, each
   toggle is off.
 - If you change the settings of a toggle, its state becomes off.

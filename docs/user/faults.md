@@ -152,14 +152,14 @@ The Mac and the macOS version that OpenCraft needs are in
 These limits apply to this version of OpenCraft:
 
 - OpenCraft operates one device at a time.
-- The touch bar shows four bar panels. A picture across the full touch bar is
-  not possible.
+- The touch bar shows four bar panels. To show one picture across the full
+  touch bar, use a [page background](controls.md#the-background-of-a-page),
+  and give the bar panels no fill.
 - A swipe has no position. Thus a swipe does the same action on all of the
   touch bar.
-- Key faces and bar panels show still images only. Animation is not
-  possible.
-- OpenCraft does not change the background image or the start logo of the
-  device.
+- Key faces, bar panels, and page backgrounds show still images only.
+  Animation and video are not possible.
+- OpenCraft does not change the start logo of the device.
 - OpenCraft has no plug-ins. It cannot use plug-ins of VSD Craft or of the
   Stream Deck software.
 - OpenCraft cannot import the profiles of VSD Craft.

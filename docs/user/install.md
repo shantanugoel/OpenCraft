@@ -66,6 +66,8 @@ It shows the device at the left, and four starter profiles at the right.
 4. Click **Start**. You can also push Return, or double-click the starter
    profile.
 
+OpenCraft makes the profile, closes this window, and opens its main window.
+
 | Starter profile | What it contains |
 |---|---|
 | **Everyday Mac** | Two pages. The page "Apps" opens Finder, Safari, Mail, Calendar, Notes, Messages, Music, Photos, and Screenshot. The page "Web and system" opens web pages and applications, and has the key **Sleep**, which puts the Mac to sleep. Knob 1 changes the sound volume. The bar panels **Apps** and **Web** select a page. |
@@ -73,34 +75,36 @@ It shows the device at the left, and four starter profiles at the right.
 | **Video calls** | One page for each of Zoom, Google Meet, and Microsoft Teams: mute, camera, share or chat, raise the hand, and leave the call. **Mute** and **Camera** show their state. The bar panels select the page. Knob 1 changes the sound volume. |
 | **Empty** | The profile "Default" with one empty page |
 
-Each key face and each bar panel of these three profiles shows an icon and a
-title. The title is at the bottom, below the icon. The icon has the colour of
-the title. For example, the key **Finder** shows a folder, and the key
-**Play** shows a play symbol. The device shows the same icons and titles as
-the picture in the window. You can change the icon, the title, and the fill
-of each key later. See [Configure a key](first-key.md).
+- Each key face and each bar panel of the first three profiles shows an
+  icon and a title. For example, the key **Finder** shows a folder, and the
+  key **Play** shows a play symbol. The device shows the same images as the
+  window.
+- Each starter profile uses only applications and system actions of macOS.
+  The video call keys send the key commands of the call application: they
+  operate when that application is in front.
+- You can change each key later. See [Configure a key](first-key.md).
+- The box at the bottom of the window shows the action kinds that need the
+  Accessibility permission. It shows only when OpenCraft does not have the
+  permission. See
+  [Give the Accessibility permission](#give-the-accessibility-permission).
+- If no device is connected, the window shows "Connect your device", and
+  the device picture is dim. You can select a starter profile and click
+  **Start**. OpenCraft finds the device when you connect it.
+- OpenCraft shows this window only when you have no profile. The next
+  start opens the main window. If you close the window with no **Start**,
+  OpenCraft continues in the menu bar, and **Open OpenCraft** shows the
+  window again.
 
-OpenCraft makes the profile and opens its main window. You can change each
-key later. Each starter profile uses only applications and system actions
-of macOS. The video call keys send the key commands of the call
-application: they operate when that application is in front.
+### The main window
 
-If no device is connected, the window shows "Connect your device", and the
-device picture is dim. You can select a starter profile and click
-**Start**. OpenCraft finds the device when you connect it.
+![The main window after a start with "Everyday Mac". Key 1 is selected.](images/first-start.png)
 
-OpenCraft shows this window only when you have no profile. The next start
-opens the main window. If you close the window with no **Start**, OpenCraft
-continues in the menu bar, and **Open OpenCraft** shows the window again.
-
-With the starter profile **Empty**, the key faces and the bar panels are
-black. Each key face shows a plus (+), because the key has no action. The key
-at the top left is selected: it has a blue outline, and the inspector at the
-right shows its settings. The knob lights on the device show colours that
-change slowly. This is the default of the
+The key at the top left is selected: it has a blue outline, and the
+inspector at the right shows its settings. With the starter profile
+**Empty**, the key faces and the bar panels are black, and each key face
+shows a plus (+), because the key has no action. The knob lights on the
+device show colours that change slowly. This is the default of the
 [device settings](controls.md#device-settings).
-
-![The OpenCraft window at the first start, with key 1 selected](images/first-start.png)
 
 The window has three panes: the sidebar at the left, the device picture in
 the middle, and the right panel. The parts:
@@ -108,17 +112,18 @@ the middle, and the right panel. The parts:
 | Part | Position | What it shows |
 |---|---|---|
 | Sidebar | Left | At the top, the device: its model, for example "VSD StreamDock N4 Pro", and "Connected" or "Not connected". Below it, the [profiles and the pages](controls.md#pages). At the bottom, **Settings**, which opens the [Settings window](background.md#the-settings-window). |
-| Toolbar | Top, above the device picture and the right panel | The name of the active page, the active profile and its number of pages, the **Undo** and **Redo** buttons, and the connection |
+| Toolbar | Top, above the device picture and the right panel | The name of the active page, the active profile and its number of pages, the **Undo** and **Redo** buttons, the connection, the search field of the [command palette](first-key.md#the-command-palette-command-k), and the button that hides the right panel |
 | Connection | Toolbar, right | "Live on the device", or "Not connected" |
-| Page header | Top of the device picture | The name of the active page, "Page 1 of 1", the buttons **Previous page** and **Next page**, and **Page settings** |
+| Page header | Top of the device picture | The name of the active page, "Page 1 of 2", the buttons **Previous page** and **Next page**, and **Page settings** |
 | Device picture | Middle | The 10 key faces, the 4 bar panels, the touch bar, and the 4 knobs, at their real positions. Each key face and bar panel shows the same image as the device. Below the device is a line of help. See [The device picture](controls.md#the-device-picture). |
 | Right panel | Right | Two tabs. **Inspector** shows the settings of the control that you selected. **Library** shows the [action kinds](actions.md#the-library). |
-| Status bar | Bottom of the device picture | At the left, the last gesture on the device, for example "Key 3 · Press · now". At the right, "All changes saved". |
+| Status bar | Bottom of the device picture | At the left, the last gesture on the device, for example "Key 3 · Press · now", or "No input yet". At the right, "All changes saved". |
 
 When you push a key, turn a knob, or touch the touch bar, the device picture
-shows it. The status bar shows "now" for 10 seconds after a gesture, and then
-the time of the gesture. If you do the same gesture again in less than one
-second, it shows the number, for example "Knob 1 · Turn right × 3 · now".
+shows it with a yellow glow. The status bar shows "now" for 10 seconds after
+a gesture, and then the time of the gesture. If you do the same gesture
+again in less than one second, it shows the number, for example
+"Knob 1 · Turn right × 3 · now".
 
 ### Show and hide the side panes
 
