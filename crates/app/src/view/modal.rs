@@ -33,6 +33,7 @@
 
 use super::{
     controls::{Accessible, FocusOwner},
+    focus_return::FocusReturn,
     theme,
 };
 use gpui_kit::{
@@ -136,6 +137,7 @@ impl Modal {
         let on_click_out = self.on_click_out.clone();
         let focus = self.focus.clone();
         let trap_id = SharedString::from(format!("{}-trap", self.id));
+        let return_id = SharedString::from(format!("{}-return", self.id));
         div()
             .id(layer_id)
             .debug_selector(move || layer_selector.to_string())
@@ -154,7 +156,11 @@ impl Modal {
                     f(window, cx);
                 }
             })
-            .child(
+            // When the layer closes, the focus goes back to the control that
+            // opened it, if a key opened it (`focus_return`).
+            .child(FocusReturn::new(
+                return_id,
+                &self.focus,
                 div()
                     .id(self.id.clone())
                     .debug_selector(move || id.to_string())
@@ -194,7 +200,7 @@ impl Modal {
                     .cursor_default()
                     .child(content)
                     .focus_trap(trap_id, &self.focus),
-            )
+            ))
             .into_any_element()
     }
 }

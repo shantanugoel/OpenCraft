@@ -31,6 +31,7 @@
 //! | `palette` | The command palette, the search field of the toolbar, and the commands that only the palette shows |
 //! | `permission_sheet` | The Accessibility request of the first action that needs it |
 //! | `controls` | Controls that more than one part uses |
+//! | `focus_return` | The focus goes back to the control that opened a popover, a sheet, or the palette |
 //! | `theme` | The visual constants |
 
 use crate::{
@@ -63,6 +64,7 @@ mod clipboard;
 pub(crate) mod controls;
 mod device;
 mod device_inspector;
+mod focus_return;
 mod form;
 mod gesture_card;
 mod history;
@@ -160,6 +162,9 @@ pub struct DeviceView {
     /// Gives the focus back when the element with the focus is not drawn
     /// any more, for example a button that a Space removed.
     _focus_lost: Subscription,
+    /// Notes the control with the focus at each key, so that a closed
+    /// overlay gives the focus back to its control (`focus_return`).
+    _focus_return: Subscription,
 }
 
 impl DeviceView {
@@ -198,11 +203,18 @@ impl DeviceView {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let focus_lost = cx.on_focus_lost(window, |view, window, cx| {
+            // An overlay that went away (a popover with a field, the icon
+            // picker, a sheet) gives the focus to the control that opened
+            // it, if a key opened it.
+            if let Some(opener) = focus_return::closed_opener(window) {
+                return window.focus(&opener, cx);
+            }
             match window.focus_lost_restore_target(cx) {
                 Some(target) => window.focus(&target, cx),
                 None => view.focus_workspace(window, cx),
             }
         });
+        let focus_return = focus_return::track_keys(&focus, window, cx);
         let library = library::LibraryState::new(state.kinds.len(), window, cx);
         let permission = permission_sheet::PermissionSheet::new(cx);
         // The window notes each binding that it sends, for the Accessibility
@@ -241,6 +253,7 @@ impl DeviceView {
             faces: states::StateFaces::new(window, cx),
             inspector_scroll: ScrollHandle::new(),
             _focus_lost: focus_lost,
+            _focus_return: focus_return,
         }
     }
 
@@ -330,6 +343,12 @@ impl DeviceView {
     /// `keyboard_focus`).
     fn focus_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.end_text_edit(cx);
+        // An overlay that a key opened gives the focus back to its control
+        // (`focus_return`).
+        if let Some(opener) = focus_return::opener_of_focus(window, cx) {
+            window.focus(&opener, cx);
+            return;
+        }
         let control = self.focus.contains_focused(window, cx)
             && !self.focus.is_focused(window)
             && gpui_kit::component::WindowExt::focused_input(window, cx).is_none();
@@ -413,6 +432,7 @@ impl DeviceView {
 
 impl Render for DeviceView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        focus_return::begin_frame();
         // The modal layer is not in the element of the key context of the
         // window, thus the key commands of the window do not operate while
         // it is open (`modal`).
