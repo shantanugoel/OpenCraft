@@ -14,7 +14,7 @@ use std::io;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub(crate) type Result<T> = std::result::Result<T, String>;
 
@@ -22,15 +22,14 @@ pub(crate) type Result<T> = std::result::Result<T, String>;
 pub(crate) struct Intervals {
     pub volume: Duration,
     pub permission: Duration,
-    pub permission_limit: Duration,
 }
 
 impl Default for Intervals {
     fn default() -> Self {
         Self {
             volume: Duration::from_secs(2),
-            permission: Duration::from_secs(1),
-            permission_limit: Duration::from_secs(10 * 60),
+            // One shared check for all key kinds, also with no window or bindings.
+            permission: Duration::from_secs(5),
         }
     }
 }
@@ -268,48 +267,27 @@ impl KeyHandler {
         ready
     }
 
-    fn resolve(&mut self) -> Result<()> {
-        self.system.ask_to_send_keys();
-        if self.check_permission() {
-            if let Some(worker) = self.poll.take() {
-                worker.stop();
-            }
-            return Ok(());
-        }
-        if self.poll.as_ref().is_some_and(|w| w.thread.is_finished()) {
-            if let Some(worker) = self.poll.take() {
-                worker.stop();
-            }
-        }
-        if self.poll.is_none() {
-            let system = self.system.clone();
-            let sender = self.sender.clone();
-            let ready = self.ready.clone();
-            let intervals = self.intervals;
-            self.poll = Some(
-                Worker::spawn("opencraft-key-permission", move |cancel| {
-                    let deadline = Instant::now() + intervals.permission_limit;
-                    loop {
-                        let left = deadline.saturating_duration_since(Instant::now());
-                        if left.is_zero()
-                            || cancel.recv_timeout(intervals.permission.min(left))
-                                != Err(mpsc::RecvTimeoutError::Timeout)
-                        {
-                            break;
-                        }
-                        let mut ready = ready.lock().unwrap_or_else(|e| e.into_inner());
-                        if system.can_send_keys() {
-                            if !*ready {
-                                *ready = true;
-                                key_status(&sender, true);
-                            }
-                            break;
-                        }
+    fn watch_permission(&mut self) -> Result<()> {
+        let system = self.system.clone();
+        let sender = self.sender.clone();
+        let ready = self.ready.clone();
+        let interval = self.intervals.permission;
+        self.poll = Some(
+            Worker::spawn("opencraft-key-permission", move |cancel| {
+                // TCC has no public change notification for this permission.
+                // Sleep between checks; send no events for an unchanged state.
+                // Keep checking after a grant, so revocation is visible too.
+                while cancel.recv_timeout(interval) == Err(mpsc::RecvTimeoutError::Timeout) {
+                    let mut previous = ready.lock().unwrap_or_else(|e| e.into_inner());
+                    let current = system.can_send_keys();
+                    if current != *previous {
+                        *previous = current;
+                        key_status(&sender, current);
                     }
-                })
-                .map_err(|e| format!("Cannot check the key permission: {e}."))?,
-            );
-        }
+                }
+            })
+            .map_err(|e| format!("Cannot check the key permission: {e}."))?,
+        );
         Ok(())
     }
 
@@ -333,7 +311,14 @@ impl KeyHandler {
                     .map_err(|e| format!("Cannot do the Mac system function: {e}."));
             }
         };
-        result.map_err(|e| format!("Cannot send keys or mouse events: {e}."))
+        result.map_err(|e| {
+            // The user can revoke access between the preflight and the send.
+            if self.check_permission() {
+                format!("Cannot send keys or mouse events: {e}.")
+            } else {
+                no_permission()
+            }
+        })
     }
 }
 
@@ -346,6 +331,8 @@ impl Handler for KeyHandler {
         let ready = self.system.can_send_keys();
         *self.ready.lock().unwrap_or_else(|e| e.into_inner()) = ready;
         key_status(&self.sender, ready);
+        let result = self.watch_permission();
+        problem(&self.sender, result);
     }
     fn handle(&mut self, request: Request) {
         match request {
@@ -353,8 +340,8 @@ impl Handler for KeyHandler {
                 problem(&self.sender, self.invoke(&action));
             }
             Request::Resolve { kind } if KEY_KINDS.contains(&kind.as_str()) => {
-                let result = self.resolve();
-                problem(&self.sender, result);
+                self.system.ask_to_send_keys();
+                self.check_permission();
             }
             _ => {}
         }

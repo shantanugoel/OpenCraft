@@ -1,6 +1,6 @@
 # macOS privacy permissions
 
-Last update: 2026-11-12
+Last update: 2026-11-13
 
 ## Device access
 
@@ -91,6 +91,20 @@ The permission of a program that launchd starts is in
 | A shell-started sender selects key 2 in the OpenCraft window with a left click. A line scroll moves the mouse form in that window at both test sizes. No other application is a receiver. | Measured | Signed development window and scratch profiles, issue #281 |
 | A mouse click that the action sends has the Unix process ID of the OpenCraft process in its event source. The local AppKit event keeps that ID. | Measured | Passive event tap, issue #281 |
 | A click action tested on its own test button sends one click only. The shared test command ignores the event that this process sent. | Measured | Signed development window, issue #281 |
+
+## Permission refresh (2026-11-13)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The key handler reads the permission on start, on each action and on each request for permission. One helper also reads it every five seconds. It sleeps between reads and sends statuses only when the value changes. The helper stays after a grant, so that a revocation is also visible. | Source | `crates/actions/src/handlers.rs` |
+| A grant, a revocation and a second grant reach all input kinds with no action, binding or request. Unchanged reads send no events. Dropping the handler stops the helper. | Measured | Fake-System handler tests in `crates/actions/src/tests.rs` |
+| The Settings view and the menu follow new permission statuses, including a revocation, with no restart. | Measured | `crates/app/src/settings_window/tests.rs` |
+
+The signed-bundle, shell and launchd comparisons, event-delivery results,
+processor samples and their limits are in
+[Start at login](macos-start-at-login.md#signed-bundle-and-accessibility-2026-11-13).
+The TCC responsible process matters: a positive result under a trusted
+terminal alone does not prove the permission of an independent application.
 
 ## Not known
 

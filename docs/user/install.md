@@ -205,9 +205,10 @@ You can also give the permission later:
 The Settings window also shows the permission and has a button for it. See
 [The tab General](background.md#the-tab-general).
 
-OpenCraft checks the permission each second for 10 minutes after you click
-the button. When it has the permission, the text in the inspector goes away. It
-also checks the permission each time that you do one of these actions.
+OpenCraft checks the permission every five seconds, also after you give or
+remove it in System Settings. When it has the permission, the text in the
+inspector goes away. You do not need to restart OpenCraft. It also checks
+the permission each time that you do one of these actions.
 
 You can also give the permission before the first use: in System Settings >
 Privacy & Security > Accessibility, click **+**, and select OpenCraft in the

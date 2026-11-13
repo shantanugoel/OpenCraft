@@ -1430,6 +1430,7 @@ stays. The items, in this order:
 | Separator | | |
 | The brightness row | One custom view: "Brightness" and the value ("80 %") on one line; below it a small sun icon, a slider, and a large sun icon. Width 270, padding 4 10 8. | Sets the display brightness, as the device inspector does |
 | Separator | | |
+| "Accessibility Permission Not Given…" (only when missing; added by #258) | Command | Opens Settings at "General"; the state comes from the action kinds |
 | "Open OpenCraft" | Command, ⌘O | As now |
 | "Settings…" | Command, ⌘, | Opens the Settings window |
 | Separator | | |

@@ -89,7 +89,13 @@ The text is "Accessibility permission: **given**" or "Accessibility
 permission: **not given**". Below it, the tab names the action kinds that need
 the permission, for example "Necessary for Send a hotkey, Type text and Media
 key". Click **Open System Settings** to open the pane Accessibility of System
-Settings. OpenCraft also asks macOS for the permission, so that OpenCraft is in
+Settings. The state follows System Settings within five seconds, with no
+restart. The menu bar item also shows **Accessibility Permission Not Given…**
+when the permission is missing. Select it to open **General**.
+
+![The two states of the Accessibility permission](images/accessibility-states.png)
+
+OpenCraft also asks macOS for the permission, so that OpenCraft is in
 the list of that pane. Turn on OpenCraft in the list. The text in the tab
 changes to "given" when you do this. See
 [Give the Accessibility permission](install.md#give-the-accessibility-permission).
