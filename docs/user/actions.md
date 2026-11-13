@@ -373,6 +373,35 @@ action can override the lock. See
 [Sleep and screen lock](background.md#sleep-and-screen-lock).
 
 ![The Device actions in the library](images/device-actions.png)
+
+## Sound output
+
+Group: **Media**. A push changes the default sound output of the Mac. The
+key shows the name of the current sound output. The action does not change
+the output for the sound effects of the system. A program that uses its own
+output can keep that output.
+
+The field **Operation** has two values:
+
+- **Set device**: the action sets the output of the field **Device**.
+  Select one output in the menu of the field.
+- **Next device**: the action sets the next output of the field **Cycle
+  list**. In the menu of the field, click an output to add it at the end of
+  the list. Click it again to remove it. After the last output of the list,
+  the action sets the first output. If the current output is not in the
+  list, the action sets the first available output of the list. If the list
+  is empty, the action uses all current outputs.
+
+An output that is not connected stays in the settings and shows "not
+available". **Next device** skips it. If no output of the list is
+available, or if the output of **Set device** is not available, the action
+shows a message and changes nothing. The menu shows the outputs at the time
+when the form opens. To see a new output, select a different control and
+then select this control again.
+
+When another program changes the output, the key shows the new name. The
+action asks for no new permission.
+
 ## Microphone mute
 
 Group: **Media**. This action has no settings. A push switches the mute of

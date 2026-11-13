@@ -354,6 +354,9 @@ pub enum InputType {
     /// Choices read from the handler when the form opens. Values are stable
     /// identifiers; an unavailable saved value is retained, not replaced.
     RuntimeChoice,
+    /// Ordered selections from a run-time list. Stored as a list of text
+    /// identifiers. A click adds at the end or removes an existing choice.
+    RuntimeChoiceList,
     /// An RGB colour as text #RRGGBB, with no alpha channel.
     Colour,
     Toggle,

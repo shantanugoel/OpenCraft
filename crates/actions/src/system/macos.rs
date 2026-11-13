@@ -405,6 +405,13 @@ extern "C" {
         listener: AudioListener,
         data: *mut c_void,
     ) -> i32;
+    fn AudioObjectGetPropertyDataSize(
+        object: u32,
+        address: *const PropertyAddress,
+        qualifier_size: u32,
+        qualifier: *const c_void,
+        size: *mut u32,
+    ) -> i32;
     fn AudioObjectGetPropertyData(
         object: u32,
         address: *const PropertyAddress,
@@ -587,6 +594,7 @@ unsafe extern "C" fn audio_changed(
 }
 
 struct InputWatch {
+    follow_input: bool,
     token: usize,
     properties: Vec<(u32, PropertyAddress)>,
     input: u32,
@@ -624,6 +632,9 @@ impl InputWatch {
 
 impl super::AudioWatch for InputWatch {
     fn refresh(&mut self) -> Result<()> {
+        if !self.follow_input {
+            return Ok(());
+        }
         let input = input_device()?;
         if input != self.input {
             for (object, address) in self.properties.drain(2..).collect::<Vec<_>>() {
@@ -655,20 +666,125 @@ pub fn watch_microphone(
     changed: std::sync::mpsc::Sender<()>,
 ) -> Result<Box<dyn super::AudioWatch>> {
     use super::AudioWatch;
+    let mut watch = make_watch(changed, true);
+    watch.add(SYSTEM_OBJECT, DEFAULT_INPUT)?;
+    watch.add(SYSTEM_OBJECT, DEVICES)?;
+    watch.refresh()?;
+    Ok(Box::new(watch))
+}
+
+fn make_watch(changed: std::sync::mpsc::Sender<()>, follow_input: bool) -> InputWatch {
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
     let token = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     notifications()
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .insert(token, changed);
-    let mut watch = InputWatch {
+    InputWatch {
+        follow_input,
         token,
         properties: Vec::new(),
         input: 0,
+    }
+}
+
+// --- Sound output devices ----------------------------------------------------
+
+fn property_size(object: u32, address: &PropertyAddress) -> Result<u32> {
+    let mut size = 0;
+    // SAFETY: size and address are valid for the call.
+    let status =
+        unsafe { AudioObjectGetPropertyDataSize(object, address, 0, std::ptr::null(), &mut size) };
+    if status == 0 {
+        Ok(size)
+    } else {
+        Err(Error::System(status))
+    }
+}
+
+fn audio_devices() -> Result<Vec<u32>> {
+    let mut size = property_size(SYSTEM_OBJECT, &DEVICES)?;
+    let mut devices = vec![0_u32; size as usize / size_of::<u32>()];
+    // SAFETY: the buffer has the reported size. Core Audio refuses a size
+    // increase between the two calls instead of writing past the buffer.
+    let status = unsafe {
+        AudioObjectGetPropertyData(
+            SYSTEM_OBJECT,
+            &DEVICES,
+            0,
+            std::ptr::null(),
+            &mut size,
+            devices.as_mut_ptr().cast(),
+        )
     };
-    watch.add(SYSTEM_OBJECT, DEFAULT_INPUT)?;
+    if status != 0 {
+        return Err(Error::System(status));
+    }
+    devices.truncate(size as usize / size_of::<u32>());
+    Ok(devices)
+}
+
+fn device_string(object: u32, selector: u32) -> Result<String> {
+    let address = PropertyAddress {
+        selector,
+        scope: four(b"glob"),
+        element: 0,
+    };
+    let raw = get(object, &address, std::ptr::null::<c_void>())?;
+    if raw.is_null() {
+        return Err(Error::System(-1));
+    }
+    // SAFETY: these Core Audio CFString properties return a retained string.
+    let value = unsafe { CFString::wrap_under_create_rule(raw.cast()) };
+    Ok(value.to_string())
+}
+
+fn output_info(device: u32) -> Result<super::OutputDevice> {
+    Ok(super::OutputDevice {
+        id: device_string(device, four(b"uid "))?,
+        name: device_string(device, four(b"lnam"))?,
+    })
+}
+
+pub fn output_devices() -> Result<Vec<super::OutputDevice>> {
+    let streams = PropertyAddress {
+        selector: four(b"stm#"),
+        scope: four(b"outp"),
+        element: 0,
+    };
+    Ok(audio_devices()?
+        .into_iter()
+        .filter(|id| property_size(*id, &streams).unwrap_or(0) > 0)
+        .filter_map(|id| output_info(id).ok())
+        .collect())
+}
+
+pub fn default_output() -> Result<super::OutputDevice> {
+    output_info(output_device()?)
+}
+
+pub fn set_output(uid: &str) -> Result<()> {
+    let streams = PropertyAddress {
+        selector: four(b"stm#"),
+        scope: four(b"outp"),
+        element: 0,
+    };
+    let device = audio_devices()?
+        .into_iter()
+        .find(|id| {
+            property_size(*id, &streams).unwrap_or(0) > 0
+                && device_string(*id, four(b"uid ")).is_ok_and(|value| value == uid)
+        })
+        .ok_or(Error::NotSupported)?;
+    set(SYSTEM_OBJECT, &DEFAULT_OUTPUT, device)
+}
+
+pub fn watch_output(changed: std::sync::mpsc::Sender<()>) -> Result<Box<dyn super::AudioWatch>> {
+    // Output watches have no per-device property, so their tokens use the
+    // same allocator as input watches to avoid a collision.
+    let mut watch = make_watch(changed, false);
+    watch.add(SYSTEM_OBJECT, DEFAULT_OUTPUT)?;
     watch.add(SYSTEM_OBJECT, DEVICES)?;
-    watch.refresh()?;
     Ok(Box::new(watch))
 }
 

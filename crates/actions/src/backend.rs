@@ -49,6 +49,21 @@ pub trait System: Send + Sync + 'static {
     ) -> Result<Box<dyn system::AudioWatch>> {
         Err(system::Error::NotSupported)
     }
+    fn output_devices(&self) -> Result<Vec<system::OutputDevice>> {
+        Err(system::Error::NotSupported)
+    }
+    fn default_output(&self) -> Result<system::OutputDevice> {
+        Err(system::Error::NotSupported)
+    }
+    fn set_output(&self, _id: &str) -> Result<()> {
+        Err(system::Error::NotSupported)
+    }
+    fn watch_output(
+        &self,
+        _changed: std::sync::mpsc::Sender<()>,
+    ) -> Result<Box<dyn system::AudioWatch>> {
+        Err(system::Error::NotSupported)
+    }
     fn open_application(&self, application: &str) -> Result<()>;
     fn open_url(&self, url: &str) -> Result<()>;
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>>;
@@ -104,6 +119,21 @@ impl System for RealSystem {
         changed: std::sync::mpsc::Sender<()>,
     ) -> Result<Box<dyn system::AudioWatch>> {
         system::watch_microphone(changed)
+    }
+    fn output_devices(&self) -> Result<Vec<system::OutputDevice>> {
+        system::output_devices()
+    }
+    fn default_output(&self) -> Result<system::OutputDevice> {
+        system::default_output()
+    }
+    fn set_output(&self, id: &str) -> Result<()> {
+        system::set_output(id)
+    }
+    fn watch_output(
+        &self,
+        changed: std::sync::mpsc::Sender<()>,
+    ) -> Result<Box<dyn system::AudioWatch>> {
+        system::watch_output(changed)
     }
     fn open_application(&self, application: &str) -> Result<()> {
         system::open_application(application)

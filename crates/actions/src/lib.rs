@@ -31,6 +31,7 @@
 //! rule 8, and `docs/decisions/0012-action-handler-interface.md`).
 
 mod audio;
+mod audio_output;
 pub mod backend;
 mod descriptions;
 mod device;

@@ -19,6 +19,7 @@ pub enum Call {
     Level(u8),
     Muted(bool),
     MicrophoneMuted(bool),
+    Output(String),
     Application(String),
     Url(String),
     Shell(String),
@@ -40,6 +41,10 @@ pub struct Fake {
     pub permission_reads: AtomicUsize,
     pub asks: AtomicUsize,
     pub volume_reads: AtomicUsize,
+    pub output_reads: AtomicUsize,
+    pub outputs: Mutex<Vec<opencraft_actions::system::OutputDevice>>,
+    pub output: Mutex<String>,
+    pub output_notifications: Mutex<Vec<std::sync::mpsc::Sender<()>>>,
     pub microphone_reads: AtomicUsize,
     pub microphone: Mutex<Option<bool>>,
     pub input_notifications: Mutex<Vec<std::sync::mpsc::Sender<()>>>,
@@ -61,6 +66,19 @@ impl Default for Fake {
             permission_reads: AtomicUsize::new(0),
             asks: AtomicUsize::new(0),
             volume_reads: AtomicUsize::new(0),
+            output_reads: AtomicUsize::new(0),
+            outputs: Mutex::new(vec![
+                opencraft_actions::system::OutputDevice {
+                    id: "a".into(),
+                    name: "Speakers".into(),
+                },
+                opencraft_actions::system::OutputDevice {
+                    id: "b".into(),
+                    name: "Headphones".into(),
+                },
+            ]),
+            output: Mutex::new("a".into()),
+            output_notifications: Mutex::new(Vec::new()),
             microphone_reads: AtomicUsize::new(0),
             microphone: Mutex::new(Some(false)),
             input_notifications: Mutex::new(Vec::new()),
@@ -206,6 +224,34 @@ impl System for Fake {
         changed: std::sync::mpsc::Sender<()>,
     ) -> Result<Box<dyn opencraft_actions::system::AudioWatch>> {
         self.input_notifications.lock().unwrap().push(changed);
+        Ok(Box::new(FakeWatch))
+    }
+    fn output_devices(&self) -> Result<Vec<opencraft_actions::system::OutputDevice>> {
+        self.check("outputs")?;
+        Ok(self.outputs.lock().unwrap().clone())
+    }
+    fn default_output(&self) -> Result<opencraft_actions::system::OutputDevice> {
+        self.output_reads.fetch_add(1, Ordering::SeqCst);
+        self.check("output")?;
+        let id = self.output.lock().unwrap().clone();
+        self.outputs
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|d| d.id == id)
+            .cloned()
+            .ok_or(Error::NotSupported)
+    }
+    fn set_output(&self, id: &str) -> Result<()> {
+        self.record(Call::Output(id.into()), "set-output")?;
+        *self.output.lock().unwrap() = id.into();
+        Ok(())
+    }
+    fn watch_output(
+        &self,
+        changed: std::sync::mpsc::Sender<()>,
+    ) -> Result<Box<dyn opencraft_actions::system::AudioWatch>> {
+        self.output_notifications.lock().unwrap().push(changed);
         Ok(Box::new(FakeWatch))
     }
     fn open_application(&self, application: &str) -> Result<()> {

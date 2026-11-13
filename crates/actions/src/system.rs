@@ -123,6 +123,26 @@ pub fn set_muted(muted: bool) -> Result<()> {
     platform::set_muted(muted)
 }
 
+/// A sound output with its stable Core Audio UID and its display name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutputDevice {
+    pub id: String,
+    pub name: String,
+}
+
+pub fn output_devices() -> Result<Vec<OutputDevice>> {
+    platform::output_devices()
+}
+pub fn default_output() -> Result<OutputDevice> {
+    platform::default_output()
+}
+pub fn set_output(id: &str) -> Result<()> {
+    platform::set_output(id)
+}
+pub fn watch_output(changed: std::sync::mpsc::Sender<()>) -> Result<Box<dyn AudioWatch>> {
+    platform::watch_output(changed)
+}
+
 /// A property listener. Refresh attaches to a changed default device.
 pub trait AudioWatch: Send {
     fn refresh(&mut self) -> Result<()> {

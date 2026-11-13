@@ -140,6 +140,82 @@ fn runtime_choices_keep_missing_values_reject_late_replies_and_edit_colours(
     cx.run_until_parked();
 }
 
+#[gpui_kit::test]
+fn runtime_choice_lists_keep_order_and_remove_saved_unavailable_values(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(1600.)));
+    let mut kind = dynamic_kind();
+    kind.fields = vec![Field {
+        key: "devices".into(),
+        label: "Cycle list".into(),
+        input: InputType::RuntimeChoiceList,
+        default: None,
+    }];
+    let mut expected = Action {
+        kind: kind.kind.clone(),
+        settings: Settings::from([(
+            "devices".into(),
+            Value::List(vec![Value::Text("missing".into())]),
+        )]),
+    };
+    tx.try_send(Event::Kinds(vec![kind])).unwrap();
+    tx.try_send(event(binding(GestureKind::Press), expected.clone(), true))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    let id = sent
+        .borrow()
+        .iter()
+        .find_map(|c| match c {
+            Command::Choices { id, .. } => Some(*id),
+            _ => None,
+        })
+        .unwrap();
+    tx.try_send(Event::Choices {
+        id,
+        options: vec![
+            ChoiceOption {
+                value: "a".into(),
+                label: "Speakers".into(),
+            },
+            ChoiceOption {
+                value: "b".into(),
+                label: "Headphones".into(),
+            },
+        ],
+    })
+    .unwrap();
+    cx.run_until_parked();
+    click(cx, "choice-0");
+    click(cx, "choice-0-1");
+    expect_change(
+        &sent,
+        &mut expected,
+        "devices",
+        Value::List(vec![Value::Text("missing".into()), Value::Text("b".into())]),
+    );
+    click(cx, "choice-0");
+    click(cx, "choice-0-0");
+    expect_change(
+        &sent,
+        &mut expected,
+        "devices",
+        Value::List(vec![
+            Value::Text("missing".into()),
+            Value::Text("b".into()),
+            Value::Text("a".into()),
+        ]),
+    );
+    click(cx, "choice-0");
+    click(cx, "choice-0-2");
+    expect_change(
+        &sent,
+        &mut expected,
+        "devices",
+        Value::List(vec![Value::Text("b".into()), Value::Text("a".into())]),
+    );
+}
+
 fn kind() -> KindDescription {
     KindDescription {
         kind: "test.kind".into(),
