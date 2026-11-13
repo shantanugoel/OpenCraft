@@ -272,11 +272,15 @@ impl DeviceView {
         .detach();
     }
 
-    /// Escape and Return in the sheet. Escape closes an open menu first.
+    /// Escape and Return in the sheet. An open menu gets the two keys
+    /// first: Escape closes it, and Return selects its highlighted item
+    /// (`view::menu`), and neither closes the sheet.
     fn sheet_key(&mut self, key: ModalKey, window: &mut Window, cx: &mut Context<Self>) {
-        if key == ModalKey::Escape && self.sheet.pages_open {
-            self.sheet.pages_open = false;
-            cx.notify();
+        if self.sheet.pages_open {
+            if key == ModalKey::Escape {
+                self.sheet.pages_open = false;
+                cx.notify();
+            }
             return;
         }
         self.close_profile_sheet(window, cx);

@@ -350,3 +350,29 @@ fn export_and_import_send_the_file_and_an_import_shows_the_new_profile(cx: &mut 
     cx.run_until_parked();
     assert_eq!(sent.borrow().len(), count);
 }
+
+#[gpui_kit::test]
+fn the_keys_of_the_first_page_menu_do_not_close_the_sheet(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, sent) = sheet_window(cx);
+    open_sheet(cx, "profile-work");
+    click(cx, "first-page");
+    // Down and Up go to the first item again. Return selects it, and the
+    // sheet stays open.
+    cx.simulate_keystrokes("down");
+    cx.simulate_keystrokes("up");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("first-page-menu").is_none());
+    assert!(is_open(cx));
+    assert_eq!(
+        last(&sent),
+        Some(Command::SetFirstPage {
+            profile: "work".into(),
+            page: 0,
+        })
+    );
+    // With no menu, Return closes the sheet.
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(!is_open(cx));
+}

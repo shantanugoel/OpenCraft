@@ -105,6 +105,11 @@ The action "Open a URL" does not need a permission of macOS.
   **Library**: see [The library](actions.md#the-library).
 - To remove the action, click the button with the action name, and click
   **Remove the action**.
+- A menu of OpenCraft works with the keyboard, as a menu of macOS does. The
+  first item is highlighted when the menu opens, and the highlight follows
+  the pointer. Push Down or Up to move the highlight. Push Home or End to
+  go to the first or the last item. Push a letter to go to the first item
+  that starts with it. Push Return to select the highlighted item.
 - To close a menu with no change, push Esc, or click out of the menu.
 
 ![The inspector with the sound volume action on knob 1](images/action-editor.png)
