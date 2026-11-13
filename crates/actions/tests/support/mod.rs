@@ -20,7 +20,8 @@ pub enum Call {
     Muted(bool),
     MicrophoneMuted(bool),
     Output(String),
-    Application(String),
+    Application(String, Vec<String>),
+    File(String),
     Url(String),
     Shell(String),
     /// A wait of a sequence, in milliseconds.
@@ -254,8 +255,14 @@ impl System for Fake {
         self.output_notifications.lock().unwrap().push(changed);
         Ok(Box::new(FakeWatch))
     }
-    fn open_application(&self, application: &str) -> Result<()> {
-        self.record(Call::Application(application.into()), "application")
+    fn open_application(&self, application: &str, arguments: &[String]) -> Result<()> {
+        self.record(
+            Call::Application(application.into(), arguments.to_vec()),
+            "application",
+        )
+    }
+    fn open_file(&self, path: &str) -> Result<()> {
+        self.record(Call::File(path.into()), "file")
     }
     fn open_url(&self, url: &str) -> Result<()> {
         self.record(Call::Url(url.into()), "url")

@@ -1,0 +1,145 @@
+use super::*;
+use crate::open::{is_application, split_arguments};
+
+fn open_action(target: &str, arguments: Option<Value>) -> opencraft_engine::Action {
+    let mut fields = vec![("application", Value::Text(target.into()))];
+    if let Some(arguments) = arguments {
+        fields.push(("arguments", arguments));
+    }
+    action("open-application", &fields)
+}
+
+fn words(text: &str) -> Vec<String> {
+    split_arguments(text).expect("closed quotes")
+}
+
+#[test]
+fn a_name_or_a_bundle_path_is_an_application_and_other_paths_are_not() {
+    for target in [
+        "Safari",
+        "Visual Studio Code",
+        "/Applications/Test.app",
+        "/Applications/Test.app/",
+        "~/Applications/Test.app",
+        " Test ",
+    ] {
+        assert!(is_application(target), "{target}");
+    }
+    for target in [
+        "/Users/Test/notes.txt",
+        "~/Documents",
+        "/Applications",
+        "/tmp/a.app/data",
+        "relative/folder",
+    ] {
+        assert!(!is_application(target), "{target}");
+    }
+}
+
+#[test]
+fn arguments_split_at_spaces_and_quotes_group_words() {
+    assert_eq!(words(""), Vec::<String>::new());
+    assert_eq!(words("  \t\n"), Vec::<String>::new());
+    assert_eq!(words("-a  --b=c\td"), ["-a", "--b=c", "d"]);
+    assert_eq!(words("\"a b\" 'c d' e"), ["a b", "c d", "e"]);
+    assert_eq!(words("x\"a b\"y"), ["xa by"]);
+    assert_eq!(words("\"\" ''"), ["", ""]);
+    assert_eq!(words("\"it's\" 'say \"hi\"'"), ["it's", "say \"hi\""]);
+    assert_eq!(words("a\\ b \\\"c\\\" \\\\"), ["a b", "\"c\"", "\\"]);
+    assert_eq!(words("C:\\path"), ["C:\\path"]);
+    assert_eq!(split_arguments("\"open"), None);
+    assert_eq!(split_arguments("a 'b"), None);
+}
+
+#[test]
+fn an_application_opens_with_no_arguments_when_the_setting_is_old_or_empty() {
+    // An old profile has no "arguments" setting.
+    let mut rig = Rig::new("open-application", true);
+    rig.invoke(open_action("Test", None));
+    rig.invoke(open_action("Test", Some(Value::Text(String::new()))));
+    rig.invoke(open_action("Test", Some(Value::Text("  ".into()))));
+    rig.invoke(open_action("/Applications/Test.app", None));
+    assert_eq!(
+        rig.system.calls(),
+        [
+            Call::Application("Test".into(), vec![]),
+            Call::Application("Test".into(), vec![]),
+            Call::Application("Test".into(), vec![]),
+            Call::Application("/Applications/Test.app".into(), vec![]),
+        ]
+    );
+    assert!(rig.messages.try_recv().is_err());
+}
+
+#[test]
+fn an_application_gets_the_arguments_as_separate_words() {
+    let mut rig = Rig::new("open-application", true);
+    rig.invoke(open_action(
+        "/Applications/Test.app",
+        Some(Value::Text("--new-window \"two words\" -x".into())),
+    ));
+    assert_eq!(
+        rig.system.calls(),
+        [Call::Application(
+            "/Applications/Test.app".into(),
+            vec!["--new-window".into(), "two words".into(), "-x".into()]
+        )]
+    );
+}
+
+#[test]
+fn a_file_or_a_folder_opens_through_the_file_call() {
+    let mut rig = Rig::new("open-application", true);
+    rig.invoke(open_action("/Users/Test/notes.txt", None));
+    rig.invoke(open_action("~/Documents", Some(Value::Text("  ".into()))));
+    rig.invoke(open_action("  /Applications  ", None));
+    assert_eq!(
+        rig.system.calls(),
+        [
+            Call::File("/Users/Test/notes.txt".into()),
+            Call::File("~/Documents".into()),
+            Call::File("/Applications".into()),
+        ]
+    );
+    assert!(rig.messages.try_recv().is_err());
+}
+
+#[test]
+fn arguments_for_a_file_and_an_open_quote_are_problems_without_work() {
+    let mut rig = Rig::new("open-application", true);
+    rig.invoke(open_action(
+        "/tmp/notes.txt",
+        Some(Value::Text("-x".into())),
+    ));
+    rig.problem("arguments work only with an application");
+    rig.invoke(open_action("Test", Some(Value::Text("\"open".into()))));
+    rig.problem("close each quote in the field \"Arguments\"");
+    rig.invoke(open_action("Test", Some(Value::Integer(5))));
+    rig.problem("Open an application: type a value in the field \"Arguments\".");
+    assert!(rig.system.calls().is_empty());
+}
+
+#[test]
+fn a_system_error_of_an_application_or_a_file_becomes_a_problem() {
+    for (target, failure, text) in [
+        ("Test", "application", "Cannot open the application"),
+        ("/tmp/notes.txt", "file", "Cannot open the file or folder"),
+    ] {
+        let mut rig = Rig::new("open-application", true);
+        rig.system.fail(Some(failure));
+        rig.invoke(open_action(target, None));
+        rig.problem(text);
+    }
+}
+
+#[test]
+fn the_open_form_has_a_path_field_and_an_optional_arguments_field() {
+    let description = crate::descriptions::description(crate::descriptions::APPLICATION);
+    assert_eq!(description.group, "System");
+    assert!(!description.needs_accessibility);
+    let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
+    assert_eq!(keys, ["application", "arguments"]);
+    assert_eq!(description.fields[0].label, "Application, file, or folder");
+    assert_eq!(description.fields[1].input, InputType::Text);
+    assert_eq!(description.fields[1].default, None);
+}

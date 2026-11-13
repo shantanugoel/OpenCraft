@@ -64,7 +64,8 @@ pub trait System: Send + Sync + 'static {
     ) -> Result<Box<dyn system::AudioWatch>> {
         Err(system::Error::NotSupported)
     }
-    fn open_application(&self, application: &str) -> Result<()>;
+    fn open_application(&self, application: &str, arguments: &[String]) -> Result<()>;
+    fn open_file(&self, path: &str) -> Result<()>;
     fn open_url(&self, url: &str) -> Result<()>;
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>>;
     /// Wait for `duration`. A sequence waits between two actions with this
@@ -135,8 +136,11 @@ impl System for RealSystem {
     ) -> Result<Box<dyn system::AudioWatch>> {
         system::watch_output(changed)
     }
-    fn open_application(&self, application: &str) -> Result<()> {
-        system::open_application(application)
+    fn open_application(&self, application: &str, arguments: &[String]) -> Result<()> {
+        system::open_application(application, arguments)
+    }
+    fn open_file(&self, path: &str) -> Result<()> {
+        system::open_file(path)
     }
     fn open_url(&self, url: &str) -> Result<()> {
         system::open_url(url)

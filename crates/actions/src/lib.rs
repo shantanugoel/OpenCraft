@@ -40,6 +40,7 @@ mod handlers;
 pub mod hotkey;
 pub mod mac_function;
 pub mod mouse;
+mod open;
 pub mod system;
 
 use opencraft_engine::Handler;

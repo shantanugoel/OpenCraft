@@ -69,7 +69,11 @@ pub fn watch_output(_: std::sync::mpsc::Sender<()>) -> Result<Box<dyn super::Aud
     Err(Error::NotSupported)
 }
 
-pub fn open_application(_: &str) -> Result<()> {
+pub fn open_application(_: &str, _: &[String]) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
+pub fn open_file(_: &str) -> Result<()> {
     Err(Error::NotSupported)
 }
 
