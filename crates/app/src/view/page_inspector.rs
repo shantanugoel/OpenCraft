@@ -69,7 +69,7 @@ impl DeviceView {
         cx: &mut Context<Self>,
     ) {
         let changed = match event {
-            Event::Pages { names, active } => {
+            Event::Pages { names, active, .. } => {
                 *names != self.state.pages || *active != self.state.page
             }
             Event::Profiles { active, .. } => self.state.profile.as_ref() != Some(active),

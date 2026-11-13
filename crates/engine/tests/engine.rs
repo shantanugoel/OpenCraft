@@ -40,6 +40,8 @@ mod labels;
 mod pages;
 #[path = "engine/profiles.rs"]
 mod profiles;
+#[path = "engine/share.rs"]
+mod share;
 #[path = "engine/test_model.rs"]
 mod test_model;
 /// The test model of the device layer tests: a second model that is not a
@@ -493,7 +495,9 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
         Event::Profiles {
             profiles: vec![ProfileEntry {
                 id: "default".into(),
-                name: "Default".into()
+                name: "Default".into(),
+                pages: vec!["Page 1".into()],
+                ..Default::default()
             }],
             active: "default".into()
         }
@@ -502,7 +506,8 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
         events[17],
         Event::Pages {
             names: vec!["Page 1".into()],
-            active: 0
+            active: 0,
+            first: 0,
         }
     );
     assert_eq!(

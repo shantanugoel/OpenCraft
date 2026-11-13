@@ -98,9 +98,17 @@ fn main() {
             Event::Profiles { profiles, active } => {
                 println!("[{at:8.3}] profiles: {profiles:?}, active {active}")
             }
-            Event::Pages { names, active } => {
-                println!("[{at:8.3}] pages: {names:?}, active {active}")
+            Event::Pages {
+                names,
+                active,
+                first,
+            } => {
+                println!("[{at:8.3}] pages: {names:?}, active {active}, first {first}")
             }
+            Event::ProfileExported { profile, path } => {
+                println!("[{at:8.3}] exported: {profile} to {}", path.display())
+            }
+            Event::ProfileImported { profile } => println!("[{at:8.3}] imported: {profile}"),
             Event::Binding(binding) => println!("[{at:8.3}] binding: {binding:?}"),
             Event::History { undo, redo } => {
                 println!("[{at:8.3}] history: undo {undo:?}, redo {redo:?}")

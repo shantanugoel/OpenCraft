@@ -31,6 +31,7 @@ actions!(
         MoveRowUp,
         MoveRowDown,
         RemoveRow,
+        ProfileSettingsRow,
         SelectDevice
     ]
 );
@@ -42,6 +43,7 @@ impl MenuItem {
             Self::Duplicate => Box::new(DuplicateRow),
             Self::MoveUp => Box::new(MoveRowUp),
             Self::MoveDown => Box::new(MoveRowDown),
+            Self::ProfileSettings => Box::new(ProfileSettingsRow),
             Self::Separator | Self::Remove => Box::new(RemoveRow),
         }
     }
@@ -136,6 +138,9 @@ impl DeviceView {
         }))
         .on_action(cx.listener(|view, _: &RemoveRow, window, cx| {
             view.menu_choice(MenuItem::Remove, window, cx)
+        }))
+        .on_action(cx.listener(|view, _: &ProfileSettingsRow, window, cx| {
+            view.menu_choice(MenuItem::ProfileSettings, window, cx)
         }))
         .on_action(cx.listener(|view, _: &SelectDevice, window, cx| view.select_device(window, cx)))
     }
@@ -350,6 +355,7 @@ impl DeviceView {
                     div().id("profile-new-triangle"),
                     false,
                     after_pages,
+                    None,
                 )
                 .child(self.name_field(cx)),
             );
@@ -365,6 +371,7 @@ impl DeviceView {
         triangle: Stateful<Div>,
         open: bool,
         after_pages: bool,
+        colour: Option<Color>,
     ) -> Stateful<Div> {
         row.px(theme::SPACE_8)
             .gap(theme::SPACE_6)
@@ -381,9 +388,14 @@ impl DeviceView {
                     ),
             )
             .child(
+                // The icon has the colour of the profile, if it has one
+                // (section 7.3).
                 Icon::new(IconName::Layers)
                     .size(theme::ICON_ROW)
-                    .text_color(theme::TEXT_SECONDARY),
+                    .text_color(colour.map_or(theme::TEXT_SECONDARY, |c| {
+                        let [r, g, b] = c.0;
+                        gpui_kit::rgb(u32::from_be_bytes([0, r, g, b]))
+                    })),
             )
     }
 
@@ -420,6 +432,7 @@ impl DeviceView {
             triangle,
             open,
             after_pages,
+            profile.color,
         )
         .cursor_pointer();
         element = if editing {

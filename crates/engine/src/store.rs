@@ -32,6 +32,13 @@
 //! A file of version 1 to 3 has no label options, and loads with the look of
 //! the earlier versions.
 //!
+//! Version 4 also adds two top keys for the profile settings (issue #195):
+//!
+//! | Key | Value | With no key |
+//! |---|---|---|
+//! | `color` | The colour of the profile for the user, `#RRGGBB` | No colour |
+//! | `first_page` | The number of the page that the device shows when the profile becomes active, from 1 | The page at the start of the list |
+//!
 //! Version 3 added the key `model`: the model identifier of the descriptor.
 //! Version 2 added bindings. A file of version 1 or 2 loads with the model of
 //! the first descriptor (see [`crate::profile::default_model`]), and version 1
@@ -47,6 +54,8 @@
 //! schema_version = 4
 //! name = "Default"
 //! model = "n4-pro"
+//! color = "#3B82F6"
+//! first_page = 2
 //! [[pages]]
 //! name = "Page 1"
 //! [pages.surfaces.key-face-3]
@@ -88,7 +97,8 @@ use std::path::{Path, PathBuf};
 /// The schema version that this engine writes.
 pub const SCHEMA_VERSION: u32 = 4;
 
-/// The first schema version with the label options of a surface.
+/// The first schema version with the label options of a surface, and with
+/// the colour and the first page of the profile.
 const LABEL_OPTIONS_VERSION: u32 = 4;
 
 /// The first schema version with the key `model`.
@@ -168,6 +178,19 @@ pub struct Loaded {
     pub backup: Option<Backup>,
 }
 
+/// The parts of a profile file that the list of profiles shows: see
+/// [`ProfileStore::summary`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Summary {
+    pub name: Option<String>,
+    pub model: Option<String>,
+    pub color: Option<Color>,
+    /// The names of the pages, in their order.
+    pub pages: Vec<String>,
+    /// The number of the first page, from 0.
+    pub first_page: usize,
+}
+
 /// One profile directory.
 #[derive(Debug, Clone)]
 pub struct ProfileStore {
@@ -243,20 +266,46 @@ impl ProfileStore {
         }
     }
 
-    /// The name for the user and the model of the profile, from the top keys
-    /// of the file only. This read does not check the rest of the file, so a
-    /// profile with an error stays in the list of profiles. Each part that
-    /// the read cannot find is `None`. With no readable file, both are
-    /// `None`.
-    pub fn summary(&self) -> (Option<String>, Option<String>) {
+    /// The name for the user, the model, and the profile settings, from the
+    /// file with no full check. Thus a profile with an error stays in the
+    /// list of profiles. Each part that the read cannot find is `None` or
+    /// empty. With no readable file, all parts are `None` or empty.
+    pub fn summary(&self) -> Summary {
         let Ok(text) = fs::read_to_string(self.profile_path()) else {
-            return (None, None);
+            return Summary::default();
         };
         let Ok(table) = text.parse::<toml::Table>() else {
-            return (None, None);
+            return Summary::default();
         };
         let text_of = |key: &str| table.get(key).and_then(|v| v.as_str()).map(str::to_string);
-        (text_of("name"), text_of("model"))
+        let pages: Vec<String> = table
+            .get("pages")
+            .and_then(|v| v.as_array())
+            .map(|pages| {
+                pages
+                    .iter()
+                    .map(|p| {
+                        p.get("name")
+                            .and_then(|n| n.as_str())
+                            .unwrap_or_default()
+                            .to_string()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let first_page = table
+            .get("first_page")
+            .and_then(|v| v.as_integer())
+            .and_then(|n| usize::try_from(n).ok())
+            .filter(|n| (1..=pages.len()).contains(n))
+            .map_or(0, |n| n - 1);
+        Summary {
+            name: text_of("name"),
+            model: text_of("model"),
+            color: text_of("color").and_then(|c| c.parse().ok()),
+            pages,
+            first_page,
+        }
     }
 
     /// Rename the profile file to a backup name that is not in use.
@@ -294,16 +343,26 @@ impl ProfileStore {
     ///
     /// A file that is not an image gives an error, and nothing is written.
     pub fn import_image(&self, source: &Path) -> Result<String> {
-        let image_error = |source_error| Error::Image {
-            path: source.to_path_buf(),
-            source: source_error,
-        };
         let image = ImageReader::open(source)
             .map_err(|e| io_error("cannot read", source, e))?
             .with_guessed_format()
             .map_err(|e| io_error("cannot read", source, e))?
             .decode()
-            .map_err(image_error)?;
+            .map_err(|e| Error::Image {
+                path: source.to_path_buf(),
+                source: e,
+            })?;
+        self.add_image(image, source)
+    }
+
+    /// Write a copy of `image` in the image directory, as
+    /// [`Self::import_image`] does, and return its path relative to the
+    /// profile directory. `source` names the image in an error.
+    pub(crate) fn add_image(&self, image: DynamicImage, source: &Path) -> Result<String> {
+        let image_error = |source_error| Error::Image {
+            path: source.to_path_buf(),
+            source: source_error,
+        };
         let image = if image.width() > IMAGE_LIMIT || image.height() > IMAGE_LIMIT {
             image.resize(IMAGE_LIMIT, IMAGE_LIMIT, FilterType::Lanczos3)
         } else {
@@ -324,6 +383,16 @@ impl ProfileStore {
             write_and_rename(&path, &data)?;
         }
         Ok(format!("{IMAGE_DIR}/{name}"))
+    }
+
+    /// The data of the image copy at `relative`, a path from
+    /// [`Self::import_image`], with no decode. A path that is not a file in
+    /// the image directory gives [`Error::ImagePath`], and the method reads
+    /// nothing.
+    pub(crate) fn image_data(&self, relative: &str) -> Result<Vec<u8>> {
+        let name = image_name(relative).ok_or_else(|| Error::ImagePath(relative.to_string()))?;
+        let path = self.dir.join(IMAGE_DIR).join(name);
+        fs::read(&path).map_err(|e| io_error("cannot read", &path, e))
     }
 
     /// Decode the image copy at `relative`, a path from
@@ -420,7 +489,7 @@ pub(crate) fn write_and_rename(path: &Path, data: &[u8]) -> Result<()> {
 /// The file name of an image path of the profile: `images/<name>`, where the
 /// name has the form of an image copy. `None` for each other path, for
 /// example a path that goes out of the image directory.
-fn image_name(relative: &str) -> Option<&str> {
+pub(crate) fn image_name(relative: &str) -> Option<&str> {
     let name = relative.strip_prefix(IMAGE_DIR)?.strip_prefix('/')?;
     is_copy_name(name).then_some(name)
 }
@@ -461,6 +530,12 @@ struct FileData {
     name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     model: Option<String>,
+    /// The colour of the profile. It came in version 4.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    color: Option<String>,
+    /// The number of the first page, from 1. It came in version 4.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    first_page: Option<usize>,
     #[serde(default)]
     pages: Vec<PageData>,
 }
@@ -554,7 +629,7 @@ impl SurfaceData {
 }
 
 /// Read the text of a profile file.
-fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
+pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     let invalid = |message: String| BackupReason::Invalid(message);
     let header: Header = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
     match header.schema_version {
@@ -569,6 +644,28 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         (true, _) => return Err(invalid("the file has no model".to_string())),
         (false, None) => default_model().to_string(),
         (false, Some(_)) => return Err(invalid(format!("version {version} has no model"))),
+    };
+    if version < LABEL_OPTIONS_VERSION && (file.color.is_some() || file.first_page.is_some()) {
+        return Err(invalid(format!(
+            "version {version} has no colour and no first page"
+        )));
+    }
+    let color = match &file.color {
+        Some(text) => Some(
+            text.parse::<Color>()
+                .map_err(|e| invalid(format!("color '{text}': {e}")))?,
+        ),
+        None => None,
+    };
+    let page_count = file.pages.len().max(1);
+    let first_page = match file.first_page {
+        None => None,
+        Some(n) if (1..=page_count).contains(&n) => Some(n - 1),
+        Some(n) => {
+            return Err(invalid(format!(
+                "first_page {n} is not a page from 1 to {page_count}"
+            )))
+        }
     };
 
     let mut pages = Vec::new();
@@ -620,15 +717,22 @@ fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         }
         pages.push(page);
     }
-    Ok(Profile::for_model(model, file.name, pages))
+    let mut profile = Profile::for_model(model, file.name, pages);
+    profile.color = color;
+    if let Some(first) = first_page {
+        profile.mark_first_page(first);
+    }
+    Ok(profile)
 }
 
 /// The text of the profile file for `profile`.
-fn to_text(profile: &Profile) -> Result<String> {
+pub(crate) fn to_text(profile: &Profile) -> Result<String> {
     let file = FileData {
         schema_version: SCHEMA_VERSION,
         name: profile.name.clone(),
         model: Some(profile.model.clone()),
+        color: profile.color.map(|c| c.to_string()),
+        first_page: profile.has_first_page().then(|| profile.first_page() + 1),
         pages: profile
             .pages()
             .iter()
@@ -1029,10 +1133,51 @@ color = "#1E6FD9"
         store.save(&profile).unwrap();
         assert_eq!(store.load().unwrap().profile, profile);
         assert_eq!(store.read().unwrap(), profile);
+        let summary = store.summary();
         assert_eq!(
-            store.summary(),
-            (Some("Other".to_string()), Some("other-model".to_string()))
+            (summary.name.as_deref(), summary.model.as_deref()),
+            (Some("Other"), Some("other-model"))
         );
+        assert_eq!((summary.pages, summary.first_page), (vec!["A".into()], 0));
+    }
+
+    #[test]
+    fn the_colour_and_the_first_page_save_and_load_again() {
+        let (_dir, store) = store();
+        let mut profile = Profile::new("P", vec![Page::new("A"), Page::new("B")]);
+        profile.color = Some(Color::rgb(0x3B, 0x82, 0xF6));
+        assert!(profile.set_first_page(1));
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(
+            text.starts_with(
+                "schema_version = 4\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
+            ),
+            "{text}"
+        );
+        assert_eq!(store.load().unwrap().profile, profile);
+        let summary = store.summary();
+        assert_eq!(summary.color, profile.color);
+        assert_eq!(summary.pages, ["A", "B"]);
+        assert_eq!(summary.first_page, 1);
+
+        // With no choice, the file has no key.
+        store.save(&Profile::default()).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(
+            !text.contains("first_page") && !text.contains("\ncolor"),
+            "{text}"
+        );
+
+        for bad in [
+            "schema_version = 4\nname = \"x\"\nmodel = \"m\"\nfirst_page = 2\n",
+            "schema_version = 4\nname = \"x\"\nmodel = \"m\"\nfirst_page = 0\n",
+            "schema_version = 4\nname = \"x\"\nmodel = \"m\"\ncolor = \"blue\"\n",
+            "schema_version = 3\nname = \"x\"\nmodel = \"m\"\ncolor = \"#000000\"\n",
+        ] {
+            let backup = load_text(&store, bad.as_bytes()).backup;
+            assert!(backup.is_some(), "{bad}");
+        }
     }
 
     #[test]
@@ -1050,7 +1195,7 @@ color = "#1E6FD9"
         }
         let (_dir, store) = store();
         assert!(matches!(store.read(), Err(Error::Unusable { .. })));
-        assert_eq!(store.summary(), (None, None));
+        assert_eq!(store.summary(), Summary::default());
     }
 
     #[test]

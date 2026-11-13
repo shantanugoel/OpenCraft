@@ -240,5 +240,6 @@ mod nested;
 mod page_inspector;
 mod pages;
 mod panes;
+mod profile_sheet;
 mod sidebar;
 mod test_model;

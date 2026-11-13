@@ -211,6 +211,10 @@ pub struct Page {
     /// content is not in the map: use [`Page::update`] to change the map.
     surfaces: BTreeMap<SurfaceId, SurfaceContent>,
     bindings: BTreeMap<(ControlId, GestureKind), Action>,
+    /// True on the first page of the profile, if the user selected one: see
+    /// [`Profile::first_page`]. The mark is on the page, so that it moves
+    /// with the page, and the undo history covers it (decision 0030).
+    first: bool,
 }
 
 impl Page {
@@ -219,6 +223,7 @@ impl Page {
             name: name.into(),
             surfaces: BTreeMap::new(),
             bindings: BTreeMap::new(),
+            first: false,
         }
     }
 
@@ -259,6 +264,18 @@ impl Page {
         self.surfaces.iter().map(|(id, content)| (*id, content))
     }
 
+    /// Change the image path of each surface with `map`. `None` from `map`
+    /// removes the image. An import of a profile file uses this: see
+    /// [`crate::share`].
+    pub(crate) fn map_images(&mut self, mut map: impl FnMut(&str) -> Option<String>) {
+        let ids: Vec<SurfaceId> = self.surfaces.keys().copied().collect();
+        for id in ids {
+            self.update(id, |content| {
+                content.image = content.image.as_deref().and_then(&mut map);
+            });
+        }
+    }
+
     /// Change the content of `surface` with `change`. An empty label becomes
     /// no label. Return true if the content is different after the change.
     pub fn update(&mut self, surface: SurfaceId, change: impl FnOnce(&mut SurfaceContent)) -> bool {
@@ -288,6 +305,9 @@ pub struct Profile {
     pub name: String,
     /// The model identifier of the descriptor, for example `n4-pro`.
     pub model: String,
+    /// The colour of the profile for the user, for example the colour of
+    /// its icon in the sidebar. `None`: the profile has no colour.
+    pub color: Option<Color>,
     /// The pages. A profile has one page or more: see [`Profile::new`].
     pages: Vec<Page>,
 }
@@ -320,6 +340,7 @@ impl Profile {
         Self {
             name: name.into(),
             model: model.into(),
+            color: None,
             pages,
         }
     }
@@ -338,10 +359,48 @@ impl Profile {
         self.pages.get_mut(page)
     }
 
-    /// Put `page` after the last page. Return its number.
-    pub fn add_page(&mut self, page: Page) -> usize {
+    /// Put `page` after the last page. Return its number. The new page is
+    /// not the first page of the profile, also if it is a copy of the first
+    /// page.
+    pub fn add_page(&mut self, mut page: Page) -> usize {
+        page.first = false;
         self.pages.push(page);
         self.pages.len() - 1
+    }
+
+    /// The number of the page that the device shows when the profile
+    /// becomes the active profile. Page numbers start at 0. If the user did
+    /// not select a page, or if the user removed it, it is the page at the
+    /// start of the list.
+    pub fn first_page(&self) -> usize {
+        self.pages.iter().position(|p| p.first).unwrap_or(0)
+    }
+
+    /// Make `page` the first page: see [`Self::first_page`]. Return false if
+    /// it is not a page, or if it is the first page now.
+    pub fn set_first_page(&mut self, page: usize) -> bool {
+        if page >= self.pages.len() || page == self.first_page() {
+            return false;
+        }
+        for (number, each) in self.pages.iter_mut().enumerate() {
+            each.first = number == page;
+        }
+        true
+    }
+
+    /// True if the user selected a first page, also the page at the start
+    /// of the list. The profile file writes the first page only then.
+    pub(crate) fn has_first_page(&self) -> bool {
+        self.pages.iter().any(|p| p.first)
+    }
+
+    /// Mark `page` as the first page, also if it is the page at the start of
+    /// the list. The load of a profile file uses this, so that a load and a
+    /// save give the same file.
+    pub(crate) fn mark_first_page(&mut self, page: usize) {
+        for (number, each) in self.pages.iter_mut().enumerate() {
+            each.first = number == page;
+        }
     }
 
     /// Move the page `page` to the position `to`. The pages between the two
@@ -382,6 +441,14 @@ impl Profile {
             .map(|n| format!("Page {n}"))
             .find(|name| self.pages.iter().all(|p| &p.name != name))
             .expect("a name that no page has")
+    }
+
+    /// Change the image path of each surface of each page with `map`. See
+    /// [`Page::map_images`].
+    pub(crate) fn map_images(&mut self, mut map: impl FnMut(&str) -> Option<String>) {
+        for page in &mut self.pages {
+            page.map_images(&mut map);
+        }
     }
 
     /// Each image path that a surface of the profile uses.
@@ -584,6 +651,29 @@ mod tests {
         assert_eq!(profile.new_page_name(), "Page 4");
         profile.page_mut(1).unwrap().name = "Other".into();
         assert_eq!(profile.new_page_name(), "Page 3");
+    }
+
+    #[test]
+    fn the_first_page_moves_with_its_page_and_a_copy_is_not_the_first_page() {
+        let mut profile = Profile::new("P", vec![Page::new("A"), Page::new("B"), Page::new("C")]);
+        assert_eq!(
+            profile.first_page(),
+            0,
+            "with no choice, the page at the start"
+        );
+        assert!(!profile.set_first_page(0), "no change");
+        assert!(!profile.set_first_page(3), "not a page");
+        assert!(profile.set_first_page(2));
+        assert!(!profile.set_first_page(2));
+        assert!(profile.move_page(2, 0));
+        assert_eq!(profile.first_page(), 0);
+        assert_eq!(profile.pages()[0].name, "C");
+        let copy = profile.pages()[0].clone();
+        assert_eq!(profile.add_page(copy), 3);
+        assert_eq!(profile.first_page(), 0, "the copy is not the first page");
+        assert!(profile.set_first_page(1));
+        assert!(profile.remove_page(1));
+        assert_eq!(profile.first_page(), 0, "the first page is gone");
     }
 
     #[test]

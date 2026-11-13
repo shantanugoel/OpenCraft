@@ -10,6 +10,7 @@ pub(super) fn pages(names: &[&str], active: usize) -> Event {
     Event::Pages {
         names: names.iter().map(|n| (*n).into()).collect(),
         active,
+        first: 0,
     }
 }
 
@@ -20,6 +21,7 @@ pub(super) fn profiles(entries: &[(&str, &str)], active: &str) -> Event {
             .map(|(id, name)| ProfileEntry {
                 id: (*id).into(),
                 name: (*name).into(),
+                ..Default::default()
             })
             .collect(),
         active: active.into(),

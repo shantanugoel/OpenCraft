@@ -725,6 +725,27 @@ repository. The window tests are in `crates/app/src/view/tests/clipboard.rs`.
 | The label field shows the label of the selection. It loads the label at the first event after a change, thus the engine sends the surface of a paste before the bindings. With the bindings first, the field showed the old label. | Measured | Window pictures |
 | A `NativeMenu` with `menu_with_disabled` and `separator` showed "Copy", a dim "Paste", "Clear", a line, and "Copy to All Pages" at the pointer. | Measured | Window picture |
 
+## Profile settings sheet in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+profile settings sheet of
+[issue 195](https://github.com/shantanugoel/OpenCraft/issues/195), on the
+computer of [Release measurements](#release-measurements), with a scratch
+copy of the profiles and the device connected. A helper program operated the
+real window and the file dialogs with Quartz events, and took pictures of
+the window only. The pictures are kept outside the repository. The window
+tests are in `crates/app/src/view/tests/profile_sheet.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A modal layer can be an `absolute` element of the full window size, with `occlude()`, after the other children of a `relative` root element. It got each click: a click on the sidebar below it did nothing. The menu of a popup button in the sheet (`deferred`) painted above the layer and operated. | Measured | `crates/app/src/view/modal.rs`; `the_menu_opens_the_sheet_of_the_profile_and_the_sheet_is_modal`; window pictures |
+| With the layer as a sibling of the element of the key context `"Workspace"`, and the focus in the card of the layer, the workspace key bindings did not operate (⌃⌘S did nothing). After the close and `focus_workspace`, they operated again. | Measured | Same window test |
+| A layer of black at 25 % changed a pixel of the selected sidebar row from (48, 98, 204) to (36, 72, 147). On the dark window, the change is small but visible. | Measured | Window pictures before and with the sheet |
+| `StatefulInteractiveElement::role(Role::Dialog)` and `aria_label(..)` give an element a role and an accessible label. `Role` is `gpui_kit::Role`. | Source | `gpui-pre` 0.3.12 `src/elements/div.rs` |
+| `App::prompt_for_new_path(dir, Some(name))` opened the macOS save dialog as a separate window of the process, with the name selected and `dir` as the folder. ⌘⇧G in the dialog opens "Go to the folder"; a typed path and Return change the folder. | Measured | Window list; window pictures |
+| `PathPromptOptions::prompt` "Import" is the text of the default button of the open dialog. | Measured | Window picture |
+| On the test platform, a test answers the save dialog with `simulate_new_path_selection(\|_\| Some(path))`, and the open dialog with `simulate_path_prompt_response(\|_\| Some(vec![path]))`. `did_prompt_for_new_path` and `did_prompt_for_paths` tell that a dialog is open. | Source; Measured | `gpui-pre` 0.3.12 `src/app/test_context.rs`; `export_and_import_send_the_file_and_an_import_shows_the_new_profile` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

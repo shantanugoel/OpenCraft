@@ -390,12 +390,55 @@ pub(super) fn text_field(
     window: &Window,
     cx: &App,
 ) -> Div {
+    text_field_sized(input, background, FieldSize::default(), window, cx)
+}
+
+/// The height, the corner radius, and the side padding of a one-line
+/// [`text_field_sized`].
+#[derive(Clone, Copy)]
+pub(super) struct FieldSize {
+    pub(super) height: Pixels,
+    pub(super) radius: Pixels,
+    pub(super) padding: Pixels,
+}
+
+impl Default for FieldSize {
+    /// A field of the inspector: height 28, radius 6, padding 8.
+    fn default() -> Self {
+        Self {
+            height: theme::HEIGHT_CONTROL,
+            radius: theme::RADIUS_CONTROL,
+            padding: theme::SPACE_8,
+        }
+    }
+}
+
+impl FieldSize {
+    /// A field of a sheet (section 16): height 30, radius 7, padding 10.
+    pub(super) fn sheet() -> Self {
+        Self {
+            height: theme::HEIGHT_SHEET_CONTROL,
+            radius: theme::RADIUS_TRACK,
+            padding: theme::SPACE_10,
+        }
+    }
+}
+
+/// A [`text_field`] of the size `size`. A multi-line field keeps the size of
+/// [`text_field`].
+pub(super) fn text_field_sized(
+    input: &AnyInputState,
+    background: Rgba,
+    size: FieldSize,
+    window: &Window,
+    cx: &App,
+) -> Div {
     let focused = input.focus_handle(cx).is_focused(window);
     let frame = div()
         .w_full()
         .flex_1()
         .min_w_0()
-        .rounded(theme::RADIUS_CONTROL)
+        .rounded(size.radius)
         .bg(background)
         .border_1()
         .border_color(if focused {
@@ -408,11 +451,11 @@ pub(super) fn text_field(
     // The frame draws the background and the border. The field of the kit
     // draws only the text, at the sizes of the window.
     match input {
-        AnyInputState::Input(state) => frame.h(theme::HEIGHT_CONTROL).flex().items_center().child(
+        AnyInputState::Input(state) => frame.h(size.height).flex().items_center().child(
             Input::new(state)
                 .appearance(false)
-                .h(theme::HEIGHT_CONTROL - px(2.))
-                .px(theme::SPACE_8)
+                .h(size.height - px(2.))
+                .px(size.padding)
                 .py_0()
                 .text_size(theme::TEXT_BODY),
         ),
@@ -768,4 +811,112 @@ pub(super) fn link(id: impl Into<SharedString>, text: impl Into<SharedString>) -
         .cursor_pointer()
         .hover(|d| d.text_color(theme::ACCENT_TEXT_HOVER))
         .child(text.into())
+}
+
+/// A colour circle of 20 (sections 14 and 16). `fill` `None` is the circle
+/// "None": transparent with a grey border. A selected circle has an outline
+/// of 2 in `accent-line`, 2 outside the circle. `label` is the tooltip. The
+/// caller adds the click handler.
+pub(super) fn colour_circle(
+    id: impl Into<SharedString>,
+    fill: Option<Rgba>,
+    selected: bool,
+    label: impl Into<SharedString>,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    let label: SharedString = label.into();
+    let outside = theme::SAMPLE_OUTLINE + theme::SAMPLE_OUTLINE_GAP;
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .relative()
+        .flex_shrink_0()
+        .size(theme::COLOUR_CIRCLE)
+        .rounded_full()
+        .cursor_pointer()
+        .map(|d| match fill {
+            Some(fill) => d.bg(fill),
+            None => d.border_1().border_color(theme::BORDER_NO_COLOUR),
+        })
+        .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
+        .when(selected, |d| {
+            d.child(
+                div()
+                    .absolute()
+                    .top(-outside)
+                    .left(-outside)
+                    .size(theme::COLOUR_CIRCLE + outside * 2.)
+                    .rounded_full()
+                    .border(theme::SAMPLE_OUTLINE)
+                    .border_color(theme::ACCENT_LINE),
+            )
+        })
+}
+
+/// The main button of a sheet or a window (section 3.7): height 30, radius
+/// 7, `accent`, no border, `text-on-accent`, `body` weight 600. `padding` is
+/// the padding at the sides, for example 18 for "Done". The caller adds the
+/// click handler.
+pub(crate) fn main_button(
+    id: impl Into<SharedString>,
+    text: impl Into<SharedString>,
+    padding: Pixels,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    let text: SharedString = text.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .h(theme::HEIGHT_SHEET_CONTROL)
+        .px(padding)
+        .flex()
+        .items_center()
+        .rounded(theme::RADIUS_TRACK)
+        .bg(theme::ACCENT)
+        .text_color(theme::TEXT_ON_ACCENT)
+        .text_size(theme::TEXT_BODY)
+        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+        .cursor_pointer()
+        .hover(|d| d.opacity(0.9))
+        .active(|d| d.opacity(0.8))
+        .child(label(text))
+}
+
+/// A transparent button with a border of the button row of a sheet: height
+/// 30, padding 0 12, radius 7, `control` weight 500. A destructive button
+/// has `destructive-text`, for example "Remove the profile…". A button that
+/// is not enabled shows dim text; the caller adds no click handler to it.
+pub(crate) fn sheet_button(
+    id: impl Into<SharedString>,
+    text: impl Into<SharedString>,
+    destructive: bool,
+    enabled: bool,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    let text: SharedString = text.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .h(theme::HEIGHT_SHEET_CONTROL)
+        .px(theme::SPACE_12)
+        .flex()
+        .items_center()
+        .rounded(theme::RADIUS_TRACK)
+        .border_1()
+        .border_color(theme::BORDER_CONTROL)
+        .text_size(theme::TEXT_CONTROL)
+        .font_weight(gpui_kit::FontWeight::MEDIUM)
+        .text_color(match (enabled, destructive) {
+            (false, _) => theme::TEXT_DISABLED,
+            (true, true) => theme::DESTRUCTIVE_TEXT,
+            (true, false) => theme::TEXT_PRIMARY,
+        })
+        .when(enabled, |d| {
+            d.cursor_pointer()
+                .hover(|d| d.bg(theme::HOVER_ICON))
+                .active(|d| d.bg(theme::PRESSED))
+        })
+        .child(label(text))
 }

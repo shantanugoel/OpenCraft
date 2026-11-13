@@ -22,6 +22,8 @@ gets each message. See [The log file](background.md#the-log-file).
 | "OpenCraft found the device, but cannot open it", "OpenCraft has a problem with the device" | OpenCraft cannot operate the device | See [The device is not found](#the-device-is-not-found) |
 | "OpenCraft could not use the profile file" | The profile file has an error, or a newer version of OpenCraft wrote it | OpenCraft keeps the file with a different name, and starts with an empty profile. The message gives the name of the file. |
 | "OpenCraft could not use the image" | The file is not a PNG or JPEG image | Select a different file |
+| "OpenCraft could not import the profile" | The file is not a profile file of OpenCraft, it is too large, it has an error, a newer version of OpenCraft made it, or its profile is for a different device model. The message gives the cause. | Export the profile again, or use a newer version of OpenCraft. See [Export and import a profile](controls.md#export-and-import-a-profile). |
+| "OpenCraft could not export the profile" | OpenCraft cannot write the file, for example in a folder that you cannot change | Select a different folder |
 
 ## The device is not found
 

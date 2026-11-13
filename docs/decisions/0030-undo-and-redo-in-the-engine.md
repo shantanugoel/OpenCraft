@@ -149,6 +149,11 @@ section 13, and also "Remove the Image" for an image that the user removes.
 The label options of
 [#189](https://github.com/shantanugoel/OpenCraft/issues/189) add "Set Title
 Position", "Set Title Size", "Set Title Colour", and "Set Title Weight". The
+profile settings of [#195](https://github.com/shantanugoel/OpenCraft/issues/195)
+add "Set First Page": the mark of the first page is on a page, thus it is in
+the copy of the pages. The colour of a profile is not in the pages, and it
+has no step, as the name. An import adds a profile and makes it the active
+profile, thus it empties the history. The
 names are in `step_of` in `crates/engine/src/engine.rs`. The toolbar button ends an open text edit first, and then sends Undo or Redo
 to the engine.
 
