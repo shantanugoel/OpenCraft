@@ -95,6 +95,16 @@ fn prefix(path: &[Slot]) -> String {
         .collect()
 }
 
+/// The status bar text after a click on "Test the action", for example
+/// "Testing “Open a URL” of Key 8 for Press". The result of the action comes
+/// from its handler: a failure shows as a message of the engine.
+fn test_text(control: ControlId, kind: &str, gesture: &str) -> String {
+    format!(
+        "Testing “{kind}” of {} for {gesture}",
+        control_name(control)
+    )
+}
+
 fn child(path: &[Slot], key: &str, item: Option<usize>) -> ActionPath {
     let mut path = path.to_vec();
     path.push(Slot {
@@ -744,15 +754,19 @@ impl DeviceView {
                 } else {
                     Vec::new()
                 };
-                card.action(self.kind_label(&action, current.available))
-                    .open(open)
-                    .on_toggle(
-                        cx.listener(move |view, _, window, cx| {
-                            view.toggle_card(gesture, window, cx)
-                        }),
-                    )
-                    .children(rows)
-                    .into_any_element()
+                let label = self.kind_label(&action, current.available);
+                let mut card = card.action(label.clone()).open(open).on_toggle(
+                    cx.listener(move |view, _, window, cx| view.toggle_card(gesture, window, cx)),
+                );
+                // An action with no handler cannot run (rule 8).
+                if current.available {
+                    card = card.on_test(cx.listener(move |view, _, window, cx| {
+                        let text = test_text(control, label.name(), name);
+                        (view.send)(Command::TestAction { binding });
+                        view.show_message(text, window, cx);
+                    }));
+                }
+                card.children(rows).into_any_element()
             })
             .collect()
     }

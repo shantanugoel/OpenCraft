@@ -593,6 +593,7 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     PanelLeft,
     PanelRight,
     Pencil,
+    Play,
     Plus,
     Redo2,
     Search,

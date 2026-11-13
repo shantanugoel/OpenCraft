@@ -14,8 +14,8 @@
 //!   direction and of the link as body rows.
 //! - A nested card of a toggle or a sequence (#183):
 //!   [`GestureCard::nested`], with an empty name.
-//! - The button "Test the action" (#188): the last body row,
-//!   [`super::form::end_row`].
+//! - The button "Test the action" (#188): [`GestureCard::on_test`]. The
+//!   card adds it as the last body row of a card with an action.
 //!
 //! The element identifiers come from the `id` of the card:
 //!
@@ -25,6 +25,7 @@
 //! | `{id}-head` | The head row. A click out of the popup opens or closes the card. |
 //! | `{id}-name` | The gesture name in the head row |
 //! | `{id}-kind` | The action popup, or the full card with no action. A click opens the kind menu. |
+//! | `{id}-test` | The button "Test the action" |
 
 use super::{controls, form, theme};
 use gpui_kit::{
@@ -168,6 +169,7 @@ pub(super) struct GestureCard {
     body: Vec<AnyElement>,
     on_toggle: Option<Handler>,
     on_menu: Option<Handler>,
+    on_test: Option<Handler>,
 }
 
 impl GestureCard {
@@ -186,6 +188,7 @@ impl GestureCard {
             body: Vec::new(),
             on_toggle: None,
             on_menu: None,
+            on_test: None,
         }
     }
 
@@ -239,6 +242,17 @@ impl GestureCard {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_menu = Some(Rc::new(handler));
+        self
+    }
+
+    /// The card shows the button "Test the action" as the last row of its
+    /// body (decision 0029, section 10.3). A click runs the action as the
+    /// gesture does.
+    pub(super) fn on_test(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_test = Some(Rc::new(handler));
         self
     }
 
@@ -382,6 +396,22 @@ impl RenderOnce for GestureCard {
             .when_some(on_toggle, |d, on_toggle| {
                 d.on_click(move |event, window, cx| on_toggle(event, window, cx))
             });
+        let mut body = self.body;
+        if let Some(on_test) = self.on_test {
+            body.push(
+                form::end_row(
+                    theme::FORM_LABEL,
+                    theme::CARD_FORM_GAP,
+                    controls::small_icon_button(
+                        format!("{id}-test"),
+                        IconName::Play,
+                        "Test the action",
+                    )
+                    .on_click(move |event, window, cx| on_test(event, window, cx)),
+                )
+                .into_any_element(),
+            );
+        }
         let body_padding = if self.nested {
             theme::SPACE_8
         } else {
@@ -399,7 +429,7 @@ impl RenderOnce for GestureCard {
             .border_color(theme::BORDER_FIELD)
             .bg(background)
             .child(head)
-            .when(open && !self.body.is_empty(), |d| {
+            .when(open && !body.is_empty(), |d| {
                 d.child(
                     form::form(theme::CARD_FORM_GAP)
                         .pt(body_padding)
@@ -407,7 +437,7 @@ impl RenderOnce for GestureCard {
                         .pb(theme::SPACE_12)
                         .border_t_1()
                         .border_color(theme::LINE_PANE)
-                        .children(self.body),
+                        .children(body),
                 )
             })
             .into_any_element()

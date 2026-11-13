@@ -25,8 +25,25 @@ pub(crate) fn small_button(
     text: impl Into<SharedString>,
     enabled: bool,
 ) -> Stateful<Div> {
+    small_button_frame(id, enabled).child(label(text.into()))
+}
+
+/// A small button with an icon before its text, for example "Test the
+/// action": the look of [`small_button`], the icon 11, gap 6.
+pub(super) fn small_icon_button(
+    id: impl Into<SharedString>,
+    icon: IconName,
+    text: impl Into<SharedString>,
+) -> Stateful<Div> {
+    small_button_frame(id, true)
+        .gap(theme::SPACE_6)
+        .child(Icon::new(icon).size(theme::ICON_PLAY))
+        .child(label(text.into()))
+}
+
+/// The frame of a small button, with no content.
+fn small_button_frame(id: impl Into<SharedString>, enabled: bool) -> Stateful<Div> {
     let id: SharedString = id.into();
-    let text: SharedString = text.into();
     div()
         .id(id.clone())
         .debug_selector(move || id.to_string())
@@ -48,7 +65,6 @@ pub(crate) fn small_button(
                 .active(|d| d.bg(theme::PRESSED))
         })
         .when(!enabled, |d| d.text_color(theme::TEXT_DISABLED))
-        .child(label(text))
 }
 
 /// A normal button.

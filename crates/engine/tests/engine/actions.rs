@@ -843,6 +843,74 @@ fn a_handler_asks_the_engine_to_do_an_action_with_its_own_binding() {
 }
 
 #[test]
+fn a_test_of_an_action_runs_the_binding_as_a_gesture_does() {
+    let kind = "test.test-action";
+    let (port, requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let device = rig.connect();
+    let id = binding(ControlKind::Key, 3, GestureKind::Press);
+    let release = binding(ControlKind::Key, 3, GestureKind::Release);
+    set_binding(&mut rig, id, Some(action(kind)));
+    requests.try_iter().count();
+    sent(&device);
+    rig.take_events();
+
+    // The handler gets the same request as for a push on the key. No input
+    // came from the device, thus the counters do not change.
+    rig.engine.command(Command::TestAction { binding: id });
+    assert_eq!(
+        requests.try_iter().collect::<Vec<_>>(),
+        [Request::Invoke {
+            binding: id,
+            action: action(kind)
+        }]
+    );
+    assert_eq!(rig.engine.counters(), Counters::default());
+    // The engine sends no event and writes nothing to the device. The
+    // result comes from the handler.
+    assert!(rig.take_events().is_empty());
+    assert!(sent(&device).is_empty());
+
+    // The result of the handler goes to the shell as for a gesture.
+    rig.engine
+        .handler_message(Message::Problem("Cannot use the settings.".into()));
+    assert_eq!(
+        rig.take_events(),
+        [Event::Problem("Cannot use the settings.".into())]
+    );
+
+    // A gesture with no action, and a binding of a page that the device does
+    // not show, give a problem and no request.
+    rig.engine.command(Command::TestAction { binding: release });
+    let events = rig.take_events();
+    assert_eq!(problems(&events).len(), 1, "{events:?}");
+    rig.engine.command(Command::TestAction {
+        binding: BindingId { page: 1, ..id },
+    });
+    let events = rig.take_events();
+    assert_eq!(problems(&events).len(), 1, "{events:?}");
+    assert!(requests.try_recv().is_err());
+}
+
+#[test]
+fn a_test_of_an_action_with_no_handler_gives_a_problem() {
+    let kind = "test.gone";
+    let dir = TempDir::new().unwrap();
+    let id = binding(ControlKind::Key, 3, GestureKind::Press);
+    let mut page = opencraft_engine::Page::new("A");
+    page.set_binding(id.control, id.gesture, Some(action(kind)));
+    store_in(dir.path())
+        .save(&opencraft_engine::Profile::new("Gone", vec![page]))
+        .unwrap();
+    let mut rig = Rig::with_ports(dir, Vec::new());
+    rig.take_events();
+    rig.engine.command(Command::TestAction { binding: id });
+    let events = rig.take_events();
+    assert_eq!(problems(&events).len(), 1, "{events:?}");
+    assert!(problems(&events)[0].contains(kind));
+}
+
+#[test]
 fn feedback_with_the_state_on_draws_a_frame_and_off_removes_it() {
     let kind = "test.state";
     let (port, _requests) = port(kind);

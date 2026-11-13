@@ -447,6 +447,10 @@ fn a_command_that_changes_no_page_makes_no_step() {
             commands: vec![Command::Undo, Command::ReadCounters],
         },
     );
+    // A test of an action runs a binding and changes no page.
+    command(&mut rig, Command::TestAction { binding: key_3(1) });
+    command(&mut rig, Command::SelectPage { page: 0 });
+    command(&mut rig, Command::TestAction { binding: key_3(0) });
     assert!(history_events(&rig.take_events()).is_empty());
 }
 

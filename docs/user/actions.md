@@ -75,6 +75,26 @@ each row. The control of a setting agrees with its type:
 
 If a setting has a long name, the name is above the control.
 
+## Test an action
+
+You can run the action of a gesture with no push on the device.
+
+1. Click the card of the gesture to open it.
+2. Click **Test the action** at the end of the card.
+
+OpenCraft runs the action in the same way as when you do the gesture on the
+device. The status bar shows, for 4 seconds, which action OpenCraft tests, for
+example "Testing “Open a URL” of Key 8 for Press".
+
+- If the action fails, the window shows a message above the status bar. See
+  [Messages in the window](faults.md#messages-in-the-window).
+- If the action needs the Accessibility permission and OpenCraft does not
+  have it, you get the same message as from the device. See
+  [Give the Accessibility permission](install.md#give-the-accessibility-permission).
+- The test uses the settings that the card shows now.
+- A test does not change the profile. **Undo** does not undo a test.
+- A card of an action that is not available has no button.
+
 ## An action that is not available
 
 A profile can contain an action that this version of OpenCraft does not

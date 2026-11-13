@@ -199,6 +199,16 @@ pub enum Command {
     SetDeviceSettings(DeviceSettings),
     /// Ask the handler to correct the status of this kind.
     Resolve { kind: String },
+    /// Run the action of `binding` as if the gesture occurred, with no push
+    /// on the device: the engine sends [`Request::Invoke`] to the handler of
+    /// the kind. The result comes from the handler, as for a gesture of the
+    /// device: for example the problem of a missing permission. The binding
+    /// must be on the active page. If it is not, or if it has no action, or
+    /// if no handler has the kind, the engine gives a problem.
+    ///
+    /// The command does not change the profile and is not a step of the
+    /// history. It is not input: the counters do not change.
+    TestAction { binding: BindingId },
     /// Send the current counters in an event.
     ReadCounters,
     /// Stop the engine: write the profile and the device settings if they
@@ -251,7 +261,8 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         Command::RemovePage { .. } => step("Remove Page", None),
         Command::Group { name, .. } => step(name, None),
         // These commands change no page. A change of the active profile
-        // empties the history.
+        // empties the history. A test of an action runs a binding and
+        // changes nothing in the profile (#188).
         Command::SelectPage { .. }
         | Command::SelectProfile { .. }
         | Command::AddProfile { .. }
@@ -263,6 +274,7 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         | Command::StartTextEdit
         | Command::EndTextEdit
         | Command::Resolve { .. }
+        | Command::TestAction { .. }
         | Command::ReadCounters
         | Command::Stop => None,
     }
@@ -901,6 +913,34 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
+    /// Run the action of `binding` as a gesture does. See
+    /// [`Command::TestAction`].
+    fn test_action(&mut self, binding: BindingId) {
+        if binding.page != self.active {
+            self.problem(
+                "OpenCraft did not test the action, because its page is not the page \
+                 that the device shows."
+                    .to_string(),
+            );
+            return;
+        }
+        let Some(action) = self
+            .page()
+            .binding(binding.control, binding.gesture)
+            .cloned()
+        else {
+            self.problem("OpenCraft did not test the action, because the gesture has none.".into());
+            return;
+        };
+        let kind = action.kind.clone();
+        if !self.request(&kind, Request::Invoke { binding, action }) {
+            self.problem(format!(
+                "OpenCraft cannot test this action, because this version of OpenCraft does not \
+                 have it ({kind})."
+            ));
+        }
+    }
+
     fn feedback_surface(&self, control: opencraft_core::ControlId) -> Option<SurfaceId> {
         self.descriptor.control(control)?.feedback_surface()
     }
@@ -1491,6 +1531,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Command::Resolve { kind } => {
                 self.request(&kind, Request::Resolve { kind: kind.clone() });
             }
+            Command::TestAction { binding } => self.test_action(binding),
             Command::ReadCounters => (self.sink)(Event::Counters(self.counters)),
             Command::Stop => return false,
         }
