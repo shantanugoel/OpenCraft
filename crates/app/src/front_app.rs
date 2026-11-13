@@ -38,8 +38,22 @@ define_class!(
 
 impl Observer {
     fn send(&self, front: FrontApplication) {
+        note_notice();
         let _ = self.ivars().try_send(ShellCommand::FrontApplication(front));
     }
+}
+
+/// The time of a front-application notice. The engine writes a second line
+/// after the device writes. The difference is the time of the switch
+/// (`docs/kb/footprint.md`).
+fn note_notice() {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    eprintln!(
+        "opencraft-shell {:.3} front-application notice",
+        now.as_secs_f64()
+    );
 }
 
 /// The front application of an activation notice.
@@ -101,6 +115,7 @@ impl Notices {
             );
         }
         if let Some(application) = NSWorkspace::sharedWorkspace().frontmostApplication() {
+            note_notice();
             let _ = commands.try_send(ShellCommand::FrontApplication(front_of(&application)));
         }
         Self {

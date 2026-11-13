@@ -750,6 +750,9 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     background_sent: BackgroundState,
     /// True if the connected device does not show all images.
     needs_draw: bool,
+    /// The number of images in the last successful `draw`. The log of a
+    /// front-application switch reads it. A draw that writes nothing sets 0.
+    last_written: usize,
     /// The time of the last change of the profile that is not in the file.
     changed_at: Option<Instant>,
     /// True after a failed write of the profile, until a write is successful.
@@ -837,6 +840,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             background: None,
             background_sent: BackgroundState::default(),
             needs_draw: false,
+            last_written: 0,
             changed_at: None,
             save_failed: false,
             link_problem: None,
@@ -3177,7 +3181,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             None
         };
         let encoded: Vec<_> = surfaces.iter().filter_map(|s| self.encode(s)).collect();
-        if encoded.is_empty() && background.is_none() {
+        let written = encoded.len() + usize::from(background.is_some());
+        if written == 0 {
+            self.last_written = 0;
             return;
         }
         let result = self.link.with_device(|device| {
@@ -3190,9 +3196,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             device.commit()
         });
         match result {
-            Ok(()) | Err(DeviceError::Disconnected) => {}
+            Ok(()) => self.last_written = written,
+            Err(DeviceError::Disconnected) => self.last_written = 0,
             Err(e) => {
                 // The state of the device is not known. Draw all again.
+                self.last_written = 0;
                 self.link_error(&e);
                 self.needs_draw = true;
             }

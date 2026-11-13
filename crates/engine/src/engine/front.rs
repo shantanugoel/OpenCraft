@@ -45,7 +45,19 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 }
             } else if self.is_profile(&target) && self.save_before_leaving() {
                 self.cause = cause.clone();
+                // The clock starts after the save of the old profile, and
+                // stops after the device writes of the new profile.
+                self.last_written = 0;
+                let started = std::time::Instant::now();
                 self.change_profile(target.clone(), None);
+                if self.link.is_connected() && self.power.state == crate::power::DisplayState::Awake
+                {
+                    super::log(&format!(
+                        "front application: the profile is on the device after {} ms, {} images",
+                        started.elapsed().as_millis(),
+                        self.last_written
+                    ));
+                }
             } else {
                 // The profile did not change. A later notice can try again.
                 self.shell_in_front = false;
