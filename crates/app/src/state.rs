@@ -206,7 +206,10 @@ impl ViewState {
             }
             Event::Clipboard(kind) => self.clipboard = Some(kind),
             // The window shows a message for these events.
-            Event::Counters(_) | Event::ProfileExported { .. } | Event::ProfileImported { .. } => {}
+            Event::Choices { .. }
+            | Event::Counters(_)
+            | Event::ProfileExported { .. }
+            | Event::ProfileImported { .. } => {}
         }
         None
     }

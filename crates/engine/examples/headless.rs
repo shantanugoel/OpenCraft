@@ -98,6 +98,7 @@ fn main() {
             Event::Input(input) => {
                 println!("[{at:8.3}] input: {} {:?}", input.control, input.gesture)
             }
+            Event::Choices { id, options } => println!("[{at:8.3}] choices {id}: {options:?}"),
             Event::Kinds(kinds) => println!("[{at:8.3}] kinds: {kinds:?}"),
             Event::Profiles { profiles, active } => {
                 println!("[{at:8.3}] profiles: {profiles:?}, active {active}")

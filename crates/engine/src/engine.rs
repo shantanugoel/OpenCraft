@@ -279,6 +279,13 @@ pub enum Command {
     SetDeviceSettings(DeviceSettings),
     /// Ask the handler to correct the status of this kind.
     Resolve { kind: String },
+    /// Ask the handler for the current choices of a field. The opaque id
+    /// lets a shell reject a late reply after the form changes.
+    Choices {
+        id: u64,
+        action: Action,
+        field: String,
+    },
     /// Run the action of `binding` as if the gesture occurred, with no push
     /// on the device: the engine sends [`Request::Invoke`] to the handler of
     /// the kind. The result comes from the handler, as for a gesture of the
@@ -378,6 +385,7 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         | Command::StartTextEdit
         | Command::EndTextEdit
         | Command::Resolve { .. }
+        | Command::Choices { .. }
         | Command::TestAction { .. }
         | Command::ReadCounters
         | Command::Stop => None,
@@ -506,6 +514,11 @@ pub enum Event {
     Layout(Arc<DeviceLayout>),
     /// All kind descriptions, after the layout.
     Kinds(Vec<KindDescription>),
+    /// The reply to a Choices command. This is form data, not profile data.
+    Choices {
+        id: u64,
+        options: Vec<crate::ChoiceOption>,
+    },
     /// The profiles of the model of the device, in the order of their
     /// identities, and the identity of the active profile.
     ///
@@ -1215,6 +1228,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 }
                 self.refresh_feedback_surface(binding.control);
             }
+            Message::Choices { id, options } => (self.sink)(Event::Choices { id, options }),
             Message::Status { kind, status } => (self.sink)(Event::Status { kind, status }),
             Message::Problem(text) => self.problem(text),
             Message::Engine(EngineRequest::SelectPage(target)) => {
@@ -2114,6 +2128,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             Command::CopyToAllPages { control } => self.copy_to_all_pages(control),
             Command::SetDeviceSettings(settings) => self.set_device_settings(settings),
+            Command::Choices { id, action, field } => {
+                let kind = action.kind.clone();
+                if !self.request(&kind, Request::Choices { id, action, field }) {
+                    (self.sink)(Event::Choices {
+                        id,
+                        options: Vec::new(),
+                    });
+                }
+            }
             Command::Resolve { kind } => {
                 self.request(&kind, Request::Resolve { kind: kind.clone() });
             }

@@ -21,7 +21,7 @@ use gpui_kit::{
     KeyDownEvent, Pixels,
 };
 use opencraft_engine::{
-    Action, BindingId, Field, GestureKind, InputType, KindDescription, Status, Value,
+    Action, BindingId, ChoiceOption, Field, GestureKind, InputType, KindDescription, Status, Value,
 };
 
 /// The function that makes the body rows of an open gesture card from its
@@ -83,6 +83,19 @@ pub(super) struct ActionForm {
     menu: Option<Menu>,
     /// The open nested cards and the step menu (`nested`).
     pub(super) nested: super::nested::NestedState,
+    choices: BTreeMap<FieldPath, (Action, u64, Vec<ChoiceOption>)>,
+}
+
+impl ActionForm {
+    pub(super) fn accept_choices(&mut self, id: u64, options: Vec<ChoiceOption>) {
+        if let Some((_, _, current)) = self
+            .choices
+            .values_mut()
+            .find(|(_, request, _)| *request == id)
+        {
+            *current = options;
+        }
+    }
 }
 
 /// The text form of a path for the identifiers of the elements. It is empty
@@ -207,6 +220,7 @@ impl DeviceView {
             .map(|id| (self.state.epoch, id));
         if self.form.owner != owner {
             self.form.inputs.clear();
+            self.form.choices.clear();
             self.form.recording = None;
             self.form.menu = None;
             self.form.nested = Default::default();
@@ -218,6 +232,24 @@ impl DeviceView {
         let Some(action) = self.edit_action(binding) else {
             return;
         };
+        let mut choices = Vec::new();
+        self.choice_fields(&action, &[], &mut choices);
+        self.form
+            .choices
+            .retain(|path, (action, _, _)| choices.iter().any(|(p, a)| p == path && a == action));
+        for (path, action) in choices {
+            if !self.form.choices.contains_key(&path) {
+                // Shared by all forms: a reply cannot enter a different window.
+                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                (self.send)(Command::Choices {
+                    id,
+                    action: action.clone(),
+                    field: path.key.clone(),
+                });
+                self.form.choices.insert(path, (action, id, Vec::new()));
+            }
+        }
         let mut wanted = Vec::new();
         self.text_fields(&action, &[], &mut wanted);
         self.form.inputs.retain(|path, input| {
@@ -263,6 +295,37 @@ impl DeviceView {
         self.sync_state_faces(window, cx);
     }
 
+    /// Find dynamic fields at each depth, without names of built-in kinds.
+    fn choice_fields(&self, action: &Action, path: &[Slot], out: &mut Vec<(FieldPath, Action)>) {
+        let Some(kind) = self.kind(&action.kind) else {
+            return;
+        };
+        for field in &kind.fields {
+            match field.input {
+                InputType::RuntimeChoice => out.push((
+                    FieldPath {
+                        action: path.to_vec(),
+                        key: field.key.clone(),
+                    },
+                    action.clone(),
+                )),
+                InputType::Action => {
+                    if let Some(inner) =
+                        action.settings.get(&field.key).and_then(Action::from_value)
+                    {
+                        self.choice_fields(&inner, &child(path, &field.key, None), out);
+                    }
+                }
+                InputType::ActionList => {
+                    for (item, inner) in list(action, &field.key).iter().enumerate() {
+                        self.choice_fields(inner, &child(path, &field.key, Some(item)), out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// Each field of `action` and of its contained actions that has a text
     /// input: its path, the kind of its action, true for a long text, and
     /// its value as text.
@@ -278,7 +341,10 @@ impl DeviceView {
         for field in &kind.fields {
             let value = action.settings.get(&field.key);
             match field.input {
-                InputType::Choice { .. } | InputType::Toggle | InputType::Hotkey => {}
+                InputType::Choice { .. }
+                | InputType::RuntimeChoice
+                | InputType::Toggle
+                | InputType::Hotkey => {}
                 InputType::Action => {
                     if let Some(inner) = value.and_then(Action::from_value) {
                         self.text_fields(&inner, &child(path, &field.key, None), out);
@@ -386,6 +452,10 @@ impl DeviceView {
             .iter()
             .find(|f| f.key == path.key)?;
         let value = match field.input {
+            InputType::Colour => {
+                let colour = super::inspector::parse_colour(&text)?;
+                Value::Text(super::inspector::colour_text(colour))
+            }
             InputType::Integer { min, max } => {
                 let digits = text.strip_prefix(['-', '+']).unwrap_or(&text);
                 if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
@@ -1051,13 +1121,32 @@ impl DeviceView {
             )
         };
         let content = match &field.input {
-            InputType::Choice { options } => {
+            InputType::Choice { .. } | InputType::RuntimeChoice => {
+                let dynamic;
+                let options = match &field.input {
+                    InputType::Choice { options } => options,
+                    _ => {
+                        dynamic = self
+                            .form
+                            .choices
+                            .get(&field_path)
+                            .map(|(_, _, options)| options.clone())
+                            .unwrap_or_default();
+                        &dynamic
+                    }
+                };
                 let menu = Menu::Choice(field_path.clone());
                 let open = self.form.menu.as_ref() == Some(&menu);
                 let current = options
                     .iter()
                     .find(|o| value == Some(&Value::Text(o.value.clone())))
-                    .map_or("", |o| o.label.as_str());
+                    .map(|o| o.label.clone())
+                    .unwrap_or_else(|| match value {
+                        Some(Value::Text(value)) if !value.is_empty() => {
+                            format!("{value} (not available)")
+                        }
+                        _ => "Select…".into(),
+                    });
                 let toggle = menu.clone();
                 let menu_element = open.then(|| {
                     let rows = options
@@ -1121,6 +1210,54 @@ impl DeviceView {
                         )),
                     )
                     .children(menu_element)
+                    .into_any_element())
+            }
+            InputType::Colour => {
+                let current = value.and_then(|v| match v {
+                    Value::Text(v) => super::inspector::parse_colour(v),
+                    _ => None,
+                });
+                let samples = form::colour_palette(
+                    &format!("{id}field-colour-{index}"),
+                    current,
+                    &field.label,
+                    |colour| {
+                        let field_path = field_path.clone();
+                        cx.listener(move |view, _, _, _| {
+                            if let Some(binding) = view.form_binding() {
+                                view.set_field(
+                                    binding,
+                                    &field_path,
+                                    Value::Text(super::inspector::colour_text(colour)),
+                                );
+                            }
+                        })
+                    },
+                );
+                let text = self.form.inputs.get(&field_path).map(|input| {
+                    controls::text_field(
+                        &input.state,
+                        field.label.clone(),
+                        theme::BG_BAR,
+                        window,
+                        cx,
+                    )
+                });
+                row(div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(theme::SPACE_6)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .gap(theme::SPACE_6)
+                            .children(samples),
+                    )
+                    .children(text)
+                    .child(form::help(controls::HEX_HELP))
                     .into_any_element())
             }
             InputType::Toggle => row(controls::switch(

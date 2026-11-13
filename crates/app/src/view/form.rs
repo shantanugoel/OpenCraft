@@ -14,6 +14,33 @@ use gpui_kit::{
     Stateful, TextRun, Window,
 };
 
+/// The shared fill palette, also used by a colour field of an action.
+/// The caller supplies the change handler; each sample has a label and focus.
+pub(super) fn colour_palette<
+    H: Fn(&gpui_kit::ClickEvent, &mut Window, &mut gpui_kit::App) + 'static,
+>(
+    id: &str,
+    current: Option<opencraft_engine::Color>,
+    label: &str,
+    mut on_pick: impl FnMut(opencraft_engine::Color) -> H,
+) -> Vec<Stateful<Div>> {
+    theme::FILL_COLOURS
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let colour = super::colour(value);
+            controls::colour_sample(
+                format!("{id}-{index}"),
+                Some(theme::sample(value)),
+                current == Some(colour),
+                format!("{label} #{value:06X}"),
+                true,
+            )
+            .on_click(on_pick(colour))
+        })
+        .collect()
+}
+
 /// The header of an inspector: a picture of 64 at the start, the name and
 /// the second line (a text, or an element such as a state with a dot), and at the end an optional button, for example the
 /// "⋯" button of a control. Padding 16, gap 12.

@@ -137,10 +137,26 @@ pub struct BindingId {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
-    Appear { binding: BindingId, action: Action },
-    Disappear { binding: BindingId },
-    Invoke { binding: BindingId, action: Action },
-    Resolve { kind: String },
+    Appear {
+        binding: BindingId,
+        action: Action,
+    },
+    Disappear {
+        binding: BindingId,
+    },
+    Invoke {
+        binding: BindingId,
+        action: Action,
+    },
+    Resolve {
+        kind: String,
+    },
+    /// Read the choices for one field. The handler echoes the opaque id.
+    Choices {
+        id: u64,
+        action: Action,
+        field: String,
+    },
 }
 
 /// What a surface shows for a binding, as data. Each part is optional. The
@@ -171,6 +187,11 @@ pub enum FeedbackState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Message {
+    /// Choices for a form request. This changes no stored setting.
+    Choices {
+        id: u64,
+        options: Vec<ChoiceOption>,
+    },
     /// `None` removes the feedback of the binding.
     Feedback {
         binding: BindingId,
@@ -318,6 +339,11 @@ pub enum InputType {
     Choice {
         options: Vec<ChoiceOption>,
     },
+    /// Choices read from the handler when the form opens. Values are stable
+    /// identifiers; an unavailable saved value is retained, not replaced.
+    RuntimeChoice,
+    /// An RGB colour as text #RRGGBB, with no alpha channel.
+    Colour,
     Toggle,
     /// Modifiers ctrl, alt, shift, cmd, then one key; small letters and `+`.
     Hotkey,

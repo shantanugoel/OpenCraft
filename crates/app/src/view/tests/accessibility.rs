@@ -54,6 +54,40 @@ fn named_window(
 }
 
 #[gpui_kit::test]
+fn dynamic_fields_have_the_shared_roles_and_labels(cx: &mut TestAppContext) {
+    let (_view, cx, tx, _sent) = window(cx);
+    let kind = super::actions::dynamic_kind();
+    let action = Action {
+        kind: kind.kind.clone(),
+        settings: kind
+            .fields
+            .iter()
+            .map(|f| (f.key.clone(), f.default.clone().unwrap()))
+            .collect(),
+    };
+    tx.try_send(Event::Kinds(vec![kind])).unwrap();
+    tx.try_send(Event::Binding(BindingState {
+        binding: BindingId {
+            page: 0,
+            control: ControlId::new(ControlKind::Key, 2),
+            gesture: GestureKind::Press,
+        },
+        action: Some(action),
+        available: true,
+    }))
+    .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::ComboBox, "Device");
+    assert_has(
+        &nodes,
+        Role::RadioButton,
+        &format!("Colour #{:06X}", crate::view::theme::FILL_COLOURS[0]),
+    );
+}
+
+#[gpui_kit::test]
 fn the_main_parts_have_a_role_and_the_label_of_the_record(cx: &mut TestAppContext) {
     let (_view, cx, _tx, _sent) = named_window(cx);
     let nodes = frame(cx);

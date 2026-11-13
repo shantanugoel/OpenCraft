@@ -302,6 +302,9 @@ impl DeviceView {
         if matches!(event, Event::Disconnected) {
             self.highlight_tasks.clear();
         }
+        if let Event::Choices { id, options } = &event {
+            self.form.accept_choices(*id, options.clone());
+        }
         let settings = matches!(event, Event::Layout(_) | Event::DeviceSettings(_));
         let kinds = matches!(event, Event::Kinds(_));
         let input = matches!(event, Event::Input(_));
