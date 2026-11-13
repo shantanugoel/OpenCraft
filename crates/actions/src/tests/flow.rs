@@ -2,7 +2,9 @@
 //! or a real wait.
 
 use super::*;
-use opencraft_engine::{Action, BindingId, EngineRequest, FeedbackState, PageTarget};
+use opencraft_engine::{
+    Action, BindingId, EngineRequest, FeedbackState, PageTarget, ProfileTarget,
+};
 
 fn engine(request: EngineRequest) -> Message {
     Message::Engine(request)
@@ -181,21 +183,131 @@ fn incorrect_page_settings_are_problems_without_a_request() {
 // --- Select a profile -----------------------------------------------------------------
 
 #[test]
-fn a_profile_selection_asks_the_engine_with_the_name_of_the_user() {
+fn a_profile_selection_asks_for_an_identity_a_neighbour_or_a_page() {
     let mut rig = Rig::new("profile", true);
-    rig.invoke(text_action("profile", "profile", " Video calls "));
+    rig.invoke(action(
+        "profile",
+        &[
+            ("target", Value::Text("profile".into())),
+            ("profile", Value::Text(" work ".into())),
+            ("page", Value::Integer(2)),
+        ],
+    ));
     assert_eq!(
         rig.recv(),
         engine(EngineRequest::SelectProfile {
-            name: "Video calls".into()
+            target: ProfileTarget::Profile("work".into()),
+            page: Some(1),
         })
     );
+
+    // A binding from a release up to 0.2.0 stores a name and no target.
+    rig.invoke(text_action("profile", "profile", "Video calls"));
+    assert_eq!(
+        rig.recv(),
+        engine(EngineRequest::SelectProfile {
+            target: ProfileTarget::Profile("Video calls".into()),
+            page: None,
+        })
+    );
+
+    for (target, expected) in [
+        ("next", ProfileTarget::Next),
+        ("previous", ProfileTarget::Previous),
+    ] {
+        rig.invoke(action(
+            "profile",
+            &[
+                ("target", Value::Text(target.into())),
+                ("page", Value::Integer(0)),
+            ],
+        ));
+        assert_eq!(
+            rig.recv(),
+            engine(EngineRequest::SelectProfile {
+                target: expected,
+                page: None,
+            })
+        );
+    }
+
+    // Page 1 is the first page in the list. Page 100 is the last permitted page.
+    rig.invoke(action(
+        "profile",
+        &[
+            ("target", Value::Text("next".into())),
+            ("page", Value::Integer(1)),
+        ],
+    ));
+    assert_eq!(
+        rig.recv(),
+        engine(EngineRequest::SelectProfile {
+            target: ProfileTarget::Next,
+            page: Some(0),
+        })
+    );
+    rig.invoke(action(
+        "profile",
+        &[
+            ("target", Value::Text("previous".into())),
+            ("page", Value::Integer(100)),
+        ],
+    ));
+    assert_eq!(
+        rig.recv(),
+        engine(EngineRequest::SelectProfile {
+            target: ProfileTarget::Previous,
+            page: Some(99),
+        })
+    );
+
     rig.invoke(action("profile", &[]));
-    rig.problem("Select a profile: type a value in the field \"Profile name\".");
+    rig.problem("Select a profile: select a value in the field \"Profile\".");
     for bad in [Value::Text("  ".into()), Value::Integer(1)] {
         rig.invoke(action("profile", &[("profile", bad)]));
-        rig.problem("the field \"Profile name\"");
+        rig.problem("the field \"Profile\"");
     }
+    rig.invoke(action(
+        "profile",
+        &[
+            ("target", Value::Text("sideways".into())),
+            ("profile", Value::Text("a".into())),
+        ],
+    ));
+    rig.problem("the field \"Select\"");
+    rig.invoke(action(
+        "profile",
+        &[
+            ("target", Value::Integer(1)),
+            ("profile", Value::Text("a".into())),
+        ],
+    ));
+    rig.problem("the field \"Select\"");
+    rig.invoke(action(
+        "profile",
+        &[
+            ("target", Value::Text("next".into())),
+            ("page", Value::Integer(101)),
+        ],
+    ));
+    rig.problem("set the field \"Page\" to a number from 0 to 100");
+    rig.invoke(action(
+        "profile",
+        &[
+            ("target", Value::Text("next".into())),
+            ("page", Value::Integer(-1)),
+        ],
+    ));
+    rig.problem("0 to 100");
+    rig.invoke(action(
+        "profile",
+        &[
+            ("target", Value::Text("profile".into())),
+            ("profile", Value::Text("a".into())),
+            ("page", Value::Text("2".into())),
+        ],
+    ));
+    rig.problem("0 to 100");
     rig.none();
 }
 

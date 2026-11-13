@@ -899,7 +899,34 @@ fn the_kinds_that_ask_the_engine_have_the_fields_of_their_decisions() {
             Some(Value::Integer(1))
         )
     );
-    assert_eq!(fields("profile"), [("profile", InputType::Text, None)]);
+    let profile = fields("profile");
+    let InputType::Choice { options } = &profile[0].1 else {
+        panic!("expected a choice")
+    };
+    assert_eq!(
+        options
+            .iter()
+            .map(|o| (o.value.as_str(), o.label.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            ("profile", "A profile"),
+            ("next", "Next profile"),
+            ("previous", "Previous profile"),
+        ]
+    );
+    assert_eq!(profile[0].0, "target");
+    assert_eq!(profile[0].2, Some(Value::Text("profile".into())));
+    assert_eq!(profile[1].0, "profile");
+    assert_eq!(profile[1].1, InputType::Profile);
+    assert_eq!(profile[1].2, None);
+    assert_eq!(
+        profile[2],
+        (
+            "page",
+            InputType::Integer { min: 0, max: 100 },
+            Some(Value::Integer(0))
+        )
+    );
     assert_eq!(
         fields("toggle"),
         [

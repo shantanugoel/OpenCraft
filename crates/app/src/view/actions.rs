@@ -20,8 +20,12 @@ use gpui_kit::{
     },
     KeyDownEvent, Pixels,
 };
+/// The help under a profile value that is not an identity (decision 0035).
+const PROFILE_AGAIN: &str = "Select the profile again, so that a rename does not break this key.";
+
 use opencraft_engine::{
-    Action, BindingId, ChoiceOption, Field, GestureKind, InputType, KindDescription, Status, Value,
+    Action, BindingId, ChoiceOption, Color, Field, GestureKind, InputType, KindDescription, Status,
+    Value,
 };
 
 /// The function that makes the body rows of an open gesture card from its
@@ -356,6 +360,7 @@ impl DeviceView {
                 InputType::Choice { .. }
                 | InputType::RuntimeChoice
                 | InputType::RuntimeChoiceList
+                | InputType::Profile
                 | InputType::Toggle
                 | InputType::Hotkey => {}
                 InputType::Action => {
@@ -1184,6 +1189,142 @@ impl DeviceView {
         rows
     }
 
+    /// The profile list of [`InputType::Profile`]: the name and the colour,
+    /// and the identity in the profile (decision 0035, section 10). A value
+    /// that is not an identity stays, with "(not found)".
+    fn profile_picker(
+        &self,
+        id: &str,
+        field: &Field,
+        value: Option<&Value>,
+        field_path: &FieldPath,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let stored = match value {
+            Some(Value::Text(text)) => text.clone(),
+            _ => String::new(),
+        };
+        let profiles: Vec<(String, String, Option<Color>)> = self
+            .state
+            .profiles
+            .iter()
+            .map(|profile| (profile.id.clone(), profile.name.clone(), profile.color))
+            .collect();
+        let (label, found, colour) = match profiles
+            .iter()
+            .find(|(profile_id, _, _)| profile_id == &stored)
+        {
+            Some((_, name, colour)) => (name.clone(), true, *colour),
+            None if stored.is_empty() => ("Select…".to_string(), false, None),
+            None => (format!("{stored} (not found)"), false, None),
+        };
+        let show_help = !found && !stored.is_empty();
+        let menu = Menu::Choice(field_path.clone());
+        let open = self.form.menu.as_ref() == Some(&menu);
+        let toggle = menu.clone();
+        let menu_element = open.then(|| {
+            let rows = profiles
+                .iter()
+                .enumerate()
+                .map(|(option, (profile_id, name, colour))| {
+                    let field_path = field_path.clone();
+                    let chosen = stored == *profile_id;
+                    let profile_id = profile_id.clone();
+                    controls::menu_row(format!("{id}-{option}"))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .w(theme::ICON_SMALL)
+                                .when(chosen, |row| {
+                                    row.child(Icon::new(IconName::Check).size(theme::ICON_SMALL))
+                                }),
+                        )
+                        .child(
+                            Icon::new(IconName::Layers)
+                                .size(theme::ICON_ROW)
+                                .text_color(colour.map_or(theme::TEXT_SECONDARY, theme::colour)),
+                        )
+                        .child(name.clone())
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            view.form.menu = None;
+                            if let Some(binding) = view.form_binding() {
+                                view.set_field(
+                                    binding,
+                                    &field_path,
+                                    Value::Text(profile_id.clone()),
+                                );
+                            }
+                            view.focus_workspace(window, cx);
+                            cx.notify();
+                        }))
+                        .into_any_element()
+                })
+                .collect();
+            controls::popup_menu(
+                format!("{id}-menu"),
+                controls::MenuPlace::below(theme::HEIGHT_CONTROL),
+                rows,
+                window,
+                cx.listener(|view, _, _, cx| {
+                    view.close_kinds();
+                    cx.notify();
+                }),
+            )
+        });
+        let help = show_help.then(|| form::help(PROFILE_AGAIN).test_text(PROFILE_AGAIN));
+        div()
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .flex_col()
+            .gap(theme::SPACE_6)
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .child(
+                        controls::popup_button(
+                            id.to_string(),
+                            field.label.clone(),
+                            label.clone(),
+                            theme::HEIGHT_CONTROL,
+                            open,
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(theme::SPACE_8)
+                                .min_w_0()
+                                .when(found, |row| {
+                                    row.child(
+                                        Icon::new(IconName::Layers)
+                                            .size(theme::ICON_ROW)
+                                            .text_color(
+                                                colour.map_or(theme::TEXT_SECONDARY, theme::colour),
+                                            ),
+                                    )
+                                })
+                                .child(
+                                    div()
+                                        .min_w_0()
+                                        .truncate()
+                                        .child(label.clone())
+                                        .test_text(label.clone()),
+                                ),
+                        )
+                        .text_size(theme::TEXT_LABEL)
+                        .on_click(cx.listener(
+                            move |view, _, window, cx| view.toggle_menu(toggle.clone(), window, cx),
+                        )),
+                    )
+                    .children(menu_element),
+            )
+            .children(help)
+            .into_any_element()
+    }
+
     /// The row of one field: the label, and the control of the input type
     /// (section 10.3).
     fn field_row(
@@ -1227,7 +1368,9 @@ impl DeviceView {
                     }
                 };
                 let multiple = field.input == InputType::RuntimeChoiceList;
-                let selected = choice_values(value, multiple);
+                // A missing value shows the default. The handler uses that
+                // default, for example "A profile" on an old key.
+                let selected = choice_values(value.or(field.default.as_ref()), multiple);
                 let menu = Menu::Choice(field_path.clone());
                 let open = self.form.menu.as_ref() == Some(&menu);
                 let current = choice_text(&selected, options);
@@ -1319,6 +1462,14 @@ impl DeviceView {
                     .children(menu_element)
                     .into_any_element())
             }
+            InputType::Profile => row(self.profile_picker(
+                &format!("{id}profile-{index}"),
+                field,
+                value,
+                &field_path,
+                window,
+                cx,
+            )),
             InputType::Colour => {
                 let current = value.and_then(|v| match v {
                     Value::Text(v) => super::inspector::parse_colour(v),

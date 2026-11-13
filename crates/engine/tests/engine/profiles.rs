@@ -5,7 +5,7 @@
 use super::pages::{binding_states, image_slots, Step};
 use super::*;
 use opencraft_engine::profiles::{REMOVED_DIR, STATE_FILE};
-use opencraft_engine::{EngineRequest, Page};
+use opencraft_engine::{EngineRequest, Page, ProfileTarget};
 
 const KIND: &str = "test.profiles";
 const MODEL: &str = "n4-pro";
@@ -83,6 +83,29 @@ fn command(rig: &mut Rig, command: Command) {
 
 fn select(rig: &mut Rig, id: &str) {
     command(rig, Command::SelectProfile { profile: id.into() });
+}
+
+fn select_request(rig: &mut Rig, target: ProfileTarget, page: Option<usize>) {
+    rig.engine
+        .handler_message(Message::Engine(EngineRequest::SelectProfile {
+            target,
+            page,
+        }));
+}
+
+/// A profile with `count` pages. `first` is the first page, from 0.
+fn pages(name: &str, count: usize, first: usize) -> Profile {
+    let mut profile = Profile::for_model(
+        MODEL,
+        name,
+        (1..=count)
+            .map(|n| Page::new(format!("Page {n}")))
+            .collect(),
+    );
+    if first != 0 {
+        assert!(profile.set_first_page(first));
+    }
+    profile
 }
 
 fn appear() -> Request {
@@ -235,10 +258,7 @@ fn a_profile_of_a_different_model_is_not_offered_and_does_not_change() {
     assert_eq!(rig.engine.profile().model, MODEL);
 
     select(&mut rig, "default");
-    rig.engine
-        .handler_message(Message::Engine(EngineRequest::SelectProfile {
-            name: "Other".into(),
-        }));
+    select_request(&mut rig, ProfileTarget::Profile("Other".into()), None);
     command(
         &mut rig,
         Command::RenameProfile {
@@ -954,35 +974,154 @@ fn a_command_for_a_profile_that_is_not_active_changes_nothing() {
 
 // --- The request of a handler ------------------------------------------------------
 
-fn select_by_name(rig: &mut Rig, name: &str) {
-    rig.engine
-        .handler_message(Message::Engine(EngineRequest::SelectProfile {
-            name: name.into(),
-        }));
+fn named(text: &str) -> ProfileTarget {
+    ProfileTarget::Profile(text.into())
 }
 
 #[test]
-fn a_handler_selects_a_profile_by_its_name_for_the_user() {
+fn a_handler_uses_the_identity_before_the_name_and_keeps_an_old_name() {
     let (mut rig, requests) = rig_with(&[
-        ("default", profile(MODEL, "Default", RED)),
-        ("work", profile(MODEL, "Work", BLUE)),
-        ("work-2", profile(MODEL, "Work", GREEN)),
+        ("alpha", profile(MODEL, "Other", RED)),
+        ("beta", profile(MODEL, "Alpha", BLUE)),
+        ("gamma", profile(MODEL, "Alpha", GREEN)),
     ]);
-    select_by_name(&mut rig, "Work");
-    assert_eq!(rig.engine.active_profile(), "work", "the first identity");
+    assert_eq!(rig.engine.active_profile(), "alpha");
+
+    // The name selects the first profile with that name.
+    select_request(&mut rig, named("Alpha"), None);
+    assert_eq!(rig.engine.active_profile(), "beta");
     assert_eq!(
         requests.try_iter().collect::<Vec<_>>(),
         [disappear(), appear()]
     );
 
-    // The active profile changes nothing. A missing name is a problem.
+    // The identity wins, also when an earlier profile has that name.
+    select_request(&mut rig, named("gamma"), None);
+    assert_eq!(rig.engine.active_profile(), "gamma");
+
+    // The active profile, with no page, changes nothing.
     rig.take_events();
-    select_by_name(&mut rig, "Work");
+    select_request(&mut rig, named("gamma"), None);
     assert!(rig.take_events().is_empty());
-    select_by_name(&mut rig, "work");
-    assert_eq!(problems(&rig.take_events()).len(), 1);
-    assert_eq!(rig.engine.active_profile(), "work");
+
+    select_request(&mut rig, named("missing"), None);
+    assert_eq!(rig.engine.active_profile(), "gamma");
+    assert_eq!(
+        problems(&rig.take_events()),
+        ["OpenCraft did not change the profile, because no profile has the identity or the name 'missing'."]
+    );
+
+    // A rename changes the name. The identity stays, and the old name does not.
+    command(
+        &mut rig,
+        Command::RenameProfile {
+            profile: "gamma".into(),
+            name: "Calls".into(),
+        },
+    );
+    select_request(&mut rig, named("gamma"), None);
+    assert_eq!(rig.engine.active_profile(), "gamma");
+    select_request(&mut rig, named("Alpha"), None);
+    assert_eq!(rig.engine.active_profile(), "beta");
+    select_request(&mut rig, named("Calls"), None);
+    assert_eq!(rig.engine.active_profile(), "gamma");
+    rig.take_events();
+    select_request(&mut rig, named("Alpha"), None);
+    assert!(problems(&rig.take_events()).is_empty());
+    assert_eq!(rig.engine.active_profile(), "beta");
+}
+
+#[test]
+fn a_handler_selects_the_next_and_the_previous_profile() {
+    let (mut rig, _) = rig_with(&[
+        ("a", profile(MODEL, "Alpha", RED)),
+        ("m", profile(MODEL, "Middle", BLUE)),
+        ("z", profile(MODEL, "Zed", GREEN)),
+    ]);
+    assert_eq!(rig.engine.active_profile(), "a");
+    select_request(&mut rig, ProfileTarget::Next, None);
+    assert_eq!(rig.engine.active_profile(), "m");
+    select_request(&mut rig, ProfileTarget::Next, None);
+    assert_eq!(rig.engine.active_profile(), "z");
+    select_request(&mut rig, ProfileTarget::Next, None);
+    assert_eq!(rig.engine.active_profile(), "a", "after the last profile");
+    select_request(&mut rig, ProfileTarget::Previous, None);
+    assert_eq!(rig.engine.active_profile(), "z", "before the first profile");
+    assert!(problems(&rig.take_events()).is_empty());
+}
+
+#[test]
+fn the_next_profile_of_one_profile_changes_nothing() {
+    let (mut rig, requests) = rig_with(&[("only", profile(MODEL, "Only", RED))]);
+    select_request(&mut rig, ProfileTarget::Next, None);
+    select_request(&mut rig, ProfileTarget::Previous, None);
+    assert!(rig.take_events().is_empty());
     assert!(requests.try_recv().is_err());
+    assert_eq!(rig.engine.active_profile(), "only");
+    assert_eq!(rig.engine.active_page(), 0);
+}
+
+#[test]
+fn a_handler_selects_a_page_and_uses_the_first_page_when_the_page_is_missing() {
+    let (mut rig, _) = rig_with(&[
+        ("calls", pages("Calls", 3, 2)),
+        ("home", profile(MODEL, "Home", RED)),
+    ]);
+    assert_eq!(rig.engine.active_profile(), "calls");
+    assert_eq!(rig.engine.active_page(), 2, "the first page of the profile");
+
+    rig.take_events();
+    select_request(&mut rig, named("calls"), None);
+    assert!(rig.take_events().is_empty(), "the active profile stays");
+
+    select_request(&mut rig, named("calls"), Some(0));
+    assert_eq!(rig.engine.active_page(), 0);
+    assert!(problems(&rig.take_events()).is_empty());
+
+    select_request(&mut rig, named("calls"), Some(2));
+    assert_eq!(rig.engine.active_page(), 2);
+    rig.take_events();
+    select_request(&mut rig, named("calls"), Some(2));
+    assert!(rig.take_events().is_empty(), "the active page stays");
+
+    select_request(&mut rig, named("calls"), Some(3));
+    assert_eq!(rig.engine.active_page(), 2, "the first page");
+    assert_eq!(
+        problems(&rig.take_events()),
+        ["The profile \"Calls\" has no page 4."]
+    );
+
+    select_request(&mut rig, named("home"), Some(0));
+    assert_eq!(
+        (rig.engine.active_profile(), rig.engine.active_page()),
+        ("home", 0)
+    );
+    select_request(&mut rig, named("calls"), None);
+    assert_eq!(
+        (rig.engine.active_profile(), rig.engine.active_page()),
+        ("calls", 2),
+        "no page opens the first page"
+    );
+
+    select_request(&mut rig, named("home"), None);
+    select_request(&mut rig, named("calls"), Some(9));
+    assert_eq!(
+        (rig.engine.active_profile(), rig.engine.active_page()),
+        ("calls", 2)
+    );
+    assert_eq!(
+        problems(&rig.take_events()),
+        ["The profile \"Calls\" has no page 10."]
+    );
+
+    select_request(&mut rig, named("home"), None);
+    select_request(&mut rig, ProfileTarget::Next, Some(1));
+    assert_eq!(
+        (rig.engine.active_profile(), rig.engine.active_page()),
+        ("calls", 1),
+        "next wraps, and the page is the asked page"
+    );
+    assert!(problems(&rig.take_events()).is_empty());
 }
 
 // --- A device of a different model ----------------------------------------------

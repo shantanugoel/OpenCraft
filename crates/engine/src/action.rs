@@ -222,11 +222,19 @@ pub enum EngineRequest {
     DeviceDisplay(crate::DisplayState),
     /// Change and save device brightness through the usual settings path.
     DeviceBrightness(BrightnessChange),
-    /// Make the profile with the name `name` for the user the active
-    /// profile, as [`crate::Command::SelectProfile`] does. If two profiles of
-    /// the model have the name, the first in the order of the identities
-    /// wins. If no profile has it, the engine tells the shell.
-    SelectProfile { name: String },
+    /// Select a profile (decision 0035, section 10).
+    ///
+    /// [`ProfileTarget::Profile`] is an identity, or the name of a binding
+    /// from a release up to 0.2.0. The engine uses the identity first, then
+    /// the first profile with that name. `page` is the page number from 0.
+    /// `None` selects the first page of the profile. A selection of the
+    /// active profile with no `page` does nothing. With `page`, the engine
+    /// selects that page. A page that the profile does not have selects the
+    /// first page, and the engine tells the shell.
+    SelectProfile {
+        target: ProfileTarget,
+        page: Option<usize>,
+    },
     /// Do the action `action`: the engine sends [`Request::Invoke`] with
     /// `binding` and `action` to the handler of the kind of `action`. The
     /// binding is the binding of the handler that asks. Thus the feedback of
@@ -242,6 +250,22 @@ pub enum EngineRequest {
 pub enum BrightnessChange {
     Set(u8),
     Step(i16),
+}
+
+/// The profile that [`EngineRequest::SelectProfile`] selects.
+///
+/// The reasons are in decision 0035, section 10.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProfileTarget {
+    /// An identity, or the name of an old binding. The engine uses the
+    /// identity first, then the name.
+    Profile(String),
+    /// The profile after the active profile, in the order of the identities.
+    /// After the last profile, the first profile.
+    Next,
+    /// The profile before the active profile. Before the first profile, the
+    /// last profile.
+    Previous,
 }
 
 /// The page that [`EngineRequest::SelectPage`] selects.
@@ -359,6 +383,11 @@ pub enum InputType {
     /// Ordered selections from a run-time list. Stored as a list of text
     /// identifiers. A click adds at the end or removes an existing choice.
     RuntimeChoiceList,
+    /// One profile of the device model. The shell shows the profiles from
+    /// [`crate::Event::Profiles`] (the name and the colour) and stores the
+    /// identity. A value that is not an identity stays. Decision 0035,
+    /// section 10.
+    Profile,
     /// An RGB colour as text #RRGGBB, with no alpha channel.
     Colour,
     Toggle,

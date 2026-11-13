@@ -13,7 +13,7 @@ use crate::descriptions::*;
 use crate::handlers::{nonblank, problem, send, Result};
 use opencraft_engine::{
     Action, BindingId, EngineRequest, Feedback, FeedbackState, Field, Handler, KindDescription,
-    Message, MessageSender, PageTarget, Request, Settings, Value,
+    Message, MessageSender, PageTarget, ProfileTarget, Request, Settings, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -52,13 +52,46 @@ fn page_target(settings: &Settings) -> Result<PageTarget> {
     }
 }
 
+/// The profile that the settings of `opencraft.profile` select. A missing
+/// `target` is `profile`, so a binding from a release up to 0.2.0 still
+/// sends the stored name (decision 0035, section 10).
+fn profile_target(action: &Action) -> Result<ProfileTarget> {
+    let target = match action.settings.get("target") {
+        None => "profile",
+        Some(Value::Text(target)) => target.as_str(),
+        Some(_) => "",
+    };
+    match target {
+        "next" => Ok(ProfileTarget::Next),
+        "previous" => Ok(ProfileTarget::Previous),
+        "profile" => Ok(ProfileTarget::Profile(
+            nonblank(action, "profile")?.trim().to_string(),
+        )),
+        _ => Err(setting_problem(PROFILE, "target")),
+    }
+}
+
+/// The page of `opencraft.profile`. `0` and a missing value select the first
+/// page of the profile. A number from 1 is that page, from 0 in the request.
+fn profile_page(settings: &Settings) -> Result<Option<usize>> {
+    match settings.get("page") {
+        None | Some(Value::Integer(0)) => Ok(None),
+        Some(Value::Integer(page)) if (1..=PAGE_LIMIT).contains(page) => {
+            Ok(Some(*page as usize - 1))
+        }
+        Some(_) => Err(setting_problem(PROFILE, "page")),
+    }
+}
+
 impl NavigationHandler {
     fn request(&self, action: &Action) -> Result<EngineRequest> {
         match action.kind.as_str() {
             PAGE => page_target(&action.settings).map(EngineRequest::SelectPage),
-            PROFILE => Ok(EngineRequest::SelectProfile {
-                name: nonblank(action, "profile")?.trim().to_string(),
-            }),
+            PROFILE => {
+                let target = profile_target(action)?;
+                let page = profile_page(&action.settings)?;
+                Ok(EngineRequest::SelectProfile { target, page })
+            }
             _ => Err("This handler does not have that action kind.".into()),
         }
     }

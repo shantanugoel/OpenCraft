@@ -103,6 +103,7 @@ each row. The control of a setting agrees with its type:
 | Text | A text field. Some text fields have three lines or more. |
 | Number | A small text field for digits. A number out of the range changes to the nearest permitted number. |
 | Selection | A button with the selected value. Click it, and click a value in the menu. |
+| Profile | A button with the name and the colour of a profile. Click it, and click a profile. A saved value that is not a profile stays, with the text "(not found)". |
 | Current selection | A menu that the action fills when the form opens. A saved value that is not available stays visible and stays in the profile. Open the form again to refresh the list. |
 | Colour | The fill colour samples and a field for `#RRGGBB`. An incomplete value changes nothing. |
 | On or off | A switch |
@@ -516,14 +517,30 @@ Pages are in [Knobs, touch bar, pages, and profiles](controls.md#pages).
 
 ## Select a profile
 
+The action selects a profile. The device then shows that profile.
+
 | Setting | What to give |
 |---|---|
-| Profile name | The name of a profile, as the sidebar shows it |
+| Select | A profile, Next profile, or Previous profile. The default is A profile. |
+| Profile | The profile. OpenCraft shows your profiles. It keeps the profile, so a new name does not break the key. OpenCraft reads this setting when Select is A profile. |
+| Page | 0, the default, shows the first page of the profile. A number from 1 shows that page. Page 1 is the first page in the list. |
 
-- The device shows the first page of that profile.
-- If no profile has that name, the window shows a message.
-- If two profiles have the same name, OpenCraft selects one of them. Give
-  each profile a different name.
+- Next profile selects the next profile in the list. After the last profile,
+  it selects the first profile.
+- Previous profile selects the previous profile. Before the first profile,
+  it selects the last profile.
+- The first page is the page in Profile Settings. See
+  [Profile settings](controls.md#profile-settings).
+- If the profile has no page with that number, the device shows the first
+  page of the profile. The window shows a message.
+- If the profile is already active and Page is 0, the device does not change.
+- If the profile is already active and Page is 1 or more, the device shows
+  that page.
+- A key from an older OpenCraft stores the name of the profile. The key
+  still selects that profile. The form shows the name and "(not found)".
+  Select the profile again. Then a new name does not break the key.
+- If no profile has the stored name, the window shows a message.
+- If two profiles have the same name, an old key selects the first of them.
 
 Profiles are in
 [Knobs, touch bar, pages, and profiles](controls.md#profiles).
