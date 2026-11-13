@@ -121,11 +121,6 @@ pub fn filter(applications: &[InstalledApplication], query: &str) -> Vec<Install
         .collect()
 }
 
-/// The side of an application icon, in pixels. The window shows it at
-/// `theme::ICON_APPLICATION` points. A Retina screen can draw a larger
-/// bitmap; the cache keeps the bitmap that AppKit returns.
-pub const ICON_PIXELS: u32 = 32;
-
 /// The icon of the application at `path`, or `None` when this system
 /// cannot draw one. Call this on the user interface thread: AppKit draws
 /// the icon there. The scan does not call this.
@@ -327,7 +322,12 @@ fn stored_as_path(stored: &str) -> Option<PathBuf> {
 }
 
 /// The channel order of one pixel in a focused icon bitmap.
+///
+/// macOS builds every variant. A Linux test builds only `RgbaF16`, so the
+/// other variants are allowed to stay unused there.
+#[cfg(any(target_os = "macos", test))]
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 enum IconLayout {
     /// 8-bit blue, green, red, alpha.
     Bgra8,
@@ -345,6 +345,7 @@ enum IconLayout {
 
 /// Copy `data` into an 8-bit image. A 16-bit float sample is a little-endian
 /// half. A premultiplied colour is divided by its alpha.
+#[cfg(any(target_os = "macos", test))]
 fn decode_icon_bitmap(
     width: usize,
     height: usize,
@@ -391,6 +392,7 @@ fn decode_icon_bitmap(
     Some(image)
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn u8_channels(
     mut red: u8,
     mut green: u8,
@@ -406,6 +408,7 @@ fn u8_channels(
     (red, green, blue, alpha)
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn unpremultiply_u8(channel: u8, alpha: u8) -> u8 {
     if alpha == 0 {
         return 0;
@@ -418,6 +421,7 @@ fn unpremultiply_u8(channel: u8, alpha: u8) -> u8 {
 
 /// `colour_at` is the index of red. Alpha is the sample before it when the
 /// alpha is first, and the sample after blue when the alpha is last.
+#[cfg(any(target_os = "macos", test))]
 fn f16_channels(pixel: &[u8], colour_at: usize, premultiplied: bool) -> (u8, u8, u8, u8) {
     let red = half_to_f32(u16::from_le_bytes([
         pixel[colour_at * 2],
@@ -451,6 +455,7 @@ fn f16_channels(pixel: &[u8], colour_at: usize, premultiplied: bool) -> (u8, u8,
     )
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn half_to_f32(half: u16) -> f32 {
     let sign = (half >> 15) & 1;
     let exponent = (half >> 10) & 0x1f;
@@ -476,6 +481,7 @@ fn half_to_f32(half: u16) -> f32 {
     f32::from_bits(bits)
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn unit_to_u8(value: f32) -> u8 {
     (value.clamp(0.0, 1.0) * 255.0).round() as u8
 }
@@ -491,6 +497,11 @@ mod macos {
     use objc2_app_kit::{NSBitmapFormat, NSBitmapImageRep, NSWorkspace};
     use objc2_foundation::{NSMutableDictionary, NSObject, NSPoint, NSRect, NSSize, NSString};
     use std::ffi::CStr;
+
+    /// The side of an application icon, in pixels. The window shows it at
+    /// `theme::ICON_APPLICATION` points. A Retina screen can draw a larger
+    /// bitmap; the cache keeps the bitmap that AppKit returns.
+    const ICON_PIXELS: u32 = 32;
 
     pub fn binary_plist(path: &Path) -> HashMap<String, String> {
         let Some(text) = path.to_str() else {
