@@ -6,6 +6,11 @@ action of [Phase 7](https://github.com/shantanugoel/OpenCraft/issues/199) and
 key one time, and answer each question with yes or no. Write the answers in
 the issues #199 and #200.
 
+The owner did this check on 2026-11-14. The procedure of that date also had
+a **Device sleep** key. The result is in
+[the roadmap](../ROADMAP.md#phase-7-a-reliable-daily-driver-complete-with-owner-checks-open)
+and in [issue #255](https://github.com/shantanugoel/OpenCraft/issues/255).
+
 The file `phase-7-8-checks.opencraft` is in this directory. The profile has 3
 pages. Each page has 10 keys. The key at the end of each page changes the
 page, and it shows the page number. The profile has no personal data.

@@ -1,6 +1,6 @@
 # Start at login on macOS
 
-Last update: 2026-11-13
+Last update: 2026-11-14
 
 The decision that uses these facts is
 [decision 0021](../decisions/0021-start-at-login.md).
@@ -86,8 +86,9 @@ for each run. All test processes stopped, and each test agent was removed.
 
 The current LaunchAgent mechanism stays. Decision 0035 is not necessary:
 the suspected failure was not observed. This test does not prove behaviour
-at a real login or in the downloaded release. The owner procedure is in
-[issue #255](https://github.com/shantanugoel/OpenCraft/issues/255).
+at a real login or in the downloaded release. The owner procedure for a
+real login is in
+[issue #143](https://github.com/shantanugoel/OpenCraft/issues/143).
 
 ## Background Task Management
 

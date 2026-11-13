@@ -345,10 +345,12 @@ the record of the checks.
 
 On 2026-11-12 the owner accepted these limits: the start time as in Phase 5,
 and no check by a second person. The owner also moved two checks out of this
-phase: the first start of the downloaded application, and the three actions
-that need the Accessibility permission in the release bundle. They block no
-phase. They are in
+phase. They block no phase. On 2026-11-14 the owner closed
 [issue #170](https://github.com/shantanugoel/OpenCraft/issues/170).
+The signed development release bundle ran **Send a hotkey**, **Type text**,
+and **Media key** in the checks of Phase 8. The first start of a downloaded
+application has no measurement. That question stays in
+[kb/macos-distribution.md](kb/macos-distribution.md#not-known).
 
 **Decisions that this phase forces.** The form of the release: see
 [decision 0025](decisions/0025-release-form.md). The licence notices: see
@@ -442,13 +444,9 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 
 **Exit criteria.**
 
-- [ ] After a computer sleep of 1 minute or more, the device shows the
-  profile in 10 s or less, and a key operates. The owner did this check.
 - [x] At a screen lock and an unlock, the device does what
   [decision 0034](decisions/0034-device-dark-state.md) says. Engine tests
   with the fake transport cover it.
-- [ ] After a start at login, a key with "Send a hotkey" operates with no
-  restart of OpenCraft. The owner did this check with the release bundle.
 - [x] A "Screen off" key makes the device dark, and the wake that decision
   0034 gives operates on the device. Engine tests with a fake clock cover the
   screen-off timer.

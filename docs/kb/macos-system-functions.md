@@ -12,11 +12,11 @@ of this action.
 | Function | Call | Confidence and source |
 |---|---|---|
 | Mission Control | `/usr/bin/open -b com.apple.exposelauncher` | Measured: the installed bundle has this identifier. One call entered Mission Control; Escape closed it at once. The OpenCraft window became a small preview during the call. |
-| Launchpad | Quartz key events for Shift-Fn-A | Source: [Apple shortcuts]. Apple names Launchpad on earlier macOS and Apps on macOS 26 and later. One call returned successfully on macOS 27.2, then Escape reversed it; the visible result was not confirmed. |
-| Screenshot | Quartz key events for Shift-Command-5 | Source: [Apple shortcuts]. This opens the system screenshot controls; OpenCraft does not capture pixels or save a screenshot. Not executed in this check. |
-| Screen saver | `/usr/bin/open -b com.apple.ScreenSaver.Engine` | Measured: the installed ScreenSaverEngine bundle has this identifier. Inference: launch through the public `open` command starts the screen saver. Not executed; owner check in #255. |
-| Sleep | `IOPMFindPowerManagement(MACH_PORT_NULL)`, `IOPMSleepSystem`, then `IOServiceClose` | Source: SDK `IOKit/pwr_mgt/IOPMLib.h`. The console user or root can request sleep. Not executed; owner check in #255. |
-| Lock | Quartz key events for Control-Command-Q | Source: [Apple shortcuts]. Not executed; owner check in #255. |
+| Launchpad | Quartz key events for Shift-Fn-A | Source: [Apple shortcuts]. Apple names Launchpad on earlier macOS and Apps on macOS 26 and later. One call returned successfully on macOS 27.2, then Escape reversed it; the visible result was not confirmed. The owner check is in [Owner check (2026-11-14)](#owner-check-2026-11-14). |
+| Screenshot | Quartz key events for Shift-Command-5 | Source: [Apple shortcuts]. This opens the system screenshot controls; OpenCraft does not capture pixels or save a screenshot. The agent check did not execute it. The owner check is in [Owner check (2026-11-14)](#owner-check-2026-11-14). |
+| Screen saver | `/usr/bin/open -b com.apple.ScreenSaver.Engine` | Measured: the installed ScreenSaverEngine bundle has this identifier. Inference: launch through the public `open` command starts the screen saver. The owner check is in [Owner check (2026-11-14)](#owner-check-2026-11-14). |
+| Sleep | `IOPMFindPowerManagement(MACH_PORT_NULL)`, `IOPMSleepSystem`, then `IOServiceClose` | Source: SDK `IOKit/pwr_mgt/IOPMLib.h`. The console user or root can request sleep. The owner check is in [Sleep that macOS refuses (2026-11-14)](#sleep-that-macos-refuses-2026-11-14). |
+| Lock | Quartz key events for Control-Command-Q | Source: [Apple shortcuts]. The owner check is in [Owner check (2026-11-14)](#owner-check-2026-11-14). |
 | Show desktop | Quartz key events for Fn-F11 | Measured: one call moved the OpenCraft window outside the display. The same chord reversed it at once and restored the window. Source: [Apple shortcuts]. |
 
 Date of the checks: 2026-11-13. The computer has macOS 27.2. The signed
@@ -44,6 +44,24 @@ was requested for these facts.
 | No public call makes the computer sleep while "SleepDisabled" is on. A change of the switch needs root, which OpenCraft does not have and does not ask for. | Inference | The facts above |
 | The action gives the message "macOS does not allow sleep now. A setting turns off all sleep, …" for this code. Other codes keep the general message with the code. | Measured | Tests `a_refused_sleep_names_the_cause` and `a_sleep_that_macos_refuses_gives_a_message_with_the_cause` |
 
+## Owner check (2026-11-14)
+
+The owner pressed the keys of page 3 in the procedure of that date
+([checks/phase-7-8-checks.md](../checks/phase-7-8-checks.md) at commit
+`8cb7fd8`). The bundle was the signed development release build. The
+computer has macOS 27. Sleep is in the section above. The device result of
+Lock is in
+[sleep-and-wake.md](sleep-and-wake.md#checks-by-the-owner-2026-11-14).
+
+| Fact | Confidence | Source |
+|---|---|---|
+| Mission Control showed the windows. | Measured | Owner check, [issue #255](https://github.com/shantanugoel/OpenCraft/issues/255) |
+| Show desktop moved the windows away. A second press brought them back. | Measured | Owner check, issue #255 |
+| Launchpad, or Apps, opened. | Measured | Owner check, issue #255 |
+| The screenshot controls showed. | Measured | Owner check, issue #255 |
+| The screen saver started. | Measured | Owner check, issue #255 |
+| Lock locked the screen. | Measured | Owner check, issue #255 |
+
 ## Permissions and compatibility
 
 | Fact | Confidence | Source |
@@ -55,12 +73,12 @@ was requested for these facts.
 
 ## Not known
 
-- Whether the signed release bundle starts the screen saver, requests sleep
-  and locks the screen. The owner procedure is in
-  [#255](https://github.com/shantanugoel/OpenCraft/issues/255).
-- The visible result of the Launchpad shortcut on this computer. The
-  one-time agent check did not establish it. The owner procedure is in #255.
 - The results on macOS 12 to 26, and with customized system shortcuts.
+- A sleep of this computer. The setting `SleepDisabled` is on, so the owner
+  check could not sleep it. The open check is
+  [issue #143](https://github.com/shantanugoel/OpenCraft/issues/143). The
+  measured refusal is in
+  [Sleep that macOS refuses (2026-11-14)](#sleep-that-macos-refuses-2026-11-14).
 
 ## Sources
 

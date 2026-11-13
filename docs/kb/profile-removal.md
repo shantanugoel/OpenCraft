@@ -28,5 +28,5 @@ Last update: 2026-11-14
 - Whether the screen lock and unlock of the owner made the stale frame of
   [issue #321](https://github.com/shantanugoel/OpenCraft/issues/321). One
   lock on this computer ended with a correct frame, also with no guard. The
-  owner step in issue #255 asks for this.
+  owner step stays in issue #321.
 - The cause of the delay of about 5 seconds in the report.

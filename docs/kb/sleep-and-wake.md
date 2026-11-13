@@ -1,12 +1,13 @@
 # Sleep and wake of the computer: the clocks
 
-Last update: 2026-11-12
+Last update: 2026-11-14
 
 This entry gives what the clocks of a process do when the computer sleeps.
 The engine uses these facts to find a wake. See
 [decision 0023](../decisions/0023-wake-from-the-sleep-time-of-the-clocks.md).
-What the device and `hidapi` do at a sleep and a wake is not known yet. See
-"Not known".
+What the device and `hidapi` do at a sleep and a wake of the computer is
+not known yet. See "Not known". A screen lock is in
+[Checks by the owner (2026-11-14)](#checks-by-the-owner-2026-11-14).
 
 ## The clocks on macOS
 
@@ -44,10 +45,12 @@ The device layer function `computer_sleep_time` in
 | After 8 seconds, `caffeinate -u -t 2` woke the computer displays. The shell received `NSWorkspaceScreensDidWakeNotification`, and the device showed the full green page and knob lights again. | Measured | Same run |
 | The display sleep in this check did not lock the screen. It does not test a computer sleep or screen lock. | Measured | Same run; no lock or computer-sleep command was sent |
 
-The shell also registers NSWorkspace will-sleep/did-wake notices and the
-distributed names `com.apple.screenIsLocked` and `com.apple.screenIsUnlocked`.
-Their real delivery remains an owner check in
-[#255](https://github.com/shantanugoel/OpenCraft/issues/255).
+The shell also registers NSWorkspace will-sleep and did-wake notices and
+the distributed names `com.apple.screenIsLocked` and
+`com.apple.screenIsUnlocked`. The screen lock of the owner is in
+[Checks by the owner (2026-11-14)](#checks-by-the-owner-2026-11-14).
+A sleep of the computer stays in
+[#143](https://github.com/shantanugoel/OpenCraft/issues/143).
 
 ## Checks by the owner (2026-11-14)
 
