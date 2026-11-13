@@ -428,6 +428,12 @@ The driver sent `CONNECT` each 8 seconds except in the stop-state check.
 | `DC`, then `HAN`, stayed dark for 45 seconds with no keep-alive. The same full start restored the images and lights. | Measured | Same run |
 | Thus brightness 0 cannot implement screen off on this device | Inference | The first row |
 
+The signed development bundle also sent both dark-state actions through
+**Test the action** on 2026-11-13. With a scratch green page, the camera saw
+dark displays and knob lights after each action. An open-window request
+restored the green page and lights after each action. (Measured: one run for
+each action.) This checks computer-side wake, not physical input.
+
 Whether the device sends user input after `HAN`, with or without `DC`, is
 not known. The earlier owner check saw no light change after `DC` and `HAN`;
 it did not establish whether reports arrived. The owner procedure is in

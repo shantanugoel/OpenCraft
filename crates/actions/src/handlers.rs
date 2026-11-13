@@ -59,6 +59,7 @@ pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dy
             poll: None,
             intervals,
         }),
+        Box::new(crate::device::DeviceHandler::default()),
         Box::new(NavigationHandler::default()),
         Box::new(ToggleHandler::default()),
         Box::new(SequenceHandler::new(system)),

@@ -602,16 +602,16 @@ fn a_closed_message_channel_does_not_panic() {
 }
 
 #[test]
-fn the_factory_has_exactly_eleven_unique_kinds_with_the_required_fields() {
+fn the_factory_has_unique_kinds_with_the_required_fields() {
     let real: Vec<_> = handlers().iter().flat_map(|h| h.kinds()).collect();
     let fake: Vec<_> = handlers_with_system(Arc::new(Fake::default()))
         .iter()
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 11);
+    assert_eq!(real.len(), 13);
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 11);
+    assert_eq!(kinds.len(), 13);
     for (kind, name, key, input) in [
         (
             "open-application",
