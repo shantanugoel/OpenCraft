@@ -460,6 +460,9 @@ impl DeviceView {
             .capture_key_down(
                 cx.listener(|view, event, window, cx| view.record_key(event, window, cx)),
             )
+            .on_modifiers_changed(
+                cx.listener(|view, event, window, cx| view.record_modifiers(event, window, cx)),
+            )
             // A click on a control gives the focus to this element, also
             // from a control with the keyboard focus: the ring goes away.
             .on_action(cx.listener(|view, _: &controls::FocusOwner, window, cx| {

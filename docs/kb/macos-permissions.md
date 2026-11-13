@@ -57,6 +57,15 @@ Date: 2026-11-12. Tool: `codesign -d -r-`, on the program `opencraft`.
 The permission of a program that launchd starts is in
 [macos-start-at-login.md](macos-start-at-login.md#a-launchagent-in-the-launchagents-directory-of-the-user).
 
+## Right-side modifiers and Fn (2026-11-13)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| GPUI 0.3.12 gives one Boolean for both sides of each modifier. Its modifier-change event has no key code. | Source | `platform/keystroke.rs`, `interactive.rs` of GPUI |
+| The local AppKit event has device-dependent flags for the left and right modifiers. Reading `NSApplication.currentEvent` adds no event monitor. | Source | AppKit `NSEvent.h`; IOKit `IOLLEvent.h` |
+| Quartz has the Fn flag and key code `0x3F`. Right Control, Option, Shift and Command have separate virtual key codes. | Source | Core Graphics `CGEventTypes.h`; Carbon `Events.h` |
+| The recorder reads right Control and Fn from local synthetic modifier events and saves a modifier-only chord on release. A shell-started sender with right Shift types an uppercase letter into the OpenCraft title field. | Measured | Signed development window, scratch profile, issue #275 |
+
 ## Not known
 
 - Whether the permission stays after a change of the signing identity, for

@@ -246,7 +246,7 @@ fn incorrect_choices_hotkeys_and_blank_open_or_command_settings_do_no_work() {
     for (kind, key, bad, label) in [
         ("media-key", "key", "play", "Key"),
         ("hotkey", "hotkey", "cmd+unknown", "Hotkey"),
-        ("hotkey", "hotkey", "cmd", "Hotkey"),
+        ("hotkey", "hotkey", "cmd+bad", "Hotkey"),
         ("open-application", "application", "  ", "Application"),
         ("open-url", "url", "\n", "URL"),
         ("shell-command", "command", " \n ", "Command"),
@@ -255,6 +255,27 @@ fn incorrect_choices_hotkeys_and_blank_open_or_command_settings_do_no_work() {
         rig.invoke(text_action(kind, key, bad));
         rig.problem(&format!("the field \"{label}\""));
         assert!(rig.system.calls().is_empty());
+    }
+}
+
+#[test]
+fn extended_hotkeys_use_the_same_system_and_permission_boundary() {
+    for value in [
+        "cmd+a",
+        "rightctrl+rightalt+rightshift+rightcmd+fn+a",
+        "cmd",
+        "rightshift",
+        "fn",
+        "ctrl+rightctrl",
+    ] {
+        let mut rig = Rig::new("hotkey", true);
+        rig.invoke(text_action("hotkey", "hotkey", value));
+        assert_eq!(rig.system.calls(), [Call::Hotkey(value.into())]);
+        rig.system.permission.store(false, Ordering::SeqCst);
+        rig.invoke(text_action("hotkey", "hotkey", value));
+        assert_eq!(rig.system.calls().len(), 1);
+        statuses((0..3).map(|_| rig.recv()).collect(), false);
+        rig.problem("Accessibility");
     }
 }
 

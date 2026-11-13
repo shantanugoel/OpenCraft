@@ -377,7 +377,9 @@ an element with no role are not in the accessibility tree
 - **Key commands:** symbols in the order of macOS (⌃ ⌥ ⇧ ⌘, then the key),
   with no space: "⇧⌘A". The menus, the "Shortcuts" pane, the key hints, and
   the hotkey values use this form (`settings_window::shortcuts::keystroke_text`,
-  `view::hotkey::symbols`).
+  `view::hotkey::symbols`). A right-side modifier has `R` before its symbol.
+  Fn follows Command. The recorder completes a modifier-only chord when
+  all modifiers are released.
 - **A key of the keyboard:** the verb is "push", as in the user guide: "Type
   #RRGGBB and push Return." "Press" is the name of a gesture.
 - **Numbers:** a space before "%" and "pt": "80 %", "20 pt". "×" for a size

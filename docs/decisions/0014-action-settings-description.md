@@ -110,9 +110,13 @@ The handler checks availability when it runs the action. An empty list
 does not clear a setting. Colour fields use the shared fill samples and a
 hex field. Only a complete RGB colour changes the settings.
 
-The form of a hotkey text: the modifiers `ctrl`, `alt`, `shift`, and `cmd`,
-in this order, and then one key name, all in small letters with `+` between
-them.
+The form of a hotkey text: modifiers and an optional key name, all in
+small letters with `+` between them. Modifier order is `ctrl`, `rightctrl`,
+`alt`, `rightalt`, `shift`, `rightshift`, `cmd`, `rightcmd`, `fn`. At least
+one modifier or key is necessary. The old names keep their meaning. A new
+right-side name selects that side. Modifiers only send a push and release,
+not a hold. This amendment is from issue
+[#275](https://github.com/shantanugoel/OpenCraft/issues/275).
 
 **The shell makes the form.** The engine sends the descriptions to the shell
 in an event. The shell makes the form for an action from the fields of its
