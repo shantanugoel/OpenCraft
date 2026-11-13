@@ -188,6 +188,16 @@ fn main() {
         }
         log_file::write_start_line();
     }
+    if login {
+        eprintln!(
+            "OpenCraft {LOGIN_ARGUMENT}: Accessibility permission: {}",
+            if opencraft_actions::system::can_send_keys() {
+                "given"
+            } else {
+                "not given"
+            }
+        );
+    }
     let (settings, settings_problem) = settings::load(&config_dir);
     // Only macOS has a menu bar item that opens the window later. A start at
     // login opens no window (decision 0021). The user can also turn off the

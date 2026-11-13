@@ -513,6 +513,7 @@ impl Shell {
         let state = &self.state;
         MenuState {
             connected: state.connected,
+            permission_missing: !crate::settings_window::permission(state).given,
             device: state.layout.as_ref().map(|l| l.name.clone()),
             profiles: state.profiles.clone(),
             profile: state.profile.clone(),
@@ -1165,6 +1166,7 @@ mod tests {
             menu(cx),
             MenuState {
                 connected: true,
+                permission_missing: false,
                 device: Some("Test device".into()),
                 profiles: vec![ProfileEntry {
                     id: "desk".into(),

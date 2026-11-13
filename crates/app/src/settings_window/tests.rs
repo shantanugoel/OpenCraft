@@ -368,6 +368,23 @@ fn the_window_shows_the_permission_state_and_opens_system_settings(cx: &mut Test
         f.sent.borrow().is_empty(),
         "Nothing waits for the permission"
     );
+    // A later revocation is visible with no click, edit, or restart.
+    for event in key_kinds(false) {
+        f.shell.update(cx, |shell, cx| shell.receive(event, cx));
+    }
+    settle(cx);
+    cx.update(|_, cx| {
+        assert!(!f.view.read(cx).snapshot.permission.given);
+        assert!(f.shell.read(cx).menu_state().permission_missing);
+    });
+    for event in key_kinds(true) {
+        f.shell.update(cx, |shell, cx| shell.receive(event, cx));
+    }
+    settle(cx);
+    cx.update(|_, cx| {
+        assert!(f.view.read(cx).snapshot.permission.given);
+        assert!(!f.shell.read(cx).menu_state().permission_missing);
+    });
 }
 
 // MARK: The switches

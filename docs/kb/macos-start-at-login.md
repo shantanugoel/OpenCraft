@@ -1,6 +1,6 @@
 # Start at login on macOS
 
-Last update: 2026-11-12
+Last update: 2026-11-13
 
 The decision that uses these facts is
 [decision 0021](../decisions/0021-start-at-login.md).
@@ -66,6 +66,28 @@ copy of the profile. The copy was not in `~/Library/LaunchAgents`.
 | OpenCraft, started by launchd with `--login`, had the parent process 1, no window, and the menu bar item. The engine connected and drew the profile. A camera picture some seconds after the start showed the images of the profile on the device. | Measured | `ps`; window list; AX; log; USB camera picture |
 | `launchctl bootout` stopped OpenCraft through its quit path: the log showed signal 15, the stop sequence of the engine, and the quit. 19 seconds later, no OpenCraft process ran. | Measured | Log; `launchctl print`; `pgrep` |
 | OpenCraft, started from a terminal with `--login` and `show_dock_icon = false`, had the accessory policy. 71 checks of the Dock in the first 8 seconds did not find the Dock icon. | Measured | Dock items through AX; `NSRunningApplication` |
+
+## Signed bundle and Accessibility (2026-11-13)
+
+The test used macOS 27.2 (26B123) and the development bundle from
+`scripts/sign-dev.sh --release`. It used a temporary LaunchAgent with a
+different label, a scratch profile and `OPENCRAFT_NO_DEVICE=1`. It did not
+change the real login item or the Accessibility list. The GUI lock was held
+for each run. All test processes stopped, and each test agent was removed.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The signed bundle reported `AXIsProcessTrusted = true` from the shell and when launchd started its executable directly with `--login`. | Measured | The start log, 1 shell run and 2 direct runs |
+| A LaunchAgent that ran `/usr/bin/open -n -a <bundle> --args --login` also gave `true`. | Measured | The start log, 1 run |
+| In both LaunchAgent forms, **Test the action** for a scratch `f20` hotkey sent a key-down and a key-up (code 90). | Measured | A listen-only Quartz session event tap, 1 pair per form |
+| The ad-hoc debug executable, started directly by launchd, reported `false`. Its test sent no F20 event. Settings showed **not given**, the menu showed **Accessibility Permission Not Given…**, and the window and the log gave the missing-permission problem. | Measured | Start log, AX tree, window-only pictures and event tap |
+| With Settings open and no device I/O, each of three 20-second idle samples used 0.04 to 0.05 seconds of processor time: 0.20 to 0.25 % of one core. | Measured | Difference of `ps -o time` samples; resolution 0.01 seconds |
+| A shell start can inherit the terminal permission. The positive direct launchd result is stronger evidence of the permission of the signed bundle. It gives no evidence that `/usr/bin/open` is necessary for this bundle. | Inference | The comparisons above and the bare-executable test |
+
+The current LaunchAgent mechanism stays. Decision 0035 is not necessary:
+the suspected failure was not observed. This test does not prove behaviour
+at a real login or in the downloaded release. The owner procedure is in
+[issue #255](https://github.com/shantanugoel/OpenCraft/issues/255).
 
 ## Background Task Management
 

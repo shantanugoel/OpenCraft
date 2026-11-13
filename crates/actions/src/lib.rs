@@ -11,7 +11,9 @@
 //! The volume handler uses field defaults for missing settings.
 //!
 //! The key handler sends Ready at the start if it has the permission. It
-//! sends NeedsUser otherwise. It checks the permission at each Invoke. With
+//! sends NeedsUser otherwise. One sleeping helper reads the permission every
+//! five seconds and reports only changes, including a revocation. It checks
+//! the permission again at each Invoke and Resolve. With
 //! no permission, an Invoke also sends a problem, so that the user sees the
 //! cause at the time of the gesture.
 //!

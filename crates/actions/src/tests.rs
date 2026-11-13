@@ -40,7 +40,6 @@ impl Rig {
             Intervals {
                 volume,
                 permission: Duration::from_millis(10),
-                permission_limit: Duration::from_millis(100),
             },
         )
         .into_iter()
@@ -533,13 +532,13 @@ fn resolve_asks_and_the_helper_sends_ready_when_permission_arrives() {
         true,
     );
     let reads = rig.system.permission_reads.load(Ordering::SeqCst);
-    std::thread::sleep(Duration::from_millis(30));
-    assert_eq!(rig.system.permission_reads.load(Ordering::SeqCst), reads);
+    wait_until(|| rig.system.permission_reads.load(Ordering::SeqCst) > reads);
+    assert!(rig.messages.try_recv().is_err());
     assert!(rig.system.calls().is_empty());
 }
 
 #[test]
-fn resolve_when_permission_is_already_present_does_no_periodic_work() {
+fn resolve_when_permission_is_already_present_keeps_watching_for_revocation() {
     let mut rig = Rig::new("hotkey", false);
     rig.system.permission.store(true, Ordering::SeqCst);
     rig.handler.handle(Request::Resolve {
@@ -551,43 +550,41 @@ fn resolve_when_permission_is_already_present_does_no_periodic_work() {
             .collect(),
         true,
     );
-    let reads = rig.system.permission_reads.load(Ordering::SeqCst);
-    std::thread::sleep(Duration::from_millis(30));
-    assert_eq!(rig.system.permission_reads.load(Ordering::SeqCst), reads);
+    rig.system.permission.store(false, Ordering::SeqCst);
+    statuses(
+        (0..crate::descriptions::KEY_KINDS.len())
+            .map(|_| rig.recv())
+            .collect(),
+        false,
+    );
 }
 
 #[test]
-fn the_permission_helper_stops_at_its_deadline_and_resolve_can_start_it_again() {
-    let mut rig = Rig::new("hotkey", false);
-    let resolve = Request::Resolve {
-        kind: "opencraft.media-key".into(),
-    };
-    rig.handler.handle(resolve.clone());
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        false,
-    );
-    std::thread::sleep(Duration::from_millis(140));
-    let reads = rig.system.permission_reads.load(Ordering::SeqCst);
-    std::thread::sleep(Duration::from_millis(30));
-    assert_eq!(rig.system.permission_reads.load(Ordering::SeqCst), reads);
-    rig.handler.handle(resolve);
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        false,
-    );
-    rig.system.permission.store(true, Ordering::SeqCst);
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        true,
-    );
-    assert_eq!(rig.system.asks.load(Ordering::SeqCst), 2);
+fn permission_changes_are_seen_without_resolve_invoke_or_bindings() {
+    let rig = Rig::new("hotkey", false);
+    // No request, no ten-minute deadline, and no stop after a grant.
+    for ready in [true, false, true] {
+        rig.system.permission.store(ready, Ordering::SeqCst);
+        statuses(
+            (0..crate::descriptions::KEY_KINDS.len())
+                .map(|_| rig.recv())
+                .collect(),
+            ready,
+        );
+    }
+    assert_eq!(rig.system.asks.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn unchanged_permission_sends_no_events_and_checks_are_rate_limited() {
+    for ready in [true, false] {
+        let rig = Rig::new("hotkey", ready);
+        let reads = rig.system.permission_reads.load(Ordering::SeqCst);
+        std::thread::sleep(Duration::from_millis(55));
+        let checks = rig.system.permission_reads.load(Ordering::SeqCst) - reads;
+        assert!((1..=7).contains(&checks), "{checks} checks");
+        assert!(rig.messages.try_recv().is_err());
+    }
 }
 
 #[test]
@@ -875,8 +872,7 @@ fn sound_volume_has_a_direction_for_a_turn_and_no_other_kind_has_one() {
 fn production_intervals_match_the_specification() {
     let intervals = handlers::Intervals::default();
     assert_eq!(intervals.volume, Duration::from_secs(2));
-    assert_eq!(intervals.permission, Duration::from_secs(1));
-    assert_eq!(intervals.permission_limit, Duration::from_secs(600));
+    assert_eq!(intervals.permission, Duration::from_secs(5));
 }
 
 #[test]

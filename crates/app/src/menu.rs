@@ -71,6 +71,8 @@ pub enum Row {
     },
     /// The one custom view: the slider for the display brightness.
     Brightness(Brightness),
+    /// Permission is missing. Opens General, also with no main window.
+    Permission,
     /// Opens the window.
     Open,
     /// Wake the controller without opening the window.
@@ -91,6 +93,8 @@ impl Row {
             Row::Profile { id, .. } => Some(ShellCommand::SelectProfile(id.clone())),
             Row::Open => Some(ShellCommand::Open),
             Row::WakeDevice => Some(ShellCommand::WakeDevice),
+
+            Row::Permission => Some(ShellCommand::OpenSettings(Some(SettingsPane::General))),
             Row::Settings => Some(ShellCommand::OpenSettings(None)),
             Row::About => Some(ShellCommand::OpenSettings(Some(SettingsPane::About))),
             Row::Quit => Some(ShellCommand::Quit),
@@ -109,6 +113,7 @@ impl Row {
             | Row::Section(title)
             | Row::Profile { title, .. }
             | Row::Pages { title, .. } => Some(title),
+            Row::Permission => Some("Accessibility Permission Not Given…"),
             Row::Open => Some("Open OpenCraft"),
             Row::WakeDevice => Some("Wake Device"),
             Row::Settings => Some("Settings…"),
@@ -144,6 +149,8 @@ pub fn same_shape(a: &[Row], b: &[Row]) -> bool {
 pub struct MenuState {
     /// The last `Connected` or `Disconnected` event of the engine.
     pub connected: bool,
+    /// From the statuses of kinds that need Accessibility, not a shell probe.
+    pub permission_missing: bool,
     /// The model name of the layout. `None` before the engine sends it.
     pub device: Option<String>,
     /// The profiles of the device model.
@@ -205,6 +212,10 @@ impl MenuState {
             rows.push(Row::Brightness(brightness));
             rows.push(Row::Separator);
         }
+        if self.permission_missing {
+            rows.push(Row::Permission);
+            rows.push(Row::Separator);
+        }
         rows.extend([
             Row::Open,
             Row::WakeDevice,
@@ -233,6 +244,7 @@ mod tests {
     fn state() -> MenuState {
         MenuState {
             connected: true,
+            permission_missing: false,
             device: Some("Stream Dock N4 Pro".into()),
             profiles: vec![
                 profile("desk", "Desk"),
@@ -253,6 +265,26 @@ mod tests {
         rows.iter()
             .map(|r| r.title().unwrap_or("-").to_string())
             .collect()
+    }
+
+    #[test]
+    fn missing_permission_has_a_named_command_to_general_settings() {
+        let mut state = state();
+        let ready = state.rows();
+        state.permission_missing = true;
+        let missing = state.rows();
+        assert!(missing.contains(&Row::Permission));
+        assert!(!same_shape(&ready, &missing));
+        assert_eq!(
+            Row::Permission.title(),
+            Some("Accessibility Permission Not Given…")
+        );
+        assert_eq!(
+            Row::Permission.command(),
+            Some(ShellCommand::OpenSettings(Some(SettingsPane::General)))
+        );
+        state.permission_missing = false;
+        assert_eq!(state.rows(), ready);
     }
 
     #[test]
