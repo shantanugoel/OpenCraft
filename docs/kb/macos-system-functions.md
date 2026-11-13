@@ -1,6 +1,6 @@
 # Mac system functions
 
-Last update: 2026-11-13
+Last update: 2026-11-14
 
 The implementation is `crates/actions/src/system/macos_functions.rs`.
 Each operation uses a public call. There is no AppleScript, System Events
@@ -26,6 +26,24 @@ of Mission Control, Apps or the desktop was saved. Sleep, lock and screen
 saver were tested only through the fake System interface. Native tests
 inspect the call selection without executing any call.
 
+## Sleep that macOS refuses (2026-11-14)
+
+The log of the owner sitting of #255 had "the system refused the operation
+(code -536870174)" for Sleep. Issue
+[#324](https://github.com/shantanugoel/OpenCraft/issues/324). No real sleep
+was requested for these facts.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The code -536870174 is `0xE00002E2`, `kIOReturnNotPermitted`. | Source | SDK `IOKit/IOReturn.h` |
+| `IOPMSleepSystem` goes to `IOPMrootDomain::privateSleepSystem`. It returns `kIOReturnNotPermitted` when `checkSystemSleepEnabled` is false. That check is false when the sleep switch of user space is on (`userDisabledAllSleep`, the root domain property "SleepDisabled"), when sleep is turned off in the kernel configuration, or during a restart or a shutdown. | Source | [xnu IOPMrootDomain] |
+| A `PreventUserIdleSystemSleep` assertion does not cause this result. The SDK says that the system can still sleep from the Apple menu with that assertion. | Source | SDK `IOKit/pwr_mgt/IOPMLib.h` |
+| `kIOPMAssertionTypePreventSystemSleep` is deprecated since 10.9, and not supported. | Source | SDK `IOKit/pwr_mgt/IOPMLib.h` |
+| On the computer of the owner, `pmset -g` shows `SleepDisabled 1`, and the root domain has "SleepDisabled" = Yes. The command `pmset disablesleep 1` (root) sets it. A keep-awake application can set it through its helper. | Measured | `pmset -g`; `ioreg -n IOPMrootDomain -r -d1`; `pmset(1)` |
+| On the same computer, the item "Sleep" of the Apple menu is disabled. | Measured | Accessibility tree of the menu bar, read with cua-driver |
+| No public call makes the computer sleep while "SleepDisabled" is on. A change of the switch needs root, which OpenCraft does not have and does not ask for. | Inference | The facts above |
+| The action gives the message "macOS does not allow sleep now. A setting turns off all sleep, …" for this code. Other codes keep the general message with the code. | Measured | Tests `a_refused_sleep_names_the_cause` and `a_sleep_that_macos_refuses_gives_a_message_with_the_cause` |
+
 ## Permissions and compatibility
 
 | Fact | Confidence | Source |
@@ -47,6 +65,7 @@ inspect the call selection without executing any call.
 ## Sources
 
 [Apple shortcuts]: <https://support.apple.com/en-us/102650>
+[xnu IOPMrootDomain]: <https://github.com/apple-oss-distributions/xnu/blob/main/iokit/Kernel/IOPMrootDomain.cpp>
 
 - Apple Support, **Mac keyboard shortcuts**, published 2026-09-14.
 - macOS SDK: `IOKit/pwr_mgt/IOPMLib.h`, `IOKit/IOKitLib.h`,

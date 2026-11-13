@@ -61,6 +61,9 @@ pub struct Fake {
     /// The waits that started, and the waits that may end. See
     /// [`Fake::hold_sleeps`].
     pub sleeps_started: AtomicUsize,
+    /// True: the Mac system function Sleep fails as macOS refuses it when
+    /// a setting turns off all sleep.
+    pub sleep_disabled: AtomicBool,
     sleep_gate: Arc<(Mutex<Option<usize>>, Condvar)>,
 }
 
@@ -96,6 +99,7 @@ impl Default for Fake {
             calls: Mutex::new(vec![]),
             gate: Arc::new((Mutex::new(Some(Exit::Code(0))), Condvar::new())),
             sleeps_started: AtomicUsize::new(0),
+            sleep_disabled: AtomicBool::new(false),
             sleep_gate: Arc::new((Mutex::new(None), Condvar::new())),
         }
     }
@@ -188,7 +192,13 @@ impl System for Fake {
         self.record(Call::Mouse(event), "mouse")
     }
     fn mac_function(&self, function: opencraft_actions::mac_function::MacFunction) -> Result<()> {
-        self.record(Call::MacFunction(function), "mac-function")
+        self.record(Call::MacFunction(function), "mac-function")?;
+        if function == opencraft_actions::mac_function::MacFunction::Sleep
+            && self.sleep_disabled.load(Ordering::SeqCst)
+        {
+            return Err(Error::SleepNotAllowed);
+        }
+        Ok(())
     }
     fn type_text(&self, text: &str) -> Result<()> {
         self.record(Call::Text(text.into()), "text")

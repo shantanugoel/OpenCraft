@@ -55,6 +55,23 @@ fn mac_function_checks_settings_permission_and_system_errors_without_real_calls(
 }
 
 #[test]
+fn a_sleep_that_macos_refuses_gives_a_message_with_the_cause() {
+    let mut rig = Rig::new("mac-function", true);
+    rig.system.sleep_disabled.store(true, Ordering::SeqCst);
+    rig.invoke(text_action("mac-function", "function", "sleep"));
+    assert_eq!(rig.system.calls(), [Call::MacFunction(MacFunction::Sleep)]);
+    rig.problem(
+        "Cannot do the Mac system function: macOS does not allow sleep now. A setting turns \
+         off all sleep, for example \"pmset disablesleep\" from an application that keeps \
+         the Mac awake. The Apple menu cannot put the Mac to sleep either.",
+    );
+    // The other functions do not change.
+    rig.system.clear_calls();
+    rig.invoke(text_action("mac-function", "function", "lock"));
+    assert_eq!(rig.system.calls(), [Call::MacFunction(MacFunction::Lock)]);
+}
+
+#[test]
 fn mac_function_description_has_all_choices_and_its_library_group() {
     let description = crate::descriptions::description(crate::descriptions::MAC_FUNCTION);
     assert_eq!(description.group, "System");

@@ -18,6 +18,7 @@ gets each message. See [The log file](background.md#the-log-file).
 | "OpenCraft did not change the profile, because no profile has the name" | The action "Select a profile" names a profile that does not exist | Correct the name in the action, or rename the profile |
 | "The profile has no page" | The action "Change the page" names a page number that does not exist | Correct the page number |
 | "OpenCraft did not do the change: the window showed a different profile" | You clicked a page row of a profile that is not active now. The window showed an old picture, for example after the screen was locked. | Look at the window again. It shows the active profile. Then do the change again. |
+| "Cannot do the Mac system function: macOS does not allow sleep now" | A setting turns off all sleep, for example `pmset disablesleep 1` from an application that keeps the Mac awake | Turn off that setting in the application, or run `sudo pmset disablesleep 0` in Terminal. Then the action can put the Mac to sleep. |
 | "A toggle or a sequence contains an action that this version of OpenCraft does not have" | A newer version of OpenCraft made the action | Select a different action in the toggle or the sequence |
 | "OpenCraft cannot open the device" | A different application, for example VSD Craft, holds the device | See [The vendor software runs](#the-vendor-software-runs) |
 | "OpenCraft found the device, but cannot open it", "OpenCraft has a problem with the device" | OpenCraft cannot operate the device | See [The device is not found](#the-device-is-not-found) |

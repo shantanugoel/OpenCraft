@@ -42,6 +42,14 @@ pub enum Error {
     NotRunning,
     #[error("the system refused the operation (code {0})")]
     System(i32),
+    /// macOS refused the sleep with `kIOReturnNotPermitted`. A setting
+    /// turns off all sleep. See `docs/kb/macos-system-functions.md`.
+    #[error(
+        "macOS does not allow sleep now. A setting turns off all sleep, for example \
+         \"pmset disablesleep\" from an application that keeps the Mac awake. The Apple \
+         menu cannot put the Mac to sleep either"
+    )]
+    SleepNotAllowed,
     #[error("{0}")]
     Io(#[from] io::Error),
 }
