@@ -161,9 +161,17 @@ pub fn watch_microphone(changed: std::sync::mpsc::Sender<()>) -> Result<Box<dyn 
 }
 
 /// Open an application. `application` is a name, for example `Safari`, or
-/// the path of an application.
-pub fn open_application(application: &str) -> Result<()> {
-    platform::open_application(application)
+/// the path of an application. If the application runs, the system brings it
+/// to the front. The system gives `arguments` to the application only when
+/// it starts the application.
+pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
+    platform::open_application(application, arguments)
+}
+
+/// Open a file or a folder in its default application. A leading `~/` is the
+/// home folder.
+pub fn open_file(path: &str) -> Result<()> {
+    platform::open_file(path)
 }
 
 /// Open a URL in the default application for it.

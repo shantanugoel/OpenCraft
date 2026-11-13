@@ -803,8 +803,47 @@ fn open(arguments: &[&str]) -> Result<()> {
     }
 }
 
-pub fn open_application(application: &str) -> Result<()> {
-    open(&["-a", application])
+/// The path with a leading `~/` replaced by the home folder. A name with no
+/// slash, and a path that starts with `/`, do not change.
+fn expand_home(path: &str) -> String {
+    match (path.strip_prefix("~/"), std::env::var_os("HOME")) {
+        (Some(rest), Some(home)) => {
+            format!("{}/{rest}", home.to_string_lossy().trim_end_matches('/'))
+        }
+        _ => path.to_string(),
+    }
+}
+
+/// An error if `path` names a place and nothing exists there. `open` gives
+/// only the code 1 for this case.
+fn check_exists(path: &str) -> Result<()> {
+    if std::path::Path::new(path).exists() {
+        Ok(())
+    } else {
+        Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "nothing exists at this path",
+        )))
+    }
+}
+
+pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
+    let application = expand_home(application);
+    if application.contains('/') {
+        check_exists(&application)?;
+    }
+    let mut command = vec!["-a", application.as_str()];
+    if !arguments.is_empty() {
+        command.push("--args");
+        command.extend(arguments.iter().map(String::as_str));
+    }
+    open(&command)
+}
+
+pub fn open_file(path: &str) -> Result<()> {
+    let path = expand_home(path);
+    check_exists(&path)?;
+    open(&["--", &path])
 }
 
 pub fn open_url(url: &str) -> Result<()> {
@@ -865,6 +904,17 @@ mod tests {
         assert!(events
             .iter()
             .all(|e| e.get_flags() == CGEventFlags::CGEventFlagCommand));
+    }
+
+    #[test]
+    fn a_leading_tilde_slash_is_the_home_folder_and_other_paths_do_not_change() {
+        let home = std::env::var("HOME").unwrap();
+        assert_eq!(expand_home("~/Documents"), format!("{home}/Documents"));
+        for same in ["Safari", "/Applications/A.app", "~", "~other/x", "a/~/b"] {
+            assert_eq!(expand_home(same), same);
+        }
+        assert!(check_exists("/").is_ok());
+        assert!(check_exists("/this/path/does/not/exist").is_err());
     }
 
     #[test]

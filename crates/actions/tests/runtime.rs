@@ -44,7 +44,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             "open-application",
             "application",
             "Test",
-            Call::Application("Test".into()),
+            Call::Application("Test".into(), vec![]),
         ),
         (
             "open-url",

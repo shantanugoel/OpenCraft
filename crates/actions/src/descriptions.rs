@@ -69,13 +69,17 @@ pub(crate) fn description(kind: &str) -> KindDescription {
     let (name, fields) = match kind {
         APPLICATION => (
             "Open an application",
-            vec![field(
-                "application",
-                "Application",
-                InputType::Path {
-                    kind: PathKind::Application,
-                },
-            )],
+            vec![
+                // The key keeps its name, so that an old profile loads.
+                field(
+                    "application",
+                    "Application, file, or folder",
+                    InputType::Path {
+                        kind: PathKind::File,
+                    },
+                ),
+                field("arguments", "Arguments", InputType::Text),
+            ],
         ),
         DEVICE_BRIGHTNESS => {
             let mut operation = field(

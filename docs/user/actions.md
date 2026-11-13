@@ -162,12 +162,28 @@ OpenCraft saves each change immediately, as in
 
 | Setting | What to give |
 |---|---|
-| Application | The name of an application, for example `Safari`, or the path of an application |
+| Application, file, or folder | The name of an application, for example `Safari`, or the path of an application, a file, or a folder |
+| Arguments | Optional. Words that macOS gives to the application when it starts the application |
 
-1. Type the name of the application. Or click **Choose…** and select the
-   application in the file dialog.
+1. Type the name of the application. Or click **Choose…** and select an
+   application, a file, or a folder in the file dialog. You can also type
+   the path of a folder. A path can start with `~/` for your home folder.
+2. If the application needs arguments, type them in the field
+   **Arguments**.
 
-If the application runs, macOS brings it to the front.
+- A name with no `/` is the name of an application. A path that ends with
+  `.app` is an application. Each other path is a file or a folder. macOS
+  opens a file in its default application, and a folder in Finder.
+- If the application runs, macOS brings it to the front. It does not start
+  the application again.
+- Separate the arguments with spaces. Use `"` or `'` around an argument that
+  has spaces, for example `--profile "Work Profile"`. A `\` before a `"`,
+  `'`, `\` or space gives that character.
+- macOS gives the arguments to an application only when it starts the
+  application. If the application already runs, it does not get them.
+- Arguments work only with an application. If you give arguments for a file
+  or a folder, the window shows a message and OpenCraft opens nothing.
+- Old profiles load with no change. They have no arguments.
 
 ## Open a URL
 

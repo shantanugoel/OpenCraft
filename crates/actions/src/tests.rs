@@ -17,6 +17,7 @@ mod audio;
 mod flow;
 mod mac_function;
 mod mouse;
+mod open;
 
 struct Rig {
     system: Arc<Fake>,
@@ -145,7 +146,7 @@ fn each_text_kind_does_its_work() {
             "open-application",
             "application",
             "/Applications/Test.app",
-            Call::Application("/Applications/Test.app".into()),
+            Call::Application("/Applications/Test.app".into(), vec![]),
         ),
         (
             "open-url",
@@ -225,7 +226,7 @@ fn missing_empty_and_wrong_type_text_settings_are_problems_without_work() {
         (
             "open-application",
             "application",
-            "Open an application: type a value in the field \"Application\".",
+            "Open an application: type a value in the field \"Application, file, or folder\".",
         ),
         (
             "open-url",
@@ -277,7 +278,12 @@ fn incorrect_choices_hotkeys_and_blank_open_or_command_settings_do_no_work() {
         ("media-key", "key", "stop", "Key"),
         ("hotkey", "hotkey", "cmd+unknown", "Hotkey"),
         ("hotkey", "hotkey", "cmd+bad", "Hotkey"),
-        ("open-application", "application", "  ", "Application"),
+        (
+            "open-application",
+            "application",
+            "  ",
+            "Application, file, or folder",
+        ),
         ("open-url", "url", "\n", "URL"),
         ("shell-command", "command", " \n ", "Command"),
     ] {
@@ -773,7 +779,7 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
             "Open an application",
             "application",
             InputType::Path {
-                kind: PathKind::Application,
+                kind: PathKind::File,
             },
         ),
         ("open-url", "Open a URL", "url", InputType::Text),
@@ -793,7 +799,11 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         assert_eq!(description.name, name);
         assert_eq!(
             description.fields.len(),
-            if kind == "type-text" { 3 } else { 1 }
+            match kind {
+                "type-text" => 3,
+                "open-application" => 2,
+                _ => 1,
+            }
         );
         assert_eq!(description.fields[0].key, key);
         assert!(!description.fields[0].label.is_empty());

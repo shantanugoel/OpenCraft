@@ -779,9 +779,10 @@ impl DeviceView {
             return;
         };
         // This toolkit has no initial-directory option. Application bundles are files.
+        // A folder is also a valid target of a path field ("Open an application").
         let paths = cx.prompt_for_paths(PathPromptOptions {
             files: true,
-            directories: false,
+            directories: true,
             multiple: false,
             prompt: Some("Choose".into()),
         });

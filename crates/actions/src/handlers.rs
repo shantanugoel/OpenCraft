@@ -124,12 +124,37 @@ struct OpenHandler {
 }
 
 impl OpenHandler {
+    /// An application, a file, or a folder, with the arguments of the action.
+    fn open_target(&self, action: &Action) -> Result<()> {
+        let target = nonblank(action, "application")?;
+        let arguments = match action.settings.get("arguments") {
+            None => Vec::new(),
+            Some(Value::Text(text)) => crate::open::split_arguments(text).ok_or_else(|| {
+                let name = description(&action.kind).name;
+                format!("{name}: close each quote in the field \"Arguments\".")
+            })?,
+            Some(_) => return Err(setting_problem(&action.kind, "arguments")),
+        };
+        if crate::open::is_application(target) {
+            self.system
+                .open_application(target.trim(), &arguments)
+                .map_err(|e| format!("Cannot open the application: {e}."))
+        } else if arguments.is_empty() {
+            self.system
+                .open_file(target.trim())
+                .map_err(|e| format!("Cannot open the file or folder: {e}."))
+        } else {
+            let name = description(&action.kind).name;
+            Err(format!(
+                "{name}: arguments work only with an application. \
+                 Clear the field \"Arguments\", or select an application."
+            ))
+        }
+    }
+
     fn invoke(&self, action: Action) -> Result<()> {
         match action.kind.as_str() {
-            APPLICATION => self
-                .system
-                .open_application(nonblank(&action, "application")?)
-                .map_err(|e| format!("Cannot open the application: {e}.")),
+            APPLICATION => self.open_target(&action),
             URL => self
                 .system
                 .open_url(nonblank(&action, "url")?)
