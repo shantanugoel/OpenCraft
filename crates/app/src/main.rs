@@ -13,6 +13,7 @@
 //! start at login (decision 0021).
 
 mod app_menu;
+mod diagnostics;
 mod first_start;
 mod images;
 #[cfg(unix)]

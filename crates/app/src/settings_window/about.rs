@@ -67,6 +67,10 @@ impl SettingsView {
             } else {
                 button_if("licence-notices", "Licence notices", false).into_any_element()
             })
+            .child(
+                button("copy-diagnostics", "Copy diagnostics")
+                    .on_click(self.on_click(ShellCommand::CopyDiagnostics)),
+            )
             .when(!notices, |d| {
                 d.child(
                     div()
