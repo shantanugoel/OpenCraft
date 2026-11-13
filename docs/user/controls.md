@@ -27,6 +27,7 @@ Knob 1 is below bar panel 1.
 | A thin blue outline | The control below the pointer |
 | A dashed blue outline on a bar panel | The bar panel that gives feedback for the selected knob. The line below the device tells which knob. |
 | A dashed border and a plus (+) on a key face | The key has no label, no colour, no image, and no action |
+| A dashed blue border and "Drop here" | The control below the pointer during a drag from the library. See [Drag an action onto a control](actions.md#drag-an-action-onto-a-control). |
 | The ring of a knob | The colour of the knob light, when the knob lights are set to **Colours**. Else the ring is grey. |
 | A yellow glow | The control that you operate on the device now. A yellow dot shows where you touch the touch bar. |
 | "◀ Touch bar ▶" | The control for the swipe gestures, between the keys and the bar panels. It is blue when the page is selected. |

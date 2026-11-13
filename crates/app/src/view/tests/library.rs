@@ -294,3 +294,285 @@ fn the_kind_menu_of_a_card_has_a_title_for_each_group(cx: &mut TestAppContext) {
         Some("test.text".into())
     );
 }
+
+// MARK: Drag and drop (decision 0029, section 12)
+
+/// Press on the library row `from` and move the pointer to `to` in eight
+/// steps, with the left button down. The drag is then active.
+fn drag_over(
+    cx: &mut VisualTestContext,
+    from: &'static str,
+    to: gpui_kit::Point<gpui_kit::Pixels>,
+) {
+    let start = cx
+        .debug_bounds(from)
+        .unwrap_or_else(|| panic!("No element: {from}"))
+        .center();
+    cx.simulate_mouse_move(start, None, Modifiers::default());
+    cx.simulate_mouse_down(start, gpui_kit::MouseButton::Left, Modifiers::default());
+    for step in 1..=8 {
+        let f = step as f32 / 8.;
+        cx.simulate_mouse_move(
+            gpui_kit::point(
+                start.x + (to.x - start.x) * f,
+                start.y + (to.y - start.y) * f,
+            ),
+            Some(gpui_kit::MouseButton::Left),
+            Modifiers::default(),
+        );
+    }
+    cx.run_until_parked();
+}
+
+/// Release the left button at `to`: the drop.
+fn release(cx: &mut VisualTestContext, to: gpui_kit::Point<gpui_kit::Pixels>) {
+    cx.simulate_mouse_up(to, gpui_kit::MouseButton::Left, Modifiers::default());
+    cx.run_until_parked();
+}
+
+/// A full drag from the library row `from` to the centre of `to`.
+fn drag_to(cx: &mut VisualTestContext, from: &'static str, to: &'static str) {
+    let end = cx
+        .debug_bounds(to)
+        .unwrap_or_else(|| panic!("No element: {to}"))
+        .center();
+    drag_over(cx, from, end);
+    release(cx, end);
+}
+
+/// The name and the commands of the last command, a group.
+fn last_group(sent: &Commands) -> (String, Vec<Command>) {
+    match sent.borrow().last().cloned() {
+        Some(Command::Group { name, commands }) => (name, commands),
+        other => panic!("expected a group, got {other:?}"),
+    }
+}
+
+fn default_action(kind: &str) -> Action {
+    Action {
+        kind: kind.into(),
+        settings: Settings::from([("step".into(), Value::Integer(5))]),
+    }
+}
+
+#[gpui_kit::test]
+fn a_drag_shows_the_drop_target_and_the_row_in_the_drag(cx: &mut TestAppContext) {
+    let (view, cx, _, sent) = library(cx);
+    assert!(!shows(cx, "drop-key face 2"));
+    let key = cx.debug_bounds("surface-key face 2").unwrap().center();
+    drag_over(cx, "library-1", key);
+    assert!(cx.update(|_, cx| cx.has_active_drag()));
+    cx.update(|_, cx| {
+        let view = view.read(cx);
+        assert!(view.kind_drag(cx));
+        assert_eq!(view.library.dragging.as_deref(), Some("test.media"));
+    });
+    // Each control has a drop target, which shows only under the pointer.
+    for id in ["drop-key face 2", "drop-bar panel 3", "drop-knob 2"] {
+        assert!(shows(cx, id), "{id} does not show");
+    }
+    assert!(sent.borrow().is_empty(), "a drag sends nothing");
+    release(cx, key);
+    assert!(!cx.update(|_, cx| cx.has_active_drag()));
+    cx.update(|_, cx| {
+        let view = view.read(cx);
+        assert!(!view.kind_drag(cx));
+        assert_eq!(view.library.dragging, None);
+    });
+    assert!(!shows(cx, "drop-key face 2"));
+}
+
+#[gpui_kit::test]
+fn a_drop_on_a_key_sets_press_as_one_step_and_selects_the_key(cx: &mut TestAppContext) {
+    let (view, cx, _, sent) = library(cx);
+    // The bar panel is the selection before the drop.
+    click(cx, "surface-bar panel 3");
+    drag_to(cx, "library-1", "surface-key face 2");
+    let press = BindingId {
+        page: 0,
+        control: ControlId::new(ControlKind::Key, 2),
+        gesture: GestureKind::Press,
+    };
+    let (name, commands) = last_group(&sent);
+    assert_eq!(name, "Drop Action");
+    assert_eq!(
+        commands,
+        [Command::SetBinding {
+            binding: press,
+            action: Some(default_action("test.media")),
+        }]
+    );
+    assert_eq!(
+        message(&view, cx).as_deref(),
+        Some("Key 2 gets “Media key” for Press")
+    );
+    cx.update(|_, cx| {
+        let view = view.read(cx);
+        assert_eq!(view.state.selected, Some(crate::state::tests::key()));
+        assert_eq!(view.state.gesture, Some(GestureKind::Press));
+        // The right panel stays on its tab.
+        assert_eq!(
+            view.panes.right_panel_tab,
+            crate::settings::RightPanelTab::Library
+        );
+    });
+}
+
+#[gpui_kit::test]
+fn a_drop_replaces_the_action_of_the_first_gesture(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = library(cx);
+    let key = ControlId::new(ControlKind::Key, 2);
+    let binding = |gesture| BindingId {
+        page: 0,
+        control: key,
+        gesture,
+    };
+    for gesture in [GestureKind::Press, GestureKind::Release] {
+        send(
+            cx,
+            &tx,
+            Event::Binding(BindingState {
+                binding: binding(gesture),
+                action: Some(default_action("test.open")),
+                available: true,
+            }),
+        );
+    }
+    // The card "Release" is open: a click would use it, a drop does not.
+    click(cx, "surface-key face 2");
+    view.update(cx, |view, _| {
+        view.state.open_card(Some(GestureKind::Release))
+    });
+    drag_to(cx, "library-3", "surface-key face 2");
+    let (name, commands) = last_group(&sent);
+    assert_eq!(name, "Drop Action");
+    assert_eq!(
+        commands,
+        [Command::SetBinding {
+            binding: binding(GestureKind::Press),
+            action: Some(default_action("test.toggle")),
+        }]
+    );
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.gesture, Some(GestureKind::Press)));
+    assert_eq!(
+        message(&view, cx).as_deref(),
+        Some("Key 2 gets “Toggle” for Press")
+    );
+}
+
+#[gpui_kit::test]
+fn a_drop_on_a_bar_panel_sets_tap(cx: &mut TestAppContext) {
+    let (view, cx, _, sent) = library(cx);
+    drag_to(cx, "library-0", "surface-bar panel 3");
+    let (name, commands) = last_group(&sent);
+    assert_eq!(name, "Drop Action");
+    assert_eq!(
+        commands,
+        [Command::SetBinding {
+            binding: BindingId {
+                page: 0,
+                control: ControlId::new(ControlKind::BarPanel, 2),
+                gesture: GestureKind::Tap,
+            },
+            action: Some(default_action("test.open")),
+        }]
+    );
+    assert_eq!(
+        message(&view, cx).as_deref(),
+        Some("Bar panel 2 gets “Open an application” for Tap")
+    );
+    cx.update(|_, cx| {
+        let view = view.read(cx);
+        assert_eq!(view.state.selected, Some(crate::state::tests::bar()));
+        assert_eq!(view.state.gesture, Some(GestureKind::Tap));
+    });
+}
+
+#[gpui_kit::test]
+fn a_drop_on_a_knob_sets_turn_as_one_step(cx: &mut TestAppContext) {
+    let (view, cx, _, sent) = library(cx);
+    let knob = ControlId::new(ControlKind::Knob, 2);
+    // The card "Push" is open: the drop uses "Turn" all the same.
+    click(cx, "control-knob 2");
+    view.update(cx, |view, _| view.state.open_card(Some(GestureKind::Push)));
+    drag_to(cx, "library-2", "control-knob 2");
+    let (name, commands) = last_group(&sent);
+    assert_eq!(name, "Drop Action");
+    let turn = |gesture| BindingId {
+        page: 0,
+        control: knob,
+        gesture,
+    };
+    // The same commands as a click with no open card: the two turn
+    // bindings, "Turn right" first.
+    assert!(
+        matches!(
+            commands.as_slice(),
+            [
+                Command::SetBinding { binding: right, action: Some(r) },
+                Command::SetBinding { binding: left, action: Some(l) },
+            ] if *right == turn(GestureKind::TurnRight)
+                && *left == turn(GestureKind::TurnLeft)
+                && r.kind == "test.text"
+                && l.kind == "test.text"
+        ),
+        "{commands:?}"
+    );
+    assert_eq!(
+        message(&view, cx).as_deref(),
+        Some("Knob 2 gets “Type text” for Turn")
+    );
+    cx.update(|_, cx| {
+        let view = view.read(cx);
+        assert_eq!(view.state.selected_control, Some(knob));
+        assert_eq!(view.state.gesture, Some(GestureKind::TurnRight));
+    });
+}
+
+#[gpui_kit::test]
+fn a_drop_outside_a_control_does_nothing(cx: &mut TestAppContext) {
+    let (view, cx, _, sent) = library(cx);
+    click(cx, "surface-key face 2");
+    // Outside the device, on the empty part of the display, and on the
+    // body of the device.
+    let display = cx.debug_bounds("display").unwrap();
+    let body = cx.debug_bounds("device-body").unwrap();
+    let header = cx.debug_bounds("page-header").unwrap().center();
+    for point in [
+        header,
+        display.origin + gpui_kit::point(px(4.), px(4.)),
+        body.origin + gpui_kit::point(px(6.), body.size.height - px(6.)),
+    ] {
+        drag_over(cx, "library-1", point);
+        assert!(cx.update(|_, cx| view.read(cx).kind_drag(cx)));
+        release(cx, point);
+        cx.update(|_, cx| assert_eq!(view.read(cx).library.dragging, None));
+    }
+    assert!(sent.borrow().is_empty(), "{:?}", sent.borrow());
+    assert_eq!(message(&view, cx), None);
+    cx.update(|_, cx| {
+        let view = view.read(cx);
+        assert_eq!(view.state.selected, Some(crate::state::tests::key()));
+        assert!(!view.device.open);
+    });
+}
+
+#[gpui_kit::test]
+fn a_short_move_is_a_click_and_not_a_drag(cx: &mut TestAppContext) {
+    let (view, cx, _, sent) = library(cx);
+    click(cx, "surface-key face 2");
+    let start = cx.debug_bounds("library-1").unwrap().center();
+    cx.simulate_mouse_move(start, None, Modifiers::default());
+    cx.simulate_mouse_down(start, gpui_kit::MouseButton::Left, Modifiers::default());
+    let end = start + gpui_kit::point(px(2.), px(0.));
+    cx.simulate_mouse_move(end, Some(gpui_kit::MouseButton::Left), Modifiers::default());
+    assert!(!cx.update(|_, cx| cx.has_active_drag()));
+    release(cx, end);
+    // A click is a step "Set Action" of the engine, not a group.
+    assert_eq!(
+        last_set(&sent).map(|(_, a)| a),
+        Some(Some(default_action("test.media")))
+    );
+    assert!(!matches!(sent.borrow().last(), Some(Command::Group { .. })));
+    cx.update(|_, cx| assert_eq!(view.read(cx).library.dragging, None));
+}

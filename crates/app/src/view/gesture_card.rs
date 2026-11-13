@@ -96,7 +96,7 @@ impl KindLabel {
         &self.name
     }
 
-    /// The tile of the kind: 18 × 18, 20 × 20, or 24 × 24.
+    /// The tile of the kind: 18 × 18, 20 × 20, 24 × 24, or 22 × 22.
     pub(super) fn tile(&self, size: TileSize) -> Div {
         let (size, radius, text) = match size {
             TileSize::Nested => (
@@ -128,6 +128,31 @@ impl KindLabel {
             .font_weight(FontWeight::BOLD)
             .text_color(theme::SWITCH_KNOB_COLOUR)
             .child(self.letter.clone())
+    }
+
+    /// The chip of the drag picture (decision 0029, section 12): the tile
+    /// and the name. The drag of a library row and of a step use it. The
+    /// caller puts it at its place from the pointer.
+    pub(super) fn drag_chip(&self) -> Div {
+        div()
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_8)
+            .pl(theme::SPACE_8)
+            .pr(theme::SPACE_12)
+            .py(theme::DRAG_PICTURE_PADDING_Y)
+            .rounded(theme::RADIUS_CARD)
+            .bg(theme::BG_FIELD)
+            .border_1()
+            .border_color(theme::BG_SEGMENT_ON)
+            .shadow(theme::drag_shadow())
+            .text_size(theme::TEXT_CONTROL)
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(theme::TEXT_PRIMARY)
+            // GPUI gives the drag picture its smallest size.
+            .whitespace_nowrap()
+            .child(self.tile(TileSize::Drag))
+            .child(self.name.clone())
     }
 
     /// The tile and the name, as in the popup and in the kind menu.
