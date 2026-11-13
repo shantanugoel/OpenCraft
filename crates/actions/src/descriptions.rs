@@ -300,7 +300,9 @@ pub(crate) fn description(kind: &str) -> KindDescription {
                 },
             );
             page.default = Some(Value::Integer(1));
-            ("Change the page", vec![target, page])
+            // Off in an old profile: the key keeps its own title.
+            let show = field("show_number", "Show the page number", InputType::Toggle);
+            ("Change the page", vec![target, page, show])
         }
         PROFILE => (
             "Select a profile",

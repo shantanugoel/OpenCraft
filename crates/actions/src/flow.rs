@@ -72,11 +72,32 @@ impl Handler for NavigationHandler {
         self.sender = Some(sender);
     }
     fn handle(&mut self, request: Request) {
-        if let Request::Invoke { action, .. } = request {
-            let result = self
-                .request(&action)
-                .map(|request| send(&self.sender, Message::Engine(request)));
-            problem(&self.sender, result);
+        match request {
+            Request::Invoke { action, .. } => {
+                let result = self
+                    .request(&action)
+                    .map(|request| send(&self.sender, Message::Engine(request)));
+                problem(&self.sender, result);
+            }
+            // The page number is a feedback label (decision 0013). The
+            // engine sends Appear again after each change of the page or of
+            // the binding, and removes the old feedback at each change.
+            Request::Appear { binding, action }
+                if action.kind == PAGE
+                    && action.settings.get("show_number") == Some(&Value::Boolean(true)) =>
+            {
+                send(
+                    &self.sender,
+                    Message::Feedback {
+                        binding,
+                        feedback: Some(Feedback {
+                            label: Some((binding.page + 1).to_string()),
+                            ..Feedback::default()
+                        }),
+                    },
+                );
+            }
+            _ => {}
         }
     }
 }

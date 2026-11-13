@@ -523,6 +523,40 @@ fn the_page_kind_changes_the_page_through_the_engine() {
 }
 
 #[test]
+fn a_page_key_shows_its_page_number_only_when_the_setting_is_on() {
+    let mut world = World::new();
+    let key = |show: Option<bool>| {
+        built_in(
+            "page",
+            show.map(|on| ("show_number", Value::Boolean(on)))
+                .into_iter()
+                .collect(),
+        )
+    };
+    // No setting, as in an old profile: the key face is the same on each page.
+    world.bind_key_3(key(None));
+    let plain = world.key_3_image();
+    world.command(Command::AddPage { copy_of: Some(0) });
+    assert_eq!(world.engine.active_page(), 1);
+    assert_eq!(*world.key_3_image(), *plain);
+    // On: each page shows its own number, and the number comes back after a
+    // change of the page.
+    world.bind_key_3(key(Some(true)));
+    let two = world.key_3_image();
+    assert_ne!(*two, *plain);
+    world.command(Command::SelectPage { page: 0 });
+    world.bind_key_3(key(Some(true)));
+    let one = world.key_3_image();
+    assert_ne!(*one, *plain);
+    assert_ne!(*one, *two);
+    world.command(Command::SelectPage { page: 1 });
+    assert_eq!(*world.key_3_image(), *two);
+    // Off: the number goes away.
+    world.bind_key_3(key(Some(false)));
+    assert_eq!(*world.key_3_image(), *plain);
+}
+
+#[test]
 fn the_profile_kind_selects_a_profile_through_the_engine() {
     let mut world = World::new();
     world.command(Command::AddProfile {

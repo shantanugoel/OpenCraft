@@ -91,6 +91,67 @@ fn a_page_change_asks_the_engine_with_the_page_number_from_zero() {
     assert!(rig.system.calls().is_empty());
 }
 
+fn page_binding(page: usize) -> BindingId {
+    BindingId { page, ..binding(1) }
+}
+
+#[test]
+fn a_page_key_sends_its_page_number_from_one_as_a_label_only_when_the_setting_is_on() {
+    let mut rig = Rig::new("page", true);
+    for page in [0, 1, 99] {
+        rig.handler.handle(Request::Appear {
+            binding: page_binding(page),
+            action: action("page", &[("show_number", Value::Boolean(true))]),
+        });
+        assert_eq!(
+            rig.recv(),
+            Message::Feedback {
+                binding: page_binding(page),
+                feedback: Some(Feedback {
+                    label: Some((page + 1).to_string()),
+                    ..Feedback::default()
+                }),
+            }
+        );
+    }
+    // An old profile has no setting. Off, and a value of a wrong type, send nothing.
+    for settings in [
+        vec![],
+        vec![("show_number", Value::Boolean(false))],
+        vec![("show_number", Value::Text("yes".into()))],
+    ] {
+        rig.handler.handle(Request::Appear {
+            binding: page_binding(2),
+            action: action("page", &settings),
+        });
+    }
+    rig.handler.handle(Request::Disappear {
+        binding: page_binding(2),
+    });
+    // A profile selection gets no label, and the page change still works.
+    rig.handler.handle(Request::Appear {
+        binding: page_binding(2),
+        action: action("profile", &[("show_number", Value::Boolean(true))]),
+    });
+    rig.none();
+    rig.invoke(action("page", &[("show_number", Value::Boolean(true))]));
+    assert_eq!(
+        rig.recv(),
+        engine(EngineRequest::SelectPage(PageTarget::Next))
+    );
+    rig.none();
+}
+
+#[test]
+fn the_page_form_has_a_switch_for_the_page_number_that_is_off_by_default() {
+    let description = crate::descriptions::description(crate::descriptions::PAGE);
+    assert_eq!(description.group, "Navigation");
+    let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
+    assert_eq!(keys, ["target", "page", "show_number"]);
+    assert_eq!(description.fields[2].input, InputType::Toggle);
+    assert_eq!(description.fields[2].default, None);
+}
+
 #[test]
 fn incorrect_page_settings_are_problems_without_a_request() {
     let mut rig = Rig::new("page", true);
