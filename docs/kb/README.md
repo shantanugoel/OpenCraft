@@ -38,6 +38,7 @@ measurement. The other documents link to these facts and do not repeat them.
 | [macos-distribution.md](macos-distribution.md) | The release bundle: signature, hardened runtime, disk image, notarization, and the lowest macOS version |
 | [homebrew.md](homebrew.md) | Homebrew: the rules for a cask, taps, the cask stanzas, and the files that OpenCraft makes |
 | [hidapi-macos.md](hidapi-macos.md) | What `hidapi` on macOS does at a disconnection, and after an error |
+| [process-lock.md](process-lock.md) | The `flock` lock of the application, child processes, and the failure of the lock test |
 | [sleep-and-wake.md](sleep-and-wake.md) | What the clocks of a process do when the computer sleeps |
 
 ## Template

@@ -77,9 +77,34 @@ fn process_name(pid: libc::pid_t) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard, PoisonError};
+
+    /// The tests of the lock take this lock one at a time (issue 223).
+    ///
+    /// A process that one thread starts holds a copy of each open file of
+    /// the whole process, until it runs `exec` (the files have `O_CLOEXEC`,
+    /// so `exec` closes them). A lock from `flock` belongs to the open file,
+    /// not to the file descriptor, thus it stays until the last copy
+    /// closes. A test that starts a process then made the `acquire` of a
+    /// test that runs at the same time fail, after the first lock closed.
+    /// `std::process::Command` with a name (no path) makes this worse:
+    /// macOS tries each directory of `PATH`, and a failed try seems to leave
+    /// a short child process that holds the copies until the system removes
+    /// it. In a loop, a start with the name `sleep` made 58 of 1000 second
+    /// locks fail, and a start with the full path made none. Thus the tests
+    /// start a process with the full path of the program.
+    static PROCESS_FILES: Mutex<()> = Mutex::new(());
+
+    /// The program that a test starts, with its full path.
+    const SLEEP: &str = "/bin/sleep";
+
+    fn one_at_a_time() -> MutexGuard<'static, ()> {
+        PROCESS_FILES.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 
     #[test]
     fn a_second_lock_fails_until_the_first_file_closes() {
+        let _one = one_at_a_time();
         let dir = tempfile::tempdir().unwrap();
         let config = dir.path().join("OpenCraft");
         let first = acquire(&config).unwrap();
@@ -94,6 +119,7 @@ mod tests {
 
     #[test]
     fn the_lock_file_holds_the_number_of_the_process() {
+        let _one = one_at_a_time();
         let dir = tempfile::tempdir().unwrap();
         // A longer number from an earlier start must not stay in the file.
         std::fs::write(dir.path().join(FILE_NAME), "999999999999\n").unwrap();
@@ -106,6 +132,7 @@ mod tests {
 
     #[test]
     fn only_a_different_opencraft_process_is_a_holder() {
+        let _one = one_at_a_time();
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join(FILE_NAME);
         assert_eq!(holder(dir.path()), None);
@@ -117,16 +144,29 @@ mod tests {
         // "opencraft".
         std::fs::write(&file, format!("{}\n", std::process::id())).unwrap();
         assert_eq!(holder(dir.path()), None);
-        let mut child = std::process::Command::new("sleep")
-            .arg("5")
-            .spawn()
-            .unwrap();
+        let mut child = std::process::Command::new(SLEEP).arg("5").spawn().unwrap();
         std::fs::write(&file, format!("{}\n", child.id())).unwrap();
         assert_eq!(
             process_name(child.id() as libc::pid_t).as_deref(),
             Some("sleep")
         );
         assert_eq!(holder(dir.path()), None);
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    #[test]
+    fn a_running_child_process_does_not_keep_the_lock() {
+        let _one = one_at_a_time();
+        let dir = tempfile::tempdir().unwrap();
+        let first = acquire(dir.path()).unwrap();
+        assert!(first.is_some());
+        // The shell command action starts such a process. It must not keep
+        // the lock after OpenCraft stops. `spawn` returns after `exec`, thus
+        // the child has closed the copy of the lock file.
+        let mut child = std::process::Command::new(SLEEP).arg("5").spawn().unwrap();
+        drop(first);
+        assert!(acquire(dir.path()).unwrap().is_some());
         let _ = child.kill();
         let _ = child.wait();
     }
