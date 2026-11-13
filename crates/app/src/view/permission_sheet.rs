@@ -223,7 +223,7 @@ impl DeviceView {
                                     .id("permission-text")
                                     .debug_selector(|| "permission-text".into())
                                     .text_color(theme::TEXT_SECONDARY)
-                                    .line_height(relative(theme::NOTE_TEXT_LINE_HEIGHT))
+                                    .line_height(relative(theme::LINE_HEIGHT_TEXT))
                                     .child(request_text(&kind)),
                             ),
                     ),

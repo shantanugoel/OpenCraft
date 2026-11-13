@@ -201,7 +201,7 @@ impl DeviceView {
     /// ⌘V when a paste is not possible: tell the user why in the status bar.
     fn paste_not_possible(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let text = match (self.clipboard_control(), self.state.clipboard) {
-            (None, _) => "Select a key, a bar panel, or a knob first".to_string(),
+            (None, _) => super::library::SELECT_FIRST.to_string(),
             (Some(_), None) => "Copy a control first".to_string(),
             (Some(_), Some(kind)) => {
                 format!("You can paste a {0} only on a {0}", kind.name())

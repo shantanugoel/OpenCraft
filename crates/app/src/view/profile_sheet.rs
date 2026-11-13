@@ -2,7 +2,7 @@
 //! colour, and the first page of one profile, the export and the import of
 //! a profile file, and the removal of the profile.
 //!
-//! "Profile settings…" in the right-click menu of a profile row opens the
+//! "Profile Settings…" in the right-click menu of a profile row opens the
 //! sheet, also for a profile that is not active. Each change goes to the
 //! engine at once, as in the inspector. The name goes to the engine when the
 //! field loses the focus, and when the sheet closes. "Done", Return, and
@@ -20,7 +20,7 @@ use super::{
     *,
 };
 use gpui_kit::component::input::AnyInputState;
-use gpui_kit::{assets::IconName, component::Icon, rgb, FontWeight};
+use gpui_kit::{assets::IconName, component::Icon, FontWeight};
 use opencraft_engine::share::EXTENSION;
 use std::path::PathBuf;
 
@@ -411,7 +411,7 @@ impl DeviceView {
                 let color = colour(value);
                 controls::colour_circle(
                     format!("profile-colour-{index}"),
-                    Some(rgb(value)),
+                    Some(theme::sample(value)),
                     entry.color == Some(color),
                     format!("Colour #{value:06X}"),
                 )

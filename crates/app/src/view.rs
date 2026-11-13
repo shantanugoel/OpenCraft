@@ -88,10 +88,7 @@ pub(crate) mod theme;
 mod toolbar;
 
 /// The fill colours of a surface. These are data: the profile keeps them.
-const COLOURS: [u32; 12] = [
-    0x20242b, 0x596273, 0xd7dee8, 0xb83f4c, 0xcc7135, 0xc4a53e, 0x3d875a, 0x298886, 0x356ab6,
-    0x6454ac, 0x9357a3, 0xb65c86,
-];
+use theme::FILL_COLOURS as COLOURS;
 
 fn colour(value: u32) -> Color {
     Color::rgb((value >> 16) as u8, (value >> 8) as u8, value as u8)
@@ -171,7 +168,7 @@ impl DeviceView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Label"));
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
         let subscription = cx.subscribe_in(&input, window, |view, input, event, _, cx| {
             view.text_edit_event(input.entity_id(), event, cx);
             if matches!(event, TextEvent::Change) {
@@ -362,7 +359,7 @@ impl DeviceView {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some("Select an image".into()),
+            prompt: Some("Choose".into()),
         });
         cx.spawn_in(window, async move |view, cx| {
             let result = paths.await;

@@ -1,17 +1,20 @@
-//! The visual constants of the window: section 3 of decision 0029.
+//! The visual constants of the window.
+//!
+//! Read `docs/DESIGN.md` before you change the window. It gives each token of
+//! this module and when to use it.
 //!
 //! This module is the one place for a colour, a text size, a spacing step, a
-//! corner radius, a pane width, and a control height. The window code uses
-//! these names and writes no number for them. Issue #209 adds the rest of
-//! section 3 here, and writes `docs/DESIGN.md` from this module.
+//! corner radius, a pane width, a control height, and a colour sample of the
+//! data. The window code uses these names and writes no number for them: the
+//! test `no_literal_colour_or_size_outside_the_theme` fails for a literal
+//! colour or `px(..)` size in other window code. A new value gets a name here,
+//! with a comment that says where it is used.
 //!
 //! The values are for the dark appearance. A light appearance is a second
 //! set of values for the same names (decision 0029, section 21).
 
-// The tasks of #173 use the names that the window does not use yet.
-#![allow(dead_code)]
-
 use gpui_kit::{point, px, BoxShadow, Pixels, Rgba};
+use opencraft_engine::Color;
 
 /// A colour from its value `0xRRGGBB`, with full opacity.
 const fn hex(value: u32) -> Rgba {
@@ -26,6 +29,18 @@ const fn hex_alpha(value: u32, alpha: f32) -> Rgba {
         b: (value & 0xff) as f32 / 255.,
         a: alpha,
     }
+}
+
+/// A colour of the engine (a fill, a knob light, a profile colour) as a
+/// colour of the window. All window code uses this one conversion.
+pub fn colour(colour: Color) -> Rgba {
+    let [r, g, b] = colour.0;
+    hex(u32::from_be_bytes([0, r, g, b]))
+}
+
+/// A colour sample of the data (`0xRRGGBB`) as a colour of the window.
+pub const fn sample(value: u32) -> Rgba {
+    hex(value)
 }
 
 // MARK: Colours (section 3.2)
@@ -221,6 +236,24 @@ pub fn popover_shadow() -> Vec<BoxShadow> {
         inset: false,
     }]
 }
+
+// MARK: Colour samples that are data
+//
+// The profile keeps the colour that the user selects. Do not change a stored
+// value: a profile with the old value then shows no selected sample.
+
+/// The fill colours of a surface (section 10.2) and of a page background.
+pub const FILL_COLOURS: [u32; 12] = [
+    0x20242b, 0x596273, 0xd7dee8, 0xb83f4c, 0xcc7135, 0xc4a53e, 0x3d875a, 0x298886, 0x356ab6,
+    0x6454ac, 0x9357a3, 0xb65c86,
+];
+/// The text colours of the popover of the title colour, before the fill
+/// colours: white and black.
+pub const TITLE_COLOURS: [u32; 2] = [0xffffff, 0x000000];
+/// The colours of a knob light. A knob light shows a pure colour best.
+pub const KNOB_COLOURS: [u32; 9] = [
+    0xffffff, 0xff0000, 0xff8000, 0xffff00, 0x00ff00, 0x00ffff, 0x0000ff, 0xff00ff, 0x000000,
+];
 
 // MARK: Text sizes (section 3.1)
 
@@ -446,8 +479,10 @@ pub const KNOB_LIGHT_RING: Pixels = px(26.);
 pub const KNOB_LIGHT_RING_WIDTH: Pixels = px(4.);
 /// The popover of a knob light: nine samples in one row, and a field.
 pub const WIDTH_KNOB_POPOVER: Pixels = px(250.);
-/// The line height of the note at the bottom of the device inspector.
-pub const NOTE_LINE_HEIGHT: f32 = 1.45;
+/// The line height of a text of more than one line (section 3.1): a note, a
+/// help text that wraps, the box about the permission, the description of a
+/// starter profile card, and the text of a sheet.
+pub const LINE_HEIGHT_TEXT: f32 = 1.45;
 /// The widest title block in the toolbar. A longer page name ends with "…".
 pub const TOOLBAR_TITLE_MAX: Pixels = px(220.);
 /// The height of the page header at the top of the canvas (section 8.1).
@@ -525,6 +560,10 @@ pub const WINDOW_SIZE: (f32, f32) = (1440., 900.);
 /// widths, with the canvas at its minimum width.
 pub const WINDOW_MIN: (f32, f32) = (1080., 700.);
 
+/// The highest height of the messages above the status bar (section 6.2).
+/// More messages scroll.
+pub const MESSAGES_HEIGHT: f32 = 120.;
+
 /// The device drawing uses a scale between these values (section 8.2).
 pub const DEVICE_SCALE_MIN: f32 = 0.5;
 pub const DEVICE_SCALE_MAX: f32 = 1.0;
@@ -575,6 +614,8 @@ pub const DEVICE_TOUCH_BAR_RADIUS: Pixels = px(11.);
 pub const DEVICE_TOUCH_POINT: f32 = 12.;
 /// The width of the outline of a selected control.
 pub const OUTLINE_WIDTH: f32 = 2.;
+/// The width of the outline of a control under the pointer.
+pub const HOVER_OUTLINE_WIDTH: f32 = 1.;
 /// The space between a control and its outline: for a key face, a bar
 /// panel, and a hover outline.
 pub const OUTLINE_GAP: f32 = 3.;
@@ -679,8 +720,11 @@ pub const PROFILE_COLOURS: [u32; 6] = [0x3b82f6, 0x14b8a6, 0x22c55e, 0xf59e0b, 0
 pub const PALETTE_WIDTH: Pixels = px(680.);
 pub const PALETTE_HEIGHT: Pixels = px(460.);
 pub const PALETTE_TOP: Pixels = px(120.);
+/// The width of a border of 1 (`border_1`). A field inside a frame with a
+/// border is two of these less high than the frame.
+pub const BORDER: Pixels = px(1.);
 /// The width of the border of the palette, of a sheet, and of a popover.
-pub const BORDER_OVERLAY_WIDTH: Pixels = px(1.);
+pub const BORDER_OVERLAY_WIDTH: Pixels = BORDER;
 /// The search row at the top of the palette, and the text field in it.
 pub const HEIGHT_PALETTE_SEARCH: Pixels = px(56.);
 pub const HEIGHT_PALETTE_FIELD: Pixels = px(36.);
@@ -718,10 +762,13 @@ pub fn sheet_shadow() -> Vec<BoxShadow> {
 
 // MARK: The icon picker (section 14)
 
-/// The popover of the icon picker: its size, and the side of its arrow.
+/// The popover of the icon picker: its size.
 pub const ICON_PICKER_WIDTH: Pixels = px(360.);
 pub const ICON_PICKER_HEIGHT: Pixels = px(550.);
-pub const ICON_PICKER_ARROW: Pixels = px(16.);
+/// The arrow of the popover: a triangle of 22 × 11, the half of a square of
+/// 16 turned by 45°.
+pub const ICON_PICKER_ARROW_WIDTH: f32 = 22.;
+pub const ICON_PICKER_ARROW_HEIGHT: f32 = 11.;
 /// The smallest height of the popover in a low window. The grid then
 /// scrolls in less space.
 pub const ICON_PICKER_MIN_HEIGHT: Pixels = px(300.);
@@ -744,7 +791,7 @@ pub const RADIUS_CHIP: Pixels = px(12.);
 /// The accent at 25 %: the background of a selected chip.
 pub const ACCENT_TINT_CHIP: Rgba = hex_alpha(0x1a6fd8, 0.25);
 /// The button "Image file…" of the icon picker.
-pub const BG_IMAGE_BUTTON: Rgba = hex(0x34363c);
+pub const BG_IMAGE_BUTTON: Rgba = BG_CONTEXT_CHIP;
 /// The colours of an icon (section 14). These are data: the profile keeps
 /// the colour that the user selects. The second colour has a border, so
 /// that it shows on the popover.
@@ -810,6 +857,10 @@ pub const BADGE_CHECK: Pixels = px(28.);
 pub const BADGE_CHECK_BORDER: Pixels = px(3.);
 pub const ICON_BADGE_CHECK: Pixels = px(14.);
 pub const BADGE_CHECK_OUTSIDE: Pixels = px(-10.);
+/// The main button under the pointer, and pressed: the opacity of the
+/// accent fill.
+pub const MAIN_HOVER_OPACITY: f32 = 0.9;
+pub const MAIN_PRESSED_OPACITY: f32 = 0.8;
 /// The check badge of the first start.
 pub const SUCCESS_FILL: Rgba = hex(0x1e7a46);
 /// A starter profile card: its corner radius, and the background of the
@@ -819,15 +870,10 @@ pub const ACCENT_TINT_START: Rgba = hex_alpha(0x1a6fd8, 0.16);
 /// A cell of the key picture of a starter profile card, and its radius.
 pub const STARTER_CELL: Pixels = px(14.);
 pub const RADIUS_STARTER_CELL: Pixels = px(3.);
-/// The line height of the description of a card.
-pub const STARTER_LINE_HEIGHT: f32 = 1.4;
 /// The box about the Accessibility permission: its corner radius, and the
 /// shield icon.
 pub const RADIUS_NOTE_BOX: Pixels = px(9.);
 pub const ICON_NOTE: Pixels = px(16.);
-/// The line height of the text of the box, and of the Accessibility
-/// request.
-pub const NOTE_TEXT_LINE_HEIGHT: f32 = 1.45;
 /// The width of the Accessibility request sheet.
 pub const PERMISSION_SHEET_WIDTH: Pixels = px(480.);
 /// The shield icon of the Accessibility request, and its tile.
@@ -906,5 +952,115 @@ impl gpui_kit::AssetSource for WindowAssets {
 
     fn list(&self, path: &str) -> gpui_kit::Result<Vec<gpui_kit::SharedString>> {
         WindowIcons.list(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    /// The window code: the main window (`view`), the Settings window, and
+    /// the first start window, with no test code.
+    fn window_files() -> Vec<PathBuf> {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        let mut dirs = vec![
+            src.join("view"),
+            src.join("settings_window"),
+            src.join("first_start"),
+        ];
+        for name in ["view.rs", "settings_window.rs", "first_start.rs"] {
+            files.push(src.join(name));
+        }
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap() {
+                let path = entry.unwrap().path();
+                let name = path.file_name().unwrap().to_string_lossy().to_string();
+                if name == "tests" || name == "tests.rs" || name == "theme.rs" {
+                    continue;
+                }
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if name.ends_with(".rs") {
+                    files.push(path);
+                }
+            }
+        }
+        files
+    }
+
+    /// The literal colours and sizes in `code`: a colour function, a colour
+    /// value `0xRRGGBB`, or `px(..)` of a number other than 0.
+    fn literals(code: &str) -> Vec<String> {
+        let ident = |c: char| c.is_ascii_alphanumeric() || c == '_';
+        let mut found = Vec::new();
+        for (number, line) in code.lines().enumerate() {
+            let line = line.split("//").next().unwrap_or("");
+            for pattern in [
+                "rgb(",
+                "rgba(",
+                "hsla(",
+                "hex(",
+                "hex_alpha(",
+                "Rgba { r",
+                "px(",
+            ] {
+                for (at, _) in line.match_indices(pattern) {
+                    if line[..at].chars().next_back().is_some_and(ident) {
+                        continue;
+                    }
+                    // A function of a number: a literal value.
+                    let rest = line[at + pattern.len()..].trim_start_matches('-');
+                    let literal =
+                        rest.starts_with(|c: char| c.is_ascii_digit()) || pattern == "Rgba { r";
+                    let zero = rest.starts_with("0.)") || rest.starts_with("0.0)");
+                    if literal && !(pattern == "px(" && zero) {
+                        found.push(format!("{}: {}", number + 1, line.trim()));
+                    }
+                }
+            }
+            for (at, _) in line.match_indices("0x") {
+                let digits = line[at + 2..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_hexdigit())
+                    .count();
+                if digits == 6 && !line[..at].chars().next_back().is_some_and(ident) {
+                    found.push(format!("{}: {}", number + 1, line.trim()));
+                }
+            }
+        }
+        found
+    }
+
+    /// `docs/DESIGN.md`, "Tokens": a colour or a size of the window has one
+    /// name in this module. Window code outside it writes no literal colour
+    /// and no `px(..)` of a number.
+    #[test]
+    fn no_literal_colour_or_size_outside_the_theme() {
+        let mut found = Vec::new();
+        for path in window_files() {
+            let code = std::fs::read_to_string(&path).unwrap();
+            // The unit tests at the end of a file can use literal values.
+            let code = code.split("#[cfg(test)]").next().unwrap_or("");
+            for item in literals(code) {
+                found.push(format!("{}:{item}", path.display()));
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "Use a name of `view/theme.rs` (docs/DESIGN.md):\n{}",
+            found.join("\n")
+        );
+    }
+
+    #[test]
+    fn the_check_finds_literal_colours_and_sizes() {
+        assert_eq!(literals("d.bg(gpui_kit::rgb(0x112233))").len(), 2);
+        assert_eq!(literals(".w(px(12.))").len(), 1);
+        assert_eq!(literals(".top(px(-4.))").len(), 1);
+        assert!(literals(".w(px(0.)).bg(theme::ACCENT).h(px(theme::X))").is_empty());
+        assert!(literals("images::from_rgb(&image); theme::sample(value)").is_empty());
+        assert!(literals("Color::rgb(r, g, b); fn f() -> Rgba {").is_empty());
+        assert!(literals("// rgb(0x112233) in a comment").is_empty());
     }
 }

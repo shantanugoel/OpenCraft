@@ -65,15 +65,15 @@ fn the_recorder_shows_the_symbols_in_the_order_of_macos(cx: &mut TestAppContext)
     assert!(cx.debug_bounds("hotkey-0").is_some(), "the card is open");
     // The profile has the text of decision 0014. The recorder shows the
     // symbols: Control, Option, Shift, Command, and then the key.
-    assert!(show(cx, "⇧ ⌘ M"), "{:?}", shown(cx));
+    assert!(show(cx, "⇧⌘M"), "{:?}", shown(cx));
     assert!(!show(cx, "shift+cmd+m"));
     for (value, symbols) in [
-        ("cmd+c", "⌘ C"),
-        ("cmd+shift+alt+ctrl+return", "⌃ ⌥ ⇧ ⌘ ↩"),
-        ("alt+shift+space", "⌥ ⇧ Space"),
-        ("cmd+f12", "⌘ F12"),
-        ("ctrl+left", "⌃ ←"),
-        ("shift+cmd+minus", "⇧ ⌘ -"),
+        ("cmd+c", "⌘C"),
+        ("cmd+shift+alt+ctrl+return", "⌃⌥⇧⌘↩"),
+        ("alt+shift+space", "⌥⇧Space"),
+        ("cmd+f12", "⌘F12"),
+        ("ctrl+left", "⌃←"),
+        ("shift+cmd+minus", "⇧⌘-"),
         ("forwarddelete", "⌦"),
     ] {
         tx.try_send(event(value)).unwrap();
@@ -93,7 +93,7 @@ fn the_recorder_shows_the_symbols_in_the_order_of_macos(cx: &mut TestAppContext)
     // A click starts the record, and the key sets the value. The command
     // has the text form, and the recorder shows the symbols.
     click(cx, "hotkey-0");
-    assert!(show(cx, "Press a key…"));
+    assert!(show(cx, "Push a key…"));
     cx.simulate_keystrokes("shift-cmd-4");
     cx.run_until_parked();
     assert_eq!(
@@ -103,9 +103,9 @@ fn the_recorder_shows_the_symbols_in_the_order_of_macos(cx: &mut TestAppContext)
             action: Some(action("shift+cmd+4")),
         })
     );
-    assert!(show(cx, "⇧ ⌘ 4"), "{:?}", shown(cx));
-    assert!(!show(cx, "Press a key…"));
+    assert!(show(cx, "⇧⌘4"), "{:?}", shown(cx));
+    assert!(!show(cx, "Push a key…"));
     tx.try_send(event("shift+cmd+4")).unwrap();
     cx.run_until_parked();
-    assert!(show(cx, "⇧ ⌘ 4"));
+    assert!(show(cx, "⇧⌘4"));
 }

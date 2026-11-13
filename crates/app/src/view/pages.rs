@@ -89,7 +89,7 @@ pub(super) enum MenuItem {
     Duplicate,
     MoveUp,
     MoveDown,
-    /// "Profile settings…" on a profile row: the sheet of decision 0029,
+    /// "Profile Settings…" on a profile row: the sheet of decision 0029,
     /// section 16.
     ProfileSettings,
     Separator,
@@ -103,7 +103,7 @@ impl MenuItem {
             Self::Duplicate => "Duplicate",
             Self::MoveUp => "Move Up",
             Self::MoveDown => "Move Down",
-            Self::ProfileSettings => "Profile settings…",
+            Self::ProfileSettings => "Profile Settings…",
             Self::Separator => "",
             Self::Remove => "Remove…",
         }

@@ -27,10 +27,8 @@ const MAX_PERCENT: u8 = 100;
 /// The lowest value of the knob light brightness control, in percent.
 const LOWEST_KNOB_PERCENT: u8 = 1;
 
-/// The colours for a knob light. A knob light shows a pure colour best.
-pub(super) const KNOB_COLOURS: [u32; 9] = [
-    0xffffff, 0xff0000, 0xff8000, 0xffff00, 0x00ff00, 0x00ffff, 0x0000ff, 0xff00ff, 0x000000,
-];
+/// The colours for a knob light (data, in the theme).
+pub(super) use super::theme::KNOB_COLOURS;
 
 /// The controls of the inspector, and the throttle of the commands.
 pub(super) struct DevicePanel {

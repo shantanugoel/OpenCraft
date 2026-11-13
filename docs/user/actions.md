@@ -188,11 +188,11 @@ macOS opens the URL in the default application for that type of URL.
 | Hotkey | One key, with or without the modifier keys Control, Option, Shift, and Command |
 
 1. Click the field **Record hotkey…**. The field gets a blue frame and shows
-   "Press a key…".
+   "Push a key…".
 2. Push the key combination on the keyboard of the computer, for example
    Shift-Command-4.
 3. The field shows the hotkey with symbols, in the order of macOS, for
-   example "⇧ ⌘ 4". The order is Control (⌃), Option (⌥), Shift (⇧), and
+   example "⇧⌘4". The order is Control (⌃), Option (⌥), Shift (⇧), and
    Command (⌘), and then the key.
 
 To cancel the record, push Esc. To remove the hotkey, click **Clear**.
@@ -279,7 +279,7 @@ the state, and does the action for the new state.
 | From On to Off | The action to do when the state changes to off |
 | Label for on | Optional. The label that the surface shows in the state on. |
 
-![A toggle on key 6. The face Off is "Mic", the face On is "Live" with a frame. The action "From Off to On" is a sequence with its second step open.](images/toggle-and-sequence.png)
+![A toggle on key 6. The action "From Off to On" is a sequence with its second step open. The action "From On to Off" sends a hotkey.](images/toggle-and-sequence.png)
 
 The card of the toggle shows each action as a card in the card:
 

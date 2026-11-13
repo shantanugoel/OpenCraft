@@ -24,7 +24,7 @@
 
 use super::*;
 use gpui_kit::{
-    anchored, canvas, deferred, list, point, rgb, Bounds, KeyDownEvent, ListAlignment, ListState,
+    anchored, canvas, deferred, list, point, Bounds, KeyDownEvent, ListAlignment, ListState,
     MouseButton, Pixels, Rgba,
 };
 use opencraft_engine::{icon_color, icon_set, Icon, SurfaceContent, SurfaceIcon};
@@ -159,8 +159,8 @@ const ARROW_DOWN_SVG: &[u8] =
 viewBox=\"0 0 22 11\"><path d=\"M0 0 L11 11 L22 0 Z\" fill=\"#000\"/></svg>";
 /// The width and the height of the arrow: the half of a square of 16 that
 /// turns by 45°.
-const ARROW_WIDTH: f32 = 22.;
-const ARROW_HEIGHT: f32 = 11.;
+const ARROW_WIDTH: f32 = theme::ICON_PICKER_ARROW_WIDTH;
+const ARROW_HEIGHT: f32 = theme::ICON_PICKER_ARROW_HEIGHT;
 
 /// The place of the popover in the window.
 struct Place {
@@ -219,7 +219,7 @@ impl DeviceView {
     ) -> AnyElement {
         let open = self.inspector.icon_picker.open;
         let bounds = self.inspector.icon_picker.button.clone();
-        let fill = content.color.map(colour_rgba);
+        let fill = content.color.map(theme::colour);
         let icon = content.known_icon();
         let tile = div()
             .id("icon-tile")
@@ -240,7 +240,7 @@ impl DeviceView {
                         gpui_kit::svg()
                             .path(theme::surface_icon_path(icon.name))
                             .size(theme::ICON_TILE_ICON)
-                            .text_color(colour_rgba(icon_color(content))),
+                            .text_color(theme::colour(icon_color(content))),
                     )
                     .tooltip(move |window, cx| Tooltip::new(title.clone()).build(window, cx))
                 }
@@ -417,7 +417,7 @@ impl DeviceView {
         let (data, border_y, fill_y) = if place.below {
             (ARROW_SVG, -px(ARROW_HEIGHT), -px(ARROW_HEIGHT - 1.))
         } else {
-            (ARROW_DOWN_SVG, place.height, place.height - px(1.))
+            (ARROW_DOWN_SVG, place.height, place.height - theme::BORDER)
         };
         // An absolute element has its place from its parent (Taffy), thus
         // the layer of the arrow covers the popover.
@@ -610,13 +610,7 @@ impl DeviceView {
             GridRow::Title(title) => padding
                 .when(index > 0, |d| d.pt(theme::SPACE_8))
                 .pb(theme::SPACE_6)
-                .child(
-                    div()
-                        .text_size(theme::TEXT_SECTION)
-                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-                        .text_color(theme::TEXT_TERTIARY)
-                        .child(title.to_uppercase()),
-                )
+                .child(controls::section_title(*title))
                 .into_any_element(),
             GridRow::Icons(icons) => {
                 padding
@@ -710,7 +704,7 @@ impl DeviceView {
                 let colour = super::colour(value);
                 controls::colour_circle(
                     format!("icon-colour-{index}"),
-                    Some(rgb(value)),
+                    Some(theme::sample(value)),
                     colour == shown,
                     format!("Icon colour #{value:06X}"),
                 )
@@ -795,12 +789,6 @@ fn footer_button(id: &'static str, text: &'static str, background: Rgba) -> Stat
         .hover(|d| d.bg(theme::HOVER_CONTROL))
         .active(|d| d.bg(theme::PRESSED))
         .child(text)
-}
-
-/// A colour of the engine as a colour of the window.
-fn colour_rgba(colour: Color) -> Rgba {
-    let [r, g, b] = colour.0;
-    rgb(u32::from_be_bytes([0, r, g, b]))
 }
 
 #[cfg(test)]

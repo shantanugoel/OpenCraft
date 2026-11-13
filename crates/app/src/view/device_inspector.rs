@@ -10,7 +10,7 @@ use controls::{segment, segmented, slider, switch};
 use gpui_kit::{
     assets::IconName,
     component::{input::AnyInputState, slider::SliderState, Icon},
-    relative, rgb, FontWeight,
+    relative, FontWeight,
 };
 use opencraft_engine::{DeviceSettings, KnobLightMode};
 
@@ -23,12 +23,6 @@ const HAPTIC_HELP: &str = "The device vibrates a little when you operate a contr
 
 /// The columns of the grid of the knob light buttons.
 const KNOB_COLUMNS: usize = 4;
-
-/// The colour of a knob light for the drawing: `#RRGGBB` as a number.
-fn fill(colour: Color) -> gpui_kit::Rgba {
-    let [r, g, b] = colour.0;
-    rgb((u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b))
-}
 
 impl DeviceView {
     /// The inspector while the device is the selection (section 10.1).
@@ -112,7 +106,7 @@ impl DeviceView {
                     .pt(theme::SPACE_12)
                     .px(theme::SECTION_PADDING_SIDE)
                     .pb(theme::SPACE_16)
-                    .child(form::help(NOTE).line_height(relative(theme::NOTE_LINE_HEIGHT))),
+                    .child(form::help(NOTE).line_height(relative(theme::LINE_HEIGHT_TEXT))),
             )
     }
 
@@ -261,7 +255,7 @@ impl DeviceView {
                             .rounded_full()
                             .bg(theme::DEVICE_KNOB)
                             .border(theme::KNOB_LIGHT_RING_WIDTH)
-                            .border_color(fill(colour)),
+                            .border_color(theme::colour(colour)),
                     )
                     .child(
                         div()
@@ -342,7 +336,7 @@ impl DeviceView {
                             .map(|(n, value)| {
                                 controls::colour_sample(
                                     format!("knob-{}-colour-{n}", index + 1),
-                                    Some(rgb(value)),
+                                    Some(theme::sample(value)),
                                     current == colour(value),
                                     Some(format!("#{value:06X}").into()),
                                 )
@@ -365,7 +359,7 @@ impl DeviceView {
                     .id("knob-colour-field")
                     .debug_selector(|| "knob-colour-field".into()),
                 )
-                .child(form::help("Type #RRGGBB and push Return."))
+                .child(form::help(controls::HEX_HELP))
                 .into_any_element()],
             window,
             cx.listener(|view, _, window, cx| view.close_knob_colour(window, cx)),

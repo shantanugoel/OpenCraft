@@ -86,7 +86,7 @@ pub(super) fn hotkey(stroke: &Keystroke) -> Option<String> {
     Some(parts.join("+"))
 }
 
-/// The short text of a hotkey value for the user, for example "⇧ ⌘ A" for
+/// The short text of a hotkey value for the user, for example "⇧⌘A" for
 /// `shift+cmd+a`: the modifier symbols in the order of macOS, and then the
 /// key (decision 0029, section 10.5). A value of a different form stays as
 /// it is.
@@ -137,7 +137,7 @@ pub(super) fn symbols(value: &str) -> String {
         }
     };
     out.push(key);
-    out.join(" ")
+    out.concat()
 }
 
 #[cfg(test)]
@@ -256,9 +256,9 @@ mod tests {
 
     #[test]
     fn the_symbols_of_a_hotkey_are_in_the_order_of_macos() {
-        assert_eq!(symbols("shift+cmd+a"), "⇧ ⌘ A");
-        assert_eq!(symbols("ctrl+alt+shift+cmd+return"), "⌃ ⌥ ⇧ ⌘ ↩");
-        assert_eq!(symbols("cmd+f12"), "⌘ F12");
+        assert_eq!(symbols("shift+cmd+a"), "⇧⌘A");
+        assert_eq!(symbols("ctrl+alt+shift+cmd+return"), "⌃⌥⇧⌘↩");
+        assert_eq!(symbols("cmd+f12"), "⌘F12");
         assert_eq!(symbols("space"), "Space");
         assert_eq!(symbols(""), "");
         assert_eq!(symbols("hyper+a"), "hyper+a");

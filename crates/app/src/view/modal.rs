@@ -60,9 +60,6 @@ pub(crate) struct Modal {
     on_click_out: Option<ClickOutHandler>,
 }
 
-// The command palette (#192) and the first start (#196) use the options
-// that the profile settings sheet does not use.
-#[allow(dead_code)]
 impl Modal {
     /// A layer with the card `id`. `focus` is the focus handle of the card,
     /// and `label` is its accessible label, for example "Profile settings
@@ -252,12 +249,7 @@ pub(crate) fn sheet_row(label: impl Into<SharedString>, control: impl IntoElemen
 /// The header of a section of a sheet, for example "SHARE": `section`,
 /// `text-tertiary`, in capital letters.
 pub(crate) fn sheet_section_header(title: impl Into<SharedString>) -> Div {
-    let title: SharedString = title.into();
-    div()
-        .text_size(theme::TEXT_SECTION)
-        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-        .text_color(theme::TEXT_TERTIARY)
-        .child(title.to_uppercase())
+    super::controls::section_title(title)
 }
 
 /// The button row at the bottom of a sheet (section 16): padding 14 24, a

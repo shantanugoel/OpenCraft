@@ -26,6 +26,10 @@ Each line names a rule. The link goes to the one place that holds the rule.
 
 - **Architecture rules.** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#5-rules)
 - **Knowledge base.** [docs/kb/README.md](docs/kb/README.md#rules)
+- **Design language of the window.** Read all of
+  [docs/DESIGN.md](docs/DESIGN.md) before a change to the window. Use the
+  tokens of `view/theme.rs` and the shared controls; write no literal colour
+  or size. Its checklist is for each window pull request.
 - **Simplified Technical English for documents.** [docs/README.md](docs/README.md#rules)
 - **No personal data.** The rule "Write no personal data" in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#rules-for-work-on-an-issue)
 - **Licence notices.** After a change to `Cargo.lock` or `about.toml`, run

@@ -7,6 +7,7 @@ Each document has one job. Each fact is in one place only.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The stable design: terms, layers, rules, deferred decisions | A decision record changes a rule |
 | [ROADMAP.md](ROADMAP.md) | Phases, exit criteria, product targets | A phase starts or ends |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | The rules for work on an issue, and how the issues are organized | The process changes |
+| [DESIGN.md](DESIGN.md) | The design language of the window: tokens, components, behaviour, text, and the checklist for a window change | A change to the window adds or changes a token, a component, or a rule |
 | [ADDING-A-DEVICE-MODEL.md](ADDING-A-DEVICE-MODEL.md) | The procedure to add a new device model as data | The descriptor, the probe, or a limit of the procedure changes |
 | [decisions/](decisions/README.md) | One record for each design decision | You make a decision |
 | [kb/](kb/README.md) | Knowledge base: facts from research and from measurement | You learn a fact |
