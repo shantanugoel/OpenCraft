@@ -291,7 +291,9 @@ and card of the window with the keyboard.
   removes the ring.
 - Tab goes through the sidebar, the toolbar, the page header, the tabs of
   the right panel, and the inspector, in this order. In a sheet, in the
-  search, and in a popover, Tab stays in that part.
+  command palette, and in a popover, Tab stays in that part. When you open
+  one of them with the keyboard and then close it, the focus goes back to
+  the control that opened it.
 - In a sheet, Return clicks the blue button (for example **Done**), also
   when a different button has the focus. Space clicks the button with the
   focus. Escape closes the sheet.
