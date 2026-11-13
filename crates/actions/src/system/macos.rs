@@ -45,6 +45,10 @@ pub fn mouse_event(event: crate::mouse::MouseEvent) -> Result<()> {
     super::macos_mouse::send(event)
 }
 
+pub fn mac_function(function: crate::mac_function::MacFunction) -> Result<()> {
+    super::macos_functions::run(function)
+}
+
 // --- Keys and text -----------------------------------------------------------
 
 /// The virtual key code of a key name, for the ANSI keyboard layout.

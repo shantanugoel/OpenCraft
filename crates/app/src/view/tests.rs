@@ -243,6 +243,7 @@ mod icons;
 mod knob;
 mod label_options;
 mod library;
+mod mac_function;
 mod menu;
 mod mouse;
 mod nested;

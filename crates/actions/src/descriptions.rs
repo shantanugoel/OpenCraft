@@ -12,7 +12,8 @@ pub(crate) const MEDIA: &str = "opencraft.media-key";
 pub(crate) const VOLUME: &str = "opencraft.volume";
 pub(crate) const SHELL: &str = "opencraft.shell-command";
 pub(crate) const MOUSE: &str = "opencraft.mouse";
-pub(crate) const KEY_KINDS: [&str; 4] = [HOTKEY, TEXT, MEDIA, MOUSE];
+pub(crate) const MAC_FUNCTION: &str = "opencraft.mac-function";
+pub(crate) const KEY_KINDS: [&str; 5] = [HOTKEY, TEXT, MEDIA, MOUSE, MAC_FUNCTION];
 pub(crate) const PAGE: &str = "opencraft.page";
 pub(crate) const PROFILE: &str = "opencraft.profile";
 pub(crate) const TOGGLE: &str = "opencraft.toggle";
@@ -98,6 +99,23 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             "Send a hotkey",
             vec![field("hotkey", "Hotkey", InputType::Hotkey)],
         ),
+        MAC_FUNCTION => {
+            let mut function = field(
+                "function",
+                "Function",
+                choice(&[
+                    ("mission-control", "Mission Control"),
+                    ("launchpad", "Launchpad"),
+                    ("screenshot", "Screenshot"),
+                    ("screen-saver", "Screen saver"),
+                    ("sleep", "Sleep"),
+                    ("lock", "Lock"),
+                    ("show-desktop", "Show desktop"),
+                ]),
+            );
+            function.default = Some(Value::Text("mission-control".into()));
+            ("Mac system function", vec![function])
+        }
         MOUSE => {
             let mut operation = field(
                 "operation",
@@ -263,6 +281,7 @@ fn icon(kind: &str) -> &'static str {
         SHELL => "terminal",
         HOTKEY => "keyboard",
         MOUSE => "mouse-pointer-2",
+        MAC_FUNCTION => "monitor",
         TEXT => "type",
         MEDIA => "play",
         VOLUME => "volume-2",
@@ -303,7 +322,7 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
         SCREEN_OFF | DEVICE_SLEEP => ("Device", Some("Computer wake")),
         DEVICE_BRIGHTNESS => ("Device", Some("Knob")),
-        HOTKEY | TEXT | MOUSE => (SYSTEM, Some(ACCESSIBILITY)),
+        HOTKEY | TEXT | MOUSE | MAC_FUNCTION => (SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
         PAGE | PROFILE => (NAVIGATION, None),

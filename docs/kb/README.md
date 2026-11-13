@@ -33,6 +33,7 @@ measurement. The other documents link to these facts and do not repeat them.
 | [vsd-craft.md](vsd-craft.md) | The vendor software: footprint and behaviour |
 | [footprint.md](footprint.md) | The footprint of OpenCraft: memory, processor use, and start time |
 | [macos-permissions.md](macos-permissions.md) | macOS privacy permissions that apply to OpenCraft |
+| [macos-system-functions.md](macos-system-functions.md) | Public calls for Mission Control, Launchpad, screenshot, screen saver, sleep, lock and Show desktop |
 | [macos-start-at-login.md](macos-start-at-login.md) | LaunchAgent files, background items, and SMAppService for a start at login |
 | [dependency-licences.md](dependency-licences.md) | The licences of the crates in the release executable, their duties, and the tools for the notices |
 | [macos-distribution.md](macos-distribution.md) | The release bundle: signature, hardened runtime, disk image, notarization, and the lowest macOS version |

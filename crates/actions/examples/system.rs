@@ -39,6 +39,10 @@ fn main() {
         })
         .map(|()| wait()),
         ["hotkey", text] => system::send_hotkey(&text.parse().expect("a hotkey")).map(|()| wait()),
+        ["mac-function", name] => system::mac_function(
+            opencraft_actions::mac_function::MacFunction::from_name(name).expect("a Mac function"),
+        )
+        .map(|()| wait()),
         ["mouse-click", button] => {
             system::mouse_event(opencraft_actions::mouse::MouseEvent::Click {
                 button: match *button {
@@ -68,7 +72,7 @@ fn main() {
             eprintln!(
                 "usage: system can-send-keys | ask | volume | set-volume N | mute on|off | \
                  media play|next|previous|up|down|mute | hotkey TEXT | type TEXT | app NAME | \
-                 url URL | shell COMMAND | mouse-click left|right|middle | mouse-scroll X Y"
+                 url URL | shell COMMAND | mouse-click left|right|middle | mouse-scroll X Y | mac-function NAME"
             );
             std::process::exit(2);
         }

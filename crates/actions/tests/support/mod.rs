@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 pub enum Call {
     Hotkey(String),
     Mouse(opencraft_actions::mouse::MouseEvent),
+    MacFunction(opencraft_actions::mac_function::MacFunction),
     Text(String),
     Media(MediaKey),
     Level(u8),
@@ -151,6 +152,9 @@ impl System for Fake {
     }
     fn mouse_event(&self, event: opencraft_actions::mouse::MouseEvent) -> Result<()> {
         self.record(Call::Mouse(event), "mouse")
+    }
+    fn mac_function(&self, function: opencraft_actions::mac_function::MacFunction) -> Result<()> {
+        self.record(Call::MacFunction(function), "mac-function")
     }
     fn type_text(&self, text: &str) -> Result<()> {
         self.record(Call::Text(text.into()), "text")

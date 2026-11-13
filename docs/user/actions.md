@@ -14,6 +14,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | System | [Run a shell command](#run-a-shell-command) | No |
 | System | [Send a hotkey](#send-a-hotkey) | Yes |
 | System | [Mouse event](#mouse-event) | Yes |
+| System | [Mac system function](#mac-system-function) | Yes |
 | System | [Type text](#type-text) | Yes |
 | Media | [Media key](#media-key) | Yes |
 | Media | [Sound volume](#sound-volume) | No |
@@ -251,6 +252,37 @@ test click cannot invoke its own test command again.
 This action uses only the Accessibility permission.
 
 ![The mouse form with a scroll step.](images/mouse.png)
+
+## Mac system function
+
+| Setting | What to give |
+|---|---|
+| Function | Mission Control, Launchpad, Screenshot, Screen saver, Sleep, Lock or Show desktop |
+
+- **Mission Control** shows the open windows. Push Esc to close it.
+- **Launchpad** opens Launchpad on earlier macOS, or Apps on macOS 26 and
+  later. Push Esc to close it.
+- **Screenshot** opens the system screenshot controls. Choose the area and
+  capture option there, or push Esc to cancel. OpenCraft saves no picture.
+- **Screen saver** starts the screen saver. Move the pointer or push a key
+  to return. macOS can ask for the login password.
+- **Sleep** requests computer sleep, not only display sleep. Push a key or
+  use the power button to wake the computer.
+- **Lock** locks the screen. Sign in again to return.
+- **Show desktop** moves the windows aside. Invoke it again to restore them.
+
+Save your work before you test Sleep, Lock or Screen saver. These choices
+take effect at once; there is no confirmation in OpenCraft. Do not test
+them while another person or process needs this session.
+
+This kind uses the existing Accessibility permission. It asks for no
+Automation or Screen Recording permission. Some choices use the default
+system shortcuts. If you changed those shortcuts, use **Send a hotkey**
+with your own combination instead. Do Not Disturb is not available.
+The calls and their verification limits are in the
+[knowledge base](../kb/macos-system-functions.md).
+
+![The Mac system function choices.](images/mac-system-functions.png)
 
 ## Type text
 

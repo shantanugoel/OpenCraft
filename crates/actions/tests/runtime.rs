@@ -54,6 +54,12 @@ fn all_built_in_actions_use_only_the_handler_ports() {
         ),
         ("hotkey", "hotkey", "cmd+a", Call::Hotkey("cmd+a".into())),
         (
+            "mac-function",
+            "function",
+            "sleep",
+            Call::MacFunction(opencraft_actions::mac_function::MacFunction::Sleep),
+        ),
+        (
             "mouse",
             "operation",
             "scroll-up",
