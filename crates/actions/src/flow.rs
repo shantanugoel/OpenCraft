@@ -141,16 +141,22 @@ impl ToggleHandler {
         }
     }
 
-    /// Send the state, and the label for "on" when the state is on.
+    /// Send the state, and the label for "on" when the state is on. The
+    /// feedback of the other state lets the engine make the image of both
+    /// states for the shell.
     fn feedback(&self, binding: BindingId, on: bool, on_label: Option<String>) {
-        let feedback = Feedback {
-            label: on_label.filter(|_| on),
-            level: None,
+        let state = |on: bool| Feedback {
+            label: on_label.clone().filter(|_| on),
             state: Some(if on {
                 FeedbackState::On
             } else {
                 FeedbackState::Off
             }),
+            ..Feedback::default()
+        };
+        let feedback = Feedback {
+            other_state: Some(Box::new(state(!on))),
+            ..state(on)
         };
         send(
             &self.sender,

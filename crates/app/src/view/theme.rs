@@ -85,6 +85,8 @@ pub const ACCENT_TEXT: Rgba = hex(0x4da3ff);
 pub const ACCENT_TEXT_HOVER: Rgba = hex(0x7dbbff);
 /// The accent at 14 %: the background of a selected card.
 pub const ACCENT_TINT: Rgba = hex_alpha(0x1a6fd8, 0.14);
+/// The accent at 18 %: a row under a drag (section 3.2).
+pub const ACCENT_TINT_DRAG: Rgba = hex_alpha(0x1a6fd8, 0.18);
 /// The dot of a connected device.
 pub const SUCCESS: Rgba = hex(0x34c759);
 /// The text of the live state pill.
@@ -106,6 +108,8 @@ pub const INPUT_GLOW: Rgba = hex(0xffce73);
 pub const HOVER_CONTROL: Rgba = hex(0x383a40);
 /// A transparent icon button under the pointer.
 pub const HOVER_ICON: Rgba = hex_alpha(0xffffff, 0.06);
+/// No colour: a border that shows only in a different state.
+pub const TRANSPARENT: Rgba = hex_alpha(0x000000, 0.);
 /// A row under the pointer.
 pub const HOVER_ROW: Rgba = hex_alpha(0xffffff, 0.05);
 /// A selected row in a pane that does not have the selection, for example
@@ -188,6 +192,17 @@ pub fn input_glow_shadow() -> Vec<BoxShadow> {
         offset: point(px(0.), px(0.)),
         blur_radius: px(14.),
         spread_radius: px(1.),
+        inset: false,
+    }]
+}
+
+/// The shadow of the drag picture: 0 12 28, black at 50 % (section 3.2).
+pub fn drag_shadow() -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: hex_alpha(0x000000, 0.5).into(),
+        offset: point(px(0.), px(12.)),
+        blur_radius: px(28.),
+        spread_radius: px(0.),
         inset: false,
     }]
 }
@@ -307,6 +322,29 @@ pub const HEIGHT_EMPTY_CARD: Pixels = px(40.);
 pub const HEIGHT_EMPTY_NESTED: Pixels = px(32.);
 /// A text field of three lines.
 pub const HEIGHT_LONG_TEXT: Pixels = px(60.);
+/// The kind button in the head of an open nested card: the tile and the
+/// kind name, which open the kind menu (section 10.5).
+pub const HEIGHT_NESTED_KIND: Pixels = px(22.);
+/// A row of a step list (section 10.5).
+pub const HEIGHT_STEP_ROW: Pixels = px(34.);
+/// The button "Add a step" (section 10.5).
+pub const HEIGHT_ADD_STEP: Pixels = px(24.);
+/// The column of the step number in a step list.
+pub const WIDTH_STEP_NUMBER: Pixels = px(16.);
+/// The drag handle of a step: its width and its height (six dots).
+pub const WIDTH_DRAG_HANDLE: Pixels = px(12.);
+pub const HEIGHT_DRAG_HANDLE: Pixels = px(14.);
+/// The vertical padding of the drag picture (section 12).
+pub const DRAG_PICTURE_PADDING_Y: Pixels = px(7.);
+/// The kind tile in the drag picture (section 12).
+pub const KIND_TILE_DRAG: Pixels = px(22.);
+/// A face button of the appearance of each state (section 10.5): the
+/// gap between the two buttons, the radius of a button, the face picture,
+/// and its radius.
+pub const STATE_FACE_GAP: Pixels = SPACE_14;
+pub const RADIUS_STATE_BUTTON: Pixels = px(10.);
+pub const STATE_FACE: Pixels = px(72.);
+pub const RADIUS_STATE_FACE: Pixels = px(11.);
 /// The text field of an integer.
 pub const WIDTH_INTEGER_FIELD: Pixels = px(56.);
 /// The size of a switch (section 3.5): width, height, and the diameter of
@@ -634,6 +672,7 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     ChevronsUpDown,
     Copy,
     Ellipsis,
+    GripVertical,
     Grid3x2,
     Info,
     Keyboard,

@@ -1,7 +1,7 @@
 //! The descriptions that the shell uses to make the settings form.
 
 use opencraft_engine::{
-    ChoiceOption, Direction, Field, InputType, KindDescription, PathKind, Value,
+    ChoiceOption, Direction, Field, InputType, KindDescription, PathKind, TwoStates, Value,
 };
 
 pub(crate) const APPLICATION: &str = "opencraft.open-application";
@@ -138,8 +138,8 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         TOGGLE => (
             "Toggle",
             vec![
-                field("on", "Action for on", InputType::Action),
-                field("off", "Action for off", InputType::Action),
+                field("on", "From Off to On", InputType::Action),
+                field("off", "From On to Off", InputType::Action),
                 field("on_label", "Label for on", InputType::Text),
             ],
         ),
@@ -174,6 +174,10 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         needs_accessibility: KEY_KINDS.contains(&kind),
         fields,
         direction: direction(kind),
+        // The toggle shows its state on the surface (decision 0017).
+        states: (kind == TOGGLE).then(|| TwoStates {
+            on_label: Some("on_label".into()),
+        }),
     }
 }
 

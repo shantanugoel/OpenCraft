@@ -406,6 +406,7 @@ fn an_empty_key_face_shows_a_plus_and_the_knob_rings_show_the_light_colours(
                 id: face(n),
                 content: content(label),
                 image: Arc::new(RgbImage::new(112, 112)),
+                states: None,
             }),
         );
     }

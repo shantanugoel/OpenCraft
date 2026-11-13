@@ -28,6 +28,7 @@ fn styled(id: SurfaceId, style: LabelStyle, image: bool) -> Event {
             ..Default::default()
         },
         image: Arc::new(RgbImage::new(90, 90)),
+        states: None,
     })
 }
 

@@ -424,6 +424,7 @@ fn a_profile_change_starts_on_the_first_page_and_removes_the_feedback() {
             label: Some("x".into()),
             level: None,
             state: None,
+            other_state: None,
         }),
     });
     select(&mut rig, "work");

@@ -86,6 +86,60 @@ pub(super) fn hotkey(stroke: &Keystroke) -> Option<String> {
     Some(parts.join("+"))
 }
 
+/// The short text of a hotkey value for the user, for example "⇧ ⌘ A" for
+/// `shift+cmd+a`: the modifier symbols in the order of macOS, and then the
+/// key (decision 0029, section 10.5). A value of a different form stays as
+/// it is.
+pub(super) fn symbols(value: &str) -> String {
+    let mut parts: Vec<&str> = value.split('+').collect();
+    let Some(key) = parts.pop().filter(|k| !k.is_empty()) else {
+        return value.to_string();
+    };
+    let mut out: Vec<String> = Vec::new();
+    for (name, symbol) in [("ctrl", "⌃"), ("alt", "⌥"), ("shift", "⇧"), ("cmd", "⌘")] {
+        if parts.contains(&name) {
+            out.push(symbol.into());
+        }
+    }
+    if parts
+        .iter()
+        .any(|p| !["ctrl", "alt", "shift", "cmd"].contains(p))
+    {
+        return value.to_string();
+    }
+    let key = match key {
+        "return" => "↩".to_string(),
+        "tab" => "⇥".to_string(),
+        "space" => "Space".to_string(),
+        "delete" => "⌫".to_string(),
+        "forwarddelete" => "⌦".to_string(),
+        "escape" => "⎋".to_string(),
+        "left" => "←".to_string(),
+        "right" => "→".to_string(),
+        "up" => "↑".to_string(),
+        "down" => "↓".to_string(),
+        "minus" => "-".to_string(),
+        "equal" => "=".to_string(),
+        "leftbracket" => "[".to_string(),
+        "rightbracket" => "]".to_string(),
+        "backslash" => "\\".to_string(),
+        "semicolon" => ";".to_string(),
+        "quote" => "'".to_string(),
+        "comma" => ",".to_string(),
+        "period" => ".".to_string(),
+        "slash" => "/".to_string(),
+        "grave" => "`".to_string(),
+        other if other.len() == 1 => other.to_uppercase(),
+        other => {
+            let mut text = other.to_string();
+            text[..1].make_ascii_uppercase();
+            text
+        }
+    };
+    out.push(key);
+    out.join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,5 +252,15 @@ mod tests {
                 Some(format!("shift+{key}"))
             );
         }
+    }
+
+    #[test]
+    fn the_symbols_of_a_hotkey_are_in_the_order_of_macos() {
+        assert_eq!(symbols("shift+cmd+a"), "⇧ ⌘ A");
+        assert_eq!(symbols("ctrl+alt+shift+cmd+return"), "⌃ ⌥ ⇧ ⌘ ↩");
+        assert_eq!(symbols("cmd+f12"), "⌘ F12");
+        assert_eq!(symbols("space"), "Space");
+        assert_eq!(symbols(""), "");
+        assert_eq!(symbols("hyper+a"), "hyper+a");
     }
 }

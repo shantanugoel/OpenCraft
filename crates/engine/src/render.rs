@@ -136,6 +136,29 @@ pub fn label_color(content: &SurfaceContent) -> Color {
     color.unwrap_or_else(|| text_color(content.color.unwrap_or(DEFAULT_COLOR)))
 }
 
+/// The feedback of the state that a feedback with a state does not show:
+/// [`Feedback::other_state`], or else the same parts with the other state.
+/// The image of the other state comes from it (decision 0017).
+pub fn other_state(feedback: &Feedback) -> Feedback {
+    let flipped = match feedback.state {
+        Some(FeedbackState::On) => Some(FeedbackState::Off),
+        Some(FeedbackState::Off) => Some(FeedbackState::On),
+        None => None,
+    };
+    match &feedback.other_state {
+        Some(other) => Feedback {
+            state: other.state.or(flipped),
+            other_state: None,
+            ..(**other).clone()
+        },
+        None => Feedback {
+            state: flipped,
+            other_state: None,
+            ..feedback.clone()
+        },
+    }
+}
+
 /// Make the surface image with the newest feedback of its bindings.
 ///
 /// - A label of the feedback replaces the label of the content.
@@ -589,6 +612,7 @@ mod tests {
                 label: Some("Feedback".into()),
                 level: Some(50),
                 state: None,
+                other_state: None,
             };
             let image = surface_image_with_feedback(size, &content, None, Some(&feedback));
             assert_eq!(image.dimensions(), (size.width, size.height));
@@ -615,6 +639,7 @@ mod tests {
                     label: None,
                     level: Some(level),
                     state: None,
+                    other_state: None,
                 };
                 let image = surface_image_with_feedback(size, &content, None, Some(&feedback));
                 let want = if level == 0 {
@@ -628,6 +653,7 @@ mod tests {
                 label: Some("Replacement".into()),
                 level: None,
                 state: Some(FeedbackState::Off),
+                other_state: None,
             };
             assert_eq!(
                 surface_image_with_feedback(size, &content, None, Some(&feedback)),
@@ -657,6 +683,7 @@ mod tests {
             label: label.map(str::to_string),
             level,
             state: Some(FeedbackState::On),
+            other_state: None,
         }
     }
 

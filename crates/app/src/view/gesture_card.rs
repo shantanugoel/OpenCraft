@@ -13,7 +13,13 @@
 //! - The "Turn" card of a knob (#182): the same, with the rows of the
 //!   direction and of the link as body rows.
 //! - A nested card of a toggle or a sequence (#183):
-//!   [`GestureCard::nested`], with an empty name.
+//!   [`GestureCard::nested`], with an empty name. A closed nested card is
+//!   one row with the kind and [`GestureCard::summary`]. An open nested
+//!   card has the kind button in its head, the summary, and an
+//!   [`GestureCard::accessory`] at the end, for example the "⋯" button of
+//!   a step.
+//! - The step list of a sequence (#183): [`GestureCard::lead`], the part of
+//!   the body above the form, with no padding.
 //! - The button "Test the action" (#188): [`GestureCard::on_test`]. The
 //!   card adds it as the last body row of a card with an action.
 //!
@@ -24,12 +30,12 @@
 //! | `{id}` | The card |
 //! | `{id}-head` | The head row. A click out of the popup opens or closes the card. |
 //! | `{id}-name` | The gesture name in the head row |
-//! | `{id}-kind` | The action popup, or the full card with no action. A click opens the kind menu. |
+//! | `{id}-kind` | The action popup, the kind button of an open nested card, or the full card with no action. A click opens the kind menu. |
 //! | `{id}-test` | The button "Test the action" |
 
 use super::{controls, form, theme};
 use gpui_kit::{
-    assets::IconName, component::Icon, div, prelude::*, AnyElement, App, ClickEvent, Div,
+    assets::IconName, component::Icon, div, prelude::*, relative, AnyElement, App, ClickEvent, Div,
     FontWeight, Pixels, Rgba, SharedString, Stateful, Window,
 };
 use opencraft_engine::KindDescription;
@@ -47,12 +53,13 @@ pub(super) struct KindLabel {
 }
 
 /// The size of a kind tile: in a nested card, in a gesture card and in the
-/// kind menu, or in a library row.
+/// kind menu, in a library row, or in the drag picture.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum TileSize {
     Nested,
     Card,
     Library,
+    Drag,
 }
 
 impl KindLabel {
@@ -103,6 +110,11 @@ impl KindLabel {
                 theme::RADIUS_CONTROL,
                 theme::TEXT_LABEL,
             ),
+            TileSize::Drag => (
+                theme::KIND_TILE_DRAG,
+                theme::RADIUS_SEGMENT,
+                theme::TEXT_CAPTION,
+            ),
         };
         div()
             .flex_shrink_0()
@@ -148,7 +160,7 @@ impl KindLabel {
 pub(super) fn menu_button_height(action: bool, nested: bool) -> Pixels {
     match (action, nested) {
         (true, false) => theme::HEIGHT_ACTION_POPUP,
-        (true, true) => theme::HEIGHT_CONTROL,
+        (true, true) => theme::HEIGHT_NESTED_KIND,
         (false, false) => theme::HEIGHT_EMPTY_CARD,
         (false, true) => theme::HEIGHT_EMPTY_NESTED,
     }
@@ -166,6 +178,9 @@ pub(super) struct GestureCard {
     nested: bool,
     menu_open: bool,
     menu: Option<AnyElement>,
+    summary: Option<SharedString>,
+    accessory: Option<AnyElement>,
+    lead: Option<AnyElement>,
     body: Vec<AnyElement>,
     on_toggle: Option<Handler>,
     on_menu: Option<Handler>,
@@ -185,6 +200,9 @@ impl GestureCard {
             nested: false,
             menu_open: false,
             menu: None,
+            summary: None,
+            accessory: None,
+            lead: None,
             body: Vec::new(),
             on_toggle: None,
             on_menu: None,
@@ -223,6 +241,32 @@ impl GestureCard {
     pub(super) fn menu(mut self, menu: Option<AnyElement>) -> Self {
         self.menu_open = menu.is_some();
         self.menu = menu;
+        self
+    }
+
+    /// A short text at the end of the head of a nested card: the short value
+    /// of a closed card (`label`, `text-secondary`), for example "⇧ ⌘ A", or
+    /// the summary of an open card (`caption`, `text-tertiary`), for
+    /// example "2 steps" (section 10.5).
+    pub(super) fn summary(mut self, summary: impl Into<SharedString>) -> Self {
+        let summary: SharedString = summary.into();
+        self.summary = (!summary.is_empty()).then_some(summary);
+        self
+    }
+
+    /// An element at the end of the head of an open nested card, for
+    /// example the "⋯" button of a step. A click on it does not open or
+    /// close the card: the element stops the click.
+    pub(super) fn accessory(mut self, accessory: impl IntoElement) -> Self {
+        self.accessory = Some(accessory.into_any_element());
+        self
+    }
+
+    /// A part of the body above the form, with no padding, for example the
+    /// step list of a sequence (section 10.5). The form of the body rows is
+    /// below it, with a line between them.
+    pub(super) fn lead(mut self, lead: Option<AnyElement>) -> Self {
+        self.lead = lead;
         self
     }
 
@@ -331,11 +375,136 @@ impl GestureCard {
     }
 }
 
+impl GestureCard {
+    /// A closed nested card: one row of 32 with the tile, the kind name,
+    /// and the short value. A click opens the card.
+    fn closed_nested(self, action: KindLabel) -> AnyElement {
+        let id = self.id.clone();
+        let head_id = SharedString::from(format!("{id}-head"));
+        let head_selector = head_id.clone();
+        let on_toggle = self.on_toggle.clone();
+        div()
+            .id(id.clone())
+            .debug_selector(move || id.to_string())
+            .relative()
+            .flex_shrink_0()
+            .w_full()
+            .child(
+                div()
+                    .id(head_id)
+                    .debug_selector(move || head_selector.to_string())
+                    .h(theme::HEIGHT_EMPTY_NESTED)
+                    .px(theme::SPACE_8)
+                    .flex()
+                    .items_center()
+                    .gap(theme::SPACE_8)
+                    .rounded(theme::RADIUS_CONTROL)
+                    .bg(theme::BG_CONTROL)
+                    .border_1()
+                    .border_color(theme::BORDER_CONTROL)
+                    .text_size(theme::TEXT_CONTROL)
+                    .font_weight(FontWeight::MEDIUM)
+                    .cursor_pointer()
+                    .hover(|d| d.bg(theme::HOVER_CONTROL))
+                    .active(|d| d.bg(theme::PRESSED))
+                    .child(action.content(true))
+                    .children(self.summary.map(|summary| {
+                        div()
+                            .flex_shrink_0()
+                            .max_w(relative(0.5))
+                            .truncate()
+                            .text_size(theme::TEXT_LABEL)
+                            .font_weight(FontWeight::NORMAL)
+                            .text_color(theme::TEXT_SECONDARY)
+                            .child(summary)
+                    }))
+                    .when_some(on_toggle, |d, on_toggle| {
+                        d.on_click(move |event, window, cx| on_toggle(event, window, cx))
+                    }),
+            )
+            .children(self.menu)
+            .into_any_element()
+    }
+
+    /// The head row of an open nested card: the kind button (tile, kind
+    /// name, chevron), which opens the kind menu, the summary, and the
+    /// accessory.
+    fn nested_head(&mut self, action: &KindLabel) -> Div {
+        let kind_id = SharedString::from(format!("{}-kind", self.id));
+        let selector = kind_id.clone();
+        let on_menu = self.on_menu.clone();
+        let menu_open = self.menu_open;
+        div()
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_8)
+            .child(
+                div()
+                    .relative()
+                    .min_w_0()
+                    .flex()
+                    .child(
+                        div()
+                            .id(kind_id)
+                            .debug_selector(move || selector.to_string())
+                            .min_w_0()
+                            .h(theme::HEIGHT_NESTED_KIND)
+                            .pl(theme::SPACE_2)
+                            .pr(theme::SPACE_4)
+                            .flex()
+                            .items_center()
+                            .gap(theme::SPACE_6)
+                            .rounded(theme::RADIUS_CONTROL)
+                            .border_1()
+                            .border_color(if menu_open {
+                                theme::ACCENT_LINE
+                            } else {
+                                theme::TRANSPARENT
+                            })
+                            .text_size(theme::TEXT_CONTROL)
+                            .font_weight(FontWeight::MEDIUM)
+                            .cursor_pointer()
+                            .hover(|d| d.bg(theme::HOVER_ICON))
+                            .active(|d| d.bg(theme::PRESSED))
+                            .child(action.content(true))
+                            .child(
+                                Icon::new(IconName::ChevronsUpDown)
+                                    .size(theme::ICON_SMALL)
+                                    .text_color(theme::TEXT_SECONDARY),
+                            )
+                            .when_some(on_menu, |d, on_menu| {
+                                d.on_click(move |event, window, cx| {
+                                    // The click opens the menu, and does not
+                                    // open or close the card.
+                                    cx.stop_propagation();
+                                    on_menu(event, window, cx)
+                                })
+                            }),
+                    )
+                    .children(self.menu.take()),
+            )
+            .child(div().flex_1())
+            .children(self.summary.take().map(|summary| {
+                div()
+                    .flex_shrink_0()
+                    .text_size(theme::TEXT_CAPTION)
+                    .text_color(theme::TEXT_TERTIARY)
+                    .child(summary)
+            }))
+            .children(self.accessory.take())
+    }
+}
+
 impl RenderOnce for GestureCard {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(mut self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let Some(action) = self.action.clone() else {
             return self.empty();
         };
+        if self.nested && !self.open {
+            return self.closed_nested(action);
+        }
         let id = self.id.clone();
         let head_id = SharedString::from(format!("{id}-head"));
         let head_selector = head_id.clone();
@@ -360,28 +529,32 @@ impl RenderOnce for GestureCard {
         let on_toggle = self.on_toggle.clone();
         let open = self.open;
         let name = self.name_cell();
-        let popup = div()
-            .relative()
-            .flex_1()
-            .min_w_0()
-            .flex()
-            .child(
-                controls::popup_button(
-                    kind_id,
-                    popup_height,
-                    self.menu_open,
-                    action.content(self.nested),
+        let content = if self.nested {
+            self.nested_head(&action)
+        } else {
+            div()
+                .relative()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .child(
+                    controls::popup_button(
+                        kind_id,
+                        popup_height,
+                        self.menu_open,
+                        action.content(false),
+                    )
+                    .when_some(on_menu, |d, on_menu| {
+                        d.on_click(move |event, window, cx| {
+                            // The click opens the menu, and does not open or
+                            // close the card.
+                            cx.stop_propagation();
+                            on_menu(event, window, cx)
+                        })
+                    }),
                 )
-                .when_some(on_menu, |d, on_menu| {
-                    d.on_click(move |event, window, cx| {
-                        // The click opens the menu, and does not open or
-                        // close the card.
-                        cx.stop_propagation();
-                        on_menu(event, window, cx)
-                    })
-                }),
-            )
-            .children(self.menu);
+                .children(self.menu.take())
+        };
         let head = div()
             .id(head_id)
             .debug_selector(move || head_selector.to_string())
@@ -392,7 +565,7 @@ impl RenderOnce for GestureCard {
             .gap(theme::SPACE_8)
             .when(on_toggle.is_some(), |d| d.cursor_pointer())
             .children(name)
-            .child(popup)
+            .child(content)
             .when_some(on_toggle, |d, on_toggle| {
                 d.on_click(move |event, window, cx| on_toggle(event, window, cx))
             });
@@ -417,6 +590,8 @@ impl RenderOnce for GestureCard {
         } else {
             theme::SPACE_10
         };
+        let lead = self.lead.take();
+        let has_lead = lead.is_some();
         div()
             .id(id.clone())
             .debug_selector(move || id.to_string())
@@ -429,6 +604,14 @@ impl RenderOnce for GestureCard {
             .border_color(theme::BORDER_FIELD)
             .bg(background)
             .child(head)
+            .when(open, |d| {
+                d.children(lead.map(|lead| {
+                    div()
+                        .border_t_1()
+                        .border_color(theme::LINE_PANE)
+                        .child(lead)
+                }))
+            })
             .when(open && !body.is_empty(), |d| {
                 d.child(
                     form::form(theme::CARD_FORM_GAP)
@@ -436,7 +619,11 @@ impl RenderOnce for GestureCard {
                         .px(body_padding)
                         .pb(theme::SPACE_12)
                         .border_t_1()
-                        .border_color(theme::LINE_PANE)
+                        .border_color(if has_lead {
+                            theme::LINE_SECTION
+                        } else {
+                            theme::LINE_PANE
+                        })
                         .children(body),
                 )
             })

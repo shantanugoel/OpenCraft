@@ -80,6 +80,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
                 label: None,
                 level: Some(50),
                 state: None,
+                other_state: None,
             }),
         }
     );
@@ -92,6 +93,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
                 label: None,
                 level: Some(55),
                 state: None,
+                other_state: None,
             }),
         }
     );

@@ -746,6 +746,26 @@ tests are in `crates/app/src/view/tests/profile_sheet.rs`.
 | `PathPromptOptions::prompt` "Import" is the text of the default button of the open dialog. | Measured | Window picture |
 | On the test platform, a test answers the save dialog with `simulate_new_path_selection(\|_\| Some(path))`, and the open dialog with `simulate_path_prompt_response(\|_\| Some(vec![path]))`. `did_prompt_for_new_path` and `did_prompt_for_paths` tell that a dialog is open. | Source; Measured | `gpui-pre` 0.3.12 `src/app/test_context.rs`; `export_and_import_send_the_file_and_an_import_shows_the_new_profile` |
 
+## Toggle and sequence editors in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+nested editors of
+[issue 183](https://github.com/shantanugoel/OpenCraft/issues/183), on the
+computer of [Release measurements](#release-measurements), with a scratch
+copy of a profile and the device connected. A helper program operated the
+real window with Quartz events and took pictures of the window only. The
+pictures are kept outside the repository. The window tests are in
+`crates/app/src/view/tests/nested.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A drag handle of 12 × 14 with `on_drag` in a step row starts a drag in the real window. The drag picture with a leading and a top padding of `offset` − 8 stayed at the pointer, as in [Drag and drop from the right pane to the centre pane](#4-drag-and-drop-from-the-right-pane-to-the-centre-pane). | Measured | Real window picture during the drag |
+| `drag_over` with a style only for a drag of the same list, and `can_drop` with the same check, show the drop place on the row under the pointer, and the drop moves the step. | Measured | Real window pictures; `a_step_list_adds_moves_and_removes_steps` |
+| A drawn menu (`controls::popup_menu`) that stays open takes the mouse down of a later drag with its backdrop: on the test platform, the drag did not start. A window test must close the menu first. | Measured | `a_step_list_adds_moves_and_removes_steps`, first version |
+| In a window test, `click` goes to the centre of an element. In the head of an open nested card, the kind button of a long kind name can be at the centre, so the click opens the kind menu and does not close the card. The test clicks near the trailing end of the head. | Measured | `close` in `view/tests/nested.rs` |
+| A native menu from `NativeMenu::show` at a right click on a step showed "Move Up", "Move Down", a separator, and "Remove". "Move Up" moved the step, and the toolbar tooltip then showed "Undo Move Step". | Measured | Real window pictures |
+| The test platform sends `InputEvent::Focus` to a field only in an active window. A test of the text edit of the history calls `window.activate_window()` first. | Measured | `the_two_actions_of_a_toggle_are_nested_cards_and_each_change_is_one_step` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

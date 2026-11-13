@@ -57,7 +57,7 @@ pub(super) struct FieldInput {
 
 /// The menu that is open in the gesture cards.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Menu {
+pub(super) enum Menu {
     /// The kind menu of the gesture card of this gesture.
     Card(GestureKind),
     /// The kind menu of the contained action at the path. The path is not
@@ -70,13 +70,6 @@ enum Menu {
     Choice(FieldPath),
 }
 
-/// A change to the list of actions in a field.
-#[derive(Clone, Copy)]
-enum ListChange {
-    Remove(usize),
-    Move(usize, usize),
-}
-
 #[derive(Default)]
 pub(super) struct ActionForm {
     /// The edit epoch and the binding of the inputs. The inputs are only for
@@ -87,11 +80,13 @@ pub(super) struct ActionForm {
     pending: BTreeMap<BindingId, Vec<Action>>,
     pub(super) recording: Option<FieldPath>,
     menu: Option<Menu>,
+    /// The open nested cards and the step menu (`nested`).
+    pub(super) nested: super::nested::NestedState,
 }
 
 /// The text form of a path for the identifiers of the elements. It is empty
 /// for the action of the binding, so the identifiers of its form stay short.
-fn prefix(path: &[Slot]) -> String {
+pub(super) fn prefix(path: &[Slot]) -> String {
     path.iter()
         .map(|slot| match slot.item {
             Some(item) => format!("{}.{item}/", slot.key),
@@ -110,7 +105,7 @@ fn test_text(control: ControlId, kind: &str, gesture: &str) -> String {
     )
 }
 
-fn child(path: &[Slot], key: &str, item: Option<usize>) -> ActionPath {
+pub(super) fn child(path: &[Slot], key: &str, item: Option<usize>) -> ActionPath {
     let mut path = path.to_vec();
     path.push(Slot {
         key: key.into(),
@@ -120,7 +115,7 @@ fn child(path: &[Slot], key: &str, item: Option<usize>) -> ActionPath {
 }
 
 /// The action at `path` in `action`.
-fn contained(action: &Action, path: &[Slot]) -> Option<Action> {
+pub(super) fn contained(action: &Action, path: &[Slot]) -> Option<Action> {
     let Some((slot, rest)) = path.split_first() else {
         return Some(action.clone());
     };
@@ -134,7 +129,7 @@ fn contained(action: &Action, path: &[Slot]) -> Option<Action> {
 
 /// Change the action at `path` in `action`, and write each action on the
 /// path again. Nothing changes if no action is at `path`.
-fn change(action: &mut Action, path: &[Slot], f: impl FnOnce(&mut Action)) {
+pub(super) fn change(action: &mut Action, path: &[Slot], f: impl FnOnce(&mut Action)) {
     let Some((slot, rest)) = path.split_first() else {
         f(action);
         return;
@@ -166,7 +161,7 @@ fn change(action: &mut Action, path: &[Slot], f: impl FnOnce(&mut Action)) {
 
 /// The actions in the field `key`. A missing value or a value of a
 /// different form gives an empty list.
-fn list(action: &Action, key: &str) -> Vec<Action> {
+pub(super) fn list(action: &Action, key: &str) -> Vec<Action> {
     action
         .settings
         .get(key)
@@ -175,7 +170,7 @@ fn list(action: &Action, key: &str) -> Vec<Action> {
 }
 
 impl DeviceView {
-    fn kind(&self, kind: &str) -> Option<&KindDescription> {
+    pub(super) fn kind(&self, kind: &str) -> Option<&KindDescription> {
         self.state.kinds.iter().find(|k| k.kind == kind)
     }
 
@@ -194,7 +189,7 @@ impl DeviceView {
 
     /// The binding of the inputs, if they are for the page that the device
     /// shows now.
-    fn form_binding(&self) -> Option<BindingId> {
+    pub(super) fn form_binding(&self) -> Option<BindingId> {
         self.form
             .owner
             .filter(|(epoch, binding)| {
@@ -213,6 +208,7 @@ impl DeviceView {
             self.form.inputs.clear();
             self.form.recording = None;
             self.form.menu = None;
+            self.form.nested = Default::default();
             self.form.owner = owner;
         }
         let Some((_, binding)) = owner else {
@@ -263,6 +259,7 @@ impl DeviceView {
         {
             self.form.recording = None;
         }
+        self.sync_state_faces(window, cx);
     }
 
     /// Each field of `action` and of its contained actions that has a text
@@ -408,7 +405,18 @@ impl DeviceView {
 
     /// Change the edit action of `binding`, then send the full action to the
     /// engine. A change that changes nothing sends nothing.
-    fn edit(&mut self, binding: BindingId, f: impl FnOnce(&mut Action)) {
+    pub(super) fn edit(&mut self, binding: BindingId, f: impl FnOnce(&mut Action)) {
+        self.edit_as(binding, None, f);
+    }
+
+    /// As [`Self::edit`]. With a `name`, the change is one step of the
+    /// history with that name, for example "Add Step" (decision 0030).
+    pub(super) fn edit_as(
+        &mut self,
+        binding: BindingId,
+        name: Option<&str>,
+        f: impl FnOnce(&mut Action),
+    ) {
         let Some(before) = self.edit_action(binding) else {
             return;
         };
@@ -419,7 +427,10 @@ impl DeviceView {
         }
         // The "Turn" card of a knob writes the two turn bindings.
         let changes = self.turn_changes(binding, action);
-        self.send_bindings("Set Action", changes);
+        match name {
+            Some(name) => self.send_bindings_as(name, changes, true),
+            None => self.send_bindings("Set Action", changes),
+        }
     }
 
     /// Send the new actions of bindings, and keep each as an edit in
@@ -427,6 +438,18 @@ impl DeviceView {
     /// `Command::Group` with the name `name`, thus one step of the history
     /// (decision 0030).
     pub(super) fn send_bindings(&mut self, name: &str, changes: Vec<(BindingId, Option<Action>)>) {
+        self.send_bindings_as(name, changes, false);
+    }
+
+    /// As [`Self::send_bindings`]. With `group_one`, one binding is also a
+    /// `Command::Group`, so that its step of the history has the name
+    /// `name`, for example "Add Step".
+    fn send_bindings_as(
+        &mut self,
+        name: &str,
+        changes: Vec<(BindingId, Option<Action>)>,
+        group_one: bool,
+    ) {
         let mut commands: Vec<Command> = changes
             .into_iter()
             .map(|(binding, action)| {
@@ -446,7 +469,7 @@ impl DeviceView {
             .collect();
         match commands.len() {
             0 => {}
-            1 => (self.send)(commands.remove(0)),
+            1 if !group_one => (self.send)(commands.remove(0)),
             _ => (self.send)(Command::Group {
                 name: name.into(),
                 commands,
@@ -472,7 +495,7 @@ impl DeviceView {
 
     /// Open or close a menu of the cards. The focus goes back to the root
     /// element, so that Escape closes the menu.
-    fn toggle_menu(&mut self, menu: Menu, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn toggle_menu(&mut self, menu: Menu, window: &mut Window, cx: &mut Context<Self>) {
         let open = self.form.menu.as_ref() != Some(&menu);
         self.close_kinds();
         if open {
@@ -502,11 +525,12 @@ impl DeviceView {
         cx: &mut Context<Self>,
     ) {
         self.form.menu = None;
+        // The click was on the menu, thus no text field keeps the focus. The
+        // text edit ends first, so that the change is a step of its own.
+        self.focus_workspace(window, cx);
         self.choose_in(menu, kind);
         // A contained action can have new text fields now.
         self.sync_form(window, cx);
-        // The click was on the menu, thus no text field keeps the focus.
-        self.focus_workspace(window, cx);
         cx.notify();
     }
 
@@ -527,7 +551,12 @@ impl DeviceView {
                 let Some((slot, parent)) = path.split_last() else {
                     return;
                 };
-                self.edit(binding, |root| {
+                // A new action opens its card (section 10.3).
+                if new.is_some() {
+                    self.open_nested(&path);
+                }
+                let name = new.is_none().then_some("Remove the Action");
+                self.edit_as(binding, name, |root| {
                     change(root, parent, |action| match slot.item {
                         None => {
                             match new {
@@ -556,7 +585,16 @@ impl DeviceView {
                 let Some(new) = kind.and_then(|kind| self.default_action(&kind)) else {
                     return;
                 };
-                self.edit(binding, |root| {
+                let Some(count) = self
+                    .edit_action(binding)
+                    .and_then(|a| contained(&a, &path))
+                    .map(|a| list(&a, &key).len())
+                else {
+                    return;
+                };
+                // The new step opens (section 10.3).
+                self.open_nested(&child(&path, &key, Some(count)));
+                self.edit_as(binding, Some("Add Step"), |root| {
                     change(root, &path, |action| {
                         let mut items = list(action, &key);
                         items.push(new);
@@ -565,40 +603,6 @@ impl DeviceView {
                 });
             }
         }
-    }
-
-    fn change_list(
-        &mut self,
-        path: ActionPath,
-        key: String,
-        list_change: ListChange,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.change_list_in(path, key, list_change);
-        self.sync_form(window, cx);
-        cx.notify();
-    }
-
-    fn change_list_in(&mut self, path: ActionPath, key: String, list_change: ListChange) {
-        let Some(binding) = self.form_binding() else {
-            return;
-        };
-        self.edit(binding, |root| {
-            change(root, &path, |action| {
-                let mut items = list(action, &key);
-                match list_change {
-                    ListChange::Remove(item) if item < items.len() => {
-                        items.remove(item);
-                    }
-                    ListChange::Move(from, to) if from < items.len() && to < items.len() => {
-                        items.swap(from, to);
-                    }
-                    _ => return,
-                }
-                action.settings.insert(key, Action::list_to_value(&items));
-            })
-        });
     }
 
     /// Set the action of the gesture card of `gesture` to a new action of
@@ -728,7 +732,7 @@ impl DeviceView {
     }
 
     /// The label of the popup of `action`.
-    fn kind_label(&self, action: &Action, available: bool) -> KindLabel {
+    pub(super) fn kind_label(&self, action: &Action, available: bool) -> KindLabel {
         match self.kind(&action.kind) {
             Some(kind) if available => KindLabel::new(kind),
             _ => KindLabel::unavailable(),
@@ -827,13 +831,16 @@ impl DeviceView {
         let Some(action) = action else {
             return card.into_any_element();
         };
-        let rows = if open {
-            rows(self, &action, current.available, window, cx)
+        let (lead, rows) = if open {
+            (
+                self.step_lists(&[], &action, current.available, window, cx),
+                rows(self, &action, current.available, window, cx),
+            )
         } else {
-            Vec::new()
+            (None, Vec::new())
         };
         let label = self.kind_label(&action, current.available);
-        let mut card = card.action(label.clone()).open(open).on_toggle(
+        let mut card = card.action(label.clone()).open(open).lead(lead).on_toggle(
             cx.listener(move |view, _, window, cx| view.toggle_card(gesture, window, cx)),
         );
         // An action with no handler cannot run (rule 8).
@@ -851,7 +858,7 @@ impl DeviceView {
     /// The kind menu `menu`, if it is open: one row for each kind, and with
     /// `remove`, "Remove the action". `id` is the start of the identifier of
     /// each row.
-    fn kind_menu(
+    pub(super) fn kind_menu(
         &self,
         id: &str,
         menu: &Menu,
@@ -915,8 +922,11 @@ impl DeviceView {
 
     /// The body rows of a card with `action` at `path`: the form of the
     /// fields, or the text of an action with no handler, and the request of
-    /// the handler for the user.
-    fn action_rows(
+    /// the handler for the user. A field of the input type Action list is
+    /// not a row: it is a step list above the form (`nested`). The label
+    /// of the state On is not a row when the appearance of each state
+    /// shows it (`states`).
+    pub(super) fn action_rows(
         &self,
         path: &[Slot],
         action: &Action,
@@ -962,7 +972,11 @@ impl DeviceView {
                     .into_any_element(),
             );
         } else if let Some(kind) = self.kind(&action.kind) {
+            let on_label = self.on_label_in_faces(path);
             for (index, field) in kind.fields.iter().enumerate() {
+                if field.input == InputType::ActionList || on_label.as_ref() == Some(&field.key) {
+                    continue;
+                }
                 if replace.as_ref().is_some_and(|(key, _)| *key == field.key) {
                     if let Some((_, row)) = replace.take() {
                         rows.push(row);
@@ -1005,44 +1019,6 @@ impl DeviceView {
             );
         }
         rows
-    }
-
-    /// A nested card for the contained action at `path` (section 10.5). With
-    /// no action, it is a dashed card "Add an action". `remove` adds
-    /// "Remove the action" to its kind menu.
-    fn nested_card(
-        &self,
-        path: ActionPath,
-        action: Option<&Action>,
-        remove: bool,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let id = prefix(&path);
-        let menu = Menu::Replace(path.clone());
-        let toggle = menu.clone();
-        let card =
-            GestureCard::new(format!("{id}action"), "")
-                .nested()
-                .menu(self.kind_menu(
-                    &format!("{id}kind"),
-                    &menu,
-                    remove && action.is_some(),
-                    menu_button_height(action.is_some(), true),
-                    window,
-                    cx,
-                ))
-                .on_menu(cx.listener(move |view, _, window, cx| {
-                    view.toggle_menu(toggle.clone(), window, cx)
-                }));
-        let Some(action) = action else {
-            return card.into_any_element();
-        };
-        let available = self.kind(&action.kind).is_some();
-        card.action(self.kind_label(action, available))
-            .open(true)
-            .children(self.action_rows(&path, action, available, window, cx))
-            .into_any_element()
     }
 
     /// The row of one field: the label, and the control of the input type
@@ -1241,15 +1217,14 @@ impl DeviceView {
                             child(path, &field.key, None),
                             inner.as_ref(),
                             true,
+                            None,
                             window,
                             cx,
                         )),
                 )
             }
-            InputType::ActionList => form::stacked_row(
-                field.label.clone(),
-                self.action_list(path, &field.key, value, window, cx),
-            ),
+            // A step list is above the form: see `action_rows`.
+            InputType::ActionList => div(),
             input => {
                 let integer = matches!(input, InputType::Integer { .. });
                 let text = self.form.inputs.get(&field_path).map(|input| {
@@ -1288,90 +1263,9 @@ impl DeviceView {
             .debug_selector(move || selector.clone())
             .into_any_element()
     }
-
-    /// The editor of the field `key` of the input type Action list: each
-    /// action in its order, with buttons to move and remove it, and a card
-    /// to add an action at the end. #183 changes it to the step list of
-    /// section 10.5.
-    fn action_list(
-        &self,
-        path: &[Slot],
-        key: &str,
-        value: Option<&Value>,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> Div {
-        let items = value.and_then(Action::list_from_value);
-        let id = format!("{}{key}", prefix(path));
-        let count = items.as_ref().map_or(0, Vec::len);
-        let mut list = div().flex().flex_col().gap(theme::SPACE_6);
-        if value.is_some() && items.is_none() {
-            list = list.child(unreadable());
-        }
-        for (item, inner) in items.iter().flatten().enumerate() {
-            let item_path = child(path, key, Some(item));
-            let item_id = prefix(&item_path);
-            let tool = |name: &str, label: &str, enabled: bool, list_change: ListChange| {
-                let (path, key) = (path.to_vec(), key.to_string());
-                small_button(format!("{item_id}{name}"), label.to_string(), enabled).when(
-                    enabled,
-                    |d| {
-                        d.on_click(cx.listener(move |view, _, window, cx| {
-                            view.change_list(path.clone(), key.clone(), list_change, window, cx)
-                        }))
-                    },
-                )
-            };
-            list = list
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(theme::SPACE_4)
-                        .child(
-                            div()
-                                .flex_1()
-                                .text_size(theme::TEXT_CAPTION)
-                                .text_color(theme::TEXT_TERTIARY)
-                                .child(format!("Action {}", item + 1)),
-                        )
-                        .child(tool(
-                            "up",
-                            "↑",
-                            item > 0,
-                            ListChange::Move(item, item.wrapping_sub(1)),
-                        ))
-                        .child(tool(
-                            "down",
-                            "↓",
-                            item + 1 < count,
-                            ListChange::Move(item, item + 1),
-                        ))
-                        .child(tool("remove", "Remove", true, ListChange::Remove(item))),
-                )
-                .child(self.nested_card(item_path, Some(inner), false, window, cx));
-        }
-        let menu = Menu::Add(path.to_vec(), key.to_string());
-        let toggle = menu.clone();
-        list.child(
-            GestureCard::new(format!("{id}/add"), "")
-                .nested()
-                .menu(self.kind_menu(
-                    &format!("{id}/add-kind"),
-                    &menu,
-                    false,
-                    menu_button_height(false, true),
-                    window,
-                    cx,
-                ))
-                .on_menu(cx.listener(move |view, _, window, cx| {
-                    view.toggle_menu(toggle.clone(), window, cx)
-                })),
-        )
-    }
 }
 
-fn unreadable() -> Div {
+pub(super) fn unreadable() -> Div {
     div()
         .text_size(theme::TEXT_LABEL)
         .text_color(theme::TEXT_TERTIARY)

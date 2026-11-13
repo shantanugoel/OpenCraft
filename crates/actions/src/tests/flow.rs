@@ -22,17 +22,23 @@ fn invoke_nested(binding: BindingId, number: i64) -> Message {
     })
 }
 
-fn state(binding: BindingId, on: bool, label: Option<&str>) -> Message {
+/// The feedback of a toggle in the state `on`, with the label of the state
+/// On, and the feedback of the other state.
+fn state(binding: BindingId, on: bool, on_label: Option<&str>) -> Message {
+    let face = |on: bool| Feedback {
+        label: on_label.filter(|_| on).map(str::to_string),
+        state: Some(if on {
+            FeedbackState::On
+        } else {
+            FeedbackState::Off
+        }),
+        ..Feedback::default()
+    };
     Message::Feedback {
         binding,
         feedback: Some(Feedback {
-            label: label.map(str::to_string),
-            level: None,
-            state: Some(if on {
-                FeedbackState::On
-            } else {
-                FeedbackState::Off
-            }),
+            other_state: Some(Box::new(face(!on))),
+            ..face(on)
         }),
     }
 }
@@ -172,7 +178,7 @@ fn a_toggle_starts_off_and_each_invoke_changes_the_state_and_does_its_action() {
     let mut rig = Rig::new("toggle", true);
     let id = binding(1);
     rig.appear_with(1, mic());
-    assert_eq!(rig.recv(), state(id, false, None));
+    assert_eq!(rig.recv(), state(id, false, Some("Mic on")));
 
     rig.invoke_at(1, mic());
     assert_eq!(rig.recv(), invoke_nested(id, 1));
@@ -180,7 +186,7 @@ fn a_toggle_starts_off_and_each_invoke_changes_the_state_and_does_its_action() {
 
     rig.invoke_at(1, mic());
     assert_eq!(rig.recv(), invoke_nested(id, 0));
-    assert_eq!(rig.recv(), state(id, false, None));
+    assert_eq!(rig.recv(), state(id, false, Some("Mic on")));
     rig.none();
     assert!(rig.system.calls().is_empty());
 }
@@ -204,7 +210,7 @@ fn a_toggle_keeps_its_state_after_disappear_and_forgets_it_when_the_settings_cha
     let changed = toggle(Some(nested(1)), Some(nested(0)), Some("On"));
     rig.disappear(1);
     rig.appear_with(1, changed.clone());
-    assert_eq!(rig.recv(), state(id, false, None));
+    assert_eq!(rig.recv(), state(id, false, Some("On")));
     rig.invoke_at(1, changed);
     rig.recv();
     assert_eq!(rig.recv(), state(id, true, Some("On")));
@@ -212,7 +218,7 @@ fn a_toggle_keeps_its_state_after_disappear_and_forgets_it_when_the_settings_cha
     // The first settings again: the old state is gone.
     rig.disappear(1);
     rig.appear_with(1, mic());
-    assert_eq!(rig.recv(), state(id, false, None));
+    assert_eq!(rig.recv(), state(id, false, Some("Mic on")));
     rig.none();
 }
 
@@ -284,19 +290,19 @@ fn incorrect_toggle_settings_are_problems_and_change_nothing() {
         (
             "on",
             Value::Text("opencraft.hotkey".into()),
-            "Toggle: select the action in the field \"Action for on\" again.",
+            "Toggle: select the action in the field \"From Off to On\" again.",
         ),
         (
             "on",
             kind_only(Value::Text("".into())),
-            "the field \"Action for on\"",
+            "the field \"From Off to On\"",
         ),
         (
             "off",
             kind_only(Value::Integer(3)),
-            "the field \"Action for off\"",
+            "the field \"From On to Off\"",
         ),
-        ("off", Value::List(vec![]), "the field \"Action for off\""),
+        ("off", Value::List(vec![]), "the field \"From On to Off\""),
         (
             "on_label",
             Value::Integer(1),
