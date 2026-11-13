@@ -421,6 +421,38 @@ fn the_profile_menu_and_the_add_button_send_the_profile_commands(cx: &mut TestAp
 }
 
 #[gpui_kit::test]
+fn removal_of_the_active_larger_profile_replaces_its_pages(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = sidebar_window(cx);
+    send(cx, &tx, pages(&["Main", "Meetings", "Media"], 2));
+    menu(cx, "profile-default", RemoveRow);
+    cx.simulate_prompt_answer("Remove");
+    cx.run_until_parked();
+    assert_eq!(
+        last(&sent),
+        Some(Command::RemoveProfile {
+            profile: "default".into()
+        })
+    );
+    // A profile change sends the surfaces, the profile list, then the pages.
+    send(cx, &tx, surface(key(), "Work"));
+    send(cx, &tx, profiles(&[("work", "Work")], "work"));
+    send(cx, &tx, pages(&["Work"], 0));
+    assert!(cx.debug_bounds("profile-default").is_none());
+    assert!(cx.debug_bounds("page-1").is_none());
+    assert!(cx.debug_bounds("page-2").is_none());
+    cx.update(|_, cx| {
+        let state = &view.read(cx).state;
+        assert_eq!(state.profile.as_deref(), Some("work"));
+        assert_eq!(state.pages, ["Work"]);
+        assert_eq!(state.page, 0);
+    });
+    let count = sent.borrow().len();
+    click(cx, "page-0");
+    click(cx, "surface-key face 2");
+    assert_eq!(sent.borrow().len(), count);
+}
+
+#[gpui_kit::test]
 fn the_device_card_selects_the_device(cx: &mut TestAppContext) {
     let (view, cx, _tx, sent) = sidebar_window(cx);
     click(cx, "device-card");
