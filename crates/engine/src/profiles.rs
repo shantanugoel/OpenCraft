@@ -19,7 +19,7 @@
 //! ```
 
 use crate::error::Result;
-use crate::profile::{default_model, Color, Profile};
+use crate::profile::{default_model, ApplicationLink, Color, Profile};
 use crate::store::{io_error, write_and_rename, ProfileStore, PROFILE_FILE};
 use std::fs;
 use std::io;
@@ -55,6 +55,11 @@ pub struct ProfileEntry {
     pub pages: Vec<String>,
     /// The number of the first page, from 0: see [`Profile::first_page`].
     pub first_page: usize,
+    /// The links of the profile, in their order (decision 0035).
+    pub applications: Vec<ApplicationLink>,
+    /// The bundle identifiers of this profile that a profile before it, in
+    /// the order of the identities, also links. Those links do not apply.
+    pub clashes: Vec<String>,
 }
 
 impl ProfileEntry {
@@ -66,6 +71,8 @@ impl ProfileEntry {
             color: profile.color,
             pages: profile.pages().iter().map(|p| p.name.clone()).collect(),
             first_page: profile.first_page(),
+            applications: profile.applications.clone(),
+            clashes: Vec::new(),
         }
     }
 }
@@ -112,6 +119,8 @@ impl ProfilesDir {
                     color: summary.color,
                     pages: summary.pages,
                     first_page: summary.first_page,
+                    applications: summary.applications,
+                    clashes: Vec::new(),
                 });
             }
         }
@@ -173,7 +182,69 @@ impl ProfilesDir {
         if let Some(active) = active.as_table_mut() {
             active.insert(model.to_string(), toml::Value::String(id.to_string()));
         }
-        let text = toml::to_string_pretty(&table)?;
+        self.write_state(&table)
+    }
+
+    /// The setting "Change the profile with the front application"
+    /// (decision 0035, section 7). A missing key is true.
+    pub fn follow_front(&self) -> bool {
+        self.state()
+            .and_then(|table| table.get("follow_front_application").cloned())
+            .and_then(|value| value.as_bool())
+            .unwrap_or(true)
+    }
+
+    /// Record the setting of [`Self::follow_front`]. The other keys stay.
+    pub fn set_follow(&self, follow: bool) -> Result<()> {
+        let mut table = self.state().unwrap_or_default();
+        table.insert(
+            "follow_front_application".to_string(),
+            toml::Value::Boolean(follow),
+        );
+        self.write_state(&table)
+    }
+
+    /// The identity of the default profile of `model` in `state.toml`.
+    /// `None` if the file has no mark for the model.
+    pub fn default_of(&self, model: &str) -> Option<String> {
+        let table = self.state()?;
+        let defaults = table.get("default")?.as_table()?;
+        Some(defaults.get(model)?.as_str()?.to_string())
+    }
+
+    /// Record `id` as the default profile of `model`. The other keys stay.
+    pub fn set_default(&self, model: &str, id: &str) -> Result<()> {
+        let mut table = self.state().unwrap_or_default();
+        let defaults = table
+            .entry("default")
+            .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+        if !defaults.is_table() {
+            *defaults = toml::Value::Table(toml::Table::new());
+        }
+        if let Some(defaults) = defaults.as_table_mut() {
+            defaults.insert(model.to_string(), toml::Value::String(id.to_string()));
+        }
+        self.write_state(&table)
+    }
+
+    /// Remove the default mark of `model`. The other keys stay.
+    pub fn clear_default(&self, model: &str) -> Result<()> {
+        let mut table = self.state().unwrap_or_default();
+        if let Some(defaults) = table
+            .get_mut("default")
+            .and_then(|value| value.as_table_mut())
+        {
+            defaults.remove(model);
+            if defaults.is_empty() {
+                table.remove("default");
+            }
+        }
+        self.write_state(&table)
+    }
+
+    /// Write `state.toml`. The caller keeps the keys that it does not change.
+    fn write_state(&self, table: &toml::Table) -> Result<()> {
+        let text = toml::to_string_pretty(table)?;
         self.make_dir()?;
         write_and_rename(&self.dir.join(STATE_FILE), text.as_bytes())
     }

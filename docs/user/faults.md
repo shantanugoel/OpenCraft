@@ -27,6 +27,14 @@ gets each message. See [The log file](background.md#the-log-file).
 | "OpenCraft could not use the image" | The file is not a PNG or JPEG image | Select a different file |
 | "OpenCraft could not import the profile" | The file is not a profile file of OpenCraft, it is too large, it has an error, a newer version of OpenCraft made it, or its profile is for a different device model. The message gives the cause. | Export the profile again, or use a newer version of OpenCraft. See [Export and import a profile](controls.md#export-and-import-a-profile). |
 | "OpenCraft could not export the profile" | OpenCraft cannot write the file, for example in a folder that you cannot change | Select a different folder |
+| "OpenCraft did not add the link, because the application has no bundle identifier" | The application file has no bundle identifier, so OpenCraft cannot link it | Select a different application |
+| "OpenCraft did not add the link, because the bundle identifier or the name is not correct" | The link has a name or a bundle identifier that OpenCraft cannot store | Select the application again from the list |
+| "OpenCraft did not add the link, because a profile can have 32 links" | The profile already has 32 applications | Remove an application, and then add the new one |
+| "stays linked to" | You imported a profile that links an application another profile already has | The profile that already has the application keeps it. Remove that link first if you want the new profile to have it. |
+| "OpenCraft could not change the links" | OpenCraft cannot write the profile file | See the rest of the message. Check that you can change the profiles folder. |
+| "OpenCraft could not record the default profile" | OpenCraft cannot write the default-profile mark | See the rest of the message. Select **Default profile** again. |
+| "OpenCraft could not record the setting" | OpenCraft cannot write "Change the profile with the front application" | See the rest of the message. Turn the switch again. |
+| "OpenCraft did not change the default profile, because no profile has the identity" | The default mark names a profile that does not exist | Select **Default profile** on a profile that you see in the sidebar |
 
 ## The device is not found
 

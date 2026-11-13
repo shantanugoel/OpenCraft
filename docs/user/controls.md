@@ -282,7 +282,19 @@ work, for example one for video calls and one for photos. The device shows
 the active profile.
 
 The sidebar shows all profiles below **PROFILES**. The active profile has
-the mark **ON DEVICE**, and its pages are below it.
+the mark **ON DEVICE**, and its pages are below it. Point at **ON DEVICE**
+to see why that profile is active: "Selected", "Because “*application*” is
+in front", or "The default profile: the front application has no linked
+profile".
+
+A profile that is not active can show two marks in the place of **ON
+DEVICE**:
+
+- The name of the first application that changes to this profile, and
+  "+*N*" when more applications do the same.
+- **DEFAULT**, when this profile is the default profile.
+
+If the two marks apply, the row shows both.
 
 | To do this | Do this in the sidebar |
 |---|---|
@@ -319,9 +331,36 @@ sheet is open.
 | **Colour** | The colour of the profile icon in the sidebar. The circle with no colour removes the colour. |
 | **First page** | The page that the device shows when the profile becomes the active profile, also when OpenCraft starts. If you remove this page, the first page in the list is the first page again. |
 
+### Applications
+
+The section **Applications** is below the settings above, and above
+**Share**. It lists the applications that use this profile.
+
+| To do this | Do this |
+|---|---|
+| Add an application | Click **Add an application…**. Select the application in the list, or click **Choose a different application…** and select its file. |
+| Remove an application | Click **Remove** at the right of its name. |
+
+- One application uses one profile. If you add an application that another
+  profile already has, the link moves to this profile.
+- A profile can have 32 applications.
+- A line "Linked to “*profile*”. That link applies." means a profile above
+  this one in the sidebar also has that application. That profile keeps the
+  link.
+- The device does not change at the moment you add a link. It changes the
+  next time you go to that application. See
+  [The profile follows the front application](#the-profile-follows-the-front-application).
+
+**Default profile** is a switch at the bottom of the section. The help text
+is "The device shows this profile when the front application has no linked
+profile." The switch of the default profile is on, and you cannot turn it
+off. To move the mark, open a different profile and turn **Default profile**
+on. A new profile, a copy, and an imported profile do not get the mark from
+the file.
+
 - Each change applies at once. Edit > Undo can undo a change of the first
-  page of the active profile. It cannot undo a change of the name or of the
-  colour.
+  page of the active profile. It cannot undo a change of the name, of the
+  colour, of an application link, or of the default profile.
 - Click **Done**, or push Return or Escape, to close the sheet.
 - **Remove the profile…** asks for a confirmation, and then removes the
   profile, as **Remove…** in the sidebar does.
@@ -330,8 +369,9 @@ sheet is open.
 
 You can put a profile in one file, for example to keep a copy or to give
 the profile to a different person. The file has the extension `.opencraft`.
-It contains the pages with their icons, the images, the colour, and the
-first page of the profile.
+It contains the pages with their icons, the images, the colour, the first
+page, and the application links of the profile. It does not contain the
+default-profile mark. That mark stays on this computer.
 
 | To do this | Do this |
 |---|---|
@@ -347,10 +387,39 @@ first page of the profile.
   command of "Run a shell command" or the path of an application. Look at
   your actions before you give the file to a different person.
 - OpenCraft imports only a profile for the model of your device.
+- If the file links an application that a profile on this computer already
+  has, the profile on this computer keeps the link. The window shows
+  "*application* stays linked to *profile*."
 - OpenCraft checks a file before it uses it. A file that is not a profile
   file, that is too large, or that has an error gives a message, and
   OpenCraft adds no profile. See
   [Messages in the window](faults.md#messages-in-the-window).
+
+## The profile follows the front application
+
+OpenCraft changes the profile when you go to an application that needs a
+different profile. A profile that you select with a key or the menu bar
+item stays until then. A profile that you select in the OpenCraft window
+stays while OpenCraft is in front, so that you can edit it. When you go
+back to an application, its profile comes back.
+
+| You do this | The device shows |
+|---|---|
+| You go to an application that a profile lists | That profile |
+| You go to an application that no profile lists | The default profile |
+| You select a profile with a key or the menu bar item, and then you go to an application that has the same result | The profile that you selected |
+| You open OpenCraft, select a different profile, and then go back to the application | The profile of that application |
+| You turn the setting off | The profile that is active now, until you select a different profile |
+| The screen locks, or the computer sleeps | No change. After the unlock or the wake, the next application applies the rule. |
+
+The setting is on when you start OpenCraft. To turn it off, open
+[the tab General](background.md#the-tab-general) and turn off **Change the
+profile with the front application**. The menu bar item **Follow the Front
+Application** does the same. The check mark shows when the setting is on.
+
+With the setting on and no application in any profile, the profile does not
+change by itself. OpenCraft changes it only when an application needs a
+different profile.
 
 ## Device settings
 

@@ -439,6 +439,16 @@ pub enum ImageUse {
     Background,
 }
 
+/// One application that a profile is for (decision 0035).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationLink {
+    /// The bundle identifier, for example `us.zoom.xos`. The engine keeps
+    /// the text as the shell gave it.
+    pub bundle_id: String,
+    /// The name of the application for the user at the time of the link.
+    pub name: String,
+}
+
 /// The identity of a folder. The text form is 16 hexadecimal digits with
 /// small letters. Zero is not an identity (decision 0036).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -526,6 +536,8 @@ pub struct Profile {
     /// The colour of the profile for the user, for example the colour of
     /// its icon in the sidebar. `None`: the profile has no colour.
     pub color: Option<Color>,
+    /// The applications that this profile is for (decision 0035).
+    pub applications: Vec<ApplicationLink>,
     /// The pages. A profile has one page or more: see [`Profile::new`].
     pages: Vec<Page>,
     /// The folders, in the order of the sidebar. A folder is not a page of
@@ -562,6 +574,7 @@ impl Profile {
             name: name.into(),
             model: model.into(),
             color: None,
+            applications: Vec::new(),
             pages,
             folders: Vec::new(),
         }

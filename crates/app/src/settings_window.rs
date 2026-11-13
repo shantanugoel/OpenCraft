@@ -207,6 +207,8 @@ pub struct Snapshot {
     pub permission: Permission,
     /// The last problem of a command of this window.
     pub notice: Option<String>,
+    /// The engine setting "Change the profile with the front application".
+    pub follow_front: bool,
 }
 
 /// What the window shows, and what decides the height of the window: the

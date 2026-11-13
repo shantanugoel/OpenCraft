@@ -70,9 +70,15 @@
 //! this engine does not have loads and stays in the file, and the surface
 //! shows no icon.
 //!
-//! Schema version 5 adds `folders` (decision 0036). A file of version 4 or
-//! lower has no folders. A later task of Phase 9 adds its keys to version 5
-//! and does not make version 6. Release 0.2.0 writes version 4.
+//! Schema version 5 adds `folders` (decision 0036) and `applications`
+//! (decision 0035). A file of version 4 or lower has neither key. Release
+//! 0.2.0 writes version 4. This engine writes version 5. A file of version
+//! 4 or lower that has `applications` or `folders` has an error: the engine
+//! keeps that file as a backup. A later key uses a version above 5.
+//!
+//! | Key | Value | With no key |
+//! |---|---|---|
+//! | `applications` | An array of tables, in the order of the links. Each table has `bundle_id` and `name`. | No links |
 //!
 //! ```toml
 //! schema_version = 5
@@ -109,10 +115,11 @@
 
 use crate::action::{Action, GestureKind};
 use crate::error::{Error, Result};
+use crate::front::{same_bundle, valid_bundle_id, MAX_LINKS};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
-    default_model, parse_surface_key, surface_key, Background, BackgroundFit, Color, Folder,
-    FolderId, LabelPosition, LabelStyle, Page, Profile, SurfaceContent, SurfaceIcon,
+    default_model, parse_surface_key, surface_key, ApplicationLink, Background, BackgroundFit,
+    Color, Folder, FolderId, LabelPosition, LabelStyle, Page, Profile, SurfaceContent, SurfaceIcon,
     MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
 use image::imageops::FilterType;
@@ -127,6 +134,9 @@ use std::path::{Path, PathBuf};
 
 /// The schema version that this engine writes.
 pub const SCHEMA_VERSION: u32 = 5;
+
+/// The first schema version with the links of a profile (decision 0035).
+const APPLICATIONS_VERSION: u32 = 5;
 
 /// The first schema version with the label options of a surface, and with
 /// the colour and the first page of the profile.
@@ -227,6 +237,9 @@ pub struct Summary {
     pub pages: Vec<String>,
     /// The number of the first page, from 0.
     pub first_page: usize,
+    /// The links that the file names. A link that the read cannot use is
+    /// not in the list. The full read of the file checks every link.
+    pub applications: Vec<ApplicationLink>,
 }
 
 /// One profile directory.
@@ -343,6 +356,7 @@ impl ProfileStore {
             color: text_of("color").and_then(|c| c.parse().ok()),
             pages,
             first_page,
+            applications: applications_of(&table),
         }
     }
 
@@ -634,7 +648,8 @@ struct Header {
 }
 
 /// The fields of schema versions 1 to 5. Version 3 adds `model`, version 4
-/// adds the label options of a surface, and version 5 adds `folders`.
+/// adds the label options of a surface, and version 5 adds `folders` and
+/// the links.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileData {
@@ -648,6 +663,9 @@ struct FileData {
     /// The number of the first page, from 1. It came in version 4.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     first_page: Option<usize>,
+    /// The links. The key came in version 5. `None`: the file has no key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    applications: Option<Vec<ApplicationData>>,
     #[serde(default)]
     pages: Vec<PageData>,
     /// The folders. The key came in version 5. `None` means the key is not
@@ -667,6 +685,14 @@ struct FolderData {
     surfaces: BTreeMap<String, SurfaceData>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     bindings: BTreeMap<String, BTreeMap<GestureKind, Action>>,
+}
+
+/// One link in the profile file.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ApplicationData {
+    bundle_id: String,
+    name: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -939,8 +965,19 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         0 => return Err(invalid("schema version 0 does not exist".to_string())),
         found => return Err(BackupReason::NewerSchema { found }),
     }
-    let file: FileData = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
     let version = header.schema_version;
+    if version < APPLICATIONS_VERSION || version < FOLDERS_VERSION {
+        let table: toml::Table = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
+        if version < APPLICATIONS_VERSION && table.contains_key("applications") {
+            return Err(invalid(format!(
+                "version {version} has no application links"
+            )));
+        }
+        if version < FOLDERS_VERSION && table.contains_key("folders") {
+            return Err(invalid(format!("version {version} has no folders")));
+        }
+    }
+    let file: FileData = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
     let model = match (version >= MODEL_VERSION, file.model) {
         (true, Some(model)) if !model.is_empty() => model,
         (true, _) => return Err(invalid("the file has no model".to_string())),
@@ -1034,11 +1071,66 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     }
     let mut profile = Profile::for_model(model, file.name, pages);
     profile.color = color;
+    profile.applications = applications_from(version, file.applications).map_err(invalid)?;
     if let Some(first) = first_page {
         profile.mark_first_page(first);
     }
     profile.replace_folders(folders);
     Ok(profile)
+}
+
+/// The links of the file. A file of a version before the links has none.
+fn applications_from(
+    version: u32,
+    links: Option<Vec<ApplicationData>>,
+) -> std::result::Result<Vec<ApplicationLink>, String> {
+    let Some(links) = links else {
+        return Ok(Vec::new());
+    };
+    if version < APPLICATIONS_VERSION {
+        return Err(format!("version {version} has no application links"));
+    }
+    if links.len() > MAX_LINKS {
+        return Err(format!("a profile can have {MAX_LINKS} links"));
+    }
+    let mut seen: Vec<String> = Vec::new();
+    let mut applications = Vec::new();
+    for link in links {
+        if !valid_bundle_id(&link.bundle_id) || link.name.is_empty() {
+            return Err(format!("the link '{}' is not correct", link.bundle_id));
+        }
+        if seen.iter().any(|id| same_bundle(id, &link.bundle_id)) {
+            return Err(format!(
+                "the link '{}' is in the profile two times",
+                link.bundle_id
+            ));
+        }
+        seen.push(link.bundle_id.clone());
+        applications.push(ApplicationLink {
+            bundle_id: link.bundle_id,
+            name: link.name,
+        });
+    }
+    Ok(applications)
+}
+
+/// The links that a summary can read. A link with no bundle identifier or
+/// no name is not in the list.
+fn applications_of(table: &toml::Table) -> Vec<ApplicationLink> {
+    let Some(links) = table.get("applications").and_then(|value| value.as_array()) else {
+        return Vec::new();
+    };
+    links
+        .iter()
+        .filter_map(|link| {
+            let bundle_id = link.get("bundle_id")?.as_str()?.to_string();
+            let name = link.get("name")?.as_str()?.to_string();
+            if !valid_bundle_id(&bundle_id) || name.is_empty() {
+                return None;
+            }
+            Some(ApplicationLink { bundle_id, name })
+        })
+        .collect()
 }
 
 /// The text of the profile file for `profile`.
@@ -1049,6 +1141,16 @@ pub(crate) fn to_text(profile: &Profile) -> Result<String> {
         model: Some(profile.model.clone()),
         color: profile.color.map(|c| c.to_string()),
         first_page: profile.has_first_page().then(|| profile.first_page() + 1),
+        applications: (!profile.applications.is_empty()).then(|| {
+            profile
+                .applications
+                .iter()
+                .map(|link| ApplicationData {
+                    bundle_id: link.bundle_id.clone(),
+                    name: link.name.clone(),
+                })
+                .collect()
+        }),
         pages: profile
             .pages()
             .iter()
@@ -1348,6 +1450,13 @@ image = "images/4f1c2a9be07d3356.png"
             b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\n[folders.surfaces.bar-panel-1]\nlabel = \"x\"\n",
             b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\n[folders.bindings.knob-1.press]\nkind = \"opencraft.hotkey\"\n",
             b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\nbackground = \"#000000\"\n",
+            // Version 4 and lower have no links.
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\napplications = []\n",
+            b"schema_version = 3\nname = \"x\"\nmodel = \"m\"\nfolders = []\n",
+            b"schema_version = 5\nname = \"x\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[applications]]\nbundle_id = \"not valid\"\nname = \"X\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[applications]]\nbundle_id = \"com.apple.Safari\"\nname = \"\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[applications]]\nbundle_id = \"com.apple.Safari\"\nname = \"Safari\"\n[[applications]]\nbundle_id = \"COM.APPLE.SAFARI\"\nname = \"Safari\"\n",
         ];
         for (i, text) in cases.iter().enumerate() {
             let (_dir, store) = store();
@@ -1552,6 +1661,42 @@ color = "#1E6FD9"
             let backup = load_text(&store, bad.as_bytes()).backup;
             assert!(backup.is_some(), "{bad}");
         }
+    }
+
+    #[test]
+    fn the_links_save_and_load_again_and_an_old_file_keeps_its_pages() {
+        let (_dir, store) = store();
+        let old = "schema_version = 4\nname = \"Calls\"\nmodel = \"n4-pro\"\n\n\
+                   [[pages]]\nname = \"Main\"\n\n[[pages]]\nname = \"Dial\"\n";
+        let loaded = load_text(&store, old.as_bytes());
+        assert_eq!(loaded.backup, None);
+        assert!(loaded.profile.applications.is_empty());
+        assert_eq!(loaded.profile.pages().len(), 2);
+        let mut profile = loaded.profile;
+        profile.applications.push(ApplicationLink {
+            bundle_id: "us.zoom.xos".into(),
+            name: "zoom.us".into(),
+        });
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(text.starts_with("schema_version = 5\n"), "{text}");
+        assert!(text.contains("name = \"Dial\""), "{text}");
+        assert!(
+            text.contains("bundle_id = \"us.zoom.xos\"\nname = \"zoom.us\""),
+            "{text}"
+        );
+        assert_eq!(store.load().unwrap().profile, profile);
+
+        let version_3 = "schema_version = 3\nname = \"Old\"\nmodel = \"n4-pro\"\n\n\
+                         [[pages]]\nname = \"Main\"\n";
+        let loaded = load_text(&store, version_3.as_bytes());
+        assert_eq!(loaded.backup, None);
+        assert_eq!(loaded.profile.pages().len(), 1);
+        store.save(&loaded.profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(text.starts_with("schema_version = 5\n"), "{text}");
+        assert!(text.contains("name = \"Main\""), "{text}");
+        assert!(!text.contains("applications"), "{text}");
     }
 
     #[test]

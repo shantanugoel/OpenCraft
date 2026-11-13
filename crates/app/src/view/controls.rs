@@ -475,9 +475,24 @@ pub(crate) fn switch(
     on: bool,
     size: theme::SwitchSize,
 ) -> Stateful<Div> {
+    switch_if(id, label, on, true, size)
+}
+
+/// A [`switch`] that can be disabled. A disabled switch has no focus, and
+/// the caller adds no click handler. The default profile uses this: the
+/// switch is on, and the user cannot turn it off (decision 0035).
+pub(crate) fn switch_if(
+    id: impl Into<SharedString>,
+    label: impl Into<SharedString>,
+    on: bool,
+    enabled: bool,
+    size: theme::SwitchSize,
+) -> Stateful<Div> {
     let id: SharedString = id.into();
+    let label: SharedString = label.into();
     let inset = (size.height - size.knob) / 2.;
-    keyboard_focus(div().id(id.clone()), Ring::Outside)
+    let control = div()
+        .id(id.clone())
         .debug_selector({
             let id = id.clone();
             move || id.to_string()
@@ -492,20 +507,24 @@ pub(crate) fn switch(
         } else {
             theme::BG_SEGMENT_ON
         })
-        .cursor_pointer()
         .accessible(Role::Switch, label)
-        .checked(on)
-        .child(
-            div()
-                .debug_selector(move || format!("{id}-knob"))
-                .absolute()
-                .top(inset)
-                .when(on, |d| d.right(inset))
-                .when(!on, |d| d.left(inset))
-                .size(size.knob)
-                .rounded_full()
-                .bg(theme::SWITCH_KNOB_COLOUR),
-        )
+        .checked(on);
+    let control = if enabled {
+        keyboard_focus(control, Ring::Outside).cursor_pointer()
+    } else {
+        control
+    };
+    control.child(
+        div()
+            .debug_selector(move || format!("{id}-knob"))
+            .absolute()
+            .top(inset)
+            .when(on, |d| d.right(inset))
+            .when(!on, |d| d.left(inset))
+            .size(size.knob)
+            .rounded_full()
+            .bg(theme::SWITCH_KNOB_COLOUR),
+    )
 }
 
 /// A segmented control (section 3.7): a track of `bg-field` with the

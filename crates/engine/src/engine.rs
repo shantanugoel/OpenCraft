@@ -43,16 +43,18 @@ use crate::action::{
     HandlerPort, KindDescription, Message, ProfileTarget, Request, Status,
 };
 use crate::clipboard::{ControlContent, Parts};
+mod front;
 mod power;
 
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
+use crate::front::{ActiveCause, FrontApplication};
 use crate::history::{History, Location, SavedProfile, Target};
 use crate::icons;
 use crate::layout::DeviceLayout;
 use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
-    Background, BackgroundFit, Color, Folder, FolderEntry, FolderId, LabelChange, Page, Profile,
-    SurfaceContent, SurfaceIcon, DEFAULT_PROFILE_NAME,
+    ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry, FolderId, LabelChange,
+    Page, Profile, SurfaceContent, SurfaceIcon, DEFAULT_PROFILE_NAME,
 };
 use crate::profiles::{ProfileEntry, ProfilesDir};
 use crate::render::{self, Size};
@@ -306,6 +308,23 @@ pub enum Command {
     SetDeviceSettings(DeviceSettings),
     /// A system power notice observed by the shell.
     PowerNotice(PowerNotice),
+    /// The front application changed, or the shell reports the front
+    /// application at the start (decision 0035, section 8).
+    FrontApplication(FrontApplication),
+    /// Add `link` to the profile with the identity `profile`. A link that
+    /// another profile of the model has moves to this profile.
+    LinkApplication {
+        profile: String,
+        link: ApplicationLink,
+    },
+    /// Remove the link with this bundle identifier from the profile.
+    UnlinkApplication { profile: String, bundle_id: String },
+    /// Make the profile the default profile of the model (decision 0035,
+    /// section 6).
+    SetDefaultProfile { profile: String },
+    /// Turn the automatic switch on or off (decision 0035, section 7).
+    /// The active profile does not change.
+    SetFollowFrontApplication(bool),
     /// Wake from the computer side, unless the system is locked or asleep.
     WakeDevice,
     /// Ask the handler to correct the status of this kind.
@@ -430,6 +449,11 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         | Command::AddStarterProfile { .. }
         | Command::SetDeviceSettings(_)
         | Command::PowerNotice(_)
+        | Command::FrontApplication(_)
+        | Command::LinkApplication { .. }
+        | Command::UnlinkApplication { .. }
+        | Command::SetDefaultProfile { .. }
+        | Command::SetFollowFrontApplication(_)
         | Command::WakeDevice
         | Command::CopyControl { .. }
         | Command::Undo
@@ -587,7 +611,16 @@ pub enum Event {
     Profiles {
         profiles: Vec<ProfileEntry>,
         active: String,
+        /// The identity of the default profile of the model (decision 0035,
+        /// section 6).
+        default: String,
+        /// Why `active` is the active profile.
+        cause: ActiveCause,
     },
+    /// The setting "Change the profile with the front application". The
+    /// engine sends it after the first [`Event::Profiles`] at the start,
+    /// and after each change of the setting.
+    FollowFrontApplication(bool),
     /// The names of the pages in their order, the number of the active
     /// page, and the number of the first page of the profile (see
     /// [`Profile::first_page`]). Page numbers start at 0. `folders` is the
@@ -727,6 +760,21 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// The device settings of the model of the device.
     settings: DeviceSettings,
     power: Power,
+    /// True if the last front application was this process (decision 0035).
+    shell_in_front: bool,
+    /// The profile that the switch rule gave for the last front application
+    /// that is not OpenCraft. Empty at the start, and after the setting
+    /// goes on.
+    last_target: Option<String>,
+    /// True after a manual selection while OpenCraft is in front, until the
+    /// next front application that is not OpenCraft.
+    chosen_in_window: bool,
+    /// Why the active profile is active.
+    cause: ActiveCause,
+    /// The setting of section 7. A missing key in `state.toml` is true.
+    follow_front: bool,
+    /// The default mark of the model of the device, if `state.toml` has one.
+    default_mark: Option<String>,
     /// False if the settings file has an error or a newer schema version.
     /// Then the engine does not write the file until the user changes a
     /// setting.
@@ -794,6 +842,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             link_problem: None,
             settings: DeviceSettings::defaults(default_model.settings),
             power: Power::default(),
+            shell_in_front: false,
+            last_target: None,
+            chosen_in_window: false,
+            cause: ActiveCause::Selected,
+            follow_front: true,
+            default_mark: None,
             settings_can_save: true,
             settings_changed_at: None,
             settings_save_failed: false,
@@ -810,6 +864,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         engine.restart_idle();
         engine.show_model();
         engine.send_profiles();
+        engine.send_follow();
         engine.send_pages();
         engine.send_history();
         engine.appear();
@@ -1689,6 +1744,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// it.
     fn open_profiles(&mut self) {
         let model = self.descriptor.model;
+        self.follow_front = self.profiles.follow_front();
+        self.default_mark = self.profiles.default_of(model);
+        self.last_target = None;
+        self.chosen_in_window = false;
+        self.cause = ActiveCause::Selected;
         self.entries = match self.profiles.list(model) {
             Ok(entries) => entries,
             Err(e) => {
@@ -1790,10 +1850,19 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Send the list of profiles and the identity of the active profile. See
     /// [`Event::Profiles`].
     fn send_profiles(&mut self) {
+        self.assign_clashes();
+        let default = self.default_profile_id();
         (self.sink)(Event::Profiles {
             profiles: self.entries.clone(),
             active: self.profile_id.clone(),
+            default,
+            cause: self.cause.clone(),
         });
+    }
+
+    /// Tell the shell the setting of the automatic switch.
+    fn send_follow(&mut self) {
+        (self.sink)(Event::FollowFrontApplication(self.follow_front));
     }
 
     /// Make the profile `id` the active profile. This is
@@ -1820,6 +1889,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !self.is_profile(id) || !self.save_before_leaving() {
             return;
         }
+        self.note_manual_selection();
         self.change_profile(id.to_string(), None);
     }
 
@@ -1859,6 +1929,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 AskedPage::Number(page) => Some(page),
                 AskedPage::First | AskedPage::Unspecified => None,
             };
+            self.note_manual_selection();
             self.change_profile_at(id, None, page);
             return;
         }
@@ -2025,6 +2096,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Some(_) => return,
         };
         profile.name = name;
+        // A duplicate copies the pages, not the links (decision 0035).
+        profile.applications.clear();
         if !self.save_before_leaving() {
             return;
         }
@@ -2045,6 +2118,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem(format!("OpenCraft could not add the profile: {e}"));
             return;
         }
+        self.note_manual_selection();
         self.change_profile(id, Some(profile));
     }
 
@@ -2199,15 +2273,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         };
         let store = self.profiles.store(&id);
         let size = self.background_size();
-        let written = package
-            .write_images(&store, (size.width, size.height))
-            .and_then(|mut profile| {
+        let written = match package.write_images(&store, (size.width, size.height)) {
+            Ok(mut profile) => {
                 profile.name = name;
-                store.save(&profile)?;
-                Ok(profile)
-            });
+                self.drop_clashing_links(&mut profile);
+                store.save(&profile).map(|()| profile)
+            }
+            Err(error) => Err(error),
+        };
         match written {
             Ok(profile) => {
+                self.note_manual_selection();
                 self.change_profile(id.clone(), Some(profile));
                 (self.sink)(Event::ProfileImported { profile: id });
             }
@@ -2266,6 +2342,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Err(e) => return self.problem(failed(&e)),
         };
         let store = self.profiles.store(&id);
+        self.drop_clashing_links(&mut profile);
         if let Err(e) = store.save(&profile) {
             // The directory is new and holds no profile of the user.
             let _ = std::fs::remove_dir_all(store.dir());
@@ -2274,6 +2351,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if replace {
             self.entries = others;
         }
+        self.note_manual_selection();
         self.change_profile(id, Some(profile));
     }
 
@@ -2299,9 +2377,18 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem(format!("OpenCraft could not remove the profile: {e}"));
             return;
         }
+        if self.default_mark.as_deref() == Some(id.as_str()) {
+            self.default_mark = None;
+            if let Err(e) = self.profiles.clear_default(self.descriptor.model) {
+                self.problem(format!(
+                    "OpenCraft could not record the default profile: {e}"
+                ));
+            }
+        }
         self.entries.remove(at);
         if active {
             let next = self.entries[at.min(self.entries.len() - 1)].id.clone();
+            self.note_manual_selection();
             self.change_profile(next, None);
         } else {
             self.send_profiles();
@@ -2745,6 +2832,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 }
             }
             Command::PowerNotice(notice) => self.power_notice(notice),
+            Command::FrontApplication(front) => self.front_application(front),
+            Command::LinkApplication { profile, link } => self.link_application(profile, link),
+            Command::UnlinkApplication { profile, bundle_id } => {
+                self.unlink_application(profile, bundle_id)
+            }
+            Command::SetDefaultProfile { profile } => self.set_default_profile(profile),
+            Command::SetFollowFrontApplication(follow) => self.set_follow_front(follow),
             Command::WakeDevice => self.wake_device(),
             Command::Resolve { kind } => {
                 self.request(&kind, Request::Resolve { kind: kind.clone() });

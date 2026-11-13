@@ -1,4 +1,4 @@
-//! The pane "General" (decision 0029, section 17): three switches, the
+//! The pane "General" (decision 0029, section 17): four switches, the
 //! state of the Accessibility permission, and the folders of OpenCraft.
 
 use super::{
@@ -15,7 +15,7 @@ use gpui_kit::{
     assets::IconName, component::Icon, div, prelude::*, AnyElement, Div, FontWeight, Stateful,
 };
 
-/// The three switches: the name, the description, and the id.
+/// The switches: the name and the description.
 pub const START_AT_LOGIN: (&str, &str) = (
     "Start at login",
     "The device operates after you log in, with no window",
@@ -27,6 +27,13 @@ pub const SHOW_DOCK_ICON: (&str, &str) = (
 pub const SHOW_WINDOW_AT_START: (&str, &str) = (
     "Show the window at start",
     "Off: the window opens from the menu bar item",
+);
+/// The automatic profile switch (decision 0035). The description is the
+/// first sentence of the text in that record. A row shows one line. The
+/// user guide has the full text.
+pub const FOLLOW_FRONT: (&str, &str) = (
+    "Change the profile with the front application",
+    "OpenCraft changes the profile when you go to an application that needs a different profile.",
 );
 
 /// The name of the permission row, before its state.
@@ -90,6 +97,19 @@ impl SettingsView {
                         theme::SWITCH_SETTINGS,
                     )
                     .on_click(self.on_click(ShellCommand::ToggleShowWindowAtStart)),
+                ),
+                row(
+                    FOLLOW_FRONT.0,
+                    FOLLOW_FRONT.1,
+                    switch(
+                        "switch-follow-front",
+                        FOLLOW_FRONT.0,
+                        self.snapshot.follow_front,
+                        theme::SWITCH_SETTINGS,
+                    )
+                    .on_click(self.on_click(
+                        ShellCommand::SetFollowFrontApplication(!self.snapshot.follow_front),
+                    )),
                 ),
             ]))
             .child(self.permission_group(permission))

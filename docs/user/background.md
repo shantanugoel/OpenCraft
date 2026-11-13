@@ -26,6 +26,7 @@ displays with the menu. The window does not have to be open.
 |---|---|
 | *Device name* · connected, or *Device name* · not connected | Shows the state of the device. The dot is green when the device is connected. You cannot click it. |
 | Profile, and the list of your profiles | Click a profile to make it the active profile. The device shows it. The check mark is at the active profile. |
+| Follow the Front Application | Turns the automatic profile change on or off. The check mark shows when it is on. See [The profile follows the front application](controls.md#the-profile-follows-the-front-application). |
 | Page: *name* | Opens a list of the pages of the active profile. Click a page to show it on the device. The check mark is at the active page. |
 | Brightness | The slider sets the brightness of the displays of the device. Drag the knob of the slider. The number at the right shows the value. OpenCraft saves the value and uses it again when it starts. The same value shows in **Device settings** in the window. |
 | Open OpenCraft (⌘O) | Opens the window, or brings it to the front; wakes the device |
@@ -45,7 +46,11 @@ When the Dock icon shows, a click on the Dock icon also opens the window.
 When the computer locks its screen or turns off its displays, OpenCraft makes
 the device dark. While the screen is locked, device input does not run an
 action. An unlock or a display wake restores the profile and the stored
-brightness. A display wake does not override a screen lock.
+brightness. A display wake does not override a screen lock. While the screen is locked
+or the computer sleeps, OpenCraft does not change the profile because a
+different application came to the front. After the unlock or the wake, the
+next application applies the rule. See
+[The profile follows the front application](controls.md#the-profile-follows-the-front-application).
 
 Before computer sleep, OpenCraft saves pending changes and stops the device.
 At wake it draws the full profile again. If the device stays dark, select
@@ -76,13 +81,14 @@ OpenCraft window and the device continue to operate.
 
 ![The tab General of the Settings window](images/settings-general.png)
 
-The three switches at the top of the tab:
+The four switches at the top of the tab:
 
 | Switch | What it does |
 |---|---|
 | Start at login | Starts OpenCraft when you log in, with no window. See [Start at login](#start-at-login). |
 | Show the Dock icon | Shows or hides the Dock icon. See [The Dock icon](#the-dock-icon). |
 | Show the window at start | Opens the OpenCraft window when you start OpenCraft. See [The window at start](#the-window-at-start). |
+| Change the profile with the front application | Changes the profile when you go to an application that needs a different profile. The full rule is in [The profile follows the front application](controls.md#the-profile-follows-the-front-application). The switch is on until you turn it off. |
 
 Below the switches, the tab shows the state of the Accessibility permission.
 The text is "Accessibility permission: **given**" or "Accessibility

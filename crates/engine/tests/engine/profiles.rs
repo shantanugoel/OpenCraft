@@ -74,6 +74,9 @@ fn profiles_event(list: &[(&str, &str)], active: &str) -> Event {
     Event::Profiles {
         profiles: entries(list),
         active: active.into(),
+        // No links and no mark: the first profile is the default.
+        default: list.first().map(|(id, _)| (*id).into()).unwrap_or_default(),
+        cause: opencraft_engine::ActiveCause::Selected,
     }
 }
 
@@ -160,6 +163,8 @@ fn an_old_default_directory_with_a_version_two_file_is_the_active_profile_with_n
     assert!(events.contains(&Event::Profiles {
         profiles: entry,
         active: "default".into(),
+        default: "default".into(),
+        cause: opencraft_engine::ActiveCause::Selected,
     }));
     assert_eq!(rig.engine.active_profile(), "default");
     assert_eq!(rig.engine.profile().model, MODEL);
@@ -321,6 +326,9 @@ fn a_bad_profile_that_is_not_active_does_not_stop_the_start_and_does_not_change(
     assert!(events.contains(&Event::Profiles {
         profiles: list,
         active: "default".into(),
+        // The first profile in the order of the identities has no link.
+        default: "broken".into(),
+        cause: opencraft_engine::ActiveCause::Selected,
     }));
     rig.poll_for(Duration::from_secs(2));
     assert_eq!(names_in(broken.dir()), [PROFILE_FILE]);

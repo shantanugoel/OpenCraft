@@ -220,7 +220,7 @@ not repeat "focus" for them. A text field shows its focus with its border.
 | `square_button`, `square_icon_button` | A square button with a border and one icon: "Previous page", "Move the page up", the "⋯" button (`form::more_button`) | A button with text | hover, pressed, disabled |
 | `popup_button` + `popup_menu` + `menu_row` + `menu_separator` | A choice from a list (a run-time choice list uses checks, adds at the end and removes a selected value): the action popup, a choice field, the label size, the fit, "First page" | A command menu at the pointer (use a native menu) | hover, pressed, open (`ACCENT_LINE` border); the menu has the keys of `view/menu.rs` |
 | `segmented` + `segment`, `segment_if` | Two to five choices that all show: the tabs of the right panel, "Position", "Background", "Knob lights", the direction of a turn | More than five choices (use a popup button), a command | selected, hover, disabled |
-| `switch` | An on/off setting that applies at once | A choice between two named values (use a segmented control) | on, off |
+| `switch`, `switch_if` | An on/off setting that applies at once. `switch_if` can be disabled: no focus, and the caller adds no click | A choice between two named values (use a segmented control) | on, off, disabled |
 | `slider` | A number in a range: brightness | A number that the user types | disabled (no thumb); Left, Right, Up, and Down move it one step |
 | `text_field`, `text_field_sized` (`FieldSize::sheet`) | Each text field: the inspector, a card (`BG_BAR`), a popover, a sheet | The name field in a sidebar row (it has the size of the row) | focus (`ACCENT_LINE` border) |
 | `search_field` | The search field of a panel: the library, the icon picker, the application picker | The toolbar search (a button that opens the palette) | focus |
@@ -267,7 +267,7 @@ engine holds the inactivity deadline; the view makes no timer.
 | `MenuKeys`, `MenuRow` | `view/menu.rs` | The keys of a drawn menu. `popup_menu` adds them. |
 | `group`, `row`, `line_row` | `settings_window/parts.rs` | The group boxes of the Settings window |
 | Icon picker popover | `view/icon_picker.rs` | Only the icon picker (it has an arrow) |
-| Application picker | `view/application_picker.rs` | A path field of kind Application. The list shows the name and the icon of each installed application, a search field, and "Choose a different application…". It has no arrow. |
+| Application picker | `view/application_picker.rs` | A path field of kind Application, and "Add an application…" in the profile sheet. The list shows the name and the icon of each installed application, a search field, and "Choose a different application…". It has no arrow. |
 | Native menu (`NativeMenu`) | `view/sidebar.rs`, `view/clipboard.rs`, `view/nested.rs` | A command menu at the pointer: a right-click menu, the "⋯" menu, the device switcher |
 | Native alert (`window.prompt`) | `view/pages.rs` (`confirm_remove`) | The confirmation of a destructive command |
 

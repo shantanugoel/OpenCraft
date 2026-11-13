@@ -1,9 +1,9 @@
 //! Window-independent state of the shell. No device or file work occurs here.
 
 use opencraft_engine::{
-    BackgroundState, BindingId, BindingState, ControlId, ControlKind, DeviceLayout, DeviceSettings,
-    Event, FolderEntry, FolderId, Gesture, GestureKind, InputEvent, KindDescription, ProfileEntry,
-    Status, SurfaceId, SurfaceKind, SurfaceState,
+    ActiveCause, BackgroundState, BindingId, BindingState, ControlId, ControlKind, DeviceLayout,
+    DeviceSettings, Event, FolderEntry, FolderId, Gesture, GestureKind, InputEvent,
+    KindDescription, ProfileEntry, Status, SurfaceId, SurfaceKind, SurfaceState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -81,6 +81,14 @@ pub struct ViewState {
     /// The profiles of the device model, and the identity of the active profile.
     pub profiles: Vec<ProfileEntry>,
     pub profile: Option<String>,
+    /// The identity of the default profile. `None` before the first
+    /// [`Event::Profiles`].
+    pub default_profile: Option<String>,
+    /// Why the active profile is active (decision 0035).
+    pub cause: ActiveCause,
+    /// True when a change of the front application can change the profile.
+    /// The engine sends the value. A missing setting is true.
+    pub follow_front: bool,
     /// The count of the events that can change the active page. An edit that
     /// started at a different count is for a page that the device does not
     /// show now, so the shell drops it.
@@ -169,7 +177,12 @@ impl ViewState {
             }
             Event::Input(input) => return self.input(input, now),
             Event::Kinds(kinds) => self.kinds = kinds,
-            Event::Profiles { profiles, active } => {
+            Event::Profiles {
+                profiles,
+                active,
+                default,
+                cause,
+            } => {
                 // The engine sends the pages and the bindings of a new active
                 // profile next. Drop all that is of the old profile.
                 if self.profile.as_ref().is_some_and(|p| *p != active) {
@@ -181,6 +194,8 @@ impl ViewState {
                 }
                 self.profiles = profiles;
                 self.profile = Some(active);
+                self.default_profile = Some(default);
+                self.cause = cause;
             }
             Event::Pages {
                 names,
@@ -217,6 +232,7 @@ impl ViewState {
             }
             Event::Clipboard(kind) => self.clipboard = Some(kind),
             // The window shows a message for these events.
+            Event::FollowFrontApplication(follow) => self.follow_front = follow,
             Event::Choices { .. }
             | Event::Counters(_)
             | Event::ProfileExported { .. }

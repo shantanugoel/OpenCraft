@@ -16,7 +16,7 @@ use crate::{app_menu::OpenSettings, shell::ShellCommand};
 use gpui_kit::{
     actions,
     assets::IconName,
-    component::{native_menu::NativeMenu, Icon, Sizable},
+    component::{native_menu::NativeMenu, tooltip::Tooltip, Icon, Sizable},
     percentage, Action, FontWeight, KeyDownEvent, MouseButton, MouseDownEvent, Pixels,
 };
 
@@ -55,6 +55,63 @@ const PROFILES: &str = "Profiles";
 
 /// The badge of the active profile.
 const ON_DEVICE: &str = "ON DEVICE";
+
+/// The tooltip of "ON DEVICE" (decision 0035, section 11).
+fn cause_text(
+    cause: &opencraft_engine::ActiveCause,
+    profiles: &[opencraft_engine::ProfileEntry],
+) -> String {
+    match cause {
+        opencraft_engine::ActiveCause::Selected => "Selected".into(),
+        opencraft_engine::ActiveCause::Linked { bundle_id } => {
+            let name = profiles
+                .iter()
+                .find_map(|entry| {
+                    entry.applications.iter().find_map(|link| {
+                        opencraft_engine::front::same_bundle(&link.bundle_id, bundle_id)
+                            .then(|| link.name.clone())
+                    })
+                })
+                .unwrap_or_else(|| bundle_id.clone());
+            format!("Because “{name}” is in front")
+        }
+        opencraft_engine::ActiveCause::Default => {
+            "The default profile: the front application has no linked profile".into()
+        }
+    }
+}
+
+/// The mark of a profile that is not active: the first link that applies,
+/// with "+N" for more links, and "DEFAULT" for the default profile.
+fn profile_note(
+    profile: &opencraft_engine::ProfileEntry,
+    default_id: Option<&str>,
+) -> Option<String> {
+    let links: Vec<_> = profile
+        .applications
+        .iter()
+        .filter(|link| {
+            !profile
+                .clashes
+                .iter()
+                .any(|clash| opencraft_engine::front::same_bundle(clash, &link.bundle_id))
+        })
+        .collect();
+    let links = links.first().map(|link| {
+        if links.len() == 1 {
+            link.name.clone()
+        } else {
+            format!("{} +{}", link.name, links.len() - 1)
+        }
+    });
+    let default = (default_id == Some(profile.id.as_str())).then(|| "DEFAULT".to_string());
+    match (links, default) {
+        (Some(links), Some(mark)) => Some(format!("{links} {mark}")),
+        (Some(links), None) => Some(links),
+        (None, Some(mark)) => Some(mark),
+        (None, None) => None,
+    }
+}
 
 /// The tooltip of the "+" button of the profiles.
 const ADD_A_PROFILE: &str = "Add a profile";
@@ -504,18 +561,42 @@ impl DeviceView {
         .aria_level(1)
         .aria_selected(false)
         .when(active, |d| d.aria_expanded(open));
+        let cause = active.then(|| cause_text(&self.state.cause, &self.state.profiles));
+        let note = if active {
+            None
+        } else {
+            profile_note(profile, self.state.default_profile.as_deref())
+        };
         element = if editing {
             element.child(self.name_field(cx))
         } else {
             element
                 .child(row_text(profile.name.clone()))
-                .when(active, |d| {
-                    d.child(
+                .when_some(note, |row, note| {
+                    row.child(
                         div()
+                            .id(SharedString::from(format!("profile-note-{}", profile.id)))
+                            .readable_text(note.clone())
+                            .flex_shrink_0()
+                            .text_size(theme::TEXT_BADGE)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(theme::TEXT_TERTIARY)
+                            .child(note),
+                    )
+                })
+                .when(active, |row| {
+                    let cause = cause.clone().unwrap_or_else(|| "Selected".into());
+                    row.child(
+                        div()
+                            .id(SharedString::from(format!("on-device-{}", profile.id)))
+                            .readable_text(cause.clone())
                             .flex_shrink_0()
                             .text_size(theme::TEXT_BADGE)
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(theme::SUCCESS)
+                            .tooltip(move |window, cx| {
+                                Tooltip::new(cause.clone()).build(window, cx)
+                            })
                             .child(ON_DEVICE),
                     )
                 })

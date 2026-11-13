@@ -100,8 +100,19 @@ fn main() {
             }
             Event::Choices { id, options } => println!("[{at:8.3}] choices {id}: {options:?}"),
             Event::Kinds(kinds) => println!("[{at:8.3}] kinds: {kinds:?}"),
-            Event::Profiles { profiles, active } => {
-                println!("[{at:8.3}] profiles: {profiles:?}, active {active}")
+            Event::Profiles {
+                profiles,
+                active,
+                default,
+                cause,
+            } => {
+                println!(
+                    "[{at:8.3}] profiles: {profiles:?}, active {active}, default {default}, \
+                     cause {cause:?}"
+                )
+            }
+            Event::FollowFrontApplication(follow) => {
+                println!("[{at:8.3}] follow the front application: {follow}")
             }
             Event::Pages {
                 names,

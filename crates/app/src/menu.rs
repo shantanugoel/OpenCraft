@@ -64,6 +64,10 @@ pub enum Row {
         title: String,
         checked: bool,
     },
+    /// The automatic switch (decision 0035). A check mark means it is on.
+    Follow {
+        checked: bool,
+    },
     /// The submenu of the pages of the active profile.
     Pages {
         title: String,
@@ -91,6 +95,7 @@ impl Row {
     pub fn command(&self) -> Option<ShellCommand> {
         match self {
             Row::Profile { id, .. } => Some(ShellCommand::SelectProfile(id.clone())),
+            Row::Follow { checked } => Some(ShellCommand::SetFollowFrontApplication(!checked)),
             Row::Open => Some(ShellCommand::Open),
             Row::WakeDevice => Some(ShellCommand::WakeDevice),
 
@@ -113,6 +118,7 @@ impl Row {
             | Row::Section(title)
             | Row::Profile { title, .. }
             | Row::Pages { title, .. } => Some(title),
+            Row::Follow { .. } => Some("Follow the Front Application"),
             Row::Permission => Some("Accessibility Permission Not Given…"),
             Row::Open => Some("Open OpenCraft"),
             Row::WakeDevice => Some("Wake Device"),
@@ -162,6 +168,9 @@ pub struct MenuState {
     pub pages: Vec<String>,
     /// The number of the active page.
     pub page: usize,
+    /// The automatic switch. The shell starts with true, and the engine
+    /// sends the stored value.
+    pub follow_front: bool,
     /// `None` before the engine sends the device settings.
     pub brightness: Option<Brightness>,
 }
@@ -190,6 +199,9 @@ impl MenuState {
                 checked: self.profile.as_ref() == Some(&p.id),
             }));
         }
+        rows.push(Row::Follow {
+            checked: self.follow_front,
+        });
         if let Some(active) = self.pages.get(self.page) {
             rows.push(Row::Pages {
                 title: format!("Page: {active}"),
@@ -254,6 +266,7 @@ mod tests {
             profile: Some("video".into()),
             pages: vec!["Main".into(), "Mail".into()],
             page: 1,
+            follow_front: true,
             brightness: Some(Brightness {
                 value: 80,
                 lowest: 15,
@@ -300,6 +313,7 @@ mod tests {
                 "Desk",
                 "Video",
                 "Game",
+                "Follow the Front Application",
                 "Page: Mail",
                 "-",
                 "-",
@@ -448,6 +462,8 @@ mod tests {
             titles(&rows),
             [
                 "Device · not connected",
+                "-",
+                "Follow the Front Application",
                 "-",
                 "Open OpenCraft",
                 "Wake Device",
