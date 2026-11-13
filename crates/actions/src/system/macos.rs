@@ -318,16 +318,23 @@ unsafe impl Encode for Point {
     const ENCODING: Encoding = Encoding::Struct("CGPoint", &[f64::ENCODING, f64::ENCODING]);
 }
 
-pub fn media_key(key: MediaKey) -> Result<()> {
-    // The key types of `IOKit/hidsystem/ev_keymap.h`.
-    let code: isize = match key {
+/// The key type of a media key in `IOKit/hidsystem/ev_keymap.h`. The header
+/// has no type for a stop key, so there is no `MediaKey::Stop`.
+fn media_key_type(key: MediaKey) -> isize {
+    match key {
         MediaKey::VolumeUp => 0,
         MediaKey::VolumeDown => 1,
         MediaKey::Mute => 7,
         MediaKey::PlayPause => 16,
         MediaKey::Next => 17,
         MediaKey::Previous => 18,
-    };
+        MediaKey::FastForward => 19,
+        MediaKey::Rewind => 20,
+    }
+}
+
+pub fn media_key(key: MediaKey) -> Result<()> {
+    let code = media_key_type(key);
     /// `NSEventTypeSystemDefined`.
     const SYSTEM_DEFINED: usize = 14;
     /// The subtype of a media key event.
@@ -692,6 +699,24 @@ pub fn open_url(url: &str) -> Result<()> {
 mod tests {
     use super::*;
     use crate::hotkey::{is_key_name, KEY_NAMES};
+
+    #[test]
+    fn each_media_key_has_the_key_type_of_the_header() {
+        // NX_KEYTYPE_SOUND_UP, SOUND_DOWN, MUTE, PLAY, NEXT, PREVIOUS, FAST
+        // and REWIND of `ev_keymap.h`.
+        for (key, code) in [
+            (MediaKey::VolumeUp, 0),
+            (MediaKey::VolumeDown, 1),
+            (MediaKey::Mute, 7),
+            (MediaKey::PlayPause, 16),
+            (MediaKey::Next, 17),
+            (MediaKey::Previous, 18),
+            (MediaKey::FastForward, 19),
+            (MediaKey::Rewind, 20),
+        ] {
+            assert_eq!(media_key_type(key), code, "{key:?}");
+        }
+    }
 
     #[test]
     fn extended_hotkeys_have_balanced_sides_and_flags() {

@@ -251,6 +251,8 @@ fn key_work(action: &Action) -> Result<KeyWork<'_>> {
             "play-pause" => MediaKey::PlayPause,
             "next" => MediaKey::Next,
             "previous" => MediaKey::Previous,
+            "fast-forward" => MediaKey::FastForward,
+            "rewind" => MediaKey::Rewind,
             "volume-up" => MediaKey::VolumeUp,
             "volume-down" => MediaKey::VolumeDown,
             "mute" => MediaKey::Mute,
