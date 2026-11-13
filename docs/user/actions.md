@@ -500,10 +500,17 @@ again to put the previous mute state back.
 |---|---|
 | Page | Next page, Previous page, or Page number. The default is Next page. |
 | Page number | The number of the page, from 1. OpenCraft uses it only for "Page number". |
+| Show the page number | On to show the number of the active page on the key. Off, the default, keeps the title of the key. |
 
 - After the last page, "Next page" goes to the first page. Before the first
   page, "Previous page" goes to the last page.
 - If the profile has no page with that number, the window shows a message.
+- With **Show the page number** On, the key shows the number of the page that
+  it is on, for example `2`, in place of its title. A knob shows it on its
+  bar panel. The number changes when the active page changes, and when you
+  move or remove a page. The number is the same for each choice in **Page**.
+  Old profiles have the switch Off, so their keys keep their titles.
+- OpenCraft does not show the count of pages.
 
 Pages are in [Knobs, touch bar, pages, and profiles](controls.md#pages).
 
