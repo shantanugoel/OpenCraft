@@ -27,7 +27,7 @@ libc.workspace = true
 # that GPUI already uses in `Cargo.lock`.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2.workspace = true
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSObject", "NSArray", "NSURL", "NSGeometry", "NSAttributedString", "NSRange"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSObject", "NSArray", "NSURL", "NSGeometry", "NSAttributedString", "NSRange", "NSNotification", "NSDistributedNotificationCenter"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView", "NSResponder", "NSMenu", "NSMenuItem", "NSCell", "NSApplication", "NSRunningApplication", "NSImage", "NSWorkspace", "NSSlider", "NSSliderCell", "NSTextField", "NSImageView", "NSImageRep", "NSColor", "NSFont", "NSText", "NSParagraphStyle", "NSAttributedString", "NSAccessibility", "NSAccessibilityProtocols"] }
 
 [dev-dependencies]

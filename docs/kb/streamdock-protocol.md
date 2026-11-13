@@ -413,7 +413,7 @@ Thus the commands to wake the device are the brightness command and `DIS`.
 
 In the dark state after `DC` and `HAN`, a key press and a knob turn changed nothing on the device: the displays and the knob lights stayed off. (Measured: owner, 2026-11-12)
 
-### Dark-state check (2026-11-15)
+### Dark-state check (2026-11-13)
 
 A scratch driver outside the repository sent commands to the vendor interface.
 A camera took fresh frames after each wait. No person touched the controls.

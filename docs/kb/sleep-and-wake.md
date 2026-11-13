@@ -36,6 +36,19 @@ Date: 2026-11-12.
 The device layer function `computer_sleep_time` in
 `crates/core/src/link.rs` gives these differences.
 
+## Display notices (2026-11-13)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The shell observer of `NSWorkspaceScreensDidSleepNotification` received a notice after `pmset displaysleepnow`. The engine made all displays and knob lights dark. | Measured | Development bundle, scratch profile, camera |
+| After 8 seconds, `caffeinate -u -t 2` woke the computer displays. The shell received `NSWorkspaceScreensDidWakeNotification`, and the device showed the full green page and knob lights again. | Measured | Same run |
+| The display sleep in this check did not lock the screen. It does not test a computer sleep or screen lock. | Measured | Same run; no lock or computer-sleep command was sent |
+
+The shell also registers NSWorkspace will-sleep/did-wake notices and the
+distributed names `com.apple.screenIsLocked` and `com.apple.screenIsUnlocked`.
+Their real delivery remains an owner check in
+[#255](https://github.com/shantanugoel/OpenCraft/issues/255).
+
 ## Not known
 
 - What macOS and the device do at a sleep and a wake: whether macOS removes

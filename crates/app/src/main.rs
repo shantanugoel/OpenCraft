@@ -25,6 +25,8 @@ mod login;
 mod menu;
 #[cfg(target_os = "macos")]
 mod menu_bar;
+#[cfg(target_os = "macos")]
+mod power;
 mod settings;
 mod settings_window;
 mod shell;
@@ -233,6 +235,8 @@ fn main() {
     if !settings.show_dock_icon {
         application = application.with_windowing(gpui_kit::WindowingRequest::Headless);
     }
+    #[cfg(target_os = "macos")]
+    let _power_notices = power::Notices::new(commands.clone());
     let reopen = commands.clone();
     // A click on the Dock icon when no window is open.
     application.on_reopen(move |_| {

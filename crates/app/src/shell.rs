@@ -117,6 +117,11 @@ pub enum Place {
 pub enum ShellCommand {
     /// Open the window, or bring it to the front.
     Open,
+    /// A platform power notice; the engine owns the policy.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    PowerNotice(opencraft_engine::PowerNotice),
+    /// Wake the controller without opening a window.
+    WakeDevice,
     /// Make the profile with this identity the active profile. The window
     /// follows the engine events.
     SelectProfile(String),
@@ -373,6 +378,8 @@ impl Shell {
     pub fn command(&mut self, command: ShellCommand, cx: &mut Context<Self>) {
         match command {
             ShellCommand::Open => self.open_window(cx),
+            ShellCommand::PowerNotice(notice) => (self.send)(Command::PowerNotice(notice)),
+            ShellCommand::WakeDevice => (self.send)(Command::WakeDevice),
             ShellCommand::SelectProfile(profile) => {
                 if self.state.profile.as_ref() != Some(&profile) {
                     (self.send)(Command::SelectProfile { profile });
@@ -744,6 +751,7 @@ impl Shell {
     /// to the front. The Settings window is not this window. At the first
     /// start, this is the first start window.
     pub fn open_window(&mut self, cx: &mut Context<Self>) {
+        (self.send)(Command::WakeDevice);
         if self.first_start {
             self.open_first_start(cx);
             return;
@@ -1292,7 +1300,12 @@ mod tests {
         f.commands.try_send(ShellCommand::Open).unwrap();
         cx.run_until_parked();
         assert_eq!(cx.update(|cx| cx.windows().len()), 1);
-        assert!(f.sent.borrow().is_empty());
+        assert!(f
+            .sent
+            .borrow()
+            .iter()
+            .all(|c| matches!(c, Command::WakeDevice)));
+        assert_eq!(f.sent.borrow().len(), 2);
     }
 
     #[gpui_kit::test]
