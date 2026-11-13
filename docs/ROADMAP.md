@@ -24,8 +24,8 @@ application that other persons can adopt.
 | 5 | Background operation | Complete |
 | 6 | First public release | Complete |
 | — | UI overhaul, after Phase 6 | Complete, with owner checks open |
-| 7 | A reliable daily driver | Tasks complete, owner checks open |
-| 8 | Everyday actions | Tasks complete, owner checks open |
+| 7 | A reliable daily driver | Complete, with owner checks open |
+| 8 | Everyday actions | Complete |
 
 ## Checks for each phase
 
@@ -421,7 +421,7 @@ record of the checks.
   with a page background (#191), VoiceOver (#243), and a drag of the window
   with a real mouse (#176).
 
-## Phase 7: A reliable daily driver (tasks complete, owner checks open)
+## Phase 7: A reliable daily driver (complete, with owner checks open)
 
 **Goal.** The N4 Pro operates after a sleep, a screen lock, and a login with
 no user action. The user can make the device dark from a key. A user can
@@ -444,15 +444,15 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 
 - [ ] After a computer sleep of 1 minute or more, the device shows the
   profile in 10 s or less, and a key operates. The owner did this check.
-- [ ] At a screen lock and an unlock, the device does what
+- [x] At a screen lock and an unlock, the device does what
   [decision 0034](decisions/0034-device-dark-state.md) says. Engine tests
   with the fake transport cover it.
 - [ ] After a start at login, a key with "Send a hotkey" operates with no
   restart of OpenCraft. The owner did this check with the release bundle.
-- [ ] A "Screen off" key makes the device dark, and the wake that decision
+- [x] A "Screen off" key makes the device dark, and the wake that decision
   0034 gives operates on the device. Engine tests with a fake clock cover the
   screen-off timer.
-- [ ] Play/pause, next, previous, fast forward, and rewind operate in the
+- [x] Play/pause, next, previous, fast forward, and rewind operate in the
   release bundle on macOS 27. Stop is not in this criterion, because macOS
   has no public key for it.
 - [x] The window shows the firmware version. "Copy diagnostics" gives no
@@ -462,14 +462,34 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 - [x] The idle processor use stays below 0.5 % of one core with the timer
   on. The value is in `kb/footprint.md`.
 
-**State on 2026-11-13.** All tasks are merged. The four criteria with no
-tick need the hands of the owner: a real sleep, a screen lock, a start at
-login, and a key press on the dark device. The engine tests for the lock,
-the unlock, and the screen-off timer are done, and the camera showed the
-dark device and the wake from the computer. The one sitting for the owner
-is in [issue #255](https://github.com/shantanugoel/OpenCraft/issues/255).
-The measured footprint is in
-[kb/footprint.md](kb/footprint.md).
+**Result.** The phase is complete on 2026-11-14, with two checks open. The
+[checks for each phase](#checks-for-each-phase) are done.
+[Issue #199](https://github.com/shantanugoel/OpenCraft/issues/199) has the
+list of the tasks, and
+[issue #255](https://github.com/shantanugoel/OpenCraft/issues/255) has the
+record of the owner checks.
+
+- On 2026-11-14 the owner did the checks on the device with a release build:
+  the screen lock and the unlock, the "Screen off" key and the wake from a
+  key, the screen-off timer, the brightness from a key and a knob, and the
+  media keys.
+- The owner moved two checks out of this phase, and they block no phase: a
+  real sleep of the computer, and a start at login. They are in
+  [issue #143](https://github.com/shantanugoel/OpenCraft/issues/143). The
+  computer of the owner does not allow a sleep of the system, so the sleep
+  check was not possible there: see
+  [kb/sleep-and-wake.md](kb/sleep-and-wake.md#checks-by-the-owner-2026-11-14).
+- The phase planned an action "Device sleep". It is removed: after the stop
+  state, the device sends no input, and a key press shows the logo of the
+  firmware. The facts are in
+  [decision 0034](decisions/0034-device-dark-state.md).
+- macOS has no public media key for stop, so the phase added fast forward
+  and rewind only.
+- One fault from the owner checks is open: the window showed an old picture
+  after a removal of a profile
+  ([issue #321](https://github.com/shantanugoel/OpenCraft/issues/321)). A
+  guard against it is merged. The cause is not known.
+- The measured footprint is in [kb/footprint.md](kb/footprint.md).
 
 **Decisions that this phase forces.** The dark state of the device: what
 the device does at a screen lock, after an idle time, and at a key press
@@ -478,7 +498,7 @@ decisions
 [0022](decisions/0022-device-settings-and-stop-state.md) and
 [0023](decisions/0023-wake-from-the-sleep-time-of-the-clocks.md).
 
-## Phase 8: Everyday actions (tasks complete, owner checks open)
+## Phase 8: Everyday actions (complete)
 
 **Goal.** The keys and knobs do the daily Mac tasks that VSD Craft users
 expect, with no shell command. The phase issue is
@@ -504,21 +524,30 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 - [x] Each new kind has handler tests with the fake `System`.
 - [x] Each new kind shows in its group of the library, with a form that comes
   from its description.
-- [ ] The owner pressed each new key in the release bundle, and each key did
+- [x] The owner pressed each new key in the release bundle, and each key did
   its work.
-- [ ] A knob turn scrolls the front window with the mouse action.
+- [x] A knob turn scrolls the front window with the mouse action.
 - [x] A sequence runs each step after its own delay. Old profiles with one
   delay load with no change of behaviour.
-- [ ] OpenCraft asks for no new permission. Mouse and key actions use the
+- [x] OpenCraft asks for no new permission. Mouse and key actions use the
   Accessibility permission only.
 - [x] `docs/user/actions.md` describes each new kind.
 
-**State on 2026-11-13.** All tasks are merged. The three criteria with no
-tick need the owner: a press of each new key, a knob turn that scrolls, and
-the check that no new permission request shows. The procedure and its
-profile are in [checks/phase-7-8-checks.md](checks/phase-7-8-checks.md).
-An agent ran "Test the action" in the window for the kinds that are safe to
-run. The measured footprint is in [kb/footprint.md](kb/footprint.md).
+**Result.** All exit criteria are true on 2026-11-14, and the
+[checks for each phase](#checks-for-each-phase) are done.
+[Issue #200](https://github.com/shantanugoel/OpenCraft/issues/200) has the
+list of the tasks.
+
+- On 2026-11-14 the owner pressed each key of the check profile in
+  [checks/phase-7-8-checks.md](checks/phase-7-8-checks.md) with a release
+  build. Each key did its work, and a knob turn scrolled a list. No new
+  permission request showed.
+- The Sleep function did nothing on the computer of the owner, because that
+  computer does not allow a sleep of the system. The action now names the
+  cause.
+- After the checks, the import of a profile moved to the **+** button of
+  the sidebar.
+- The measured footprint is in [kb/footprint.md](kb/footprint.md).
 
 **Decisions that this phase forces.** No new record. New field types are
 amendments of

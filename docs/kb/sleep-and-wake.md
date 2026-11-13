@@ -49,6 +49,19 @@ distributed names `com.apple.screenIsLocked` and `com.apple.screenIsUnlocked`.
 Their real delivery remains an owner check in
 [#255](https://github.com/shantanugoel/OpenCraft/issues/255).
 
+## Checks by the owner (2026-11-14)
+
+Date: 2026-11-14. Release build of the development bundle, one N4 Pro,
+macOS 27.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| At a lock of the screen, the device went dark. After the sign-in, the device showed the profile again. | Measured | Owner check, [issue #255](https://github.com/shantanugoel/OpenCraft/issues/255) |
+| After the action "Screen off", a press of a device key showed the profile again. | Measured | Owner check, issue #255 |
+| With the screen-off timer at 1 minute, the device went dark, and a key press woke it. | Measured | Owner check, issue #255 |
+| After the stop state (`DC`, then `HAN`), a key press lit the logo of the firmware, and no input report arrived at the computer. | Measured | Owner key press with a test program, not in the repository; [issue #323](https://github.com/shantanugoel/OpenCraft/issues/323) |
+| The computer of the owner has the system setting `SleepDisabled` on. `IOPMSleepSystem` gives `kIOReturnNotPermitted` there, and the Apple menu shows Sleep as not available. A real sleep of that computer was not possible in the check. | Measured | `opencraft.log` of the check; `pmset -g` |
+
 ## Not known
 
 - What macOS and the device do at a sleep and a wake: whether macOS removes
