@@ -95,6 +95,11 @@ pub fn type_text(text: &str) -> Result<()> {
     platform::type_text(text)
 }
 
+/// Paste text, then restore the clipboard if no other writer changed it.
+pub fn paste_text(text: &str) -> Result<()> {
+    platform::paste_text(text)
+}
+
 /// Press and release a media key.
 pub fn media_key(key: MediaKey) -> Result<()> {
     platform::media_key(key)

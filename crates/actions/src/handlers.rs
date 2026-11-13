@@ -202,7 +202,7 @@ fn key_status(sender: &Option<MessageSender>, ready: bool) {
 
 enum KeyWork<'a> {
     Hotkey(Hotkey),
-    Text(&'a str),
+    Text(&'a str, bool, bool),
     Media(MediaKey),
     Mouse(crate::mouse::MouseEvent),
     MacFunction(crate::mac_function::MacFunction),
@@ -216,6 +216,14 @@ pub(crate) fn no_permission() -> String {
         "OpenCraft did not send the keys or mouse events, because it does not have the Accessibility \
          permission. Select the control, and click \"{PERMISSION_BUTTON}\" below the action."
     )
+}
+
+fn text_option(action: &Action, key: &str) -> Result<bool> {
+    match action.settings.get(key) {
+        None => Ok(false),
+        Some(Value::Boolean(value)) => Ok(*value),
+        _ => Err(setting_problem(TEXT, key)),
+    }
 }
 
 fn key_work(action: &Action) -> Result<KeyWork<'_>> {
@@ -234,7 +242,11 @@ fn key_work(action: &Action) -> Result<KeyWork<'_>> {
             .ok_or_else(|| setting_problem(MAC_FUNCTION, "function"))?,
         ),
         MOUSE => KeyWork::Mouse(crate::mouse::work(action)?),
-        TEXT => KeyWork::Text(text(action, "text")?),
+        TEXT => KeyWork::Text(
+            text(action, "text")?,
+            text_option(action, "paste")?,
+            text_option(action, "return_after")?,
+        ),
         MEDIA => KeyWork::Media(match text(action, "key")? {
             "play-pause" => MediaKey::PlayPause,
             "next" => MediaKey::Next,
@@ -301,7 +313,21 @@ impl KeyHandler {
         }
         let result = match work {
             KeyWork::Hotkey(hotkey) => self.system.send_hotkey(&hotkey),
-            KeyWork::Text(text) => self.system.type_text(text),
+            KeyWork::Text(text, paste, return_after) => {
+                let result = if paste {
+                    self.system.paste_text(text)
+                } else {
+                    self.system.type_text(text)
+                };
+                result.and_then(|()| {
+                    if return_after {
+                        self.system
+                            .send_hotkey(&"return".parse().expect("Return key"))
+                    } else {
+                        Ok(())
+                    }
+                })
+            }
             KeyWork::Media(key) => self.system.media_key(key),
             KeyWork::Mouse(event) => self.system.mouse_event(event),
             KeyWork::MacFunction(function) => {

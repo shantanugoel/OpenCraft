@@ -168,7 +168,11 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         }
         TEXT => (
             "Type text",
-            vec![field("text", "Text", InputType::LongText)],
+            vec![
+                field("text", "Text", InputType::LongText),
+                field("paste", "Paste with clipboard", InputType::Toggle),
+                field("return_after", "Press Return after", InputType::Toggle),
+            ],
         ),
         MEDIA => (
             "Media key",

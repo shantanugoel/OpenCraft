@@ -14,6 +14,7 @@ pub enum Call {
     Mouse(opencraft_actions::mouse::MouseEvent),
     MacFunction(opencraft_actions::mac_function::MacFunction),
     Text(String),
+    Paste(String),
     Media(MediaKey),
     Level(u8),
     Muted(bool),
@@ -168,6 +169,9 @@ impl System for Fake {
     }
     fn type_text(&self, text: &str) -> Result<()> {
         self.record(Call::Text(text.into()), "text")
+    }
+    fn paste_text(&self, text: &str) -> Result<()> {
+        self.record(Call::Paste(text.into()), "paste")
     }
     fn media_key(&self, key: MediaKey) -> Result<()> {
         self.record(Call::Media(key), "media")

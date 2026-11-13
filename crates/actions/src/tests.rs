@@ -306,6 +306,62 @@ fn text_keeps_whitespace_and_extra_settings_do_not_break_an_action() {
 }
 
 #[test]
+fn text_modes_and_return_use_the_system_in_order() {
+    for paste in [false, true] {
+        for return_after in [false, true] {
+            let mut rig = Rig::new("type-text", true);
+            rig.invoke(action(
+                "type-text",
+                &[
+                    ("text", Value::Text("Long text 😀".into())),
+                    ("paste", Value::Boolean(paste)),
+                    ("return_after", Value::Boolean(return_after)),
+                ],
+            ));
+            let mut expected = vec![if paste {
+                Call::Paste("Long text 😀".into())
+            } else {
+                Call::Text("Long text 😀".into())
+            }];
+            if return_after {
+                expected.push(Call::Hotkey("return".into()));
+            }
+            assert_eq!(rig.system.calls(), expected);
+        }
+    }
+}
+
+#[test]
+fn text_rejects_bad_options_and_does_not_press_return_after_failure() {
+    for key in ["paste", "return_after"] {
+        let mut rig = Rig::new("type-text", true);
+        rig.invoke(action(
+            "type-text",
+            &[
+                ("text", Value::Text("Text".into())),
+                (key, Value::Integer(1)),
+            ],
+        ));
+        rig.problem("field");
+        assert!(rig.system.calls().is_empty());
+    }
+    for paste in [false, true] {
+        let mut rig = Rig::new("type-text", true);
+        rig.system.fail(Some(if paste { "paste" } else { "text" }));
+        rig.invoke(action(
+            "type-text",
+            &[
+                ("text", Value::Text("Text".into())),
+                ("paste", Value::Boolean(paste)),
+                ("return_after", Value::Boolean(true)),
+            ],
+        ));
+        rig.problem("42");
+        assert_eq!(rig.system.calls().len(), 1);
+    }
+}
+
+#[test]
 fn system_errors_become_problems_for_each_kind() {
     for (kind, key, value, failure) in [
         ("open-application", "application", "Test", "application"),
@@ -713,7 +769,10 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
             .find(|d| d.kind == format!("opencraft.{kind}"))
             .unwrap();
         assert_eq!(description.name, name);
-        assert_eq!(description.fields.len(), 1);
+        assert_eq!(
+            description.fields.len(),
+            if kind == "type-text" { 3 } else { 1 }
+        );
         assert_eq!(description.fields[0].key, key);
         assert!(!description.fields[0].label.is_empty());
         assert_eq!(description.fields[0].input, input);
