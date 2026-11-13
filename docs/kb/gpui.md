@@ -923,6 +923,38 @@ outside the repository. The window tests are in
 | `img(image).object_fit(ObjectFit::Cover)` in a cell of 14 high showed the middle band of a square engine image, at the full width of the cell. | Measured | Window picture |
 | A process that `open -n` starts from a bundle with an identifier that has no permission has the status "needs the user" for the key kinds. Thus the Accessibility request showed. The check clicked only "Not now", thus the process did not ask the system for the permission. | Measured | Window pictures |
 
+## Accessibility tree of the window (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+roles and labels of
+[issue 243](https://github.com/shantanugoel/OpenCraft/issues/243), started
+from the terminal with an empty scratch profiles directory, on the computer
+of [Release measurements](#release-measurements), with the device
+connected. A Python script read the tree of each window with the macOS
+Accessibility API (`AXUIElementCreateApplication`, `AXChildren`,
+`AXTitle`, `AXValue`, `AXHelp`) and pushed elements with `AXPress`. The
+terminal has the Accessibility permission. Nobody turned on VoiceOver: the
+listening test is for the owner (procedure in the issue). The outputs are
+kept outside the repository. The window tests are in
+`crates/app/src/view/tests/accessibility.rs`,
+`crates/app/src/settings_window/tests.rs`, and
+`crates/app/src/first_start/tests.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| GPUI puts an element in the accessibility tree only if it has an ID and a role. `aria_label` with no role has no effect. Plain text (`&str`, `String`, `SharedString`) has no node; only the `Text` element of `text!` has the role `Label`. | Source | `gpui-pre` 0.3.12 `src/element.rs` (`prepaint`), `src/elements/text.rs` |
+| GPUI builds the tree only while an assistive client is connected (`Window::is_a11y_active`). The first request of the script returned only the window; a second request 1.5 s later returned the full tree. | Source; Measured | `gpui-pre` 0.3.12 `src/window.rs`; script output |
+| The test platform of GPUI has no accessibility adapter (`a11y_init` does nothing), thus a window test cannot read the tree. `gpui_kit::test::TestQueryExt` reads the role and the label only of an element with `.test_support()`, which must be the last call on the element. The window tests read a log that `controls::Accessible` writes in test builds. | Source | `gpui-pre` 0.3.12 `src/platform.rs`; `gpui-base` 0.9.1 `src/test_support.rs` |
+| AccessKit on macOS gives the label as `AXTitle`, the description as `AXHelp`, and the value as `AXValue`. A role `Label` with a value is `AXStaticText` with that value. | Measured | Script output |
+| Roles on macOS: `Button` is `AXButton`; `Button` with `aria_toggled` is `AXCheckBox`, subrole `AXToggle`; `Switch` is `AXCheckBox`, subrole `AXSwitch`; `RadioButton` is `AXRadioButton` with the toggled state as `AXValue`; `RadioGroup` is `AXRadioGroup`; `ComboBox` is `AXPopUpButton` with `aria_value` as `AXValue`; `Tree` is `AXOutline` and `TreeItem` is `AXRow` (subrole `AXOutlineRow`) with `AXSelected`; `Navigation`, `Complementary`, `Status`, and `Group` are `AXGroup` with the subroles `AXLandmarkNavigation`, `AXLandmarkComplementary`, `AXApplicationStatus`, and `AXApplicationGroup`; `Toolbar` is `AXToolbar`; `Menu` and `MenuItem` are `AXMenu` and `AXMenuItem`; the kit slider is `AXSlider` with its value; the kit text field is `AXTextField`. | Measured | Script output |
+| `Role::Dialog` (a sheet, the palette, the icon picker) is an `AXWindow` with the subrole `AXDialog` inside the tree of the main window. The workspace behind it stays in the tree: the dialog is not modal for an assistive client. | Measured | Script output |
+| An element with `on_click` has the action `AXPress`, and `AXPress` from the script did the click: it selected a starter card, started the main window, selected the device and a key, opened the palette, a sheet, the icon picker, a drawn menu, and the Settings window, and changed its tab. An element with only `on_mouse_down` (the device switcher) has no `AXPress`. | Measured | Script output; window pictures |
+| A disabled button (no click handler) has no `AXPress`, but `AXEnabled` stays true: GPUI 0.3.12 has no setter for the disabled state. | Measured; Source | Script output ("Previous page" on the only page, "Licence notices" with no file); `gpui-pre` 0.3.12 `src/elements/div.rs` |
+| `aria_selected` shows as `AXSelected` on an `AXRow` (the page row). On an `AXButton` (a key face) the script read no `AXSelected`. On an `AXRadioButton` the state is `AXValue`, and `AXSelected` is false. | Measured | Script output |
+| The kit search field of the icon picker had `AXFocused` true while it had the focus. The field of the palette, opened with `AXPress` while the window was not in front, had `AXFocused` false. | Measured | Script output |
+| The order of the nodes is the order of the elements, not the order on the screen: the display lists the bar panels before the keys, because the layout of the engine lists them first. | Measured | Script output |
+| The icon picker had 71 radio buttons: the grid shows only the cells near the visible rows. | Measured | Script output |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
@@ -1028,9 +1060,11 @@ Source: measurements above; [product targets](../ROADMAP.md#product-targets).
   the light menu bar. Only the dark menu bar was tested.
 - Full input-method and accessibility behaviour. The test covers simple text
   entry, not every input method or assistive tool.
-- How VoiceOver reads a sidebar of plain `div` rows, a drag and drop, and
-  the command palette. The window layout test did not use an assistive
-  tool. Plain rows have no tree role until the code adds one.
+- What VoiceOver says for the tree of
+  [Accessibility tree of the window](#accessibility-tree-of-the-window-2026-11-13),
+  and how it reads a drag and drop. The script read the tree, but nobody
+  listened with VoiceOver. Whether VoiceOver goes into a button that has a
+  child button (the device switcher in the device card).
 - Arrow keys in a sidebar of plain `div` rows. The test program has no key
   bindings for them. The Kit tree has them.
 - A drag out of the window, and a drag from a different application. The
