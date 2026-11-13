@@ -15,80 +15,110 @@ label = "Finder"
 color = "#356AB6"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "folder"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-2]
 label = "Safari"
 color = "#298886"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "compass"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-3]
 label = "Mail"
 color = "#6454AC"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "mail"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-4]
 label = "Calendar"
 color = "#B83F4C"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "calendar"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-5]
 label = "Notes"
 color = "#C4A53E"
 label_size = 18
+icon = "sticky-note"
 
 [pages.surfaces.key-face-6]
 label = "Messages"
 color = "#3D875A"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "message-circle"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-7]
 label = "Music"
 color = "#B65C86"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "music"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-8]
 label = "Photos"
 color = "#CC7135"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "image"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-9]
 label = "Screenshot"
 color = "#596273"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "scan"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-10]
-label = "More ›"
+label = "More"
 color = "#20242B"
 label_size = 18
 label_color = "#4DA3FF"
+icon = "arrow-right"
+icon_color = "#4DA3FF"
 
 [pages.surfaces.bar-panel-1]
 label = "Volume"
 color = "#596273"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-2]
 label = "Apps"
 color = "#356AB6"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "layout-grid"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-3]
 label = "Web"
 color = "#20242B"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "globe"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-4]
 label = "Mission Control"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "layers"
+icon_color = "#FFFFFF"
 
 [pages.bindings.key-1.press]
 kind = "opencraft.open-application"
@@ -190,81 +220,110 @@ name = "Web and system"
 [pages.surfaces.key-face-1]
 label = "Wikipedia"
 color = "#D7DEE8"
-label_size = 16
+label_size = 18
+icon = "book-text"
 
 [pages.surfaces.key-face-2]
 label = "Maps"
 color = "#3D875A"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "map"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-3]
 label = "Weather"
 color = "#298886"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "cloud-sun"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-4]
 label = "Reminders"
 color = "#CC7135"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "list-checks"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-5]
 label = "Guide"
 color = "#356AB6"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "life-buoy"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-6]
 label = "Settings"
 color = "#596273"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "settings"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-7]
 label = "Calculator"
 color = "#C4A53E"
-label_size = 16
+label_size = 18
+icon = "calculator"
 
 [pages.surfaces.key-face-8]
 label = "Activity"
 color = "#20242B"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "activity"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-9]
 label = "Sleep"
 color = "#6454AC"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "moon"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-10]
-label = "‹ Apps"
+label = "Apps"
 color = "#20242B"
 label_size = 18
 label_color = "#4DA3FF"
+icon = "arrow-left"
+icon_color = "#4DA3FF"
 
 [pages.surfaces.bar-panel-1]
 label = "Volume"
 color = "#596273"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-2]
 label = "Apps"
 color = "#20242B"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "layout-grid"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-3]
 label = "Web"
 color = "#356AB6"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "globe"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-4]
 label = "Mission Control"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "layers"
+icon_color = "#FFFFFF"
 
 [pages.bindings.key-1.press]
 kind = "opencraft.open-url"

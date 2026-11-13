@@ -10,7 +10,10 @@
 //!
 //! A starter profile uses only standard macOS applications and system
 //! actions, has no image file, and has no path of one computer. The test
-//! `each_starter_profile_loads_and_is_valid` checks this.
+//! `each_starter_profile_loads_and_is_valid` checks this. Each key face and
+//! each bar panel of the three profiles with keys has a title and an icon of
+//! the built-in set (issue #239, decision 0033), and the test checks each
+//! icon name.
 
 use opencraft_engine::{profile_from_text, Action, BackupReason, Profile};
 
