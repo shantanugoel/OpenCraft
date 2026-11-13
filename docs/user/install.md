@@ -73,6 +73,13 @@ It shows the device at the left, and four starter profiles at the right.
 | **Video calls** | One page for each of Zoom, Google Meet, and Microsoft Teams: mute, camera, share or chat, raise the hand, and leave the call. **Mute** and **Camera** show their state. The bar panels select the page. Knob 1 changes the sound volume. |
 | **Empty** | The profile "Default" with one empty page |
 
+Each key face and each bar panel of these three profiles shows an icon and a
+title. The title is at the bottom, below the icon. The icon has the colour of
+the title. For example, the key **Finder** shows a folder, and the key
+**Play** shows a play symbol. The device shows the same icons and titles as
+the picture in the window. You can change the icon, the title, and the fill
+of each key later. See [Configure a key](first-key.md).
+
 OpenCraft makes the profile and opens its main window. You can change each
 key later. Each starter profile uses only applications and system actions
 of macOS. The video call keys send the key commands of the call

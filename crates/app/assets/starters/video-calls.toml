@@ -15,79 +15,110 @@ label = "Mute"
 color = "#3D875A"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "mic"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-2]
 label = "Camera"
 color = "#298886"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "video"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-3]
 label = "Share"
 color = "#356AB6"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "screen-share"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-4]
 label = "Hand"
 color = "#C4A53E"
 label_size = 18
+icon = "hand"
 
 [pages.surfaces.key-face-5]
 label = "Leave"
 color = "#B83F4C"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "phone-off"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-6]
 label = "Calendar"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "calendar"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-7]
 label = "FaceTime"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "phone-call"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-8]
 label = "Vol −"
 color = "#596273"
-label_size = 22
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-1"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-9]
 label = "Vol +"
 color = "#596273"
-label_size = 22
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-10]
 label = "Sound"
 color = "#596273"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "speaker"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-1]
 label = "Volume"
 color = "#596273"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-2]
 label = "Zoom"
 color = "#3D875A"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "monitor-play"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-3]
 label = "Meet"
 color = "#20242B"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "users"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-4]
 label = "Teams"
 color = "#20242B"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "messages-square"
+icon_color = "#FFFFFF"
 
 [pages.bindings.key-1.press]
 kind = "opencraft.toggle"
@@ -210,79 +241,110 @@ label = "Mute"
 color = "#3D875A"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "mic"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-2]
 label = "Camera"
 color = "#298886"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "video"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-3]
 label = "Chat"
 color = "#356AB6"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "message-square"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-4]
 label = "Hand"
 color = "#C4A53E"
 label_size = 18
+icon = "hand"
 
 [pages.surfaces.key-face-5]
 label = "Leave"
 color = "#B83F4C"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "phone-off"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-6]
 label = "Calendar"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "calendar"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-7]
 label = "FaceTime"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "phone-call"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-8]
 label = "Vol −"
 color = "#596273"
-label_size = 22
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-1"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-9]
 label = "Vol +"
 color = "#596273"
-label_size = 22
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-10]
 label = "Sound"
 color = "#596273"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "speaker"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-1]
 label = "Volume"
 color = "#596273"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-2]
 label = "Zoom"
 color = "#20242B"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "monitor-play"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-3]
 label = "Meet"
 color = "#3D875A"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "users"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-4]
 label = "Teams"
 color = "#20242B"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "messages-square"
+icon_color = "#FFFFFF"
 
 [pages.bindings.key-1.press]
 kind = "opencraft.toggle"
@@ -405,79 +467,110 @@ label = "Mute"
 color = "#3D875A"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "mic"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-2]
 label = "Camera"
 color = "#298886"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "video"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-3]
 label = "Share"
 color = "#356AB6"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "screen-share"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-4]
 label = "Hand"
 color = "#C4A53E"
 label_size = 18
+icon = "hand"
 
 [pages.surfaces.key-face-5]
 label = "Leave"
 color = "#B83F4C"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "phone-off"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-6]
 label = "Calendar"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "calendar"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-7]
 label = "FaceTime"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "phone-call"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-8]
 label = "Vol −"
 color = "#596273"
-label_size = 22
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-1"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-9]
 label = "Vol +"
 color = "#596273"
-label_size = 22
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-10]
 label = "Sound"
 color = "#596273"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "speaker"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-1]
 label = "Volume"
 color = "#596273"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-2]
 label = "Zoom"
 color = "#20242B"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "monitor-play"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-3]
 label = "Meet"
 color = "#20242B"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "users"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-4]
 label = "Teams"
 color = "#3D875A"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "messages-square"
+icon_color = "#FFFFFF"
 
 [pages.bindings.key-1.press]
 kind = "opencraft.toggle"

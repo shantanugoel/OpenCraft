@@ -6,7 +6,7 @@ use super::*;
 use crate::state::gestures;
 use opencraft_actions::hotkey::Hotkey;
 use opencraft_engine::{
-    page_preview, profile::default_model, store::SCHEMA_VERSION, DeviceLayout, InputType,
+    icon_set, page_preview, profile::default_model, store::SCHEMA_VERSION, DeviceLayout, InputType,
     KindDescription, SurfaceKind, Value,
 };
 
@@ -72,8 +72,18 @@ fn each_starter_profile_loads_and_is_valid() {
         names.push(profile.name.clone());
         for page in profile.pages() {
             let place = format!("{} / {}", starter.name, page.name);
-            for (surface, _) in page.surfaces() {
+            for (surface, content) in page.surfaces() {
                 assert!(layout.surface(surface).is_some(), "{place}: {surface:?}");
+                // The name of an icon is in the built-in set. The engine
+                // keeps a name that the set does not have, and the surface
+                // then shows no icon.
+                if let Some(icon) = &content.icon {
+                    assert!(
+                        icon_set().get(&icon.name).is_some(),
+                        "{place}: {surface:?}: the set has no icon {:?}",
+                        icon.name
+                    );
+                }
             }
             for ((control, gesture), _) in page.bindings() {
                 assert!(
@@ -138,6 +148,43 @@ fn the_cards_have_the_texts_of_the_record_and_empty_is_one_empty_page() {
             .count();
         assert_eq!(titled, 10, "{}", starter.name);
         assert!(page.bindings().count() >= 10, "{}", starter.name);
+    }
+}
+
+#[test]
+fn each_key_face_and_bar_panel_of_a_starter_profile_has_an_icon_and_a_title() {
+    let layout = DeviceLayout::of_default_model();
+    for starter in &STARTERS[..3] {
+        let profile = starter.profile().unwrap();
+        for page in profile.pages() {
+            let place = format!("{} / {}", starter.name, page.name);
+            let shown: Vec<_> = layout
+                .surfaces
+                .iter()
+                .filter(|s| matches!(s.id.kind, SurfaceKind::KeyFace | SurfaceKind::BarPanel))
+                .map(|s| s.id)
+                .collect();
+            assert_eq!(shown.len(), 14, "{place}");
+            for id in shown {
+                let content = page
+                    .surfaces()
+                    .find(|(surface, _)| *surface == id)
+                    .map(|(_, content)| content)
+                    .unwrap_or_else(|| panic!("{place}: {id:?} has no face"));
+                assert!(
+                    content.known_icon().is_some(),
+                    "{place}: {id:?} has no icon"
+                );
+                assert!(content.label.is_some(), "{place}: {id:?} has no title");
+                // The icon has the colour of the title, so that the icon
+                // and the title show well on the same fill.
+                assert_eq!(
+                    content.icon.as_ref().and_then(|i| i.color),
+                    content.label_style.color,
+                    "{place}: {id:?}"
+                );
+            }
+        }
     }
 }
 

@@ -15,81 +15,112 @@ label = "Previous"
 color = "#6454AC"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "skip-back"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-2]
 label = "Play"
 color = "#3D875A"
-label_size = 20
+label_size = 18
 label_color = "#FFFFFF"
+icon = "play"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-3]
 label = "Next"
 color = "#6454AC"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "skip-forward"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-4]
 label = "Vol −"
 color = "#596273"
-label_size = 22
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-1"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-5]
 label = "Vol +"
 color = "#596273"
-label_size = 22
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-6]
 label = "Music"
 color = "#B65C86"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "music"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-7]
 label = "Podcasts"
 color = "#9357A3"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "mic"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-8]
 label = "TV"
 color = "#20242B"
-label_size = 20
+label_size = 18
 label_color = "#FFFFFF"
+icon = "tv"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-9]
 label = "Books"
 color = "#CC7135"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "book-open"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.key-face-10]
 label = "Mute"
 color = "#B83F4C"
 label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-x"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-1]
 label = "Volume"
 color = "#596273"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-2]
 label = "Track"
 color = "#6454AC"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "list-music"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-3]
 label = "Radio"
 color = "#B65C86"
+label_size = 18
 label_color = "#FFFFFF"
+icon = "radio"
+icon_color = "#FFFFFF"
 
 [pages.surfaces.bar-panel-4]
 label = "Sound output"
 color = "#20242B"
-label_size = 16
+label_size = 18
 label_color = "#FFFFFF"
+icon = "speaker"
+icon_color = "#FFFFFF"
 
 [pages.bindings.key-1.press]
 kind = "opencraft.media-key"
