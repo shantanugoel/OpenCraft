@@ -82,6 +82,7 @@ mod palette;
 mod panes;
 mod permission_sheet;
 mod profile_sheet;
+mod repaint;
 mod right_panel;
 mod screen_off;
 mod sidebar;
@@ -90,6 +91,8 @@ mod status_bar;
 mod synthetic_input;
 pub(crate) mod theme;
 mod toolbar;
+
+pub(crate) use repaint::force_frame;
 
 /// The fill colours of a surface. These are data: the profile keeps them.
 use theme::FILL_COLOURS as COLOURS;
@@ -164,6 +167,10 @@ pub struct DeviceView {
     /// Notes the control with the focus at each key, so that a closed
     /// overlay gives the focus back to its control (`focus_return`).
     _focus_return: Subscription,
+    /// The frames of the window, and the guard of issue #321 (`repaint`).
+    repaint: repaint::Repaint,
+    /// A window that becomes visible or active draws a frame at once.
+    _frame_observers: [Subscription; 2],
 }
 
 impl DeviceView {
@@ -214,6 +221,20 @@ impl DeviceView {
             }
         });
         let focus_return = focus_return::track_keys(&focus, window, cx);
+        // Issue #321: AppKit and GPUI start the frames again at these
+        // changes. A forced frame also covers a change that GPUI missed.
+        let frame_observers = [
+            window.observe_window_visibility(|visibility, window, _| {
+                if visibility.is_visible() {
+                    force_frame(window);
+                }
+            }),
+            cx.observe_window_activation(window, |_, window, _| {
+                if window.is_window_active() {
+                    force_frame(window);
+                }
+            }),
+        ];
         let library = library::LibraryState::new(state.kinds.len(), window, cx);
         let permission = permission_sheet::PermissionSheet::new(cx);
         // The window notes each binding that it sends, for the Accessibility
@@ -252,6 +273,8 @@ impl DeviceView {
             inspector_scroll: ScrollHandle::new(),
             _focus_lost: focus_lost,
             _focus_return: focus_return,
+            repaint: repaint::Repaint::default(),
+            _frame_observers: frame_observers,
         };
         // The selection can already be in the state when the window opens,
         // for example after a start with no window. A change of the
@@ -343,6 +366,7 @@ impl DeviceView {
         self.sync_form(window, cx);
         self.sync_page_name(window, cx);
         cx.notify();
+        self.expect_frame(window, cx);
     }
 
     /// Give the focus back to the root element, for example after a click
@@ -454,6 +478,7 @@ impl DeviceView {
 impl Render for DeviceView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         focus_return::begin_frame();
+        self.repaint.frame();
         // The modal layer is not in the element of the key context of the
         // window, thus the key commands of the window do not operate while
         // it is open (`modal`).
@@ -463,6 +488,7 @@ impl Render for DeviceView {
         div()
             .relative()
             .size_full()
+            .map(repaint::draw_on_input)
             .child(self.workspace(window, cx))
             .children(sheet)
             .children(palette)

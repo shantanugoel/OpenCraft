@@ -396,8 +396,10 @@ impl DeviceView {
                                             |view, _, window, cx| {
                                                 view.page_command(
                                                     |view, page, window, cx| {
+                                                        let shown = view.state.profile.clone();
                                                         view.confirm_remove(
                                                             Row::Page(page),
+                                                            shown,
                                                             window,
                                                             cx,
                                                         )

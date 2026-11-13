@@ -221,7 +221,10 @@ fn the_page_buttons_move_duplicate_and_remove_the_page(cx: &mut TestAppContext) 
     click(cx, "page-remove");
     cx.simulate_prompt_answer("Remove");
     cx.run_until_parked();
-    assert_eq!(last(&sent), Some(Command::RemovePage { page: 2 }));
+    assert_eq!(
+        last(&sent),
+        Some(super::pages::on("work", Command::RemovePage { page: 2 }))
+    );
 
     // The last page cannot go.
     send(cx, &tx, pages(&["Main"], 0));

@@ -5,7 +5,7 @@
 //! is at its position in the layout of the engine, and each knob is below
 //! its feedback surface. The shell does not check for a model (rule 4).
 
-use super::{controls::square_button, library::KindDrag, *};
+use super::{controls::square_button, library::KindDrag, pages::in_profile, *};
 use crate::settings::RightPanelTab;
 use gpui_kit::{assets::IconName, component::Icon, FontWeight, MouseButton, MouseDownEvent, Rgba};
 use opencraft_engine::{DeviceLayout, DeviceSettings, KnobLightMode, SurfaceLayout};
@@ -247,6 +247,8 @@ impl DeviceView {
         let previous = page > 0;
         let next = page + 1 < count;
         let page_count = format!("Page {} of {count}", page + 1);
+        // The profile of this frame: a click acts on what the user saw.
+        let shown = self.state.profile.clone();
         header
             .child(
                 div()
@@ -279,8 +281,12 @@ impl DeviceView {
                     theme::HEIGHT_SEGMENT,
                 )
                 .when(previous, |d| {
+                    let shown = shown.clone();
                     d.on_click(cx.listener(move |view, _, _, _| {
-                        (view.send)(Command::SelectPage { page: page - 1 })
+                        (view.send)(in_profile(
+                            shown.clone(),
+                            Command::SelectPage { page: page - 1 },
+                        ))
                     }))
                 }),
             )
@@ -293,8 +299,12 @@ impl DeviceView {
                     theme::HEIGHT_SEGMENT,
                 )
                 .when(next, |d| {
+                    let shown = shown.clone();
                     d.on_click(cx.listener(move |view, _, _, _| {
-                        (view.send)(Command::SelectPage { page: page + 1 })
+                        (view.send)(in_profile(
+                            shown.clone(),
+                            Command::SelectPage { page: page + 1 },
+                        ))
                     }))
                 }),
             )

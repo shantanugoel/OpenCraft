@@ -491,7 +491,7 @@ impl DeviceView {
             }
             Target::Page { profile, page } => {
                 if self.state.profile.as_ref() == Some(&profile) {
-                    self.activate_page(page, window, cx);
+                    self.activate_page(page, Some(profile), window, cx);
                 } else {
                     // The engine does the commands in their order: the page
                     // is a page of the new active profile.

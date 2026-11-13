@@ -5,7 +5,7 @@
 //! menu, thus a test does the right click and then sends the action of the
 //! menu item, as the menu does.
 
-use super::pages::{pages, profiles, send};
+use super::pages::{on, pages, profiles, send};
 use super::*;
 use crate::app_menu::{AddProfile, ImportProfile};
 use crate::view::pages::{MenuItem, Row};
@@ -109,7 +109,10 @@ fn the_sidebar_shows_the_profiles_and_the_pages_of_the_active_profile(cx: &mut T
     // A click on a page sends the command. The sidebar shows the page of
     // the engine, not the click.
     click(cx, "page-1");
-    assert_eq!(last(&sent), Some(Command::SelectPage { page: 1 }));
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::SelectPage { page: 1 }))
+    );
     cx.update(|_, cx| assert_eq!(view.read(cx).state.page, 0));
     // An action on the device changes the page: the sidebar follows.
     send(cx, &tx, pages(&["Main", "Meetings", "Media"], 1));
@@ -119,7 +122,10 @@ fn the_sidebar_shows_the_profiles_and_the_pages_of_the_active_profile(cx: &mut T
     assert_eq!(sent.borrow().len(), count, "The active page is selected");
 
     click(cx, "page-add");
-    assert_eq!(last(&sent), Some(Command::AddPage { copy_of: None }));
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::AddPage { copy_of: None }))
+    );
 
     // A click on a different profile selects it. Only the active profile
     // has page rows.
@@ -170,11 +176,20 @@ fn the_triangle_alone_hides_and_shows_the_pages(cx: &mut TestAppContext) {
 fn the_page_menu_sends_the_page_commands(cx: &mut TestAppContext) {
     let (view, cx, tx, sent) = sidebar_window(cx);
     menu(cx, "page-1", DuplicateRow);
-    assert_eq!(last(&sent), Some(Command::AddPage { copy_of: Some(1) }));
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::AddPage { copy_of: Some(1) }))
+    );
     menu(cx, "page-1", MoveRowUp);
-    assert_eq!(last(&sent), Some(Command::MovePage { page: 1, to: 0 }));
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::MovePage { page: 1, to: 0 }))
+    );
     menu(cx, "page-1", MoveRowDown);
-    assert_eq!(last(&sent), Some(Command::MovePage { page: 1, to: 2 }));
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::MovePage { page: 1, to: 2 }))
+    );
 
     // "Move Up" is disabled on the first page, and "Move Down" on the last.
     let enabled = |view: &Entity<DeviceView>, cx: &mut VisualTestContext, page, item| {
@@ -202,7 +217,10 @@ fn the_page_menu_sends_the_page_commands(cx: &mut TestAppContext) {
     menu(cx, "page-2", RemoveRow);
     cx.simulate_prompt_answer("Remove");
     cx.run_until_parked();
-    assert_eq!(last(&sent), Some(Command::RemovePage { page: 2 }));
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::RemovePage { page: 2 }))
+    );
 
     // A change of the pages during the question can give the number to a
     // different page: the answer then does nothing.
@@ -227,7 +245,10 @@ fn a_page_name_is_edited_in_the_row(cx: &mut TestAppContext) {
 
     // A double click selects the page and starts the edit.
     double_click(cx, "page-1");
-    assert_eq!(last(&sent), Some(Command::SelectPage { page: 1 }));
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::SelectPage { page: 1 }))
+    );
     assert!(cx.debug_bounds("row-name").is_some());
     assert_eq!(name_text(&view, cx), "Meetings");
     // The engine makes the page active: the edit stays.
@@ -474,6 +495,43 @@ fn removal_of_the_active_larger_profile_replaces_its_pages(cx: &mut TestAppConte
     click(cx, "page-0");
     click(cx, "surface-key face 2");
     assert_eq!(sent.borrow().len(), count);
+}
+
+/// Issue #321: the engine changed the profile, and the window did not draw
+/// a new frame. A click on a page row of the old frame must not change the
+/// new active profile: the row has the profile of its frame, and the
+/// command carries it. The engine refuses it
+/// (`a_command_for_a_profile_that_is_not_active_changes_nothing`). The test
+/// platform draws after each update, thus the test calls the handler of
+/// the old row.
+#[gpui_kit::test]
+fn a_click_in_an_old_frame_carries_the_profile_of_that_frame(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = sidebar_window(cx);
+    send(cx, &tx, profiles(&[("work", "Work")], "work"));
+    send(cx, &tx, pages(&["Work"], 0));
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.activate_page(2, Some("default".into()), window, cx)
+        })
+    });
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&on("default", Command::SelectPage { page: 2 }))
+    );
+    // The same page of the active profile sends nothing.
+    let count = sent.borrow().len();
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.activate_page(0, Some("work".into()), window, cx)
+        })
+    });
+    assert_eq!(sent.borrow().len(), count);
+    // The rows of the new frame carry the new profile.
+    click(cx, "page-add");
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&on("work", Command::AddPage { copy_of: None }))
+    );
 }
 
 #[gpui_kit::test]

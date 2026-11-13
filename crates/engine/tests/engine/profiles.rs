@@ -846,6 +846,112 @@ fn removing_an_active_three_page_profile_sends_the_same_new_state_as_a_selection
     assert!(problems(&events).is_empty());
 }
 
+/// The rig of #321: `default` with one page, and `checks` with three pages
+/// as the active profile, with its third page active.
+fn checks_rig() -> (Rig, mpsc::Receiver<Request>) {
+    let mut large = profile(MODEL, "Checks", BLUE);
+    large.add_page(Page::new("Apps"));
+    large.add_page(Page::new("System"));
+    let (mut rig, requests) = rig_with(&[
+        ("default", profile(MODEL, "Default", RED)),
+        ("checks", large),
+    ]);
+    select(&mut rig, "checks");
+    rig.engine.select_page(2);
+    rig.take_events();
+    requests.try_iter().count();
+    (rig, requests)
+}
+
+fn profile_file(rig: &Rig, id: &str) -> Vec<u8> {
+    std::fs::read(rig.dir.path().join(id).join("profile.toml")).unwrap()
+}
+
+#[test]
+fn removing_the_active_profile_does_not_change_the_file_of_the_next_profile() {
+    let (mut rig, _requests) = checks_rig();
+    let before = profile_file(&rig, "default");
+    command(
+        &mut rig,
+        Command::RemoveProfile {
+            profile: "checks".into(),
+        },
+    );
+    assert_eq!(rig.engine.active_profile(), "default");
+    // After the delay of the save, and after the stop.
+    rig.poll_for(Duration::from_secs(2));
+    assert_eq!(rig.engine.profile().pages().len(), 1);
+    rig.engine.finish();
+    assert_eq!(profile_file(&rig, "default"), before);
+}
+
+#[test]
+fn a_command_for_a_profile_that_is_not_active_changes_nothing() {
+    let (mut rig, _requests) = checks_rig();
+    command(
+        &mut rig,
+        Command::RemoveProfile {
+            profile: "checks".into(),
+        },
+    );
+    rig.poll_for(Duration::from_secs(2));
+    rig.take_events();
+    let before = profile_file(&rig, "default");
+    // The window still showed the removed profile: the commands of its page
+    // rows come with that profile (#321).
+    let stale = |command: Command| Command::InProfile {
+        profile: "checks".into(),
+        command: Box::new(command),
+    };
+    for page_command in [
+        Command::SelectPage { page: 1 },
+        Command::AddPage { copy_of: None },
+        Command::AddPage { copy_of: Some(0) },
+        Command::MovePage { page: 0, to: 1 },
+        Command::RemovePage { page: 0 },
+        Command::Group {
+            name: "Add Page".into(),
+            commands: vec![Command::AddPage { copy_of: None }],
+        },
+    ] {
+        command(&mut rig, stale(page_command));
+        let events = rig.take_events();
+        assert_eq!(problems(&events).len(), 1, "{events:?}");
+        assert!(problems(&events)[0].contains("different profile"));
+        assert_eq!(rig.engine.profile().pages().len(), 1);
+        assert_eq!(rig.engine.active_page(), 0);
+    }
+    // In a group too.
+    command(
+        &mut rig,
+        Command::Group {
+            name: "Add Page".into(),
+            commands: vec![stale(Command::AddPage { copy_of: None })],
+        },
+    );
+    assert_eq!(problems(&rig.take_events()).len(), 1);
+    assert_eq!(rig.engine.profile().pages().len(), 1);
+    rig.poll_for(Duration::from_secs(2));
+    assert_eq!(profile_file(&rig, "default"), before);
+
+    // The same command for the active profile operates, and is one step of
+    // the history with its usual name.
+    command(
+        &mut rig,
+        Command::InProfile {
+            profile: "default".into(),
+            command: Box::new(Command::AddPage { copy_of: None }),
+        },
+    );
+    let events = rig.take_events();
+    assert!(problems(&events).is_empty());
+    assert_eq!(rig.engine.profile().pages().len(), 2);
+    assert!(events.contains(&Event::History {
+        undo: Some("Add Page".into()),
+        redo: None,
+    }));
+}
+
 // --- The request of a handler ------------------------------------------------------
 
 fn select_by_name(rig: &mut Rig, name: &str) {
