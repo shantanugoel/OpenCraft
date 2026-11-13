@@ -1,0 +1,537 @@
+format = "OpenCraft profile"
+version = 1
+
+[images]
+
+[profile]
+color = "#B83F4C"
+model = "n4-pro"
+name = "Phase 7 and 8 checks"
+schema_version = 4
+
+[[profile.pages]]
+name = "1 Device and media"
+
+[profile.pages.bindings.key-1.press]
+kind = "opencraft.screen-off"
+
+[profile.pages.bindings.key-1.press.settings]
+
+[profile.pages.bindings.key-10.press]
+kind = "opencraft.page"
+
+[profile.pages.bindings.key-10.press.settings]
+show_number = true
+target = "next"
+
+[profile.pages.bindings.key-2.press]
+kind = "opencraft.device-sleep"
+
+[profile.pages.bindings.key-2.press.settings]
+
+[profile.pages.bindings.key-3.press]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.key-3.press.settings]
+operation = "up"
+step = 10
+
+[profile.pages.bindings.key-4.press]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.key-4.press.settings]
+operation = "down"
+step = 10
+
+[profile.pages.bindings.key-5.press]
+kind = "opencraft.media-key"
+
+[profile.pages.bindings.key-5.press.settings]
+key = "fast-forward"
+
+[profile.pages.bindings.key-6.press]
+kind = "opencraft.media-key"
+
+[profile.pages.bindings.key-6.press.settings]
+key = "rewind"
+
+[profile.pages.bindings.key-7.press]
+kind = "opencraft.microphone-mute"
+
+[profile.pages.bindings.key-7.press.settings]
+
+[profile.pages.bindings.key-8.press]
+kind = "opencraft.sound-output"
+
+[profile.pages.bindings.key-8.press.settings]
+devices = []
+operation = "next"
+
+[profile.pages.bindings.key-9.press]
+kind = "opencraft.mouse"
+
+[profile.pages.bindings.key-9.press.settings]
+button = "left"
+operation = "click"
+
+[profile.pages.bindings.knob-1.turn-left]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+
+[profile.pages.bindings.knob-1.turn-right]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+
+[profile.pages.bindings.knob-2.turn-left]
+kind = "opencraft.mouse"
+
+[profile.pages.bindings.knob-2.turn-left.settings]
+operation = "scroll-up"
+step = 3
+
+[profile.pages.bindings.knob-2.turn-right]
+kind = "opencraft.mouse"
+
+[profile.pages.bindings.knob-2.turn-right.settings]
+operation = "scroll-down"
+step = 3
+
+[profile.pages.surfaces.bar-panel-1]
+color = "#20242B"
+label = "Knob 1: brightness"
+label_color = "#FFFFFF"
+label_size = 18
+
+[profile.pages.surfaces.bar-panel-2]
+color = "#20242B"
+label = "Knob 2: scroll"
+label_color = "#FFFFFF"
+label_size = 18
+
+[profile.pages.surfaces.bar-panel-3]
+color = "#20242B"
+
+[profile.pages.surfaces.bar-panel-4]
+color = "#20242B"
+
+[profile.pages.surfaces.key-face-1]
+color = "#B83F4C"
+icon = "monitor-off"
+icon_color = "#FFFFFF"
+label = "Screen off"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-10]
+color = "#20242B"
+icon = "arrow-right"
+icon_color = "#FFFFFF"
+
+[profile.pages.surfaces.key-face-2]
+color = "#B83F4C"
+icon = "moon"
+icon_color = "#FFFFFF"
+label = "Device sleep"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-3]
+color = "#B83F4C"
+icon = "sun"
+icon_color = "#FFFFFF"
+label = "Brightness up"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-4]
+color = "#B83F4C"
+icon = "sun-dim"
+icon_color = "#FFFFFF"
+label = "Brightness down"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-5]
+color = "#B65C86"
+icon = "fast-forward"
+icon_color = "#FFFFFF"
+label = "Fast forward"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-6]
+color = "#B65C86"
+icon = "rewind"
+icon_color = "#FFFFFF"
+label = "Rewind"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-7]
+color = "#B65C86"
+icon = "mic"
+icon_color = "#FFFFFF"
+label = "Mic mute"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-8]
+color = "#B65C86"
+icon = "speaker"
+icon_color = "#FFFFFF"
+label = "Next output"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-9]
+color = "#6454AC"
+icon = "mouse-pointer-click"
+icon_color = "#FFFFFF"
+label = "Mouse click"
+label_color = "#FFFFFF"
+label_size = 16
+
+[[profile.pages]]
+name = "2 Apps and input"
+
+[profile.pages.bindings.key-1.press]
+kind = "opencraft.play-sound"
+
+[profile.pages.bindings.key-1.press.settings]
+device = ""
+file = "/System/Library/Sounds/Funk.aiff"
+volume = 50
+
+[profile.pages.bindings.key-10.press]
+kind = "opencraft.page"
+
+[profile.pages.bindings.key-10.press.settings]
+show_number = true
+target = "next"
+
+[profile.pages.bindings.key-2.press]
+kind = "opencraft.stop-sound"
+
+[profile.pages.bindings.key-2.press.settings]
+
+[profile.pages.bindings.key-3.press]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-3.press.settings]
+paste = true
+return_after = false
+text = "Hello from OpenCraft"
+
+[profile.pages.bindings.key-4.press]
+kind = "opencraft.open-application"
+
+[profile.pages.bindings.key-4.press.settings]
+application = "/Users/Shared"
+
+[profile.pages.bindings.key-5.press]
+kind = "opencraft.open-url"
+
+[profile.pages.bindings.key-5.press.settings]
+application = "Safari"
+url = "https://example.com"
+
+[profile.pages.bindings.key-6.press]
+kind = "opencraft.open-application"
+
+[profile.pages.bindings.key-6.press.settings]
+application = "Calculator"
+
+[profile.pages.bindings.key-7.press]
+kind = "opencraft.quit-application"
+
+[profile.pages.bindings.key-7.press.settings]
+application = "Calculator"
+force = false
+
+[profile.pages.bindings.key-8.press]
+kind = "opencraft.hotkey"
+
+[profile.pages.bindings.key-8.press.settings]
+hotkey = "rightshift+a"
+
+[profile.pages.bindings.key-9.press]
+kind = "opencraft.hotkey"
+
+[profile.pages.bindings.key-9.press.settings]
+hotkey = "fn+e"
+
+[profile.pages.surfaces.bar-panel-1]
+color = "#20242B"
+
+[profile.pages.surfaces.bar-panel-2]
+color = "#20242B"
+
+[profile.pages.surfaces.bar-panel-3]
+color = "#20242B"
+
+[profile.pages.surfaces.bar-panel-4]
+color = "#20242B"
+
+[profile.pages.surfaces.key-face-1]
+color = "#B65C86"
+icon = "music"
+icon_color = "#FFFFFF"
+label = "Play sound"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-10]
+color = "#20242B"
+icon = "arrow-right"
+icon_color = "#FFFFFF"
+
+[profile.pages.surfaces.key-face-2]
+color = "#B65C86"
+icon = "circle-stop"
+icon_color = "#FFFFFF"
+label = "Stop sound"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-3]
+color = "#6454AC"
+icon = "type"
+icon_color = "#FFFFFF"
+label = "Type text"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-4]
+color = "#356AB6"
+icon = "folder"
+icon_color = "#FFFFFF"
+label = "Open folder"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-5]
+color = "#356AB6"
+icon = "globe"
+icon_color = "#FFFFFF"
+label = "Open URL"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-6]
+color = "#356AB6"
+icon = "calculator"
+icon_color = "#FFFFFF"
+label = "Open Calculator"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-7]
+color = "#CC7135"
+icon = "circle-x"
+icon_color = "#FFFFFF"
+label = "Quit Calculator"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-8]
+color = "#6454AC"
+icon = "keyboard"
+icon_color = "#FFFFFF"
+label = "Hotkey right"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-9]
+color = "#6454AC"
+icon = "keyboard"
+icon_color = "#FFFFFF"
+label = "Hotkey Fn"
+label_color = "#FFFFFF"
+label_size = 16
+
+[[profile.pages]]
+name = "3 System"
+
+[profile.pages.bindings.key-1.press]
+kind = "opencraft.mac-function"
+
+[profile.pages.bindings.key-1.press.settings]
+function = "mission-control"
+
+[profile.pages.bindings.key-10.press]
+kind = "opencraft.page"
+
+[profile.pages.bindings.key-10.press.settings]
+show_number = true
+target = "next"
+
+[profile.pages.bindings.key-2.press]
+kind = "opencraft.mac-function"
+
+[profile.pages.bindings.key-2.press.settings]
+function = "show-desktop"
+
+[profile.pages.bindings.key-3.press]
+kind = "opencraft.mac-function"
+
+[profile.pages.bindings.key-3.press.settings]
+function = "launchpad"
+
+[profile.pages.bindings.key-4.press]
+kind = "opencraft.mac-function"
+
+[profile.pages.bindings.key-4.press.settings]
+function = "screenshot"
+
+[profile.pages.bindings.key-5.press]
+kind = "opencraft.sequence"
+
+[profile.pages.bindings.key-5.press.settings]
+delay_ms = 100
+
+[[profile.pages.bindings.key-5.press.settings.actions]]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-5.press.settings.actions.settings]
+delay_before_ms = 0
+paste = false
+return_after = false
+text = "1"
+
+[[profile.pages.bindings.key-5.press.settings.actions]]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-5.press.settings.actions.settings]
+delay_before_ms = 1500
+paste = false
+return_after = false
+text = "2"
+
+[[profile.pages.bindings.key-5.press.settings.actions]]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-5.press.settings.actions.settings]
+delay_before_ms = 300
+paste = false
+return_after = false
+text = "3"
+
+[profile.pages.bindings.key-6.press]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.key-6.press.settings]
+operation = "set"
+value = 80
+
+[profile.pages.bindings.key-7.press]
+kind = "opencraft.mac-function"
+
+[profile.pages.bindings.key-7.press.settings]
+function = "screen-saver"
+
+[profile.pages.bindings.key-8.press]
+kind = "opencraft.mac-function"
+
+[profile.pages.bindings.key-8.press.settings]
+function = "lock"
+
+[profile.pages.bindings.key-9.press]
+kind = "opencraft.mac-function"
+
+[profile.pages.bindings.key-9.press.settings]
+function = "sleep"
+
+[profile.pages.surfaces.bar-panel-1]
+color = "#20242B"
+
+[profile.pages.surfaces.bar-panel-2]
+color = "#20242B"
+
+[profile.pages.surfaces.bar-panel-3]
+color = "#20242B"
+
+[profile.pages.surfaces.bar-panel-4]
+color = "#20242B"
+
+[profile.pages.surfaces.key-face-1]
+color = "#298886"
+icon = "layers"
+icon_color = "#FFFFFF"
+label = "Mission Control"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-10]
+color = "#20242B"
+icon = "arrow-right"
+icon_color = "#FFFFFF"
+
+[profile.pages.surfaces.key-face-2]
+color = "#298886"
+icon = "monitor-up"
+icon_color = "#FFFFFF"
+label = "Show desktop"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-3]
+color = "#298886"
+icon = "layout-grid"
+icon_color = "#FFFFFF"
+label = "Launchpad"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-4]
+color = "#298886"
+icon = "scan"
+icon_color = "#FFFFFF"
+label = "Screenshot"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-5]
+color = "#3D875A"
+icon = "list-ordered"
+icon_color = "#FFFFFF"
+label = "Sequence 1 2 3"
+label_color = "#FFFFFF"
+label_size = 14
+
+[profile.pages.surfaces.key-face-6]
+color = "#B83F4C"
+icon = "sun-medium"
+icon_color = "#FFFFFF"
+label = "Brightness 80"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-7]
+color = "#CC7135"
+icon = "sparkles"
+icon_color = "#FFFFFF"
+label = "Screen saver"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-8]
+color = "#CC7135"
+icon = "lock"
+icon_color = "#FFFFFF"
+label = "Lock"
+label_color = "#FFFFFF"
+label_size = 16
+
+[profile.pages.surfaces.key-face-9]
+color = "#CC7135"
+icon = "power"
+icon_color = "#FFFFFF"
+label = "Sleep"
+label_color = "#FFFFFF"
+label_size = 16
