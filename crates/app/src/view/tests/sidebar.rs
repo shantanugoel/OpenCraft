@@ -7,6 +7,7 @@
 
 use super::pages::{on, pages, profiles, send};
 use super::*;
+#[cfg(target_os = "macos")]
 use crate::app_menu::{AddProfile, ImportProfile};
 use crate::view::pages::{MenuItem, Row};
 use crate::view::sidebar::{
