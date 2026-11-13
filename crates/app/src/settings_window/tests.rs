@@ -731,6 +731,26 @@ fn a_path_in_the_home_folder_shows_with_a_tilde() {
 // MARK: About
 
 #[gpui_kit::test]
+fn copy_diagnostics_copies_a_local_private_report(cx: &mut TestAppContext) {
+    let (f, cx) = window(cx);
+    std::fs::write(f.dir.path().join(crate::log_file::FILE_NAME),
+        "opencraft-engine 123 connected\nserial FAKE-SERIAL-123\n/Users/sample-user/file on sample-host\n").unwrap();
+    click(cx, "settings-tab-about");
+    click(cx, "copy-diagnostics");
+    cx.run_until_parked();
+    cx.update(|_, cx| {
+        let text = cx.read_from_clipboard().unwrap().text().unwrap();
+        assert!(text.contains("OpenCraft"));
+        assert!(text.contains("macOS:"));
+        assert!(text.contains("connected"));
+        assert!(!text.contains("FAKE-SERIAL"));
+        assert!(!text.contains("sample-user"));
+        assert!(!text.contains("sample-host"));
+        assert!(!text.contains("/Users/"));
+    });
+}
+
+#[gpui_kit::test]
 fn the_about_pane_shows_the_version_and_opens_the_licence_notices(cx: &mut TestAppContext) {
     let (f, cx) = window(cx);
     click(cx, "settings-tab-about");
@@ -991,6 +1011,7 @@ fn each_part_of_the_settings_window_has_a_role_and_a_label(cx: &mut TestAppConte
     let has = |role: Role, label: &str| nodes.iter().any(|(r, l)| *r == role && l == label);
     assert!(has(Role::Label, "OpenCraft"), "{nodes:#?}");
     assert!(has(Role::Button, "Licence notices"), "{nodes:#?}");
+    assert!(has(Role::Button, "Copy diagnostics"), "{nodes:#?}");
 }
 
 /// Push the key `key`: the key goes down and up. GPUI operates a control

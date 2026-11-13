@@ -1303,7 +1303,9 @@ exist. The user cannot change them.
 **"About" pane.** Centred: the application icon 64, "OpenCraft"
 (`sheet-title`), the version (`label`, `text-secondary`), and the button
 "Licence notices", which opens the notices file
-([decision 0026](0026-licence-notices.md)).
+([decision 0026](0026-licence-notices.md)). Below it, "Copy diagnostics"
+copies the local support report. Its contents and privacy filter are in
+[decision 0024](0024-log-file-with-no-terminal.md).
 
 The options that move here leave the menu bar item (section 19).
 

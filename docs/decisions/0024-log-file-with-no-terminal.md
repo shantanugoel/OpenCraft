@@ -50,6 +50,22 @@ device layer about a device error. A problem text can contain a name that
 the user gave, for example the name of a profile, or a path. The user guide
 tells the user to read the file before they attach it to a report.
 
+## Support report
+
+"Copy diagnostics" in Settings > About copies the application version,
+device model, firmware version, macOS product version, processor architecture
+and up to 100 lines from the last 16 KiB of the log. A missing log or firmware
+does not prevent the copy. The shell reads the file and the macOS version
+on a worker thread. It sends nothing to a server.
+
+The report keeps only fixed engine lifecycle messages and numeric
+measurements. It removes all free-form log details, including an unlabelled
+serial number, a user name and a host name. A log line with a home path
+gets a privacy marker with `~`. This conservative filter can remove useful
+fault details, but does not need a device identity read to remove serial
+numbers. A new log message is private until the filter allows it.
+The full log on disk does not change.
+
 ## Results
 
 - The owner and an agent can read what the engine did after a start at

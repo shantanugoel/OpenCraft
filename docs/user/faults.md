@@ -136,11 +136,21 @@ do the action again.
 
 ## Report a fault
 
-Write an issue on the
-[issue page](https://github.com/shantanugoel/OpenCraft/issues) of
-OpenCraft. Give the version of OpenCraft and of macOS, what you did, and what
-occurred. Attach the log file if you have one. See
-[The log file](background.md#the-log-file).
+1. Open **Settings > About** and click **Copy diagnostics**.
+2. Open the [issue page](https://github.com/shantanugoel/OpenCraft/issues).
+   Tell what you did, what you expected and what occurred.
+3. Paste the diagnostics into the report. Read the text before you send it.
+
+The diagnostics give the application version, device model and firmware,
+macOS version, architecture and the end of the log. They remove free-form
+log details, serial numbers, user names and host names. A home path is
+replaced with `~` in a privacy marker. The log file on disk does not change.
+No report is sent until you send the issue yourself.
+
+![Copy diagnostics in the About pane](images/copy-diagnostics.png)
+
+If more fault details are necessary, read the log before you attach it.
+Remove all personal data first. See [The log file](background.md#the-log-file).
 
 ## The supported device
 

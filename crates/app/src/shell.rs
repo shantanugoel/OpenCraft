@@ -138,6 +138,8 @@ pub enum ShellCommand {
     ToggleShowWindowAtStart,
     /// Open the licence notices file of the bundle.
     OpenNotices,
+    /// Copy a local support report, with private log details removed.
+    CopyDiagnostics,
     /// Show a folder or a file of OpenCraft in the Finder.
     ShowInFinder(Place),
     /// Open the pane "Accessibility" of System Settings, and ask the engine
@@ -391,6 +393,7 @@ impl Shell {
                 self.set_show_window_at_start(!self.settings.show_window_at_start, cx)
             }
             ShellCommand::OpenNotices => self.open_notices(cx),
+            ShellCommand::CopyDiagnostics => self.copy_diagnostics(cx),
             ShellCommand::ShowInFinder(place) => self.show_in_finder(place, cx),
             ShellCommand::OpenAccessibilitySettings => self.open_accessibility_settings(cx),
             ShellCommand::Quit => cx.quit(),
@@ -599,6 +602,26 @@ impl Shell {
     /// file exists only after a start with no terminal (decision 0024).
     pub fn log_file(&self) -> PathBuf {
         self.config_dir.join(LOG_FILE_NAME)
+    }
+
+    /// Read the bounded log tail and system version off the UI thread.
+    fn copy_diagnostics(&self, cx: &mut Context<Self>) {
+        let path = self.log_file();
+        let model = self
+            .state
+            .layout
+            .as_ref()
+            .map(|layout| layout.name.clone())
+            .unwrap_or_else(|| "Not available".into());
+        let firmware = self.state.firmware.clone();
+        let work = cx
+            .background_executor()
+            .spawn(async move { crate::diagnostics::report(&path, &model, firmware.as_deref()) });
+        cx.spawn(async move |_shell, cx| {
+            let report = work.await;
+            cx.update(|cx| cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(report)));
+        })
+        .detach();
     }
 
     /// Open the licence notices with the default application. The menu shows
