@@ -21,6 +21,100 @@ transition to dark near the end. Other programs were open. The camera was
 opened only after the processor-time sample. No physical input occurred.
 The result is below the idle target of 0.5 % of one core for this interval.
 
+## Phase 7: the screen-off timer (2026-11-13)
+
+Issue [#268](https://github.com/shantanugoel/OpenCraft/issues/268) measures
+the release build with the screen-off timer on. The spot check above is
+only a short check.
+
+The application is the bundle from `scripts/sign-dev.sh --release` at commit
+`490852f`. It has the release profile of the workspace and the development
+signature (identifier `opencraft-dev`). The signature does not change the
+footprint or the processor use: see [Phase 6](#phase-6). The executable has
+25,267,152 bytes. The computer is the same as in [Phase 2](#phase-2).
+
+- `open -n <bundle> --env HOME=<directory> --env OPENCRAFT_PROFILES_DIR=<directory>`
+  started each process, as in [UI overhaul](#the-release-bundle-2026-11-13).
+  Both directories were new. The files of the owner were not used.
+- The engine reads the device settings from `device-settings.toml` in the
+  profiles directory. Thus the scratch directory had its own file with
+  `screen_off_minutes`. The real settings of the owner did not change.
+- The profiles directory had the starter profile "Everyday Mac" (28
+  surfaces, 36 bindings, 6 of them `opencraft.volume`), as in
+  [UI overhaul](#the-release-bundle-2026-11-13). The device was connected.
+  No person used the device or the window during a measurement.
+- `scripts/measure-footprint.sh --pid` made one sample each 5 seconds for 300
+  seconds, as in [Phase 6](#phase-6). Each column is a new process.
+- **Awake** runs used a timer of 10 minutes. The measurement ended 360 and
+  390 seconds after the start, thus the timer did not fire. Nobody can touch
+  the device, and a touch restarts the timer, so a short timer cannot give
+  an awake device for 5 minutes. **Dark** runs used a timer of 1 minute. The
+  measurement started 100 seconds after the start of the process. **Never**
+  is the timer value 0, the baseline.
+- For "window closed", the close button got a click through the Accessibility
+  API (60 seconds after the start for awake, 70 seconds for dark).
+  The measurement started 30 seconds after the click.
+- A USB camera showed the state of the device at the start and at the end of
+  each measurement. In the two dark runs the displays and the knob lights
+  were dark at both times. In the awake runs they were lit at the end.
+
+| Measurement | Timer 10 min, awake, window open | Timer 10 min, awake, window closed | Timer 1 min, dark, window open | Timer 1 min, dark, window closed | Never, window open | Confidence |
+|---|---|---|---|---|---|---|
+| Processes | 1 | 1 | 1 | 1 | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 48.5, 48.5, 50.1 MiB | 32.5, 35.3, 35.3 MiB | 50.3, 50.3, 50.4 MiB | 33.2, 33.2, 33.2 MiB | 56.0, 56.0, 56.0 MiB | Measured |
+| Resident size, median | 113.9 MiB | 115.1 MiB | 117.3 MiB | 115.7 MiB | 119.9 MiB | Measured |
+| Processor time in 300 seconds | 0.51 s | 0.47 s | 0.59 s | 0.58 s | 0.64 s | Measured |
+| Processor use, mean (100 % is one core) | 0.17 % | 0.16 % | 0.20 % | 0.19 % | 0.21 % | Measured |
+| Processor use, maximum of a sample | 0.2 % | 0.2 % | 0.2 % | 0.2 % | 0.4 % | Measured |
+| Threads at the start and at the end of the measurement | 20, 20 | 21, 20 | 21, 20 | 19, 20 | 20, 20 | Measured: `ps -M` |
+
+- The timer on gives a mean processor use of 0.16 to 0.20 %, and no sample
+  of 5 seconds above 0.2 %. This is below the target of 0.5 %. It is also
+  below the 0.19 to 0.22 % of the
+  [UI overhaul](#memory-and-processor-use-2026-11-13). (Inference from the
+  measured values)
+- The timer does not add processor use. The baseline with Never used the
+  most processor time of the five runs (0.64 s). The runs with the timer
+  used 0.47 to 0.59 s. The five runs differ by 0.17 s at the most, and the
+  order of the runs is not the order of the timer setting. Thus the timer
+  has no measurable effect. (Inference from the measured values)
+- The dark state does not use less processor time than the awake state. The
+  engine thread keeps its polls and the keep-alive in the dark state, as
+  [decision 0034](../decisions/0034-device-dark-state.md) says. The dark runs
+  used 0.58 and 0.59 s. The awake runs used 0.47 and 0.51 s. The two groups
+  are 0.07 to 0.12 s apart, and the run with Never (0.64 s) is above both.
+  Thus this difference is in the spread between runs. (Inference)
+- The footprint with the window open is 48.5 to 56.0 MiB in the three
+  runs, and the Never run has the largest value. The footprint with the
+  window closed is 32.5 to 35.3 MiB. The timer does not add memory. The
+  spread between starts is also in the earlier phases: 46.9 to 54.6 MiB with
+  the window open. The cause of the spread is not measured. (Inference)
+- The footprint is 58.7 MB at the most with the window open, and 37.0 MB at
+  the most with the window closed. Both are below the target of 80 MB.
+  (Inference from the measured values)
+- The thread with the most processor time (the engine thread, by its order:
+  Inference) used 0.35 to 0.49 s in 300 seconds. A second thread (the volume
+  handler: Inference) used 0.11 to 0.18 s. No other thread used 0.03 s or
+  more. (Measured: `ps -M` at the start and at the end of each measurement)
+- The process has 19 to 21 threads. The UI overhaul had 13 to 16. The new
+  action handlers of Phase 7 and Phase 8 can be the cause. This is not
+  measured. (Inference)
+- One earlier run of the Never baseline is not in the table. From 190
+  to 250 seconds after the start of its measurement, 10 of 13 samples had
+  0.6 % or more, and one had 4.8 %. The footprint rose to 63.6 MiB. Other
+  programs ran on the computer, and the cause is not known. The run was
+  made again, and the table has the second run. The runs with the timer
+  had no such samples. (Measured)
+
+### Product targets with the screen-off timer on (2026-11-13)
+
+| Target | Value with the timer on | Result |
+|---|---|---|
+| Memory in the steady state: less than 80 MB | 58.7 MB at the most with the window open, 37.0 MB at the most with the window closed | Met |
+| Processor use when idle: less than 0.5 % of one core | 0.16 to 0.20 % mean, awake and dark, with and with no window. No sample of 5 seconds above 0.2 %. | Met |
+| Cold start to a ready device | Not measured in this issue | |
+| Lost input events: none | Not measured in this issue | |
+
 ## Phase 2
 
 The application is the program `opencraft` of Phase 2: the engine and one
@@ -755,6 +849,9 @@ camera recorded the device.
   counted the detents of a knob that a person turned.
 - The footprint with no device connected. The engine then looks for the
   device one time each second.
+- The cause of the burst of 0.6 to 4.8 % and up to 63.6 MiB in one run of the Never
+  baseline, 190 seconds after the start of the measurement. See
+  [Phase 7: the screen-off timer](#phase-7-the-screen-off-timer-2026-11-13).
 - The footprint after many hours. In 30 minutes with no window, it did not
   increase: see [Long run with no window](#long-run-with-no-window-2026-11-12).
 
