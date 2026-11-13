@@ -1,9 +1,9 @@
 //! Window-independent state of the shell. No device or file work occurs here.
 
 use opencraft_engine::{
-    BindingId, BindingState, ControlId, ControlKind, DeviceLayout, DeviceSettings, Event, Gesture,
-    GestureKind, InputEvent, KindDescription, ProfileEntry, Status, SurfaceId, SurfaceKind,
-    SurfaceState,
+    BackgroundState, BindingId, BindingState, ControlId, ControlKind, DeviceLayout, DeviceSettings,
+    Event, Gesture, GestureKind, InputEvent, KindDescription, ProfileEntry, Status, SurfaceId,
+    SurfaceKind, SurfaceState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -100,6 +100,10 @@ pub struct ViewState {
     /// before the first copy. A paste is possible only on a control of this
     /// kind (decision 0029, section 13).
     pub clipboard: Option<ControlKind>,
+    /// The background of the active page, and its image from the engine
+    /// (decision 0032). Before the first event, the page has no
+    /// background.
+    pub background: BackgroundState,
 }
 
 impl ViewState {
@@ -136,6 +140,7 @@ impl ViewState {
             Event::Surface(surface) => {
                 self.surfaces.insert(surface.id, surface);
             }
+            Event::Background(background) => self.background = background,
             Event::Connected => self.connected = true,
             Event::Disconnected => {
                 self.connected = false;

@@ -61,6 +61,8 @@ typed goes into the file as it is.
    and writes a new copy with the steps of an image of the user: a PNG of at
    most 512 pixels on a side, with a name from its data. The profile gets
    the paths of the new copies. No data goes to a path that the file gives.
+   A page background gets the larger copy of
+   [decision 0032](0032-page-background.md).
 7. Adds the profile as a new profile: the identity comes from the name, and
    the name gets a number after it, for example "Work 2", if a profile of
    the model has the name. The new profile becomes the active profile, as

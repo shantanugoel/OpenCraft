@@ -45,8 +45,22 @@
 //! loads with no bindings. Nothing else changes, so the load loses nothing.
 //! The next write writes version 4.
 //!
+//! Version 4 also adds the background of a page (issue #191): the table
+//! `background` of a page, with one of these keys. Decision 0032 gives the
+//! reasons.
+//!
+//! | Key | Value | With no key |
+//! |---|---|---|
+//! | `color` | One colour on all of the display, `#RRGGBB` | — |
+//! | `image` | An image path in `images`, as for a surface | — |
+//! | `fit` | With `image` only: `"fill"` or `"fit"` | `"fill"` |
+//!
+//! A page with no table `background` has no background. A background image
+//! copy is larger than a surface image copy: see
+//! [`ProfileStore::import_background`].
+//!
 //! A later task can add more keys to version 4 (for example the icon of a
-//! surface, #190, and the background of a page, #191), if no release of
+//! surface, #190), if no release of
 //! OpenCraft writes version 4 before that task. Else the task increases the
 //! version.
 //!
@@ -58,6 +72,9 @@
 //! first_page = 2
 //! [[pages]]
 //! name = "Page 1"
+//! [pages.background]
+//! image = "images/0b5e2f6a91c4d873.png"
+//! fit = "fit"
 //! [pages.surfaces.key-face-3]
 //! label = "Mail"
 //! label_position = "top"
@@ -82,8 +99,8 @@ use crate::action::{Action, GestureKind};
 use crate::error::{Error, Result};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
-    default_model, parse_surface_key, surface_key, Color, LabelPosition, LabelStyle, Page, Profile,
-    SurfaceContent, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
+    default_model, parse_surface_key, surface_key, Background, BackgroundFit, Color, LabelPosition,
+    LabelStyle, Page, Profile, SurfaceContent, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, ImageReader};
@@ -113,6 +130,10 @@ pub const IMAGE_DIR: &str = "images";
 /// The largest width and height of an image copy, in pixels. A larger image
 /// becomes smaller when the user selects it.
 pub const IMAGE_LIMIT: u32 = 512;
+
+/// The largest width and height of a background copy, as a multiple of the
+/// size of the background. See [`ProfileStore::import_background`].
+pub const BACKGROUND_LIMIT: u32 = 2;
 
 /// The profiles directory of the user. Each profile is a directory in it.
 /// `None` if the operating system gives no home directory.
@@ -343,33 +364,69 @@ impl ProfileStore {
     ///
     /// A file that is not an image gives an error, and nothing is written.
     pub fn import_image(&self, source: &Path) -> Result<String> {
-        let image = ImageReader::open(source)
-            .map_err(|e| io_error("cannot read", source, e))?
-            .with_guessed_format()
-            .map_err(|e| io_error("cannot read", source, e))?
-            .decode()
-            .map_err(|e| Error::Image {
-                path: source.to_path_buf(),
-                source: e,
-            })?;
-        self.add_image(image, source)
+        self.add_image(decode_file(source)?, source)
+    }
+
+    /// Make a copy of the image file `source` for the background of a page,
+    /// and return its path relative to the profile directory. Put this path
+    /// in [`Background::Image`]. `size` is the size of the background of the
+    /// model, in pixels.
+    ///
+    /// The copy is a PNG with no transparency: a transparent pixel goes on
+    /// black, as on the device. An image that is larger than necessary to
+    /// cover `size` becomes smaller: the copy is the smallest size that
+    /// covers `size`, thus each fit has all the pixels that it needs. The
+    /// copy has at most [`BACKGROUND_LIMIT`] times `size` on a side. The
+    /// name of the copy comes from its data, as for [`Self::import_image`].
+    ///
+    /// A file that is not an image gives an error, and nothing is written.
+    pub fn import_background(&self, source: &Path, size: (u32, u32)) -> Result<String> {
+        self.add_background(decode_file(source)?, source, size)
+    }
+
+    /// Write a background copy of `image`, as [`Self::import_background`]
+    /// does. `source` names the image in an error.
+    pub(crate) fn add_background(
+        &self,
+        image: DynamicImage,
+        source: &Path,
+        size: (u32, u32),
+    ) -> Result<String> {
+        let (width, height) = background_copy_size(image.width(), image.height(), size);
+        let image = if (width, height) == (image.width(), image.height()) {
+            image
+        } else {
+            image.resize_exact(width, height, FilterType::Lanczos3)
+        };
+        let rgba = image.into_rgba8();
+        let rgb = image::RgbImage::from_fn(rgba.width(), rgba.height(), |x, y| {
+            let [r, g, b, a] = rgba.get_pixel(x, y).0;
+            let on_black = |c: u8| ((u16::from(c) * u16::from(a) + 127) / 255) as u8;
+            image::Rgb([on_black(r), on_black(g), on_black(b)])
+        });
+        self.write_copy(DynamicImage::ImageRgb8(rgb), source)
     }
 
     /// Write a copy of `image` in the image directory, as
     /// [`Self::import_image`] does, and return its path relative to the
     /// profile directory. `source` names the image in an error.
     pub(crate) fn add_image(&self, image: DynamicImage, source: &Path) -> Result<String> {
-        let image_error = |source_error| Error::Image {
-            path: source.to_path_buf(),
-            source: source_error,
-        };
         let image = if image.width() > IMAGE_LIMIT || image.height() > IMAGE_LIMIT {
             image.resize(IMAGE_LIMIT, IMAGE_LIMIT, FilterType::Lanczos3)
         } else {
             image
         };
         // Keep the transparency: the colour of the surface shows through it.
-        let image = DynamicImage::ImageRgba8(image.into_rgba8());
+        self.write_copy(DynamicImage::ImageRgba8(image.into_rgba8()), source)
+    }
+
+    /// Write `image` as a PNG in the image directory, with a name from its
+    /// data, and return its path relative to the profile directory.
+    fn write_copy(&self, image: DynamicImage, source: &Path) -> Result<String> {
+        let image_error = |source_error| Error::Image {
+            path: source.to_path_buf(),
+            source: source_error,
+        };
         let mut data = Vec::new();
         image
             .write_to(&mut Cursor::new(&mut data), ImageFormat::Png)
@@ -459,6 +516,44 @@ impl ProfileStore {
     }
 }
 
+/// Decode the image file `source` of the user.
+fn decode_file(source: &Path) -> Result<DynamicImage> {
+    ImageReader::open(source)
+        .map_err(|e| io_error("cannot read", source, e))?
+        .with_guessed_format()
+        .map_err(|e| io_error("cannot read", source, e))?
+        .decode()
+        .map_err(|e| Error::Image {
+            path: source.to_path_buf(),
+            source: e,
+        })
+}
+
+/// The size of the background copy of an image of `width` × `height`
+/// pixels, for a background of the size `size`: see
+/// [`ProfileStore::import_background`]. The copy has its proportion, except
+/// for the change to whole pixels.
+pub(crate) fn background_copy_size(width: u32, height: u32, size: (u32, u32)) -> (u32, u32) {
+    let (target_width, target_height) = (size.0.max(1), size.1.max(1));
+    if width == 0 || height == 0 {
+        return (width, height);
+    }
+    let (w, h) = (f64::from(width), f64::from(height));
+    // The scale that covers the target, and no larger than the image.
+    let cover = (f64::from(target_width) / w)
+        .max(f64::from(target_height) / h)
+        .min(1.0);
+    // The limit on each side.
+    let limit = (f64::from(target_width * BACKGROUND_LIMIT) / w)
+        .min(f64::from(target_height * BACKGROUND_LIMIT) / h);
+    let scale = cover.min(limit);
+    if scale >= 1.0 {
+        return (width, height);
+    }
+    let side = |v: f64| ((v * scale).round() as u32).max(1);
+    (side(w), side(h))
+}
+
 pub(crate) fn io_error(action: &'static str, path: &Path, source: io::Error) -> Error {
     Error::Io {
         action,
@@ -544,10 +639,71 @@ struct FileData {
 #[serde(deny_unknown_fields)]
 struct PageData {
     name: String,
+    /// The background of the page. It came in version 4.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    background: Option<BackgroundData>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     surfaces: BTreeMap<String, SurfaceData>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     bindings: BTreeMap<String, BTreeMap<GestureKind, Action>>,
+}
+
+/// The background of one page: a colour, or an image with its fit.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BackgroundData {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fit: Option<String>,
+}
+
+impl BackgroundData {
+    /// The background of the file data. The error text names the key.
+    fn background(&self) -> std::result::Result<Background, String> {
+        match (&self.color, &self.image) {
+            (Some(text), None) => {
+                if self.fit.is_some() {
+                    return Err("a colour has no fit".to_string());
+                }
+                text.parse::<Color>()
+                    .map(Background::Color)
+                    .map_err(|e| format!("color '{text}': {e}"))
+            }
+            (None, Some(image)) => {
+                if image_name(image).is_none() {
+                    return Err(format!("'{image}' is not in the image directory"));
+                }
+                let fit = match &self.fit {
+                    None => BackgroundFit::default(),
+                    Some(text) => BackgroundFit::from_key(text)
+                        .ok_or_else(|| format!("fit '{text}' is not a fit"))?,
+                };
+                Ok(Background::Image {
+                    image: image.clone(),
+                    fit,
+                })
+            }
+            _ => Err("a background has a colour or an image".to_string()),
+        }
+    }
+
+    fn from_background(background: &Background) -> Self {
+        match background {
+            Background::Color(color) => Self {
+                color: Some(color.to_string()),
+                image: None,
+                fit: None,
+            },
+            Background::Image { image, fit } => Self {
+                color: None,
+                image: Some(image.clone()),
+                fit: (*fit != BackgroundFit::default()).then(|| fit.key().to_string()),
+            },
+        }
+    }
 }
 
 /// The content of one surface. The keys that start with `label_` came in
@@ -671,6 +827,19 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     let mut pages = Vec::new();
     for page_file in file.pages {
         let mut page = Page::new(page_file.name);
+        if let Some(background) = &page_file.background {
+            if version < LABEL_OPTIONS_VERSION {
+                return Err(invalid(format!(
+                    "page '{}': version {version} has no background",
+                    page.name
+                )));
+            }
+            page.background = Some(
+                background
+                    .background()
+                    .map_err(|e| invalid(format!("page '{}': background: {e}", page.name)))?,
+            );
+        }
         for (key, surface) in page_file.surfaces {
             let id = parse_surface_key(&key)
                 .ok_or_else(|| invalid(format!("'{key}' is not a surface")))?;
@@ -738,6 +907,10 @@ pub(crate) fn to_text(profile: &Profile) -> Result<String> {
             .iter()
             .map(|page| PageData {
                 name: page.name.clone(),
+                background: page
+                    .background
+                    .as_ref()
+                    .map(BackgroundData::from_background),
                 bindings: {
                     let mut bindings: BTreeMap<String, BTreeMap<GestureKind, Action>> =
                         BTreeMap::new();
@@ -1375,6 +1548,101 @@ color = "#1E6FD9"
     fn remove_unused_images_does_nothing_with_no_image_directory() {
         let (_dir, store) = store();
         assert_eq!(store.remove_unused_images(&Profile::default()).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_page_background_saves_with_its_text_form_and_loads_again() {
+        let (dir, store) = store();
+        let image = store
+            .import_background(&image_file(dir.path(), "a.png", 900, 600), (800, 480))
+            .unwrap();
+        let mut profile = Profile::new("P", vec![Page::new("A"), Page::new("B"), Page::new("C")]);
+        profile.page_mut(0).unwrap().background = Some(Background::Image {
+            image: image.clone(),
+            fit: BackgroundFit::Fill,
+        });
+        profile.page_mut(1).unwrap().background = Some(Background::Image {
+            image: image.clone(),
+            fit: BackgroundFit::Fit,
+        });
+        profile.page_mut(2).unwrap().background = Some(Background::Color(Color::rgb(1, 2, 3)));
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(
+            text.contains(&format!("[pages.background]\nimage = \"{image}\"\n\n")),
+            "the default fit has no key: {text}"
+        );
+        assert!(
+            text.contains(&format!("image = \"{image}\"\nfit = \"fit\"\n")),
+            "{text}"
+        );
+        assert!(
+            text.contains("[pages.background]\ncolor = \"#010203\"\n"),
+            "{text}"
+        );
+        assert_eq!(store.load().unwrap().profile, profile);
+        // The background image is in use: it stays.
+        assert_eq!(store.remove_unused_images(&profile).unwrap(), 0);
+        assert_eq!(
+            profile.image_paths().collect::<Vec<_>>(),
+            [image.as_str(), image.as_str()]
+        );
+
+        let page = "schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"A\"\n";
+        for bad in [
+            "[pages.background]\n",
+            "[pages.background]\ncolor = \"#000000\"\nimage = \"images/0123456789abcdef.png\"\n",
+            "[pages.background]\ncolor = \"blue\"\n",
+            "[pages.background]\ncolor = \"#000000\"\nfit = \"fit\"\n",
+            "[pages.background]\nimage = \"../x.png\"\n",
+            "[pages.background]\nimage = \"images/0123456789abcdef.png\"\nfit = \"stretch\"\n",
+            "[pages.background]\nvideo = \"x\"\n",
+        ] {
+            let text = format!("{page}{bad}");
+            assert!(load_text(&store, text.as_bytes()).backup.is_some(), "{bad}");
+        }
+        let old = "schema_version = 3\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"A\"\n\
+                   [pages.background]\ncolor = \"#000000\"\n";
+        assert!(load_text(&store, old.as_bytes()).backup.is_some());
+    }
+
+    #[test]
+    fn a_background_copy_covers_the_background_and_has_no_transparency() {
+        let size = (800, 480);
+        // Larger: the smallest size that covers the background.
+        assert_eq!(background_copy_size(1600, 960, size), (800, 480));
+        assert_eq!(background_copy_size(4000, 3000, size), (800, 600));
+        // A high image: the limit of the height applies.
+        assert_eq!(background_copy_size(3000, 4000, size), (720, 960));
+        // Smaller, or covers in one direction only: no change.
+        assert_eq!(background_copy_size(400, 240, size), (400, 240));
+        assert_eq!(background_copy_size(1000, 300, size), (1000, 300));
+        // A very long image keeps at most two times the background on a side.
+        assert_eq!(background_copy_size(8000, 500, size), (1600, 100));
+        assert_eq!(background_copy_size(500, 8000, size), (60, 960));
+        assert_eq!(background_copy_size(0, 10, size), (0, 10));
+
+        let (dir, store) = store();
+        let source = image_file(dir.path(), "large.png", 2000, 1200);
+        let copy = store
+            .load_image(&store.import_background(&source, size).unwrap())
+            .unwrap();
+        assert_eq!((copy.width(), copy.height()), size);
+        assert!(
+            !copy.color().has_alpha(),
+            "a background has no transparency"
+        );
+        // A transparent pixel is black.
+        let source = image_file(dir.path(), "small.png", 20, 10);
+        let copy = store
+            .load_image(&store.import_background(&source, size).unwrap())
+            .unwrap()
+            .into_rgb8();
+        assert_eq!(copy.get_pixel(0, 0), &image::Rgb([0, 0, 0]));
+        assert_eq!(copy.get_pixel(10, 5), &image::Rgb([10, 5, 7]));
+        let source = dir.path().join("not.png");
+        fs::write(&source, b"not an image").unwrap();
+        assert!(store.import_background(&source, size).is_err());
     }
 
     #[test]

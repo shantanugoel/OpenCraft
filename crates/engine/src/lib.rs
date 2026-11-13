@@ -38,7 +38,7 @@ pub mod store;
 
 pub use action::*;
 pub use device_settings::{DeviceSettings, KnobLightMode, KnobLights, SettingsSupport};
-pub use engine::{Command, Counters, Engine, Event, SurfaceState};
+pub use engine::{BackgroundState, Command, Counters, Engine, Event, NewBackground, SurfaceState};
 /// The image type of the messages.
 pub use image::RgbImage;
 pub use layout::{ControlLayout, DeviceLayout, SurfaceLayout};
@@ -48,7 +48,8 @@ pub use runtime::{spawn, Config, EngineHandle};
 
 pub use error::{Error, Result};
 pub use profile::{
-    Color, LabelChange, LabelPosition, LabelStyle, Page, Profile, SurfaceContent, LABEL_SIZES,
+    Background, BackgroundFit, Color, LabelChange, LabelPosition, LabelStyle, Page, Profile,
+    SurfaceContent, LABEL_SIZES,
 };
 pub use profiles::{ProfileEntry, ProfilesDir};
 pub use render::label_color;

@@ -39,11 +39,11 @@
 //! the file goes to a path that the file gives.
 
 use crate::error::{Error, Result};
-use crate::profile::Profile;
+use crate::profile::{ImageUse, Profile};
 use crate::store::{self, image_name, write_and_rename, BackupReason, ProfileStore};
 use base64::Engine as _;
 use image::{DynamicImage, ImageReader, Limits};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
@@ -66,7 +66,9 @@ pub const IMAGE_COUNT_LIMIT: usize = 1024;
 
 /// The largest data of one image, in bytes, after the Base64 decode. An
 /// image copy has at most 512 pixels on a side, thus its PNG data is
-/// smaller than 1.1 MB.
+/// smaller than 1.1 MB. A background copy of the N4 Pro has at most
+/// 1600 × 480 or 800 × 960 pixels with no transparency, thus its PNG data
+/// is smaller than 2.4 MB.
 pub const IMAGE_DATA_LIMIT: usize = 4 * 1024 * 1024;
 
 /// The largest width and height of an image that an import decodes, in
@@ -110,7 +112,7 @@ pub fn export(profile: &Profile, source: &ProfileStore, path: &Path) -> Result<(
         }
     }
     if !missing.is_empty() {
-        profile.map_images(|p| (!missing.iter().any(|m| m == p)).then(|| p.to_string()));
+        profile.map_images(|p, _| (!missing.iter().any(|m| m == p)).then(|| p.to_string()));
     }
     let content: toml::Table = store::to_text(&profile)?
         .parse()
@@ -227,16 +229,34 @@ impl Package {
     /// Decode each image with limits, write a new copy of it into `store`,
     /// and put the paths of the copies into the profile. Then return the
     /// profile. An image that the engine cannot decode gives an error.
-    pub fn write_images(mut self, store: &ProfileStore) -> Result<Profile> {
+    ///
+    /// The copy of an image has the limits of its use: a surface image, or
+    /// a page background of the size `background` (see
+    /// [`ProfileStore::import_background`]). An image with the two uses
+    /// gets one copy for each use.
+    pub fn write_images(mut self, store: &ProfileStore, background: (u32, u32)) -> Result<Profile> {
+        let uses: BTreeSet<(String, ImageUse)> = self
+            .profile
+            .image_uses()
+            .map(|(path, use_)| (path.to_string(), use_))
+            .collect();
         let mut paths = BTreeMap::new();
-        for (relative, data) in &self.images {
+        for (relative, use_) in uses {
+            let Some(data) = self.images.get(&relative) else {
+                continue;
+            };
             let image = decode(data).map_err(|reason| {
                 error(format!("the image '{relative}' has an error ({reason})"))
             })?;
-            let copy = store.add_image(image, Path::new(relative))?;
-            paths.insert(relative.clone(), copy);
+            let source = Path::new(&relative);
+            let copy = match use_ {
+                ImageUse::Surface => store.add_image(image, source)?,
+                ImageUse::Background => store.add_background(image, source, background)?,
+            };
+            paths.insert((relative, use_), copy);
         }
-        self.profile.map_images(|p| paths.get(p).cloned());
+        self.profile
+            .map_images(|p, use_| paths.get(&(p.to_string(), use_)).cloned());
         Ok(self.profile)
     }
 }
@@ -264,6 +284,62 @@ mod tests {
 
     const KEY_1: SurfaceId = SurfaceId::new(SurfaceKind::KeyFace, 1);
     const KEY_2: SurfaceId = SurfaceId::new(SurfaceKind::KeyFace, 2);
+    /// The size of the background of the N4 Pro.
+    const BACKGROUND: (u32, u32) = (800, 480);
+
+    #[test]
+    fn a_background_goes_out_and_in_with_its_image_at_the_size_of_a_background() {
+        use crate::profile::{Background, BackgroundFit};
+        let dir = TempDir::new().unwrap();
+        let store = ProfileStore::new(dir.path().join("work"));
+        let source = dir.path().join("photo.png");
+        RgbaImage::from_fn(1000, 600, |x, y| {
+            Rgba([(x % 251) as u8, (y % 241) as u8, 9, 255])
+        })
+        .save(&source)
+        .unwrap();
+        let background = store.import_background(&source, BACKGROUND).unwrap();
+        let mut profile = Profile::new(
+            "Work",
+            vec![Page::new("Main"), Page::new("Media"), Page::new("Plain")],
+        );
+        profile.page_mut(0).unwrap().background = Some(Background::Image {
+            image: background.clone(),
+            fit: BackgroundFit::Fit,
+        });
+        profile.page_mut(1).unwrap().background =
+            Some(Background::Color(Color::rgb(0x10, 0x20, 0x30)));
+        // The same file is also the image of a surface: it gets one copy
+        // for each use at the import.
+        profile
+            .page_mut(2)
+            .unwrap()
+            .update(KEY_1, |c| c.image = Some(background.clone()));
+        let file = dir.path().join("Work.opencraft");
+        export(&profile, &store, &file).unwrap();
+
+        let package = import(&file).unwrap();
+        assert_eq!(package.image_count(), 1);
+        let target = ProfileStore::new(dir.path().join("imported"));
+        let imported = package.write_images(&target, BACKGROUND).unwrap();
+        assert_eq!(
+            imported.pages()[0].background,
+            profile.pages()[0].background
+        );
+        assert_eq!(
+            imported.pages()[1].background,
+            profile.pages()[1].background
+        );
+        assert!(imported.pages()[2].background.is_none());
+        let surface = imported.pages()[2].content(KEY_1).image.unwrap();
+        assert_ne!(surface, background, "a surface copy is smaller");
+        let image = |path: &str| target.load_image(path).unwrap();
+        assert_eq!(
+            (image(&background).width(), image(&background).height()),
+            BACKGROUND
+        );
+        assert_eq!(image(&surface).width(), store::IMAGE_LIMIT);
+    }
 
     /// A store with a profile of two pages, a colour, a first page, and two
     /// images. The same image is on two surfaces.
@@ -305,7 +381,7 @@ mod tests {
         let package = import(&file).unwrap();
         assert_eq!(package.image_count(), 2, "each image one time");
         let target = ProfileStore::new(dir.path().join("imported"));
-        let imported = package.write_images(&target).unwrap();
+        let imported = package.write_images(&target, BACKGROUND).unwrap();
         assert_eq!(imported, profile);
         for path in profile.image_paths() {
             assert_eq!(
@@ -346,7 +422,7 @@ mod tests {
         export(&profile, &store, &file).unwrap();
         let imported = import(&file)
             .unwrap()
-            .write_images(&ProfileStore::new(dir.path().join("i")))
+            .write_images(&ProfileStore::new(dir.path().join("i")), BACKGROUND)
             .unwrap();
         assert!(imported.pages()[1].content(KEY_2).image.is_none());
         assert!(imported.pages()[1].content(KEY_1).image.is_some());
@@ -417,7 +493,10 @@ mod tests {
         );
         let dir = TempDir::new().unwrap();
         let target = ProfileStore::new(dir.path().join("t"));
-        match import_text(&text).unwrap().write_images(&target) {
+        match import_text(&text)
+            .unwrap()
+            .write_images(&target, BACKGROUND)
+        {
             Err(Error::ProfileFile(reason)) => assert!(reason.contains("has an error"), "{reason}"),
             other => panic!("not a file error: {other:?}"),
         }

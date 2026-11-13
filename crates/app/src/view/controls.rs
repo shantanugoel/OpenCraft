@@ -345,6 +345,18 @@ pub(crate) fn segment(
     selected: bool,
     height: Pixels,
 ) -> Stateful<Div> {
+    segment_if(id, text, selected, true, height)
+}
+
+/// A [`segment`] that can be disabled: a disabled segment has
+/// `text-disabled`, no hover, and the caller adds no click handler to it.
+pub(crate) fn segment_if(
+    id: impl Into<SharedString>,
+    text: impl Into<SharedString>,
+    selected: bool,
+    enabled: bool,
+    height: Pixels,
+) -> Stateful<Div> {
     let id: SharedString = id.into();
     div()
         .id(id.clone())
@@ -360,10 +372,13 @@ pub(crate) fn segment(
         .when(selected, |d| {
             d.bg(theme::BG_SEGMENT_ON).text_color(theme::TEXT_ON_ACCENT)
         })
-        .when(!selected, |d| {
+        .when(!selected && enabled, |d| {
             d.text_color(theme::TEXT_SECONDARY)
                 .cursor_pointer()
                 .hover(|d| d.bg(theme::HOVER_ROW))
+        })
+        .when(!selected && !enabled, |d| {
+            d.text_color(theme::TEXT_DISABLED)
         })
         .child(text.into())
 }

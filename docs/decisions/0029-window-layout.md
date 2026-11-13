@@ -941,12 +941,14 @@ comes with the drag of a page row.
   image, and the text "800 × 480" (`badge` weight 400, `text-secondary`) at
   the bottom left, 6 from the edges. Next to it, gap 12, a column of two
   controls, gap 6: the button "Choose image…" and a popup button for the fit
-  ("Fill" or "Fit"; #191 decides the default and writes it in a document).
-- "Colour": the fill samples of section 10.2.
+  ("Fill" or "Fit"). The default is "Fill":
+  [decision 0032](0032-page-background.md).
+- "Colour": the fill samples of section 10.2, with no "No fill" sample:
+  "None" removes the background.
 - "None": no other control.
 - The help text below, 10 lower: "The background shows around and behind
   each key face and bar panel." (`help`, `text-tertiary`).
-- Until #191, the section is not there.
+- A model with no background has no "Background" section.
 
 **"Touch bar gestures" section.** Header "TOUCH BAR GESTURES" with the hint
 "On this page". The gesture cards "Swipe left" and "Swipe right" (section
@@ -1429,7 +1431,7 @@ updates [decision 0014](0014-action-settings-description.md) for a change to
 | The icon of a kind: a name in the icon set of #190 | `KindDescription` | #190 | Kind tiles. Until #190, the tile shows the first letter of the kind name in white. |
 | The kind has two states, the field of the label for on, and the image of each state | `KindDescription` and the surface events | #183 | Section 10.5 |
 | The profile colour and the first page | Profile and `Event::Profiles` | #195 | Sections 7.3 and 16 |
-| The page background | Profile and the surface events | #191 | Sections 8.2 and 10.6 |
+| The page background | Profile and `Event::Background` ([decision 0032](0032-page-background.md)) | #191 | Sections 8.2 and 10.6 |
 
 **Kind tiles.** The tile colour comes from the group, so the shell needs no
 colour for each kind. The wireframes use a colour for each kind; this

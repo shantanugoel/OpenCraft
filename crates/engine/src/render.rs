@@ -7,7 +7,9 @@
 //!
 //! The layout of a surface:
 //!
-//! - The colour fills the surface. With no colour, the surface is black.
+//! - The colour fills the surface. With no colour, the surface shows the
+//!   part of the page background at its position, or black on a page with
+//!   no background (decision 0032).
 //! - The image is as large as possible in its area, with its proportion, at
 //!   the centre. The colour shows through the transparent parts.
 //! - The label has the position, the size, the colour, and the weight of its
@@ -25,7 +27,7 @@
 
 use crate::action::{Feedback, FeedbackState};
 use crate::label::{self, Align, Area, Font};
-use crate::profile::{Color, LabelPosition, LabelStyle, SurfaceContent};
+use crate::profile::{Background, BackgroundFit, Color, LabelPosition, LabelStyle, SurfaceContent};
 use image::imageops::{self, FilterType};
 use image::{DynamicImage, Rgb, RgbImage};
 
@@ -57,8 +59,90 @@ pub fn surface_image(
     content: &SurfaceContent,
     image: Option<&DynamicImage>,
 ) -> RgbImage {
-    let color = content.color.unwrap_or(DEFAULT_COLOR);
-    let mut canvas = RgbImage::from_pixel(size.width, size.height, Rgb(color.0));
+    surface_image_on(size, content, image, &Base::of(content, None))
+}
+
+/// What is behind the image and the label of a surface: the fill colour,
+/// or the part of the page background at the position of the surface.
+#[derive(Debug, Clone)]
+enum Base {
+    Color(Color),
+    /// The part of the background, with the size of the area.
+    Backdrop(RgbImage),
+}
+
+impl Base {
+    /// The base of `content`: its colour, or else `backdrop`, or else
+    /// [`DEFAULT_COLOR`].
+    fn of(content: &SurfaceContent, backdrop: Option<&RgbImage>) -> Self {
+        match (content.color, backdrop) {
+            (Some(color), _) => Base::Color(color),
+            (None, Some(backdrop)) => Base::Backdrop(backdrop.clone()),
+            (None, None) => Base::Color(DEFAULT_COLOR),
+        }
+    }
+
+    /// An image of `size` with the base. A backdrop of a different size
+    /// goes at the top left, on black.
+    fn canvas(&self, size: Size) -> RgbImage {
+        match self {
+            Base::Color(color) => RgbImage::from_pixel(size.width, size.height, Rgb(color.0)),
+            Base::Backdrop(backdrop) => {
+                if backdrop.dimensions() == (size.width, size.height) {
+                    return backdrop.clone();
+                }
+                let mut canvas =
+                    RgbImage::from_pixel(size.width, size.height, Rgb(DEFAULT_COLOR.0));
+                imageops::replace(&mut canvas, backdrop, 0, 0);
+                canvas
+            }
+        }
+    }
+
+    /// The base of the part of the area at `x`, `y` with the size `size`.
+    fn part(&self, x: u32, y: u32, size: Size) -> Self {
+        match self {
+            Base::Color(color) => Base::Color(*color),
+            Base::Backdrop(backdrop) => Base::Backdrop(
+                imageops::crop_imm(backdrop, x, y, size.width, size.height).to_image(),
+            ),
+        }
+    }
+
+    /// The colour that a label must show on: the fill colour, or the mean
+    /// colour of the backdrop.
+    fn tone(&self) -> Color {
+        match self {
+            Base::Color(color) => *color,
+            Base::Backdrop(backdrop) => mean_color(backdrop),
+        }
+    }
+}
+
+/// The mean colour of the pixels of `image`. An image with no pixels gives
+/// [`DEFAULT_COLOR`].
+fn mean_color(image: &RgbImage) -> Color {
+    let count = u64::from(image.width()) * u64::from(image.height());
+    if count == 0 {
+        return DEFAULT_COLOR;
+    }
+    let mut sum = [0u64; 3];
+    for pixel in image.pixels() {
+        for (total, value) in sum.iter_mut().zip(pixel.0) {
+            *total += u64::from(value);
+        }
+    }
+    Color(sum.map(|total| (total / count) as u8))
+}
+
+/// Make the upright image of a surface on `base`. See [`surface_image`].
+fn surface_image_on(
+    size: Size,
+    content: &SurfaceContent,
+    image: Option<&DynamicImage>,
+    base: &Base,
+) -> RgbImage {
+    let mut canvas = base.canvas(size);
     if size.width == 0 || size.height == 0 {
         return canvas;
     }
@@ -72,7 +156,10 @@ pub fn surface_image(
         size: style.size,
         bold: style.bold,
     };
-    let text_color = label_color(content);
+    let text_color = content
+        .label_style
+        .color
+        .unwrap_or_else(|| text_color(base.tone()));
     let width = size.width.saturating_sub(2 * MARGIN);
     // The label on all of the surface, inside the margin.
     let full = Area {
@@ -175,27 +262,99 @@ pub fn surface_image_with_feedback(
     image: Option<&DynamicImage>,
     feedback: Option<&Feedback>,
 ) -> RgbImage {
+    surface_image_on_background(size, content, image, feedback, None)
+}
+
+/// Make the surface image as [`surface_image_with_feedback`] does, on a page
+/// with a background. `backdrop` is the part of the background image at
+/// the position of the surface, with the size of the surface: see
+/// [`backdrop`]. A surface with no fill colour shows it behind its image
+/// and its label, and the automatic colour of the label is black or white
+/// for the mean colour of the backdrop. A surface with a fill colour does
+/// not show it (decision 0032).
+pub fn surface_image_on_background(
+    size: Size,
+    content: &SurfaceContent,
+    image: Option<&DynamicImage>,
+    feedback: Option<&Feedback>,
+    backdrop: Option<&RgbImage>,
+) -> RgbImage {
+    let base = Base::of(content, backdrop);
     let Some(feedback) = feedback else {
-        return surface_image(size, content, image);
+        return surface_image_on(size, content, image, &base);
     };
     let mut content = content.clone();
     if let Some(label) = &feedback.label {
         content.label = Some(label.clone());
     }
     if feedback.state != Some(FeedbackState::On) {
-        return with_level(size, &content, image, feedback.level);
+        return with_level(size, &content, image, feedback.level, &base);
     }
-    let color = content.color.unwrap_or(DEFAULT_COLOR);
     let frame = FRAME.min(size.width / 4).min(size.height / 4);
     let inner = Size {
         width: size.width - 2 * frame,
         height: size.height - 2 * frame,
     };
-    let mut canvas = RgbImage::from_pixel(size.width, size.height, Rgb(color.0));
-    let inside = with_level(inner, &content, image, feedback.level);
+    let mut canvas = base.canvas(size);
+    let inside = with_level(
+        inner,
+        &content,
+        image,
+        feedback.level,
+        &base.part(frame, frame, inner),
+    );
     imageops::replace(&mut canvas, &inside, i64::from(frame), i64::from(frame));
-    draw_frame(&mut canvas, frame, text_color(color));
+    draw_frame(&mut canvas, frame, text_color(base.tone()));
     canvas
+}
+
+/// Make the upright image of the page background `background` of the size
+/// `size`: one colour, or the image with its fit, at the centre. `image` is
+/// the decoded background image, if the background is an image. If it is
+/// `None` for an image, the display is black. The caller loads it: see
+/// [`crate::store::ProfileStore::load_image`].
+pub fn background_image(
+    size: Size,
+    background: &Background,
+    image: Option<&DynamicImage>,
+) -> RgbImage {
+    let (width, height) = (size.width, size.height);
+    let fit = match background {
+        Background::Color(color) => return RgbImage::from_pixel(width, height, Rgb(color.0)),
+        Background::Image { fit, .. } => *fit,
+    };
+    let mut canvas = RgbImage::from_pixel(width, height, Rgb(DEFAULT_COLOR.0));
+    let Some(image) = image.filter(|i| i.width() > 0 && i.height() > 0) else {
+        return canvas;
+    };
+    if width == 0 || height == 0 {
+        return canvas;
+    }
+    let scaled = if (image.width(), image.height()) == (width, height) {
+        image.to_rgba8()
+    } else {
+        match fit {
+            BackgroundFit::Fill => image.resize_to_fill(width, height, FilterType::CatmullRom),
+            BackgroundFit::Fit => image.resize(width, height, FilterType::CatmullRom),
+        }
+        .into_rgba8()
+    };
+    let x = (width - scaled.width().min(width)) / 2;
+    let y = (height - scaled.height().min(height)) / 2;
+    let mut under = DynamicImage::ImageRgb8(canvas).into_rgba8();
+    imageops::overlay(&mut under, &scaled, i64::from(x), i64::from(y));
+    canvas = DynamicImage::ImageRgba8(under).into_rgb8();
+    canvas
+}
+
+/// The part of the background image `background` at `x`, `y` with the size
+/// `size`: the backdrop of a surface at that position. A part out of the
+/// background is black.
+pub fn backdrop(background: &RgbImage, x: u32, y: u32, size: Size) -> RgbImage {
+    let mut part = RgbImage::from_pixel(size.width, size.height, Rgb(DEFAULT_COLOR.0));
+    let crop = imageops::crop_imm(background, x, y, size.width, size.height).to_image();
+    imageops::replace(&mut part, &crop, 0, 0);
+    part
 }
 
 /// Make the surface image with a level bar at the bottom, if `level` is
@@ -205,20 +364,17 @@ fn with_level(
     content: &SurfaceContent,
     image: Option<&DynamicImage>,
     level: Option<u8>,
+    base: &Base,
 ) -> RgbImage {
     let Some(level) = level.filter(|_| size.width >= 16 && size.height >= 20) else {
-        return surface_image(size, content, image);
+        return surface_image_on(size, content, image, base);
     };
     let area = Size {
         width: size.width,
         height: size.height - 16,
     };
-    let top = surface_image(area, content, image);
-    let mut canvas = RgbImage::from_pixel(
-        size.width,
-        size.height,
-        Rgb(content.color.unwrap_or(DEFAULT_COLOR).0),
-    );
+    let top = surface_image_on(area, content, image, &base.part(0, 0, area));
+    let mut canvas = base.canvas(size);
     imageops::replace(&mut canvas, &top, 0, 0);
     let width = size.width - 12;
     let fill = width * u32::from(level.min(100)) / 100;
@@ -788,5 +944,127 @@ mod tests {
         };
         let image = surface_image(size, &content(Some("Mail"), Some(RED)), Some(&green(8, 8)));
         assert_eq!(image.dimensions(), (0, 0));
+    }
+
+    const DISPLAY: Size = Size {
+        width: 800,
+        height: 480,
+    };
+
+    fn image_background(fit: BackgroundFit) -> Background {
+        Background::Image {
+            image: "images/0123456789abcdef.png".into(),
+            fit,
+        }
+    }
+
+    #[test]
+    fn a_colour_background_fills_the_display() {
+        let blue = Color::rgb(10, 20, 200);
+        let image = background_image(DISPLAY, &Background::Color(blue), None);
+        assert_eq!(image.dimensions(), (800, 480));
+        assert!(image.pixels().all(|p| *p == Rgb(blue.0)));
+        // An image background with no image is black.
+        let image = background_image(DISPLAY, &image_background(BackgroundFit::Fill), None);
+        assert!(image.pixels().all(|p| *p == Rgb([0, 0, 0])));
+    }
+
+    #[test]
+    fn fill_covers_the_display_and_fit_shows_all_of_the_image() {
+        // A square image: "Fill" covers all of the display, "Fit" has black
+        // at the left and at the right.
+        let square = green(300, 300);
+        let fill = background_image(
+            DISPLAY,
+            &image_background(BackgroundFit::Fill),
+            Some(&square),
+        );
+        assert!(fill.pixels().all(|p| *p == GREEN));
+        let fit = background_image(
+            DISPLAY,
+            &image_background(BackgroundFit::Fit),
+            Some(&square),
+        );
+        assert_eq!(fit.get_pixel(400, 0), &GREEN);
+        assert_eq!(fit.get_pixel(400, 479), &GREEN);
+        assert_eq!(fit.get_pixel(160, 240), &GREEN);
+        assert_eq!(fit.get_pixel(639, 240), &GREEN);
+        assert_eq!(fit.get_pixel(150, 240), &Rgb([0, 0, 0]));
+        assert_eq!(fit.get_pixel(650, 240), &Rgb([0, 0, 0]));
+
+        // "Fill" keeps the centre: an image with a red left half and a green
+        // right half, wider than the display, loses the same part at each
+        // side.
+        let wide = DynamicImage::ImageRgb8(RgbImage::from_fn(1600, 480, |x, _| {
+            if x < 800 {
+                Rgb(RED.0)
+            } else {
+                GREEN
+            }
+        }));
+        let fill = background_image(DISPLAY, &image_background(BackgroundFit::Fill), Some(&wide));
+        assert_eq!(fill.get_pixel(398, 240), &Rgb(RED.0));
+        assert_eq!(fill.get_pixel(402, 240), &GREEN);
+    }
+
+    #[test]
+    fn a_surface_with_no_fill_shows_the_background_behind_it() {
+        // A background with a red left half and a green right half.
+        let background =
+            RgbImage::from_fn(800, 480, |x, _| if x < 400 { Rgb(RED.0) } else { GREEN });
+        let part = backdrop(&background, 346, 8, KEY);
+        assert_eq!(part.dimensions(), (112, 112));
+        assert_eq!(part.get_pixel(53, 0), &Rgb(RED.0));
+        assert_eq!(part.get_pixel(54, 0), &GREEN);
+        // A part out of the background is black.
+        let edge = backdrop(&background, 750, 400, KEY);
+        assert_eq!(edge.get_pixel(60, 90), &Rgb([0, 0, 0]));
+        assert_eq!(edge.get_pixel(10, 10), &GREEN);
+
+        let empty = SurfaceContent::default();
+        let image = surface_image_on_background(KEY, &empty, None, None, Some(&part));
+        assert_eq!(
+            image, part,
+            "an empty surface is the part of the background"
+        );
+        // A fill colour covers the background.
+        let red = content(None, Some(Color::rgb(1, 2, 3)));
+        let image = surface_image_on_background(KEY, &red, None, None, Some(&part));
+        assert!(image.pixels().all(|p| *p == Rgb([1, 2, 3])));
+        // An image goes on the background, which shows through its
+        // transparent parts.
+        let clear = DynamicImage::ImageRgba8(RgbaImage::from_pixel(112, 112, Rgba([0, 0, 0, 0])));
+        let image = surface_image_on_background(KEY, &empty, Some(&clear), None, Some(&part));
+        assert_eq!(image, part);
+        // The feedback level and the frame of the state "on" keep the
+        // background inside.
+        let feedback = Feedback {
+            state: Some(FeedbackState::On),
+            level: Some(50),
+            ..Feedback::default()
+        };
+        let image = surface_image_on_background(KEY, &empty, None, Some(&feedback), Some(&part));
+        assert_eq!(image.get_pixel(FRAME + 2, FRAME + 2), &Rgb(RED.0));
+        assert_eq!(image.get_pixel(111 - FRAME - 2, FRAME + 2), &GREEN);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_automatic_label_colour_shows_on_the_background() {
+        // On a light background, the automatic label is black.
+        let light = RgbImage::from_pixel(112, 112, Rgb([240, 240, 240]));
+        let image = surface_image_on_background(
+            KEY,
+            &content(Some("Mail"), None),
+            None,
+            None,
+            Some(&light),
+        );
+        assert!(image.pixels().any(|p| *p == Rgb([0, 0, 0])));
+        assert!(!image.pixels().any(|p| *p == WHITE));
+        let dark = RgbImage::from_pixel(112, 112, Rgb([20, 20, 30]));
+        let image =
+            surface_image_on_background(KEY, &content(Some("Mail"), None), None, None, Some(&dark));
+        assert!(image.pixels().any(|p| *p == WHITE));
     }
 }

@@ -151,7 +151,10 @@ The label options of
 Position", "Set Title Size", "Set Title Colour", and "Set Title Weight". The
 profile settings of [#195](https://github.com/shantanugoel/OpenCraft/issues/195)
 add "Set First Page": the mark of the first page is on a page, thus it is in
-the copy of the pages. The colour of a profile is not in the pages, and it
+the copy of the pages. The page background of
+[#191](https://github.com/shantanugoel/OpenCraft/issues/191) adds "Set
+Background", "Remove the Background", and "Set Background Fit"
+([decision 0032](0032-page-background.md)). The colour of a profile is not in the pages, and it
 has no step, as the name. An import adds a profile and makes it the active
 profile, thus it empties the history. The
 editors of a toggle and a sequence of
