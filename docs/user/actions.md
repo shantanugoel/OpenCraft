@@ -402,6 +402,8 @@ then select this control again.
 When another program changes the output, the key shows the new name. The
 action asks for no new permission.
 
+![The menu of the field "Cycle list", with a check on each output of the list](images/sound-output.png)
+
 ## Microphone mute
 
 Group: **Media**. This action has no settings. A push switches the mute of
