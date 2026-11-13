@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 mod support;
 use support::*;
 
+mod audio;
 mod flow;
 mod mac_function;
 mod mouse;
@@ -688,9 +689,9 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 16);
+    assert_eq!(real.len(), 17);
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 16);
+    assert_eq!(kinds.len(), 17);
     for (kind, name, key, input) in [
         (
             "open-application",

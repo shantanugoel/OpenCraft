@@ -34,6 +34,20 @@ pub trait System: Send + Sync + 'static {
     fn volume(&self) -> Result<Volume>;
     fn set_volume_level(&self, level: u8) -> Result<()>;
     fn set_muted(&self, muted: bool) -> Result<()>;
+    /// None means that the default input has no writable master mute.
+    fn microphone_muted(&self) -> Result<Option<bool>> {
+        Err(system::Error::NotSupported)
+    }
+    fn set_microphone_muted(&self, _muted: bool) -> Result<()> {
+        Err(system::Error::NotSupported)
+    }
+    /// Notify only on property changes. Drop the watch to remove listeners.
+    fn watch_microphone(
+        &self,
+        _changed: std::sync::mpsc::Sender<()>,
+    ) -> Result<Box<dyn system::AudioWatch>> {
+        Err(system::Error::NotSupported)
+    }
     fn open_application(&self, application: &str) -> Result<()>;
     fn open_url(&self, url: &str) -> Result<()>;
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>>;
@@ -74,6 +88,18 @@ impl System for RealSystem {
     }
     fn set_muted(&self, muted: bool) -> Result<()> {
         system::set_muted(muted)
+    }
+    fn microphone_muted(&self) -> Result<Option<bool>> {
+        system::microphone_muted()
+    }
+    fn set_microphone_muted(&self, muted: bool) -> Result<()> {
+        system::set_microphone_muted(muted)
+    }
+    fn watch_microphone(
+        &self,
+        changed: std::sync::mpsc::Sender<()>,
+    ) -> Result<Box<dyn system::AudioWatch>> {
+        system::watch_microphone(changed)
     }
     fn open_application(&self, application: &str) -> Result<()> {
         system::open_application(application)

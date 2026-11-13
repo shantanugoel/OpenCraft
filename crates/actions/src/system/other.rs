@@ -42,6 +42,16 @@ pub fn set_muted(_: bool) -> Result<()> {
     Err(Error::NotSupported)
 }
 
+pub fn microphone_muted() -> Result<Option<bool>> {
+    Err(Error::NotSupported)
+}
+pub fn set_microphone_muted(_: bool) -> Result<()> {
+    Err(Error::NotSupported)
+}
+pub fn watch_microphone(_: std::sync::mpsc::Sender<()>) -> Result<Box<dyn super::AudioWatch>> {
+    Err(Error::NotSupported)
+}
+
 pub fn open_application(_: &str) -> Result<()> {
     Err(Error::NotSupported)
 }

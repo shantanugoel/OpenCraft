@@ -17,6 +17,7 @@ pub enum Call {
     Media(MediaKey),
     Level(u8),
     Muted(bool),
+    MicrophoneMuted(bool),
     Application(String),
     Url(String),
     Shell(String),
@@ -38,6 +39,9 @@ pub struct Fake {
     pub permission_reads: AtomicUsize,
     pub asks: AtomicUsize,
     pub volume_reads: AtomicUsize,
+    pub microphone_reads: AtomicUsize,
+    pub microphone: Mutex<Option<bool>>,
+    pub input_notifications: Mutex<Vec<std::sync::mpsc::Sender<()>>>,
     pub waiting: Arc<AtomicBool>,
     pub volume: Mutex<Volume>,
     pub failure: Mutex<Option<&'static str>>,
@@ -56,6 +60,9 @@ impl Default for Fake {
             permission_reads: AtomicUsize::new(0),
             asks: AtomicUsize::new(0),
             volume_reads: AtomicUsize::new(0),
+            microphone_reads: AtomicUsize::new(0),
+            microphone: Mutex::new(Some(false)),
+            input_notifications: Mutex::new(Vec::new()),
             waiting: Arc::new(AtomicBool::new(false)),
             volume: Mutex::new(Volume {
                 level: 50,
@@ -115,6 +122,9 @@ impl Fake {
         self.gate.1.notify_all();
     }
 }
+
+struct FakeWatch;
+impl opencraft_actions::system::AudioWatch for FakeWatch {}
 
 struct FakeChild {
     gate: Gate,
@@ -176,6 +186,23 @@ impl System for Fake {
         self.record(Call::Muted(muted), "muted")?;
         self.volume.lock().unwrap().muted = muted;
         Ok(())
+    }
+    fn microphone_muted(&self) -> Result<Option<bool>> {
+        self.microphone_reads.fetch_add(1, Ordering::SeqCst);
+        self.check("microphone")?;
+        Ok(*self.microphone.lock().unwrap())
+    }
+    fn set_microphone_muted(&self, muted: bool) -> Result<()> {
+        self.record(Call::MicrophoneMuted(muted), "set-microphone")?;
+        *self.microphone.lock().unwrap() = Some(muted);
+        Ok(())
+    }
+    fn watch_microphone(
+        &self,
+        changed: std::sync::mpsc::Sender<()>,
+    ) -> Result<Box<dyn opencraft_actions::system::AudioWatch>> {
+        self.input_notifications.lock().unwrap().push(changed);
+        Ok(Box::new(FakeWatch))
     }
     fn open_application(&self, application: &str) -> Result<()> {
         self.record(Call::Application(application.into()), "application")
