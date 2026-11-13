@@ -11,6 +11,7 @@
 //! new control gets the same with one call.
 
 use super::{
+    focus_return::FocusReturn,
     menu::{MenuKeys, MenuRow},
     theme,
 };
@@ -930,15 +931,18 @@ pub(super) fn popup_menu(
 /// - A click in the popover does not move the focus: the field of a
 ///   popover keeps it while the user clicks a sample, and the popover does
 ///   not take it.
+/// - When the popover closes, the focus goes back to the control that
+///   opened it, if a key opened it (`focus_return`).
 pub(super) fn popover_focus(
     popover: Stateful<Div>,
     id: SharedString,
     focus: &FocusHandle,
 ) -> impl IntoElement + use<> {
-    popover
+    let trap = popover
         .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
         .on_action(|_: &FocusOwner, _, _| {})
-        .focus_trap(id, focus)
+        .focus_trap(id.clone(), focus);
+    FocusReturn::new(format!("{id}-return"), focus, trap)
 }
 
 /// A row of a menu: height 28, radius 6. The menu paints the highlight

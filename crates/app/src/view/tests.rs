@@ -236,6 +236,7 @@ mod canvas;
 mod clipboard;
 mod device;
 mod focus;
+mod focus_return;
 mod history;
 mod hotkey;
 mod icons;
