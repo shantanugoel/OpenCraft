@@ -56,6 +56,7 @@ fn turn(gesture: GestureKind) -> BindingId {
         page: 0,
         control: knob(),
         gesture,
+        folder: None,
     }
 }
 
@@ -307,6 +308,7 @@ fn the_bar_panel_section_edits_the_bar_panel_of_the_feedback(cx: &mut TestAppCon
                     number: 2,
                 },
                 page: 0,
+                folder: None,
             },
             action: Some(_),
         })

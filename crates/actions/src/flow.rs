@@ -12,8 +12,8 @@ use crate::backend::System;
 use crate::descriptions::*;
 use crate::handlers::{nonblank, problem, send, Result};
 use opencraft_engine::{
-    Action, BindingId, EngineRequest, Feedback, FeedbackState, Field, Handler, KindDescription,
-    Message, MessageSender, PageTarget, ProfileTarget, Request, Settings, Value,
+    Action, BindingId, EngineRequest, Feedback, FeedbackState, Field, FolderId, Handler,
+    KindDescription, Message, MessageSender, PageTarget, ProfileTarget, Request, Settings, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -22,7 +22,8 @@ use std::time::Duration;
 
 // --- Change the page, and select a profile ----------------------------------------
 
-/// The kinds `opencraft.page` and `opencraft.profile`.
+/// The kinds `opencraft.page`, `opencraft.profile`, `opencraft.open-folder`,
+/// and `opencraft.close-folder`.
 #[derive(Default)]
 pub(crate) struct NavigationHandler {
     sender: Option<MessageSender>,
@@ -92,6 +93,14 @@ impl NavigationHandler {
                 let page = profile_page(&action.settings)?;
                 Ok(EngineRequest::SelectProfile { target, page })
             }
+            OPEN_FOLDER => {
+                let text = nonblank(action, "folder")?;
+                let id = text
+                    .parse::<FolderId>()
+                    .map_err(|_| setting_problem(OPEN_FOLDER, "folder"))?;
+                Ok(EngineRequest::OpenFolder(id))
+            }
+            CLOSE_FOLDER => Ok(EngineRequest::CloseFolder),
             _ => Err("This handler does not have that action kind.".into()),
         }
     }
@@ -99,7 +108,9 @@ impl NavigationHandler {
 
 impl Handler for NavigationHandler {
     fn kinds(&self) -> Vec<KindDescription> {
-        [PAGE, PROFILE].map(description).into()
+        [PAGE, PROFILE, OPEN_FOLDER, CLOSE_FOLDER]
+            .map(description)
+            .into()
     }
     fn start(&mut self, sender: MessageSender) {
         self.sender = Some(sender);

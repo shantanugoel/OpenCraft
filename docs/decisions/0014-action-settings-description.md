@@ -92,6 +92,12 @@ action.
 | Toggle | On or off | Boolean |
 | Hotkey | A key with modifier keys | Text, for example `shift+cmd+4` |
 | Path, of a file or of an application | A file that the user selects or types | Text |
+| Folder | One folder of the active profile, or "New Folder" | Text: the identity of the folder, 16 hexadecimal digits |
+
+Note (2026-11-14): decision [0036](0036-folders.md) added the Folder input
+type for the action "Open a folder". The shell shows the folders of the
+profile. A value that is not a folder stays, and the popup shows
+"(not found)".
 
 Note (2026-11-14): issue
 [#336](https://github.com/shantanugoel/OpenCraft/issues/336). A path of

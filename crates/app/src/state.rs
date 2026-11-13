@@ -2,8 +2,8 @@
 
 use opencraft_engine::{
     BackgroundState, BindingId, BindingState, ControlId, ControlKind, DeviceLayout, DeviceSettings,
-    Event, Gesture, GestureKind, InputEvent, KindDescription, ProfileEntry, Status, SurfaceId,
-    SurfaceKind, SurfaceState,
+    Event, FolderEntry, FolderId, Gesture, GestureKind, InputEvent, KindDescription, ProfileEntry,
+    Status, SurfaceId, SurfaceKind, SurfaceState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -73,6 +73,11 @@ pub struct ViewState {
     /// The first page of the active profile: the page that the device shows
     /// when the profile becomes active.
     pub first_page: usize,
+    /// The folders of the active profile, in sidebar order (decision 0036).
+    pub folders: Vec<FolderEntry>,
+    /// The open folders, from the first to the last. The last one is the
+    /// folder that the keys show.
+    pub open: Vec<FolderId>,
     /// The profiles of the device model, and the identity of the active profile.
     pub profiles: Vec<ProfileEntry>,
     pub profile: Option<String>,
@@ -169,6 +174,8 @@ impl ViewState {
                 // profile next. Drop all that is of the old profile.
                 if self.profile.as_ref().is_some_and(|p| *p != active) {
                     self.pages.clear();
+                    self.folders.clear();
+                    self.open.clear();
                     self.bindings.clear();
                     self.epoch += 1;
                 }
@@ -179,11 +186,15 @@ impl ViewState {
                 names,
                 active,
                 first,
+                folders,
+                open,
             } => {
-                // The engine sends each binding of the active page next.
+                // The engine sends each binding of the location next.
                 self.page = active;
                 self.pages = names;
                 self.first_page = first;
+                self.folders = folders;
+                self.open = open;
                 self.bindings.clear();
                 self.epoch += 1;
                 self.update_open_card();
@@ -340,12 +351,23 @@ impl ViewState {
         }
     }
 
+    /// The folder of a key while a folder is open. Knobs, the touch bar, and
+    /// the bar panels stay on the page under the folders (decision 0036).
+    pub fn folder_of(&self, control: ControlId) -> Option<FolderId> {
+        if control.kind == ControlKind::Key {
+            self.open.last().copied()
+        } else {
+            None
+        }
+    }
+
     /// The open card of `control`: the card that the user opened last, or
-    /// the first card with an action on the active page.
+    /// the first card with an action at the location.
     fn open_card_of(&self, control: ControlId) -> Option<GestureKind> {
         if let Some(gesture) = self.open_cards.get(&control) {
             return *gesture;
         }
+        let folder = self.folder_of(control);
         gestures(control.kind)
             .iter()
             .map(|&(gesture, _)| gesture)
@@ -354,6 +376,7 @@ impl ViewState {
                     page: self.page,
                     control,
                     gesture,
+                    folder,
                 })
             })
     }
@@ -420,6 +443,7 @@ impl ViewState {
             page: self.page,
             control,
             gesture,
+            folder: self.folder_of(control),
         })
     }
 
@@ -755,6 +779,8 @@ pub(crate) mod tests {
                 names: vec!["Page 1".into(), "Page 2".into()],
                 active: 1,
                 first: 0,
+                folders: Vec::new(),
+                open: Vec::new(),
             },
             now,
         );
@@ -774,6 +800,7 @@ pub(crate) mod tests {
                     page: 0,
                     control,
                     gesture,
+                    folder: None,
                 },
                 action: Some(Action {
                     kind: "test.kind".into(),

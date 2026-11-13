@@ -8,8 +8,10 @@
 use crate::action::{Action, GestureKind};
 use opencraft_core::device::DESCRIPTORS;
 use opencraft_core::{ControlId, ControlKind, SurfaceId, SurfaceKind};
+use std::collections::hash_map::RandomState;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::hash::BuildHasher;
 use std::str::FromStr;
 
 /// The name of a new profile.
@@ -416,6 +418,17 @@ impl Page {
         }
         true
     }
+
+    /// Keep only key faces and key bindings. A folder is a page of keys
+    /// (decision 0036). The background and the first-page mark go away.
+    pub(crate) fn keep_keys_only(&mut self) {
+        self.background = None;
+        self.first = false;
+        self.surfaces
+            .retain(|id, _| id.kind == SurfaceKind::KeyFace);
+        self.bindings
+            .retain(|(control, _), _| control.kind == ControlKind::Key);
+    }
 }
 
 /// The use of an image file of the profile. A surface image and a
@@ -424,6 +437,82 @@ impl Page {
 pub enum ImageUse {
     Surface,
     Background,
+}
+
+/// The identity of a folder. The text form is 16 hexadecimal digits with
+/// small letters. Zero is not an identity (decision 0036).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FolderId(u64);
+
+impl FolderId {
+    /// A new identity: a random number that is not 0. It uses
+    /// [`RandomState`] and needs no new crate.
+    pub fn random() -> Self {
+        loop {
+            let value = RandomState::new().hash_one(0u8);
+            if let Some(id) = Self::from_raw(value) {
+                return id;
+            }
+        }
+    }
+
+    /// The identity of `value`. Zero is not an identity.
+    pub const fn from_raw(value: u64) -> Option<Self> {
+        if value == 0 {
+            None
+        } else {
+            Some(Self(value))
+        }
+    }
+}
+
+/// The text is not the text form of a folder identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParseFolderIdError;
+
+impl fmt::Display for ParseFolderIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a folder identity is 16 hexadecimal digits")
+    }
+}
+
+impl fmt::Display for FolderId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:016x}", self.0)
+    }
+}
+
+impl FromStr for FolderId {
+    type Err = ParseFolderIdError;
+
+    /// Read 16 hexadecimal digits with small letters. Zero is not an identity.
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        if text.len() != 16
+            || !text
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(ParseFolderIdError);
+        }
+        let value = u64::from_str_radix(text, 16).map_err(|_| ParseFolderIdError)?;
+        Self::from_raw(value).ok_or(ParseFolderIdError)
+    }
+}
+
+/// A folder: a page of keys outside the page cycle (decision 0036). The name
+/// of the page is the name of the folder. The page has no background, is
+/// never the first page, and has only key faces and keys.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Folder {
+    pub id: FolderId,
+    pub page: Page,
+}
+
+/// One folder in [`crate::Event::Pages`]: its identity and its name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FolderEntry {
+    pub id: FolderId,
+    pub name: String,
 }
 
 /// A named set of pages for one device model.
@@ -439,6 +528,9 @@ pub struct Profile {
     pub color: Option<Color>,
     /// The pages. A profile has one page or more: see [`Profile::new`].
     pages: Vec<Page>,
+    /// The folders, in the order of the sidebar. A folder is not a page of
+    /// the page cycle (decision 0036).
+    folders: Vec<Folder>,
 }
 
 impl Default for Profile {
@@ -471,6 +563,7 @@ impl Profile {
             model: model.into(),
             color: None,
             pages,
+            folders: Vec::new(),
         }
     }
 
@@ -572,11 +665,79 @@ impl Profile {
             .expect("a name that no page has")
     }
 
+    /// The folders, in the order of the sidebar.
+    pub fn folders(&self) -> &[Folder] {
+        &self.folders
+    }
+
+    /// The folder with the identity `id`.
+    pub fn folder(&self, id: FolderId) -> Option<&Folder> {
+        self.folders.iter().find(|folder| folder.id == id)
+    }
+
+    /// The folder with the identity `id`, for a change.
+    pub fn folder_mut(&mut self, id: FolderId) -> Option<&mut Folder> {
+        self.folders.iter_mut().find(|folder| folder.id == id)
+    }
+
+    /// Put `folder` after the last folder. Return false if the profile
+    /// already has that identity.
+    pub fn add_folder(&mut self, mut folder: Folder) -> bool {
+        if self.folder(folder.id).is_some() {
+            return false;
+        }
+        folder.page.keep_keys_only();
+        self.folders.push(folder);
+        true
+    }
+
+    /// Move the folder `id` to the position `to`. Return false if the
+    /// profile has no such folder, or if `to` is not a position.
+    pub fn move_folder(&mut self, id: FolderId, to: usize) -> bool {
+        let Some(from) = self.folders.iter().position(|folder| folder.id == id) else {
+            return false;
+        };
+        if to >= self.folders.len() {
+            return false;
+        }
+        let folder = self.folders.remove(from);
+        self.folders.insert(to, folder);
+        true
+    }
+
+    /// Remove the folder `id`. Return false if the profile has no such folder.
+    pub fn remove_folder(&mut self, id: FolderId) -> bool {
+        let Some(index) = self.folders.iter().position(|folder| folder.id == id) else {
+            return false;
+        };
+        self.folders.remove(index);
+        true
+    }
+
+    /// A name for a new folder: `Folder N`, where N is the number of folders
+    /// after the add. If a folder has that name, N increases.
+    pub fn new_folder_name(&self) -> String {
+        (self.folders.len() + 1..)
+            .map(|n| format!("Folder {n}"))
+            .find(|name| self.folders.iter().all(|folder| &folder.page.name != name))
+            .expect("a name that no folder has")
+    }
+
+    /// Put `folders` in place of all folders, and return the folders that
+    /// were there. The undo and the redo of the engine use this.
+    pub fn replace_folders(&mut self, folders: Vec<Folder>) -> Vec<Folder> {
+        std::mem::replace(&mut self.folders, folders)
+    }
+
     /// Change the image path of each surface and of each background of
-    /// each page with `map`. See [`Page::map_images`].
+    /// each page, and of each key face of each folder, with `map`. See
+    /// [`Page::map_images`].
     pub(crate) fn map_images(&mut self, mut map: impl FnMut(&str, ImageUse) -> Option<String>) {
         for page in &mut self.pages {
             page.map_images(&mut map);
+        }
+        for folder in &mut self.folders {
+            folder.page.map_images(&mut map);
         }
     }
 
@@ -586,7 +747,8 @@ impl Profile {
     }
 
     /// Each image path that the profile uses, with its use: the images of
-    /// the surfaces, then the backgrounds of the pages.
+    /// the surfaces, then the backgrounds of the pages, then the images of
+    /// the folder key faces.
     pub fn image_uses(&self) -> impl Iterator<Item = (&str, ImageUse)> {
         let surfaces = self
             .pages
@@ -599,7 +761,13 @@ impl Profile {
             .iter()
             .filter_map(|p| p.background.as_ref().and_then(Background::image))
             .map(|p| (p, ImageUse::Background));
-        surfaces.chain(backgrounds)
+        let folders = self
+            .folders
+            .iter()
+            .flat_map(|folder| folder.page.surfaces())
+            .filter_map(|(_, content)| content.image.as_deref())
+            .map(|p| (p, ImageUse::Surface));
+        surfaces.chain(backgrounds).chain(folders)
     }
 }
 

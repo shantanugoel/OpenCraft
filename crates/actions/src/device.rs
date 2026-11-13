@@ -60,6 +60,7 @@ mod tests {
                 page: 0,
                 control: ControlId::new(ControlKind::Key, 1),
                 gesture: GestureKind::Press,
+                folder: None,
             },
             action: Action {
                 kind: SCREEN_OFF.into(),

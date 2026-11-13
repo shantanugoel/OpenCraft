@@ -140,6 +140,7 @@ fn the_window_shows_each_control_of_the_test_model_and_no_other(cx: &mut TestApp
             page: 0,
             control: ControlId::new(ControlKind::Key, 6),
             gesture: GestureKind::Press,
+            folder: None,
         })
     );
     click(cx, "control-knob 1");

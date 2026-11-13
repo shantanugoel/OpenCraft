@@ -28,6 +28,7 @@ fn mouse_form_comes_from_its_description(cx: &mut TestAppContext) {
             page: 0,
             control: ControlId::new(ControlKind::Key, 2),
             gesture: GestureKind::Press,
+            folder: None,
         },
         action: Some(action),
         available: true,

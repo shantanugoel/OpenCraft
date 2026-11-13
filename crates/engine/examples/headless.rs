@@ -107,6 +107,7 @@ fn main() {
                 names,
                 active,
                 first,
+                ..
             } => {
                 println!("[{at:8.3}] pages: {names:?}, active {active}, first {first}")
             }

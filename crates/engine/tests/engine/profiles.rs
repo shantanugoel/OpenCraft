@@ -415,6 +415,8 @@ fn a_profile_change_sends_disappear_then_writes_only_changed_images_then_sends_a
             names: vec!["Page 1".into()],
             active: 0,
             first: 0,
+            folders: Vec::new(),
+            open: Vec::new(),
         }
     );
     assert_eq!(binding_states(&events[16..]), [key_3()]);
@@ -456,6 +458,8 @@ fn a_profile_change_starts_on_the_first_page_and_removes_the_feedback() {
         names: vec!["Page 1".into(), "Page 2".into()],
         active: 0,
         first: 0,
+        folders: Vec::new(),
+        open: Vec::new(),
     }));
 }
 

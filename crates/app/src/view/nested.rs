@@ -212,6 +212,19 @@ impl DeviceView {
             InputType::ActionList | InputType::TimedActionList => {
                 steps_text(list(action, &field.key).len())
             }
+            InputType::Folder => self
+                .state
+                .folders
+                .iter()
+                .find(|folder| folder.id.to_string() == text)
+                .map(|folder| folder.name.clone())
+                .unwrap_or_else(|| {
+                    if text.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{text} (not found)")
+                    }
+                }),
             InputType::Path { .. } => std::path::Path::new(&text)
                 .file_name()
                 .map_or(text.clone(), |name| name.to_string_lossy().into_owned()),

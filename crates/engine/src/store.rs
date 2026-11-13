@@ -70,11 +70,12 @@
 //! this engine does not have loads and stays in the file, and the surface
 //! shows no icon.
 //!
-//! A later task can add more keys to version 4, if no release of OpenCraft
-//! writes version 4 before that task. Else the task increases the version.
+//! Schema version 5 adds `folders` (decision 0036). A file of version 4 or
+//! lower has no folders. A later task of Phase 9 adds its keys to version 5
+//! and does not make version 6. Release 0.2.0 writes version 4.
 //!
 //! ```toml
-//! schema_version = 4
+//! schema_version = 5
 //! name = "Default"
 //! model = "n4-pro"
 //! color = "#3B82F6"
@@ -110,11 +111,13 @@ use crate::action::{Action, GestureKind};
 use crate::error::{Error, Result};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
-    default_model, parse_surface_key, surface_key, Background, BackgroundFit, Color, LabelPosition,
-    LabelStyle, Page, Profile, SurfaceContent, SurfaceIcon, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
+    default_model, parse_surface_key, surface_key, Background, BackgroundFit, Color, Folder,
+    FolderId, LabelPosition, LabelStyle, Page, Profile, SurfaceContent, SurfaceIcon,
+    MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, ImageReader};
+use opencraft_core::{ControlKind, SurfaceKind};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::fmt;
@@ -123,11 +126,14 @@ use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
 
 /// The schema version that this engine writes.
-pub const SCHEMA_VERSION: u32 = 4;
+pub const SCHEMA_VERSION: u32 = 5;
 
 /// The first schema version with the label options of a surface, and with
 /// the colour and the first page of the profile.
 const LABEL_OPTIONS_VERSION: u32 = 4;
+
+/// The first schema version with the key `folders` (decision 0036).
+const FOLDERS_VERSION: u32 = 5;
 
 /// The first schema version with the key `model`.
 const MODEL_VERSION: u32 = 3;
@@ -627,8 +633,8 @@ struct Header {
     schema_version: u32,
 }
 
-/// The fields of schema versions 1 to 4. Version 3 adds `model`, and
-/// version 4 adds the label options of a surface.
+/// The fields of schema versions 1 to 5. Version 3 adds `model`, version 4
+/// adds the label options of a surface, and version 5 adds `folders`.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileData {
@@ -644,6 +650,23 @@ struct FileData {
     first_page: Option<usize>,
     #[serde(default)]
     pages: Vec<PageData>,
+    /// The folders. The key came in version 5. `None` means the key is not
+    /// in the file. An empty array is `Some` and is an error in an older file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    folders: Option<Vec<FolderData>>,
+}
+
+/// One folder in the profile file. It has key faces and keys only
+/// (decision 0036).
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FolderData {
+    id: String,
+    name: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    surfaces: BTreeMap<String, SurfaceData>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    bindings: BTreeMap<String, BTreeMap<GestureKind, Action>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -831,6 +854,75 @@ impl SurfaceData {
     }
 }
 
+/// The content of one surface in the file. The error text names the key.
+fn content_of(
+    key: &str,
+    surface: SurfaceData,
+    version: u32,
+) -> std::result::Result<(opencraft_core::SurfaceId, SurfaceContent), String> {
+    let id = parse_surface_key(key).ok_or_else(|| format!("'{key}' is not a surface"))?;
+    let color = match &surface.color {
+        Some(text) => Some(
+            text.parse::<Color>()
+                .map_err(|e| format!("{key}: '{text}': {e}"))?,
+        ),
+        None => None,
+    };
+    if let Some(image) = &surface.image {
+        if image_name(image).is_none() {
+            return Err(format!("{key}: '{image}' is not in the image directory"));
+        }
+    }
+    if version < LABEL_OPTIONS_VERSION && surface.has_version_4_keys() {
+        return Err(format!(
+            "{key}: version {version} has no label options and no icon"
+        ));
+    }
+    let label_style = surface.label_style().map_err(|e| format!("{key}: {e}"))?;
+    let icon = surface.icon().map_err(|e| format!("{key}: {e}"))?;
+    Ok((
+        id,
+        SurfaceContent {
+            label: surface.label,
+            label_style,
+            color,
+            image: surface.image,
+            icon,
+        },
+    ))
+}
+
+/// Put the bindings of the file on `page`. With `keys_only`, a binding of a
+/// different kind is an error: a folder has keys only.
+fn apply_bindings(
+    page: &mut Page,
+    bindings: BTreeMap<String, BTreeMap<GestureKind, Action>>,
+    keys_only: bool,
+) -> std::result::Result<(), String> {
+    for (key, gestures) in bindings {
+        let control = parse_control_key(&key).ok_or_else(|| format!("'{key}' is not a control"))?;
+        if keys_only && control.kind != ControlKind::Key {
+            return Err(format!("'{key}' is not a key"));
+        }
+        for (gesture, action) in gestures {
+            page.set_binding(control, gesture, Some(action));
+        }
+    }
+    Ok(())
+}
+
+/// The bindings of `page` in the form of the file.
+fn binding_data(page: &Page) -> BTreeMap<String, BTreeMap<GestureKind, Action>> {
+    let mut bindings: BTreeMap<String, BTreeMap<GestureKind, Action>> = BTreeMap::new();
+    for ((control, gesture), action) in page.bindings() {
+        bindings
+            .entry(control_key(control))
+            .or_default()
+            .insert(gesture, action.clone());
+    }
+    bindings
+}
+
 /// Read a profile from the text of a profile file, for example a starter
 /// profile of a shell (decision 0029, section 18). The text has the format
 /// of this module. Image paths are not checked against a directory.
@@ -895,58 +987,57 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
             );
         }
         for (key, surface) in page_file.surfaces {
-            let id = parse_surface_key(&key)
-                .ok_or_else(|| invalid(format!("'{key}' is not a surface")))?;
-            let color = match &surface.color {
-                Some(text) => Some(
-                    text.parse::<Color>()
-                        .map_err(|e| invalid(format!("{key}: '{text}': {e}")))?,
-                ),
-                None => None,
-            };
-            if let Some(image) = &surface.image {
-                if image_name(image).is_none() {
-                    return Err(invalid(format!(
-                        "{key}: '{image}' is not in the image directory"
-                    )));
-                }
-            }
-            if version < LABEL_OPTIONS_VERSION && surface.has_version_4_keys() {
-                return Err(invalid(format!(
-                    "{key}: version {version} has no label options and no icon"
-                )));
-            }
-            let label_style = surface
-                .label_style()
-                .map_err(|e| invalid(format!("{key}: {e}")))?;
-            let icon = surface.icon().map_err(|e| invalid(format!("{key}: {e}")))?;
-            page.update(id, |content| {
-                *content = SurfaceContent {
-                    label: surface.label,
-                    label_style,
-                    color,
-                    image: surface.image,
-                    icon,
-                };
-            });
+            let (id, content) = content_of(&key, surface, version).map_err(invalid)?;
+            page.update(id, |slot| *slot = content);
         }
         if header.schema_version == 1 && !page_file.bindings.is_empty() {
             return Err(invalid("version 1 has no bindings".into()));
         }
-        for (key, bindings) in page_file.bindings {
-            let control = parse_control_key(&key)
-                .ok_or_else(|| invalid(format!("'{key}' is not a control")))?;
-            for (gesture, action) in bindings {
-                page.set_binding(control, gesture, Some(action));
-            }
-        }
+        apply_bindings(&mut page, page_file.bindings, false).map_err(invalid)?;
         pages.push(page);
+    }
+    if version < FOLDERS_VERSION && file.folders.is_some() {
+        return Err(invalid(format!("version {version} has no folders")));
+    }
+    let mut folders = Vec::new();
+    let mut seen = HashSet::new();
+    for folder_file in file.folders.unwrap_or_default() {
+        let id = folder_file.id.parse::<FolderId>().map_err(|_| {
+            invalid(format!(
+                "folder identity '{}' is not 16 hexadecimal digits",
+                folder_file.id
+            ))
+        })?;
+        if !seen.insert(id) {
+            return Err(invalid(format!(
+                "the folder '{}' is in the file two times",
+                folder_file.id
+            )));
+        }
+        if folder_file.name.trim().is_empty() {
+            return Err(invalid("a folder must have a name".into()));
+        }
+        let mut page = Page::new(folder_file.name);
+        for (key, surface) in folder_file.surfaces {
+            let (id, content) = content_of(&key, surface, version).map_err(invalid)?;
+            if id.kind != SurfaceKind::KeyFace {
+                return Err(invalid(format!(
+                    "folder '{}': '{key}' is not a key face",
+                    page.name
+                )));
+            }
+            page.update(id, |slot| *slot = content);
+        }
+        apply_bindings(&mut page, folder_file.bindings, true)
+            .map_err(|e| invalid(format!("folder '{}': {e}", page.name)))?;
+        folders.push(Folder { id, page });
     }
     let mut profile = Profile::for_model(model, file.name, pages);
     profile.color = color;
     if let Some(first) = first_page {
         profile.mark_first_page(first);
     }
+    profile.replace_folders(folders);
     Ok(profile)
 }
 
@@ -967,23 +1058,30 @@ pub(crate) fn to_text(profile: &Profile) -> Result<String> {
                     .background
                     .as_ref()
                     .map(BackgroundData::from_background),
-                bindings: {
-                    let mut bindings: BTreeMap<String, BTreeMap<GestureKind, Action>> =
-                        BTreeMap::new();
-                    for ((control, gesture), action) in page.bindings() {
-                        bindings
-                            .entry(control_key(control))
-                            .or_default()
-                            .insert(gesture, action.clone());
-                    }
-                    bindings
-                },
+                bindings: binding_data(page),
                 surfaces: page
                     .surfaces()
                     .map(|(id, content)| (surface_key(id), SurfaceData::from_content(content)))
                     .collect(),
             })
             .collect(),
+        folders: {
+            let folders: Vec<FolderData> = profile
+                .folders()
+                .iter()
+                .map(|folder| FolderData {
+                    id: folder.id.to_string(),
+                    name: folder.page.name.clone(),
+                    surfaces: folder
+                        .page
+                        .surfaces()
+                        .map(|(id, content)| (surface_key(id), SurfaceData::from_content(content)))
+                        .collect(),
+                    bindings: binding_data(&folder.page),
+                })
+                .collect();
+            (!folders.is_empty()).then_some(folders)
+        },
     };
     Ok(toml::to_string_pretty(&file)?)
 }
@@ -1066,7 +1164,7 @@ mod tests {
         let (_dir, store) = store();
         store.save(&sample()).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        let want = r##"schema_version = 4
+        let want = r##"schema_version = 5
 name = "Default"
 model = "n4-pro"
 
@@ -1187,12 +1285,12 @@ image = "images/4f1c2a9be07d3356.png"
     #[test]
     fn a_file_with_a_newer_schema_version_is_kept_as_a_backup() {
         let (_dir, store) = store();
-        let text = "schema_version = 5\nname = \"Later\"\nnew_field = true\n";
+        let text = "schema_version = 6\nname = \"Later\"\nnew_field = true\n";
         let loaded = load_text(&store, text.as_bytes());
 
         assert_eq!(loaded.profile, Profile::default());
         let backup = loaded.backup.unwrap();
-        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 5 });
+        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 6 });
         assert_eq!(backup.path, store.dir().join("profile.backup-1.toml"));
         // The content of the file did not change, and no profile file is
         // there until the next save.
@@ -1240,6 +1338,16 @@ image = "images/4f1c2a9be07d3356.png"
             b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon_color = \"#FFFFFF\"\n",
             b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon = \"globe\"\nicon_color = \"amber\"\n",
             b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon = \"globe\"\nimage = \"images/4f1c2a9be07d3356.png\"\n",
+            // Version 4 has no folders. A folder has a real identity, a name,
+            // and only key faces and keys.
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000000\"\nname = \"Clips\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"  \"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"ZZ\"\nname = \"Clips\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Again\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\n[folders.surfaces.bar-panel-1]\nlabel = \"x\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\n[folders.bindings.knob-1.press]\nkind = \"opencraft.hotkey\"\n",
+            b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\nbackground = \"#000000\"\n",
         ];
         for (i, text) in cases.iter().enumerate() {
             let (_dir, store) = store();
@@ -1298,10 +1406,10 @@ name = "Second"
         // The load did not write the file.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
 
-        // The next write is version 4 with the same content and the model.
+        // The next write is version 5 with the same content and the model.
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 4\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
+        assert!(text.starts_with("schema_version = 5\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
         assert!(text.contains("hotkey = \"cmd+shift+4\""), "{text}");
         assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, profile);
@@ -1332,12 +1440,12 @@ label = "Sound"
             assert_eq!(page.content(id).label_style, LabelStyle::default(), "{id}");
         }
         assert_eq!(page.content(KEY_3).label.as_deref(), Some("Mail"));
-        // The load did not write the file. The next write is version 4, and
+        // The load did not write the file. The next write is version 5, and
         // it writes no label option.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
         store.save(&loaded.profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 4\n"), "{text}");
+        assert!(text.starts_with("schema_version = 5\n"), "{text}");
         assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, loaded.profile);
     }
@@ -1417,7 +1525,7 @@ color = "#1E6FD9"
         let text = fs::read_to_string(store.profile_path()).unwrap();
         assert!(
             text.starts_with(
-                "schema_version = 4\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
+                "schema_version = 5\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
             ),
             "{text}"
         );

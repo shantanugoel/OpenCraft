@@ -107,6 +107,8 @@ fn pages(names: &[&str], active: usize) -> Event {
         names: names.iter().map(|n| n.to_string()).collect(),
         active,
         first: 0,
+        folders: Vec::new(),
+        open: Vec::new(),
     }
 }
 
@@ -419,6 +421,7 @@ fn an_empty_key_face_shows_a_plus_and_the_knob_rings_show_the_light_colours(
                 page: 0,
                 control: ControlId::new(ControlKind::Key, 13),
                 gesture: GestureKind::Press,
+                folder: None,
             },
             action: Some(Action {
                 kind: "test.kind".into(),

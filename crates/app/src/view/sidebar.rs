@@ -62,6 +62,9 @@ const ADD_A_PROFILE: &str = "Add a profile";
 /// The row below the pages.
 const ADD_A_PAGE: &str = "Add a page";
 
+/// The row below "Add a page".
+const ADD_A_FOLDER: &str = "Add a folder";
+
 /// The row of the bottom group.
 const SETTINGS: &str = "Settings";
 
@@ -388,7 +391,11 @@ impl DeviceView {
                 for page in 0..self.state.pages.len() {
                     rows = rows.child(self.page_row(page, cx));
                 }
+                for folder in &self.state.folders {
+                    rows = rows.child(self.folder_row(folder.id, cx));
+                }
                 rows = rows.child(self.add_page_row(cx));
+                rows = rows.child(self.add_folder_row(cx));
                 after_pages = true;
             }
         }
@@ -539,7 +546,9 @@ impl DeviceView {
     }
 
     fn page_row(&self, page: usize, cx: &mut Context<Self>) -> AnyElement {
-        let selected = page == self.state.page;
+        // An open folder is the selection. The page rows show no selection
+        // then (decision 0036).
+        let selected = page == self.state.page && self.state.open.is_empty();
         // When the device is the selection, the active page has the look of
         // a selected row in a pane that does not have the selection.
         let focused = selected && !self.device.open;
@@ -612,9 +621,75 @@ impl DeviceView {
         if std::mem::take(&mut self.device.open) {
             cx.notify();
         }
-        if page != self.state.page || shown != self.state.profile {
+        // The same page still closes the open folders.
+        if page != self.state.page || shown != self.state.profile || !self.state.open.is_empty() {
             (self.send)(in_profile(shown, Command::SelectPage { page }));
         }
+    }
+
+    fn folder_row(&self, id: opencraft_engine::FolderId, cx: &mut Context<Self>) -> AnyElement {
+        let Some(name) = self.folder_name(id).map(str::to_string) else {
+            return div().into_any_element();
+        };
+        let selected = self.state.open.last() == Some(&id);
+        let focused = selected && !self.device.open;
+        let editing = self.lists.edit == Some(NameEdit::Rename(Row::Folder(id)));
+        let shown = self.state.profile.clone();
+        let menu_shown = shown.clone();
+        let icon_colour = if focused {
+            theme::TEXT_ON_ACCENT
+        } else {
+            theme::TEXT_TERTIARY
+        };
+        row(format!("folder-{id}"), selected)
+            .accessible(Role::TreeItem, name.clone())
+            .aria_level(2)
+            .aria_selected(selected)
+            .pl(theme::SIDEBAR_PAGE_INDENT)
+            .pr(theme::SPACE_8)
+            .gap(theme::SPACE_8)
+            .cursor_pointer()
+            .when(focused, |d| {
+                d.bg(theme::ACCENT)
+                    .text_color(theme::TEXT_ON_ACCENT)
+                    .font_weight(FontWeight::MEDIUM)
+            })
+            .when(selected && !focused, |d| d.bg(theme::SELECTED_UNFOCUSED))
+            .child(if editing {
+                self.name_field(cx)
+            } else {
+                row_text(name).into_any_element()
+            })
+            .child(
+                gpui_kit::svg()
+                    .path(theme::surface_icon_path("folder"))
+                    .size(theme::ICON_ROW)
+                    .flex_shrink_0()
+                    .text_color(icon_colour),
+            )
+            .when(!editing, |d| keyboard_focus(d, Ring::Inside))
+            .when(!editing, |d| {
+                d.on_click(cx.listener(move |view, event: &ClickEvent, window, cx| {
+                    if event.click_count() < 2 {
+                        if std::mem::take(&mut view.device.open) {
+                            cx.notify();
+                        }
+                        (view.send)(in_profile(
+                            shown.clone(),
+                            Command::OpenFolder { folder: id },
+                        ));
+                    } else {
+                        view.start_rename(Row::Folder(id), window, cx);
+                    }
+                }))
+            })
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |view, event: &MouseDownEvent, window, cx| {
+                    view.open_menu(Row::Folder(id), menu_shown.clone(), event, window, cx)
+                }),
+            )
+            .into_any_element()
     }
 
     fn add_page_row(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -635,6 +710,26 @@ impl DeviceView {
                     shown.clone(),
                     Command::AddPage { copy_of: None },
                 ))
+            }))
+            .into_any_element()
+    }
+
+    fn add_folder_row(&self, cx: &mut Context<Self>) -> AnyElement {
+        let shown = self.state.profile.clone();
+        row("folder-add", false)
+            .accessible(Role::Button, ADD_A_FOLDER)
+            .pl(theme::SIDEBAR_PAGE_INDENT)
+            .pr(theme::SPACE_8)
+            .gap(theme::SPACE_6)
+            .text_size(theme::TEXT_CONTROL)
+            .text_color(theme::TEXT_TERTIARY)
+            .cursor_pointer()
+            .child(Icon::new(IconName::Plus).size(theme::ICON_SMALL))
+            .child(ADD_A_FOLDER)
+            .map(|d| keyboard_focus(d, Ring::Inside))
+            .on_click(cx.listener(move |view, _, _, _| {
+                let id = opencraft_engine::FolderId::random();
+                (view.send)(in_profile(shown.clone(), view.new_folder(id)));
             }))
             .into_any_element()
     }

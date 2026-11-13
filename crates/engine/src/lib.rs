@@ -53,8 +53,8 @@ pub use runtime::{spawn, Config, EngineHandle};
 pub use error::{Error, Result};
 pub use icons::{icon_set, Icon, IconCategory, IconSet};
 pub use profile::{
-    Background, BackgroundFit, Color, LabelChange, LabelPosition, LabelStyle, Page, Profile,
-    SurfaceContent, SurfaceIcon, LABEL_SIZES,
+    Background, BackgroundFit, Color, Folder, FolderEntry, FolderId, LabelChange, LabelPosition,
+    LabelStyle, Page, ParseFolderIdError, Profile, SurfaceContent, SurfaceIcon, LABEL_SIZES,
 };
 pub use profiles::{ProfileEntry, ProfilesDir};
 pub use render::{icon_color, label_color, page_preview};

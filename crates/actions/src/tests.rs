@@ -771,9 +771,9 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 20);
+    assert_eq!(real.len(), 22);
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 20);
+    assert_eq!(kinds.len(), 22);
     for (kind, name, key, input) in [
         (
             "open-application",
@@ -785,6 +785,7 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         ),
         ("open-url", "Open a URL", "url", InputType::Text),
         ("hotkey", "Send a hotkey", "hotkey", InputType::Hotkey),
+        ("open-folder", "Open a folder", "folder", InputType::Folder),
         ("type-text", "Type text", "text", InputType::LongText),
         (
             "shell-command",

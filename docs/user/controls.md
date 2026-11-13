@@ -161,6 +161,41 @@ of the device picture.
 | Move a page up or down in the list | Right-click the page, and select **Move Up** or **Move Down** |
 | Remove a page | Right-click the page, and select **Remove…**. Then click **Remove**. A profile keeps one page at the minimum. |
 
+### Folders
+
+A folder is a set of keys that is not a page. The device shows the keys of
+the folder, and it keeps the knobs, the touch bar, and the background of
+the page under the folder. The sidebar shows each folder under the pages,
+at the same level as a page. A folder row has a folder icon in place of
+the page number.
+
+![A folder is open. The path is Page 1, then Folder 1. Key 1 is Back. Key 2 has the title Mic.](images/folder.png)
+
+| To do this | Do this |
+|---|---|
+| Add a folder | Click **Add a folder** below **Add a page**. The new folder opens. Key 1 is a **Back** key. |
+| Open a folder | Click the folder in the sidebar. Or push a key whose action is **Open a folder**. |
+| Go back | Push the **Back** key. Or click the page name in the path at the top of the device picture. |
+| Open a folder that is inside the open folder | Push a key whose action is **Open a folder**, or click that folder in the sidebar. The path shows each open folder. |
+| Rename, copy, move, or remove a folder | Right-click the folder, as you do for a page. **Remove…** asks for a confirmation. You can undo the removal. |
+
+The path at the top replaces the page name while a folder is open. It
+shows the page, then each open folder, for example "Page 1 › Clips › Mics".
+Click the page name to close every folder. Click a folder name in the path
+to show that folder.
+
+**Next page** and **Previous page** close every folder. They go to the next
+or the previous page. They do not open a folder. A different profile also
+closes every folder.
+
+**Copy to All Pages** is dim while a folder is open.
+
+A folder has no background of its own. The page inspector, while a folder
+is open and the page is selected, shows the folder: its name, its order,
+**Duplicate**, and **Remove…**. It tells you that the knobs, the touch bar,
+and the background are those of the page. If the folder has no **Back**
+key, it also tells you that **Next page** or a different profile closes it.
+
 When you edit a name, push Escape to keep the old name. A click outside the
 name keeps the new name. A name cannot be empty.
 

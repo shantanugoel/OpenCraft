@@ -55,6 +55,7 @@ fn binding(gesture: GestureKind) -> BindingId {
         page: 0,
         control: ControlId::new(ControlKind::Key, 2),
         gesture,
+        folder: None,
     }
 }
 
@@ -200,6 +201,8 @@ fn no_request_for_a_given_permission_a_page_change_or_a_kind_with_no_need(cx: &m
         names: vec!["Page 1".into()],
         active: 0,
         first: 0,
+        folders: Vec::new(),
+        open: Vec::new(),
     })
     .unwrap();
     reply(&tx, binding(GestureKind::Release), action(HOTKEY));

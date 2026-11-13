@@ -27,6 +27,7 @@ fn binding() -> BindingId {
         page: 0,
         control: ControlId::new(ControlKind::Key, 2),
         gesture: GestureKind::Press,
+        folder: None,
     }
 }
 

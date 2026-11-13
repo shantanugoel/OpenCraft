@@ -21,6 +21,8 @@ pub(crate) const MAC_FUNCTION: &str = "opencraft.mac-function";
 pub(crate) const KEY_KINDS: [&str; 5] = [HOTKEY, TEXT, MEDIA, MOUSE, MAC_FUNCTION];
 pub(crate) const PAGE: &str = "opencraft.page";
 pub(crate) const PROFILE: &str = "opencraft.profile";
+pub(crate) const OPEN_FOLDER: &str = "opencraft.open-folder";
+pub(crate) const CLOSE_FOLDER: &str = "opencraft.close-folder";
 pub(crate) const TOGGLE: &str = "opencraft.toggle";
 pub(crate) const SEQUENCE: &str = "opencraft.sequence";
 pub(crate) const SCREEN_OFF: &str = "opencraft.screen-off";
@@ -333,6 +335,11 @@ pub(crate) fn description(kind: &str) -> KindDescription {
                 ],
             )
         }
+        OPEN_FOLDER => (
+            "Open a folder",
+            vec![field("folder", "Folder", InputType::Folder)],
+        ),
+        CLOSE_FOLDER => ("Back", vec![]),
         TOGGLE => (
             "Toggle",
             vec![
@@ -380,6 +387,7 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         states: (kind == TOGGLE).then(|| TwoStates {
             on_label: Some("on_label".into()),
         }),
+        folder_back: kind == CLOSE_FOLDER,
     }
 }
 
@@ -403,6 +411,8 @@ fn icon(kind: &str) -> &'static str {
         STOP_SOUND => "circle-stop",
         PAGE => "arrow-right",
         PROFILE => "layers",
+        OPEN_FOLDER => "folder",
+        CLOSE_FOLDER => "corner-up-left",
         TOGGLE => "toggle-left",
         SEQUENCE => "list",
         SCREEN_OFF => "monitor-off",
@@ -441,7 +451,7 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
         MICROPHONE | OUTPUT | PLAY_SOUND | STOP_SOUND => (MEDIA_GROUP, None),
-        PAGE | PROFILE => (NAVIGATION, None),
+        PAGE | PROFILE | OPEN_FOLDER | CLOSE_FOLDER => (NAVIGATION, None),
         TOGGLE | SEQUENCE => (LOGIC, None),
         APPLICATION | QUIT | URL | SHELL => (SYSTEM, None),
         _ => ("", None),
@@ -467,7 +477,8 @@ pub(crate) fn setting_problem(kind: &str, key: &str) -> String {
             InputType::Choice { .. }
             | InputType::RuntimeChoice
             | InputType::RuntimeChoiceList
-            | InputType::Profile,
+            | InputType::Profile
+            | InputType::Folder,
         ) => {
             format!("select a value in the field \"{label}\"")
         }

@@ -166,6 +166,7 @@ fn a_click_sets_the_kind_on_the_open_card_or_on_the_first_gesture(cx: &mut TestA
                 page: 0,
                 control: key,
                 gesture: GestureKind::Press,
+                folder: None,
             },
             Some(default("test.media")),
         ))
@@ -195,6 +196,7 @@ fn a_click_sets_the_kind_on_the_open_card_or_on_the_first_gesture(cx: &mut TestA
                 page: 0,
                 control: key,
                 gesture: GestureKind::Release,
+                folder: None,
             },
             Some(default("test.toggle")),
         ))
@@ -216,6 +218,7 @@ fn a_click_sets_the_kind_on_the_open_card_or_on_the_first_gesture(cx: &mut TestA
         page: 0,
         control: ControlId::new(ControlKind::Knob, 2),
         gesture,
+        folder: None,
     };
     assert!(matches!(
         commands.as_slice(),
@@ -392,6 +395,7 @@ fn a_drop_on_a_key_sets_press_as_one_step_and_selects_the_key(cx: &mut TestAppCo
         page: 0,
         control: ControlId::new(ControlKind::Key, 2),
         gesture: GestureKind::Press,
+        folder: None,
     };
     let (name, commands) = last_group(&sent);
     assert_eq!(name, "Drop Action");
@@ -426,6 +430,7 @@ fn a_drop_replaces_the_action_of_the_first_gesture(cx: &mut TestAppContext) {
         page: 0,
         control: key,
         gesture,
+        folder: None,
     };
     for gesture in [GestureKind::Press, GestureKind::Release] {
         send(
@@ -473,6 +478,7 @@ fn a_drop_on_a_bar_panel_sets_tap(cx: &mut TestAppContext) {
                 page: 0,
                 control: ControlId::new(ControlKind::BarPanel, 2),
                 gesture: GestureKind::Tap,
+                folder: None,
             },
             action: Some(default_action("test.open")),
         }]
@@ -502,6 +508,7 @@ fn a_drop_on_a_knob_sets_turn_as_one_step(cx: &mut TestAppContext) {
         page: 0,
         control: knob,
         gesture,
+        folder: None,
     };
     // The same commands as a click with no open card: the two turn
     // bindings, "Turn right" first.

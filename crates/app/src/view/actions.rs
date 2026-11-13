@@ -24,8 +24,8 @@ use gpui_kit::{
 const PROFILE_AGAIN: &str = "Select the profile again, so that a rename does not break this key.";
 
 use opencraft_engine::{
-    Action, BindingId, ChoiceOption, Color, Field, GestureKind, InputType, KindDescription,
-    PathKind, Status, Value,
+    Action, BindingId, ChoiceOption, Color, Field, FolderId, GestureKind, InputType,
+    KindDescription, PathKind, Status, Value,
 };
 
 /// The function that makes the body rows of an open gesture card from its
@@ -363,7 +363,8 @@ impl DeviceView {
                 | InputType::RuntimeChoiceList
                 | InputType::Profile
                 | InputType::Toggle
-                | InputType::Hotkey => {}
+                | InputType::Hotkey
+                | InputType::Folder => {}
                 InputType::Action => {
                     if let Some(inner) = value.and_then(Action::from_value) {
                         self.text_fields(&inner, &child(path, &field.key, None), out);
@@ -966,6 +967,7 @@ impl DeviceView {
             page: self.state.page,
             control,
             gesture,
+            folder: self.state.folder_of(control),
         };
         let menu = Menu::Card(gesture);
         let current = self.state.bindings.get(&binding);
@@ -1339,6 +1341,170 @@ impl DeviceView {
             .into_any_element()
     }
 
+    /// The popup of a folder field: the folders of the profile, and
+    /// "New Folder". A value that is not a folder stays, and the popup
+    /// shows "(not found)" (decision 0036).
+    fn folder_field(
+        &self,
+        id: String,
+        field: &Field,
+        value: Option<&Value>,
+        field_path: &FieldPath,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let current_id = match value {
+            Some(Value::Text(text)) if !text.is_empty() => Some(text.clone()),
+            _ => None,
+        };
+        let found = current_id.as_ref().and_then(|text| {
+            self.state
+                .folders
+                .iter()
+                .find(|folder| folder.id.to_string() == *text)
+        });
+        let current = match (found, current_id.as_deref()) {
+            (Some(folder), _) => folder.name.clone(),
+            (None, Some(_)) => "(not found)".to_string(),
+            (None, None) => "Select a folder".to_string(),
+        };
+        let menu = Menu::Choice(field_path.clone());
+        let open = self.form.menu.as_ref() == Some(&menu);
+        let toggle = menu.clone();
+        let field_path = field_path.clone();
+        let menu_element = open.then(|| {
+            let mut rows: Vec<AnyElement> = self
+                .state
+                .folders
+                .iter()
+                .enumerate()
+                .map(|(option, folder)| {
+                    let field_path = field_path.clone();
+                    let chosen = found.is_some_and(|found| found.id == folder.id);
+                    let next = Value::Text(folder.id.to_string());
+                    controls::menu_row(format!("{id}-{option}"))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .w(theme::ICON_SMALL)
+                                .when(chosen, |d| {
+                                    d.child(Icon::new(IconName::Check).size(theme::ICON_SMALL))
+                                }),
+                        )
+                        .child(folder.name.clone())
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            view.form.menu = None;
+                            if let Some(binding) = view.form_binding() {
+                                view.set_field(binding, &field_path, next.clone());
+                            }
+                            view.focus_workspace(window, cx);
+                            cx.notify();
+                        }))
+                        .into_any_element()
+                })
+                .collect();
+            if let Some(text) = current_id.clone().filter(|_| found.is_none()) {
+                rows.insert(
+                    0,
+                    controls::menu_row(format!("{id}-missing"))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .w(theme::ICON_SMALL)
+                                .child(Icon::new(IconName::Check).size(theme::ICON_SMALL)),
+                        )
+                        .child(format!("{text} (not found)"))
+                        .into_any_element(),
+                );
+            }
+            let field_path = field_path.clone();
+            rows.push(
+                controls::menu_row(format!("{id}-new"))
+                    .child(div().flex_shrink_0().w(theme::ICON_SMALL))
+                    .child("New Folder")
+                    .on_click(cx.listener(move |view, _, window, cx| {
+                        view.form.menu = None;
+                        view.create_folder_for_field(field_path.clone());
+                        view.focus_workspace(window, cx);
+                        cx.notify();
+                    }))
+                    .into_any_element(),
+            );
+            controls::popup_menu(
+                format!("{id}-menu"),
+                controls::MenuPlace::below(theme::HEIGHT_CONTROL),
+                rows,
+                window,
+                cx.listener(|view, _, _, cx| {
+                    view.close_kinds();
+                    cx.notify();
+                }),
+            )
+        });
+        let row = |value: AnyElement| {
+            form::fitted_row(
+                field.label.clone(),
+                theme::FORM_LABEL,
+                theme::CARD_FORM_GAP,
+                value,
+                window,
+            )
+        };
+        row(div()
+            .relative()
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .child(
+                controls::popup_button(
+                    id.clone(),
+                    field.label.clone(),
+                    current.clone(),
+                    theme::HEIGHT_CONTROL,
+                    open,
+                    div().truncate().child(current),
+                )
+                .text_size(theme::TEXT_LABEL)
+                .on_click(cx.listener(move |view, _, window, cx| {
+                    view.toggle_menu(toggle.clone(), window, cx)
+                })),
+            )
+            .children(menu_element)
+            .into_any_element())
+    }
+
+    /// "New Folder" in a folder field: set this field to the new folder, add
+    /// the folder, and put the Back key on key 1. This is one step.
+    fn create_folder_for_field(&mut self, path: FieldPath) {
+        let Some(binding) = self.form_binding() else {
+            return;
+        };
+        let Some(before) = self.edit_action(binding) else {
+            return;
+        };
+        let id = FolderId::random();
+        let mut action = before;
+        change(&mut action, &path.action, |action| {
+            action
+                .settings
+                .insert(path.key.clone(), Value::Text(id.to_string()));
+        });
+        self.form
+            .pending
+            .entry(binding)
+            .or_default()
+            .push(action.clone());
+        let mut commands = vec![Command::SetBinding {
+            binding,
+            action: Some(action),
+        }];
+        commands.extend(self.new_folder_commands(id));
+        (self.send)(Command::Group {
+            name: "New Folder".into(),
+            commands,
+        });
+    }
+
     /// The row of one field: the label, and the control of the input type
     /// (section 10.3).
     fn field_row(
@@ -1484,6 +1650,14 @@ impl DeviceView {
                 window,
                 cx,
             )),
+            InputType::Folder => self.folder_field(
+                format!("{id}folder-{index}"),
+                field,
+                value,
+                &field_path,
+                window,
+                cx,
+            ),
             InputType::Colour => {
                 let current = value.and_then(|v| match v {
                     Value::Text(v) => super::inspector::parse_colour(v),

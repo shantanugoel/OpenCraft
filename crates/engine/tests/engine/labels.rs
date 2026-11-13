@@ -167,7 +167,7 @@ fn a_profile_of_version_three_shows_as_before_and_gets_version_four_at_the_next_
     style(&mut rig, LabelChange::Bold(false));
     rig.poll_for(Duration::from_secs(1));
     let text = rig.profile_text().unwrap();
-    assert!(text.starts_with("schema_version = 4\n"), "{text}");
+    assert!(text.starts_with("schema_version = 5\n"), "{text}");
     assert!(
         text.contains("label = \"Mail\"\nlabel_bold = false\n"),
         "{text}"

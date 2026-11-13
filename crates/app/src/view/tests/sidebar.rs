@@ -576,3 +576,68 @@ fn the_settings_row_opens_the_settings_window(cx: &mut TestAppContext) {
     // The row sends no command to the engine.
     assert!(sent.borrow().is_empty(), "{:?}", sent.borrow());
 }
+
+#[gpui_kit::test]
+fn a_folder_row_opens_the_folder_and_the_page_row_closes_it(cx: &mut TestAppContext) {
+    use opencraft_engine::{FolderEntry, FolderId};
+    let (view, cx, tx, sent) = sidebar_window(cx);
+    let folder = FolderId::from_raw(1).unwrap();
+    send(
+        cx,
+        &tx,
+        Event::Pages {
+            names: vec!["Main".into(), "Meetings".into(), "Media".into()],
+            active: 0,
+            first: 0,
+            folders: vec![FolderEntry {
+                id: folder,
+                name: "Clips".into(),
+            }],
+            open: vec![folder],
+        },
+    );
+    assert!(cx.debug_bounds("folder-0000000000000001").is_some());
+    assert!(cx.debug_bounds("folder-add").is_some());
+    assert!(cx.debug_bounds("page-header-folder").is_some());
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.open, vec![folder]));
+
+    sent.borrow_mut().clear();
+    click(cx, "page-0");
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::SelectPage { page: 0 }))
+    );
+
+    sent.borrow_mut().clear();
+    click(cx, "page-header-page");
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::SelectPage { page: 0 }))
+    );
+
+    sent.borrow_mut().clear();
+    click(cx, "folder-0000000000000001");
+    assert_eq!(
+        last(&sent),
+        Some(on("default", Command::OpenFolder { folder }))
+    );
+
+    sent.borrow_mut().clear();
+    click(cx, "folder-add");
+    let command = last(&sent).unwrap();
+    let Command::InProfile { command, .. } = command else {
+        panic!("not in a profile: {command:?}");
+    };
+    let Command::Group { name, commands } = *command else {
+        panic!("not a group: {command:?}");
+    };
+    assert_eq!(name, "New Folder");
+    assert!(matches!(
+        commands.first(),
+        Some(Command::AddFolder {
+            name: None,
+            copy_of: None,
+            ..
+        })
+    ));
+}

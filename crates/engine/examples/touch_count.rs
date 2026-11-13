@@ -165,6 +165,7 @@ fn main() {
                 page: 0,
                 control: ControlId::new(ControlKind::BarPanel, number),
                 gesture: GestureKind::Tap,
+                folder: None,
             },
             action: action(),
         });
@@ -175,6 +176,7 @@ fn main() {
                 page: 0,
                 control: ControlId::new(ControlKind::TouchBar, 1),
                 gesture,
+                folder: None,
             },
             action: action(),
         });

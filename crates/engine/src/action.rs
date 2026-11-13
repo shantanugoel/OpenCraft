@@ -129,11 +129,19 @@ impl GestureKind {
 }
 
 /// The identity of a binding. Page numbers start at 0.
+///
+/// `page` is always the active page, also while a folder is open: it is the
+/// page under the folders. `folder` is the last open folder for a key
+/// binding, and `None` for every other binding and when no folder is open
+/// (decision 0036).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BindingId {
     pub page: usize,
     pub control: ControlId,
     pub gesture: GestureKind,
+    /// The folder that holds this key binding. `None` when the binding is
+    /// on the page under the folders.
+    pub folder: Option<crate::profile::FolderId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -235,6 +243,11 @@ pub enum EngineRequest {
         target: ProfileTarget,
         page: Option<usize>,
     },
+    /// Open a folder of keys. The engine checks the identity. See decision
+    /// 0036.
+    OpenFolder(crate::profile::FolderId),
+    /// Close the last open folder. With no open folder, nothing changes.
+    CloseFolder,
     /// Do the action `action`: the engine sends [`Request::Invoke`] with
     /// `binding` and `action` to the handler of the kind of `action`. The
     /// binding is the binding of the handler that asks. Thus the feedback of
@@ -323,6 +336,11 @@ pub struct KindDescription {
     /// surface (decision 0017). The shell then shows the appearance of each
     /// state.
     pub states: Option<TwoStates>,
+    /// True only for the kind "Back" (`opencraft.close-folder`). The shell
+    /// uses it for the default Back key of a new folder and for the help
+    /// text of a folder with no Back key. The shell compares no kind
+    /// identifier (decision 0036).
+    pub folder_back: bool,
 }
 
 /// The direction field of a kind: a choice field, and its values for a turn
@@ -415,6 +433,10 @@ pub enum InputType {
     /// `delay_before_ms`; a missing value is zero for the first step, and
     /// the parent's `delay_ms` (default 100) for each later step.
     TimedActionList,
+    /// The identity of a folder of the active profile, as the text form of
+    /// a [`crate::profile::FolderId`]. The shell shows the folders from
+    /// [`crate::Event::Pages`] (decision 0036).
+    Folder,
 }
 
 impl InputType {

@@ -11,6 +11,8 @@ pub(super) fn pages(names: &[&str], active: usize) -> Event {
         names: names.iter().map(|n| (*n).into()).collect(),
         active,
         first: 0,
+        folders: Vec::new(),
+        open: Vec::new(),
     }
 }
 
@@ -78,6 +80,7 @@ fn key_press(page: usize) -> BindingId {
         page,
         control: ControlId::new(ControlKind::Key, 2),
         gesture: GestureKind::Press,
+        folder: None,
     }
 }
 
@@ -104,6 +107,7 @@ fn a_bar_panel_offers_tap_and_the_touch_bar_offers_the_swipes(cx: &mut TestAppCo
         page: 0,
         control: ControlId::new(ControlKind::BarPanel, 2),
         gesture: GestureKind::Tap,
+        folder: None,
     };
     assert_eq!(
         sent.borrow().last(),
@@ -123,6 +127,7 @@ fn a_bar_panel_offers_tap_and_the_touch_bar_offers_the_swipes(cx: &mut TestAppCo
         page: 0,
         control: ControlId::new(ControlKind::TouchBar, 2),
         gesture,
+        folder: None,
     };
     click(cx, "gesture-SwipeLeft-kind");
     click(cx, "kind-0");

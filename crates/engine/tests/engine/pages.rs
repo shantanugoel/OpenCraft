@@ -42,6 +42,8 @@ fn pages(names: &[&str], active: usize) -> Event {
         names: names.iter().map(|n| n.to_string()).collect(),
         active,
         first: 0,
+        folders: Vec::new(),
+        open: Vec::new(),
     }
 }
 

@@ -34,6 +34,8 @@ mod backgrounds;
 mod clipboard;
 #[path = "engine/device_settings.rs"]
 mod device_settings;
+#[path = "engine/folders.rs"]
+mod folders;
 #[path = "engine/history.rs"]
 mod history;
 #[path = "engine/icons.rs"]
@@ -99,6 +101,7 @@ fn binding(control: ControlKind, number: u8, gesture: GestureKind) -> BindingId 
         page: 0,
         control: ControlId::new(control, number),
         gesture,
+        folder: None,
     }
 }
 
@@ -533,6 +536,8 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
             names: vec!["Page 1".into()],
             active: 0,
             first: 0,
+            folders: Vec::new(),
+            open: Vec::new(),
         }
     );
     assert_eq!(

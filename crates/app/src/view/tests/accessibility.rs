@@ -71,6 +71,7 @@ fn dynamic_fields_have_the_shared_roles_and_labels(cx: &mut TestAppContext) {
             page: 0,
             control: ControlId::new(ControlKind::Key, 2),
             gesture: GestureKind::Press,
+            folder: None,
         },
         action: Some(action),
         available: true,
@@ -107,6 +108,7 @@ fn the_main_parts_have_a_role_and_the_label_of_the_record(cx: &mut TestAppContex
         assert_has(&nodes, Role::TreeItem, page);
     }
     assert_has(&nodes, Role::Button, "Add a page");
+    assert_has(&nodes, Role::Button, "Add a folder");
     assert_has(&nodes, Role::Button, "Settings");
     // The toolbar (section 5).
     assert_has(&nodes, Role::Label, "Main, Default · 3 pages");
@@ -236,6 +238,7 @@ fn the_application_picker_has_a_dialog_and_rows(cx: &mut TestAppContext) {
             page: 0,
             control: ControlId::new(ControlKind::Key, 2),
             gesture: GestureKind::Press,
+            folder: None,
         },
         action: Some(action),
         available: true,
