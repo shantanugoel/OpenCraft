@@ -14,6 +14,7 @@
 //! | `right_panel` | The right panel and its tabs |
 //! | `inspector` | The "Inspector" tab: the editor of the selection |
 //! | `page_inspector` | The inspector of the page, with the swipe gestures of the touch bar |
+//! | `knob` | The inspector of a knob: the "Turn" card, and the section of its bar panel |
 //! | `library` | The "Library" tab: the action kinds in their groups |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
 //! | `device`, `pages`, `hotkey` | The state of the device settings, the changes of the pages and the profiles, the hotkey names |
@@ -58,6 +59,7 @@ mod gesture_card;
 mod history;
 mod hotkey;
 mod inspector;
+mod knob;
 mod library;
 mod page_inspector;
 mod pages;
@@ -147,7 +149,7 @@ impl DeviceView {
         let subscription = cx.subscribe_in(&input, window, |view, input, event, _, cx| {
             view.text_edit_event(input.entity_id(), event, cx);
             if matches!(event, TextEvent::Change) {
-                if let Some(surface) = view.state.selected {
+                if let Some(surface) = view.state.edit_surface() {
                     let label = input.read(cx).value().to_string();
                     (view.send)(Command::SetLabel {
                         surface,
@@ -286,7 +288,7 @@ impl DeviceView {
     fn load_label(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let content = self
             .state
-            .selected
+            .edit_surface()
             .and_then(|id| self.state.surfaces.get(&id));
         let label = content
             .and_then(|s| s.content.label.clone())
@@ -297,13 +299,13 @@ impl DeviceView {
     }
 
     fn set_colour(&mut self, color: Option<Color>) {
-        if let Some(surface) = self.state.selected {
+        if let Some(surface) = self.state.edit_surface() {
             (self.send)(Command::SetColor { surface, color });
         }
     }
 
     fn dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(surface) = self.state.selected else {
+        let Some(surface) = self.state.edit_surface() else {
             return;
         };
         let epoch = self.state.epoch;

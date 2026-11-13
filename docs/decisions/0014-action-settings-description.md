@@ -32,6 +32,7 @@ each kind:
 | Help | Optional. A short text for the library row, for example "Accessibility" |
 | Needs Accessibility | Yes or no: the kind operates only with the Accessibility permission of macOS |
 | Fields | The list of the settings, in the order in which the shell shows them |
+| Direction | Optional. The direction field for a turn of a knob: the key of a choice field, the value for a turn to the right, and the value for a turn to the left. For "Sound volume": `operation`, `up`, `down`. |
 
 Note (2026-11-13): issue
 [#184](https://github.com/shantanugoel/OpenCraft/issues/184) added the
@@ -41,6 +42,19 @@ The shell shows the groups in the order of their first kind in the event of
 the kinds. It gives the tile colour of a kind from its group. It names the
 kinds that need the permission in the Settings window. The shell still has
 no list of kinds and no check for a specific kind.
+
+Note (2026-11-13): issue
+[#182](https://github.com/shantanugoel/OpenCraft/issues/182) added the
+direction (decision
+[0029](0029-window-layout.md#104-the-knob-inspector-182), section 10.4).
+The knob inspector shows the two bindings "Turn left" and "Turn right" as
+one "Turn" card when they have the same kind and settings, and the values
+of the direction field agree with the direction. A change of that card
+writes the two bindings in one `Command::Group`: the right value to "Turn
+right" and the left value to "Turn left", or the other way for "Left is
+up". The values come from the description, thus the shell has no action
+logic (rule 12). A kind with no direction gets the same settings on the two
+bindings.
 
 A field has a key, a label for the user, an input type, and an optional
 default value. The key is the name of the value in the settings of the

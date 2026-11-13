@@ -344,6 +344,54 @@ fn the_changes_of_one_target_in_one_text_edit_are_one_step() {
 }
 
 #[test]
+fn the_groups_of_two_bindings_in_one_text_edit_are_one_step() {
+    // The "Turn" card of a knob writes two bindings for each change.
+    let (mut rig, _requests) = rig();
+    let left = binding(ControlKind::Knob, 1, GestureKind::TurnLeft);
+    let right = binding(ControlKind::Knob, 1, GestureKind::TurnRight);
+    let typed = |text: &str| {
+        let mut action = action(KIND);
+        action
+            .settings
+            .insert("text".into(), Value::Text(text.into()));
+        Command::Group {
+            name: "Set Action".into(),
+            commands: vec![
+                Command::SetBinding {
+                    binding: right,
+                    action: Some(action.clone()),
+                },
+                Command::SetBinding {
+                    binding: left,
+                    action: Some(action),
+                },
+            ],
+        }
+    };
+    command(&mut rig, typed("a"));
+    command(&mut rig, Command::StartTextEdit);
+    for text in ["a1", "a12", "a123"] {
+        command(&mut rig, typed(text));
+    }
+    command(&mut rig, Command::EndTextEdit);
+    let text = |rig: &Rig, id: BindingId| {
+        rig.engine.profile().pages()[0]
+            .binding(id.control, id.gesture)
+            .and_then(|a| a.settings.get("text").cloned())
+    };
+    assert_eq!(text(&rig, left), Some(Value::Text("a123".into())));
+    // One undo removes the typed text from the two bindings.
+    command(&mut rig, Command::Undo);
+    assert_eq!(text(&rig, left), Some(Value::Text("a".into())));
+    assert_eq!(text(&rig, right), Some(Value::Text("a".into())));
+    // The first group is a step of its own: no text edit was open.
+    command(&mut rig, Command::Undo);
+    assert_eq!(text(&rig, left), None);
+    assert_eq!(text(&rig, right), None);
+    assert_eq!(last_names(&mut rig), Some(names(None, Some("Set Action"))));
+}
+
+#[test]
 fn a_different_target_a_new_text_edit_or_no_text_edit_starts_a_new_step() {
     let (mut rig, _requests) = rig();
     // With no text edit, each change is one step.

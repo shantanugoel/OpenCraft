@@ -259,7 +259,7 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         }
         Command::MovePage { .. } => step("Move Page", None),
         Command::RemovePage { .. } => step("Remove Page", None),
-        Command::Group { name, .. } => step(name, None),
+        Command::Group { name, commands } => step(name, group_target(commands, active)),
         // These commands change no page. A change of the active profile
         // empties the history. A test of an action runs a binding and
         // changes nothing in the profile (#188).
@@ -278,6 +278,18 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         | Command::ReadCounters
         | Command::Stop => None,
     }
+}
+
+/// The target of a group in a text edit: the target of its first command,
+/// if each command of the group has a target. Thus one edit of a text field
+/// that writes two bindings, for example a setting of the "Turn" card of a
+/// knob, is one step (decision 0030).
+fn group_target(commands: &[Command], active: usize) -> Option<Target> {
+    let targets = commands
+        .iter()
+        .map(|c| step_of(c, active).and_then(|(_, target)| target))
+        .collect::<Option<Vec<_>>>()?;
+    targets.first().copied()
 }
 
 /// The state of one surface: its content in the profile, and the image that

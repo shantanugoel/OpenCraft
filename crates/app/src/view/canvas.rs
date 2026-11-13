@@ -339,6 +339,8 @@ impl DeviceView {
         }
         if self.state.select_control(id) {
             self.close_kinds();
+            // A knob shows the title of its bar panel.
+            self.load_label(window, cx);
             self.sync_form(window, cx);
             self.focus_workspace(window, cx);
             cx.notify();

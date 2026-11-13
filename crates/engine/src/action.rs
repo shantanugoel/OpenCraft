@@ -247,6 +247,23 @@ pub struct KindDescription {
     /// permission.
     pub needs_accessibility: bool,
     pub fields: Vec<Field>,
+    /// The direction of a turn of a knob, if the kind has one. The shell
+    /// then shows one "Turn" card for the two turn gestures, and writes the
+    /// two values to the two bindings (decision 0029, section 10.4).
+    pub direction: Option<Direction>,
+}
+
+/// The direction field of a kind: a choice field, and its values for a turn
+/// to the right and for a turn to the left. For "Sound volume": the field
+/// `operation`, right `up`, left `down`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Direction {
+    /// The key of a field of the input type Choice.
+    pub key: String,
+    /// The value of that field for the binding "Turn right".
+    pub right: String,
+    /// The value of that field for the binding "Turn left".
+    pub left: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

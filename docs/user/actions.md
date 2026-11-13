@@ -42,7 +42,8 @@ To set an action with the library:
 
 The action goes on the open card of the control, with the default settings
 of the kind. If no card is open, the action goes on the first gesture:
-**Press** for a key, **Tap** for a bar panel, and **Turn right** for a knob.
+**Press** for a key, **Tap** for a bar panel, and **Turn** for a knob (the
+action goes on the two turn directions).
 If the gesture has an action already, the new action replaces it. To get the
 old action back, push Command-Z. The status bar shows the change for 4
 seconds, for example "Key 7 gets “Open a URL” for Press". The right panel
@@ -203,8 +204,10 @@ OpenCraft sends the media key, as the media keys of a keyboard do.
   at the bottom. When the sound is muted, it shows "Muted". OpenCraft reads
   the volume again each 2 seconds, thus the bar also shows a change that you
   make with a different method.
-- A good use is a knob: set Up on "Turn right", Down on "Turn left", and Mute
-  on "Push". The bar shows on the bar panel above the knob.
+- A good use is a knob: set **Sound volume** on "Turn", and Mute on "Push".
+  The "Turn" card sets Up for a turn to the right and Down for a turn to the
+  left. See [The Turn card](controls.md#the-turn-card). The bar shows on the
+  bar panel above the knob.
 
 ## Change the page
 

@@ -23,6 +23,11 @@ use opencraft_engine::{
     Action, BindingId, Field, GestureKind, InputType, KindDescription, Status, Value,
 };
 
+/// The function that makes the body rows of an open gesture card from its
+/// action, and true if the action has a handler.
+pub(super) type CardRows<'a> =
+    &'a dyn Fn(&DeviceView, &Action, bool, &Window, &mut Context<DeviceView>) -> Vec<AnyElement>;
+
 /// One step from an action to an action that it contains: the key of a
 /// field, and for an action list, the position in the list.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -175,7 +180,7 @@ impl DeviceView {
     }
 
     /// A new action of `kind` with the default value of each field.
-    fn default_action(&self, kind: &str) -> Option<Action> {
+    pub(super) fn default_action(&self, kind: &str) -> Option<Action> {
         let kind = self.kind(kind)?;
         Some(Action {
             kind: kind.kind.clone(),
@@ -337,7 +342,7 @@ impl DeviceView {
         (input.into(), subscription)
     }
 
-    fn edit_action(&self, id: BindingId) -> Option<Action> {
+    pub(super) fn edit_action(&self, id: BindingId) -> Option<Action> {
         self.form
             .pending
             .get(&id)
@@ -412,15 +417,48 @@ impl DeviceView {
         if action == before {
             return;
         }
-        self.form
-            .pending
-            .entry(binding)
-            .or_default()
-            .push(action.clone());
-        (self.send)(Command::SetBinding {
-            binding,
-            action: Some(action),
-        });
+        // The "Turn" card of a knob writes the two turn bindings.
+        let changes = self.turn_changes(binding, action);
+        self.send_bindings("Set Action", changes);
+    }
+
+    /// Send the new actions of bindings, and keep each as an edit in
+    /// flight. One binding is one `SetBinding`. More bindings are one
+    /// `Command::Group` with the name `name`, thus one step of the history
+    /// (decision 0030).
+    pub(super) fn send_bindings(&mut self, name: &str, changes: Vec<(BindingId, Option<Action>)>) {
+        let mut commands: Vec<Command> = changes
+            .into_iter()
+            .map(|(binding, action)| {
+                match &action {
+                    Some(action) => self
+                        .form
+                        .pending
+                        .entry(binding)
+                        .or_default()
+                        .push(action.clone()),
+                    None => {
+                        self.form.pending.remove(&binding);
+                    }
+                }
+                Command::SetBinding { binding, action }
+            })
+            .collect();
+        match commands.len() {
+            0 => {}
+            1 => (self.send)(commands.remove(0)),
+            _ => (self.send)(Command::Group {
+                name: name.into(),
+                commands,
+            }),
+        }
+    }
+
+    /// Forget the edits in flight of `bindings`: a new kind replaces them.
+    pub(super) fn drop_edits(&mut self, bindings: &[BindingId]) {
+        for binding in bindings {
+            self.form.pending.remove(binding);
+        }
     }
 
     fn set_field(&mut self, binding: BindingId, path: &FieldPath, value: Value) {
@@ -568,14 +606,13 @@ impl DeviceView {
     /// removal closes it. The engine makes the new binding, so no edit is in
     /// flight after this.
     pub(super) fn choose_card(&mut self, gesture: GestureKind, kind: Option<String>) {
-        let Some(control) = self.state.selected_control else {
+        let Some(binding) = self.state.binding_of(gesture) else {
             return;
         };
-        let binding = BindingId {
-            page: self.state.page,
-            control,
-            gesture,
-        };
+        if super::knob::is_turn(gesture) && self.joined_turn(binding.control).is_some() {
+            self.set_turn(binding.control, kind);
+            return;
+        }
         self.state.open_card(kind.is_some().then_some(gesture));
         let current = self
             .state
@@ -709,66 +746,106 @@ impl DeviceView {
         gestures(control.kind)
             .iter()
             .map(|&(gesture, name)| {
-                let binding = BindingId {
-                    page: self.state.page,
+                self.gesture_card(
                     control,
                     gesture,
-                };
-                let menu = Menu::Card(gesture);
-                let current = self.state.bindings.get(&binding);
-                let toggle = menu.clone();
-                // A swipe has the wider name column of section 10.6.
-                let name_width = if control.kind == ControlKind::TouchBar {
-                    theme::GESTURE_NAME_WIDE
-                } else {
-                    theme::FORM_LABEL
-                };
-                let card = GestureCard::new(format!("gesture-{gesture:?}"), name)
-                    .name_width(name_width)
-                    .menu(self.kind_menu(
-                        "kind",
-                        &menu,
-                        current.is_some(),
-                        menu_button_height(current.is_some(), false),
-                        window,
-                        cx,
-                    ))
-                    .on_menu(cx.listener(move |view, _, window, cx| {
-                        view.toggle_menu(toggle.clone(), window, cx)
-                    }));
-                let Some(current) = current else {
-                    return card.into_any_element();
-                };
-                let open = self.state.gesture == Some(gesture);
-                // The open card shows the edits in flight.
-                let action = if open {
-                    self.edit_action(binding)
-                } else {
-                    current.action.clone()
-                };
-                let Some(action) = action else {
-                    return card.into_any_element();
-                };
-                let rows = if open {
-                    self.action_rows(&[], &action, current.available, window, cx)
-                } else {
-                    Vec::new()
-                };
-                let label = self.kind_label(&action, current.available);
-                let mut card = card.action(label.clone()).open(open).on_toggle(
-                    cx.listener(move |view, _, window, cx| view.toggle_card(gesture, window, cx)),
-                );
-                // An action with no handler cannot run (rule 8).
-                if current.available {
-                    card = card.on_test(cx.listener(move |view, _, window, cx| {
-                        let text = test_text(control, label.name(), name);
-                        (view.send)(Command::TestAction { binding });
-                        view.show_message(text, window, cx);
-                    }));
-                }
-                card.children(rows).into_any_element()
+                    &format!("{gesture:?}"),
+                    name,
+                    &Self::card_rows,
+                    window,
+                    cx,
+                )
             })
             .collect()
+    }
+
+    /// The body rows of an open gesture card: the form of its action.
+    pub(super) fn card_rows(
+        &self,
+        action: &Action,
+        available: bool,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        self.action_rows(&[], action, available, window, cx)
+    }
+
+    /// The gesture card of the binding of `gesture` of `control` on the
+    /// active page. The identifiers start with `gesture-{id}`, and `name`
+    /// is the gesture name. `rows` makes the body rows of the open card.
+    /// The "Turn" card of a knob (`knob`) uses this card with the binding
+    /// of one turn and its own rows.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn gesture_card(
+        &self,
+        control: ControlId,
+        gesture: GestureKind,
+        id: &str,
+        name: &str,
+        rows: CardRows,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let binding = BindingId {
+            page: self.state.page,
+            control,
+            gesture,
+        };
+        let menu = Menu::Card(gesture);
+        let current = self.state.bindings.get(&binding);
+        let toggle = menu.clone();
+        // A swipe has the wider name column of section 10.6.
+        let name_width = if control.kind == ControlKind::TouchBar {
+            theme::GESTURE_NAME_WIDE
+        } else {
+            theme::FORM_LABEL
+        };
+        let card =
+            GestureCard::new(format!("gesture-{id}"), name.to_string())
+                .name_width(name_width)
+                .menu(self.kind_menu(
+                    "kind",
+                    &menu,
+                    current.is_some(),
+                    menu_button_height(current.is_some(), false),
+                    window,
+                    cx,
+                ))
+                .on_menu(cx.listener(move |view, _, window, cx| {
+                    view.toggle_menu(toggle.clone(), window, cx)
+                }));
+        let Some(current) = current else {
+            return card.into_any_element();
+        };
+        let open = self.state.gesture == Some(gesture);
+        // The open card shows the edits in flight.
+        let action = if open {
+            self.edit_action(binding)
+        } else {
+            current.action.clone()
+        };
+        let Some(action) = action else {
+            return card.into_any_element();
+        };
+        let rows = if open {
+            rows(self, &action, current.available, window, cx)
+        } else {
+            Vec::new()
+        };
+        let label = self.kind_label(&action, current.available);
+        let mut card = card.action(label.clone()).open(open).on_toggle(
+            cx.listener(move |view, _, window, cx| view.toggle_card(gesture, window, cx)),
+        );
+        // An action with no handler cannot run (rule 8).
+        if current.available {
+            let name = name.to_string();
+            card = card.on_test(cx.listener(move |view, _, window, cx| {
+                let text = test_text(control, label.name(), &name);
+                (view.send)(Command::TestAction { binding });
+                view.show_message(text, window, cx);
+            }));
+        }
+        card.children(rows).into_any_element()
     }
 
     /// The kind menu `menu`, if it is open: one row for each kind, and with
@@ -847,6 +924,21 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
+        self.action_rows_with(path, action, available, None, window, cx)
+    }
+
+    /// The rows of [`Self::action_rows`]. With `replace`, the field with
+    /// that key shows the given row in place of its own control: the
+    /// "Direction" row of the "Turn" card of a knob.
+    pub(super) fn action_rows_with(
+        &self,
+        path: &[Slot],
+        action: &Action,
+        available: bool,
+        mut replace: Option<(&str, AnyElement)>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
         let id = prefix(path);
         let mut rows = Vec::new();
         if !available {
@@ -871,6 +963,12 @@ impl DeviceView {
             );
         } else if let Some(kind) = self.kind(&action.kind) {
             for (index, field) in kind.fields.iter().enumerate() {
+                if replace.as_ref().is_some_and(|(key, _)| *key == field.key) {
+                    if let Some((_, row)) = replace.take() {
+                        rows.push(row);
+                    }
+                    continue;
+                }
                 rows.push(self.field_row(
                     path,
                     index,

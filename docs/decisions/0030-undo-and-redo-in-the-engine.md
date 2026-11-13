@@ -90,6 +90,13 @@ the shell gives. A shell uses it for a change of many parts that has no
 engine command of its own. The engine ignores Undo, Redo, and the text edit
 commands in a group.
 
+Note (2026-11-13): in a text edit, the target of a group is the target of
+its first command, if each command of the group has a target. Thus the
+letters of one text field of the "Turn" card of a knob, which writes the
+two turn bindings in a group for each change, are one step (issue
+[#182](https://github.com/shantanugoel/OpenCraft/issues/182),
+`group_target` in `crates/engine/src/engine.rs`).
+
 A part of the profile that is not in the pages, for example the name of the
 profile, is not in the copy. If a later task adds such a part and wants
 undo for it, it adds the part to the step in `history.rs`.
