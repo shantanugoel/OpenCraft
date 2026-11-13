@@ -23,6 +23,7 @@ application that other persons can adopt.
 | 4 | Pages and the touch bar | Complete |
 | 5 | Background operation | Complete |
 | 6 | First public release | Complete |
+| — | UI overhaul, after Phase 6 | Complete, with owner checks open |
 
 ## Checks for each phase
 
@@ -374,6 +375,49 @@ the record of the checks.
   model as data only. No second real device was connected.
 - The measured footprint of the release bundle is in
   [kb/footprint.md](kb/footprint.md#phase-6).
+
+## UI overhaul, after Phase 6 (complete, with owner checks open)
+
+**Goal.** The main window has a place for each later feature, and it looks
+and operates like a good native macOS application. The umbrella issue is
+[#173](https://github.com/shantanugoel/OpenCraft/issues/173). The milestone
+"UI overhaul" groups its tasks.
+
+**Scope.** Three panes (the sidebar, the device picture, the right panel
+with the inspector and the library), one card for each gesture, drag and
+drop from the library, undo and redo, copy and paste of a control, the
+command palette, the icon picker with a built-in icon set, "Test the
+action", the label options, a page background, the first start window with
+starter profiles, the profile settings sheet with export and import, the
+Settings window, the menu bar item with the profile and the brightness, the
+design language, the keyboard operation, and the accessible labels.
+
+**Decisions.** The layout is in
+[decision 0029](decisions/0029-window-layout.md), and the design language is
+in [DESIGN.md](DESIGN.md). The other decisions are
+[0030](decisions/0030-undo-and-redo-in-the-engine.md),
+[0031](decisions/0031-profile-export-file.md),
+[0032](decisions/0032-page-background.md), and
+[0033](decisions/0033-surface-icons.md).
+
+**Result.** The tasks are complete on 2026-11-13, and the
+[checks for each phase](#checks-for-each-phase) are done.
+[Issue #197](https://github.com/shantanugoel/OpenCraft/issues/197) has the
+record of the checks.
+
+- The user guide in [user/](user/README.md) and its pictures show the new
+  window.
+- The measured footprint of the release bundle is in
+  [kb/footprint.md](kb/footprint.md#ui-overhaul-2026-11-13). The memory and
+  the processor use are below their targets, with and with no window. The
+  start time is below its target for a repeated start only, as in Phase 6.
+- The camera showed the changes from the window on the device: a fill, a
+  page change, a page background, the knob light colours, "Test the
+  action", and the dark device after a quit.
+- The checks that need the hands of the owner are in a comment of issue
+  #197: a key, a knob, and the touch bar from the device, a disconnection
+  with a page background (#191), VoiceOver (#243), and a drag of the window
+  with a real mouse (#176).
 
 ## Not in a phase
 
