@@ -80,6 +80,7 @@ pub(super) struct ActionForm {
     // These are edits in flight, not confirmed bindings. Only events change ViewState.
     pending: BTreeMap<BindingId, Vec<Action>>,
     pub(super) recording: Option<FieldPath>,
+    modifier_recorder: super::hotkey::ModifierRecorder,
     menu: Option<Menu>,
     /// The open nested cards and the step menu (`nested`).
     pub(super) nested: super::nested::NestedState,
@@ -797,6 +798,25 @@ impl DeviceView {
         cx.notify();
     }
 
+    pub(super) fn record_modifiers(
+        &mut self,
+        event: &gpui_kit::ModifiersChangedEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(path) = self.form.recording.clone() else {
+            return;
+        };
+        cx.stop_propagation();
+        if let Some(value) = self.form.modifier_recorder.changed(event.modifiers) {
+            if let Some(binding) = self.form_binding() {
+                self.set_field(binding, &path, Value::Text(value));
+            }
+            self.form.recording = None;
+            cx.notify();
+        }
+    }
+
     /// Close the open menu of the cards, the menus and popovers of the
     /// "Appearance" section, and the popover of a knob light colour.
     pub(super) fn close_kinds(&mut self) {
@@ -1333,6 +1353,7 @@ impl DeviceView {
                             .child(div().truncate().child(text.clone()).test_text(text))
                             .map(|d| controls::keyboard_focus(d, controls::Ring::Outside))
                             .on_click(cx.listener(move |view, _, window, cx| {
+                                view.form.modifier_recorder = Default::default();
                                 view.form.recording = Some(record.clone());
                                 view.focus_workspace(window, cx);
                                 cx.notify();

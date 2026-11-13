@@ -75,6 +75,8 @@ fn the_recorder_shows_the_symbols_in_the_order_of_macos(cx: &mut TestAppContext)
         ("ctrl+left", "⌃←"),
         ("shift+cmd+minus", "⇧⌘-"),
         ("forwarddelete", "⌦"),
+        ("rightshift+rightcmd+a", "R⇧R⌘A"),
+        ("fn", "Fn"),
     ] {
         tx.try_send(event(value)).unwrap();
         cx.run_until_parked();
@@ -108,4 +110,37 @@ fn the_recorder_shows_the_symbols_in_the_order_of_macos(cx: &mut TestAppContext)
     tx.try_send(event("shift+cmd+4")).unwrap();
     cx.run_until_parked();
     assert!(show(cx, "⇧⌘4"));
+
+    for (modifiers, value) in [
+        (
+            gpui_kit::Modifiers {
+                platform: true,
+                ..Default::default()
+            },
+            "cmd",
+        ),
+        (
+            gpui_kit::Modifiers {
+                function: true,
+                ..Default::default()
+            },
+            "fn",
+        ),
+    ] {
+        click(cx, "hotkey-0");
+        let count = sent.borrow().len();
+        cx.simulate_modifiers_change(modifiers);
+        cx.run_until_parked();
+        assert_eq!(sent.borrow().len(), count, "wait for release");
+        cx.simulate_modifiers_change(Default::default());
+        cx.run_until_parked();
+        assert_eq!(
+            sent.borrow().last(),
+            Some(&Command::SetBinding {
+                binding: binding(),
+                action: Some(action(value)),
+            })
+        );
+        assert_eq!(sent.borrow().len(), count + 1, "one undo step");
+    }
 }

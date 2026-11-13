@@ -1,20 +1,26 @@
 //! The text form of a hotkey.
 //!
 //! The form is in `docs/decisions/0014-action-settings-description.md`: the
-//! modifiers `ctrl`, `alt`, `shift`, and `cmd`, and then one key name, in
-//! small letters with `+` between them. Example: `shift+cmd+4`.
+//! modifiers and an optional key name, in small letters with `+` between
+//! them. Example: `shift+cmd+4` or `rightctrl`.
 
 use std::fmt;
 use std::str::FromStr;
 
 /// A key with modifier keys.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Hotkey {
     pub ctrl: bool,
     pub alt: bool,
     pub shift: bool,
     pub cmd: bool,
-    /// The name of the key, in small letters. See [`KEY_NAMES`].
+    pub right_ctrl: bool,
+    pub right_alt: bool,
+    pub right_shift: bool,
+    pub right_cmd: bool,
+    pub function: bool,
+    /// The name of the key, in small letters. Empty for modifiers only.
+    /// See [`KEY_NAMES`].
     pub key: String,
 }
 
@@ -81,13 +87,7 @@ impl FromStr for Hotkey {
     /// Read a hotkey. Capital letters and spaces around a part are permitted.
     /// The modifiers can be in each order.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut hotkey = Hotkey {
-            ctrl: false,
-            alt: false,
-            shift: false,
-            cmd: false,
-            key: String::new(),
-        };
+        let mut hotkey = Hotkey::default();
         for part in s.split('+') {
             let part = part.trim().to_ascii_lowercase();
             match part.as_str() {
@@ -96,12 +96,17 @@ impl FromStr for Hotkey {
                 "alt" => hotkey.alt = true,
                 "shift" => hotkey.shift = true,
                 "cmd" => hotkey.cmd = true,
+                "rightctrl" => hotkey.right_ctrl = true,
+                "rightalt" => hotkey.right_alt = true,
+                "rightshift" => hotkey.right_shift = true,
+                "rightcmd" => hotkey.right_cmd = true,
+                "fn" => hotkey.function = true,
                 _ if !hotkey.key.is_empty() => return Err(ParseHotkeyError::TwoKeys(part)),
                 _ if is_key_name(&part) => hotkey.key = part,
                 _ => return Err(ParseHotkeyError::UnknownKey(part)),
             }
         }
-        if hotkey.key.is_empty() {
+        if hotkey == Hotkey::default() {
             return Err(ParseHotkeyError::NoKey);
         }
         Ok(hotkey)
@@ -110,17 +115,26 @@ impl FromStr for Hotkey {
 
 impl fmt::Display for Hotkey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut parts = Vec::new();
         for (on, name) in [
             (self.ctrl, "ctrl"),
+            (self.right_ctrl, "rightctrl"),
             (self.alt, "alt"),
+            (self.right_alt, "rightalt"),
             (self.shift, "shift"),
+            (self.right_shift, "rightshift"),
             (self.cmd, "cmd"),
+            (self.right_cmd, "rightcmd"),
+            (self.function, "fn"),
         ] {
             if on {
-                write!(f, "{name}+")?;
+                parts.push(name);
             }
         }
-        f.write_str(&self.key)
+        if !self.key.is_empty() {
+            parts.push(&self.key);
+        }
+        f.write_str(&parts.join("+"))
     }
 }
 
@@ -130,7 +144,17 @@ mod tests {
 
     #[test]
     fn a_hotkey_goes_to_text_and_back() {
-        for text in ["a", "shift+cmd+4", "ctrl+alt+shift+cmd+f12", "alt+space"] {
+        for text in [
+            "a",
+            "shift+cmd+4",
+            "ctrl+alt+shift+cmd+f12",
+            "alt+space",
+            "rightctrl+rightalt+rightshift+rightcmd+fn+a",
+            "cmd",
+            "fn",
+            "ctrl+rightctrl",
+            "shift+cmd",
+        ] {
             let hotkey: Hotkey = text.parse().unwrap();
             assert_eq!(hotkey.to_string(), text);
         }
@@ -145,7 +169,7 @@ mod tests {
     #[test]
     fn an_incorrect_text_is_an_error() {
         assert_eq!("".parse::<Hotkey>(), Err(ParseHotkeyError::NoKey));
-        assert_eq!("cmd+shift".parse::<Hotkey>(), Err(ParseHotkeyError::NoKey));
+        assert_eq!(" + ".parse::<Hotkey>(), Err(ParseHotkeyError::NoKey));
         assert_eq!(
             "cmd+a+b".parse::<Hotkey>(),
             Err(ParseHotkeyError::TwoKeys("b".into()))

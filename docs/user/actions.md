@@ -194,7 +194,7 @@ macOS opens the URL in the default application for that type of URL.
 
 | Setting | What to give |
 |---|---|
-| Hotkey | One key, with or without the modifier keys Control, Option, Shift, and Command |
+| Hotkey | A key with modifiers, or modifiers only. Left and right Control, Option, Shift and Command, and Fn are available. |
 
 1. Click the field **Record hotkey…**. The field gets a blue frame and shows
    "Push a key…".
@@ -204,6 +204,10 @@ macOS opens the URL in the default application for that type of URL.
    example "⇧⌘4". The order is Control (⌃), Option (⌥), Shift (⇧), and
    Command (⌘), and then the key.
 
+For modifiers only, push the modifiers and release them all. The record
+completes on release. A right-side modifier has `R` before its symbol, for
+example `R⌃` for right Control. Fn shows as `Fn`.
+
 To cancel the record, push Esc. To remove the hotkey, click **Clear**.
 
 OpenCraft sends the hotkey to the application in front.
@@ -211,8 +215,11 @@ OpenCraft sends the hotkey to the application in front.
 These keys are possible: the letters, the digits, F1 to F20, Return, Tab,
 Space, Delete, Forward Delete, Esc, the arrow keys, Home, End, Page Up,
 Page Down, and the punctuation keys. You cannot record Esc with no modifier
-key, because Esc cancels the record. You cannot record a combination with
-the Fn key.
+key, because Esc cancels the record. A hotkey sends a complete push and
+release, not a hold. Old profiles keep their behaviour. Some applications
+do not accept a synthetic Fn event.
+
+![The hotkey form with right Control and Fn.](images/hotkey.png)
 
 ## Type text
 

@@ -11,7 +11,7 @@ use core_foundation::base::TCFType;
 use core_foundation::boolean::CFBoolean;
 use core_foundation::dictionary::CFDictionary;
 use core_foundation::string::CFString;
-use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGKeyCode};
+use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGEventType, CGKeyCode};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 use objc2::encode::{Encode, Encoding, RefEncode};
 use objc2::rc::autoreleasepool;
@@ -103,6 +103,25 @@ fn key_event(code: CGKeyCode, down: bool) -> Result<CGEvent> {
 }
 
 pub fn send_hotkey(hotkey: &Hotkey) -> Result<()> {
+    // Build every event before posting any. Allocation failure must not leave
+    // a modifier down. Legacy chords keep their original two-event path.
+    let events = hotkey_events(hotkey)?;
+    for event in events {
+        event.post(CGEventTapLocation::HID);
+    }
+    Ok(())
+}
+
+fn hotkey_events(hotkey: &Hotkey) -> Result<Vec<CGEvent>> {
+    if hotkey.key.is_empty()
+        || hotkey.right_ctrl
+        || hotkey.right_alt
+        || hotkey.right_shift
+        || hotkey.right_cmd
+        || hotkey.function
+    {
+        return extended_hotkey_events(hotkey);
+    }
     let code = key_code(&hotkey.key).ok_or(Error::NotSupported)?;
     let mut flags = CGEventFlags::CGEventFlagNull;
     for (on, flag) in [
@@ -115,12 +134,64 @@ pub fn send_hotkey(hotkey: &Hotkey) -> Result<()> {
             flags |= flag;
         }
     }
-    for down in [true, false] {
-        let event = key_event(code, down)?;
-        event.set_flags(flags);
-        event.post(CGEventTapLocation::HID);
+    [true, false]
+        .into_iter()
+        .map(|down| {
+            let event = key_event(code, down)?;
+            event.set_flags(flags);
+            Ok(event)
+        })
+        .collect()
+}
+
+fn extended_hotkey_events(hotkey: &Hotkey) -> Result<Vec<CGEvent>> {
+    // Virtual codes: Events.h. Device-side masks: IOLLEvent.h.
+    let modifiers: Vec<(u16, u64)> = [
+        (hotkey.ctrl, 0x3B, (1 << 18) | 0x01),
+        (hotkey.right_ctrl, 0x3E, (1 << 18) | 0x2000),
+        (hotkey.alt, 0x3A, (1 << 19) | 0x20),
+        (hotkey.right_alt, 0x3D, (1 << 19) | 0x40),
+        (hotkey.shift, 0x38, (1 << 17) | 0x02),
+        (hotkey.right_shift, 0x3C, (1 << 17) | 0x04),
+        (hotkey.cmd, 0x37, (1 << 20) | 0x08),
+        (hotkey.right_cmd, 0x36, (1 << 20) | 0x10),
+        (hotkey.function, 0x3F, 1 << 23),
+    ]
+    .into_iter()
+    .filter_map(|(on, code, mask)| on.then_some((code, mask)))
+    .collect();
+    if modifiers.is_empty() && hotkey.key.is_empty() {
+        return Err(Error::NotSupported);
     }
-    Ok(())
+    let mut events = Vec::new();
+    let flags = |count: usize| {
+        CGEventFlags::from_bits_retain(
+            modifiers[..count]
+                .iter()
+                .fold(0, |flags, (_, mask)| flags | mask),
+        )
+    };
+    for (index, &(code, _)) in modifiers.iter().enumerate() {
+        let event = key_event(code, true)?;
+        event.set_type(CGEventType::FlagsChanged);
+        event.set_flags(flags(index + 1));
+        events.push(event);
+    }
+    if !hotkey.key.is_empty() {
+        let code = key_code(&hotkey.key).ok_or(Error::NotSupported)?;
+        for down in [true, false] {
+            let event = key_event(code, down)?;
+            event.set_flags(flags(modifiers.len()));
+            events.push(event);
+        }
+    }
+    for (index, &(code, _)) in modifiers.iter().enumerate().rev() {
+        let event = key_event(code, false)?;
+        event.set_type(CGEventType::FlagsChanged);
+        event.set_flags(flags(index));
+        events.push(event);
+    }
+    Ok(events)
 }
 
 /// The largest number of UTF-16 units that one key event can hold.
@@ -375,6 +446,39 @@ pub fn open_url(url: &str) -> Result<()> {
 mod tests {
     use super::*;
     use crate::hotkey::{is_key_name, KEY_NAMES};
+
+    #[test]
+    fn extended_hotkeys_have_balanced_sides_and_flags() {
+        use core_graphics::event::EventField;
+        for (value, codes) in [
+            ("rightctrl+fn+a", vec![0x3E, 0x3F, 0, 0, 0x3F, 0x3E]),
+            ("rightalt", vec![0x3D, 0x3D]),
+            ("fn", vec![0x3F, 0x3F]),
+            ("ctrl+rightctrl", vec![0x3B, 0x3E, 0x3E, 0x3B]),
+        ] {
+            let events = hotkey_events(&value.parse().unwrap()).unwrap();
+            assert_eq!(
+                events
+                    .iter()
+                    .map(|e| e.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE))
+                    .collect::<Vec<_>>(),
+                codes
+            );
+            assert_eq!(
+                events.last().unwrap().get_flags(),
+                CGEventFlags::CGEventFlagNull
+            );
+            assert_eq!(
+                events.first().unwrap().get_type() as u32,
+                CGEventType::FlagsChanged as u32
+            );
+        }
+        let events = hotkey_events(&"cmd+a".parse().unwrap()).unwrap();
+        assert_eq!(events.len(), 2, "old profile events do not change");
+        assert!(events
+            .iter()
+            .all(|e| e.get_flags() == CGEventFlags::CGEventFlagCommand));
+    }
 
     #[test]
     fn each_key_name_has_a_key_code() {

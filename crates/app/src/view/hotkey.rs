@@ -4,8 +4,12 @@ use gpui_kit::Keystroke;
 
 /// Return no value for an unsupported key or the cancel key.
 pub(super) fn hotkey(stroke: &Keystroke) -> Option<String> {
+    hotkey_with_sides(stroke, side_flags())
+}
+
+fn hotkey_with_sides(stroke: &Keystroke, sides: u64) -> Option<String> {
     let m = stroke.modifiers;
-    if m.function || (stroke.key == "escape" && !m.control && !m.alt && !m.shift && !m.platform) {
+    if stroke.key == "escape" && !m.modified() {
         return None;
     }
     // GPUI on macOS folds Shift into printable punctuation and digits.
@@ -71,17 +75,9 @@ pub(super) fn hotkey(stroke: &Keystroke) -> Option<String> {
         }
         _ => return None,
     };
-    let mut parts = Vec::new();
-    for (set, name) in [
-        (m.control, "ctrl"),
-        (m.alt, "alt"),
-        (m.shift || shifted, "shift"),
-        (m.platform, "cmd"),
-    ] {
-        if set {
-            parts.push(name);
-        }
-    }
+    let mut modifiers = m;
+    modifiers.shift |= shifted;
+    let mut parts = modifier_parts(modifiers, sides);
     parts.push(key);
     Some(parts.join("+"))
 }
@@ -92,22 +88,46 @@ pub(super) fn hotkey(stroke: &Keystroke) -> Option<String> {
 /// it is.
 pub(super) fn symbols(value: &str) -> String {
     let mut parts: Vec<&str> = value.split('+').collect();
-    let Some(key) = parts.pop().filter(|k| !k.is_empty()) else {
-        return value.to_string();
+    let names = [
+        "ctrl",
+        "rightctrl",
+        "alt",
+        "rightalt",
+        "shift",
+        "rightshift",
+        "cmd",
+        "rightcmd",
+        "fn",
+    ];
+    let key = if parts.last().is_some_and(|key| names.contains(key)) {
+        ""
+    } else {
+        let Some(key) = parts.pop().filter(|k| !k.is_empty()) else {
+            return value.to_string();
+        };
+        key
     };
     let mut out: Vec<String> = Vec::new();
-    for (name, symbol) in [("ctrl", "⌃"), ("alt", "⌥"), ("shift", "⇧"), ("cmd", "⌘")] {
+    for (name, symbol) in [
+        ("ctrl", "⌃"),
+        ("rightctrl", "R⌃"),
+        ("alt", "⌥"),
+        ("rightalt", "R⌥"),
+        ("shift", "⇧"),
+        ("rightshift", "R⇧"),
+        ("cmd", "⌘"),
+        ("rightcmd", "R⌘"),
+        ("fn", "Fn"),
+    ] {
         if parts.contains(&name) {
             out.push(symbol.into());
         }
     }
-    if parts
-        .iter()
-        .any(|p| !["ctrl", "alt", "shift", "cmd"].contains(p))
-    {
+    if parts.iter().any(|p| !names.contains(p)) {
         return value.to_string();
     }
     let key = match key {
+        "" => String::new(),
         "return" => "↩".to_string(),
         "tab" => "⇥".to_string(),
         "space" => "Space".to_string(),
@@ -138,6 +158,81 @@ pub(super) fn symbols(value: &str) -> String {
     };
     out.push(key);
     out.concat()
+}
+
+/// GPUI combines the left and right sides. Read the flags of the current
+/// local AppKit event, not a global monitor. This needs no new permission.
+#[cfg(all(target_os = "macos", not(test)))]
+fn side_flags() -> u64 {
+    use objc2::{class, msg_send, runtime::AnyObject};
+    // SAFETY: this runs on the window thread during an AppKit event. The
+    // application owns the event for the duration of this call.
+    unsafe {
+        let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+        let event: *mut AnyObject = msg_send![app, currentEvent];
+        if event.is_null() {
+            0
+        } else {
+            msg_send![event, modifierFlags]
+        }
+    }
+}
+
+#[cfg(any(not(target_os = "macos"), test))]
+fn side_flags() -> u64 {
+    0
+}
+
+fn modifier_parts(m: gpui_kit::Modifiers, sides: u64) -> Vec<&'static str> {
+    let mut parts = Vec::new();
+    // IOLLEvent.h device-dependent flags. No side information means the
+    // legacy (left) spelling, also on platforms without AppKit.
+    for (on, left, right, left_name, right_name) in [
+        (m.control, 0x01, 0x2000, "ctrl", "rightctrl"),
+        (m.alt, 0x20, 0x40, "alt", "rightalt"),
+        (m.shift, 0x02, 0x04, "shift", "rightshift"),
+        (m.platform, 0x08, 0x10, "cmd", "rightcmd"),
+    ] {
+        if on {
+            if sides & right == 0 || sides & left != 0 {
+                parts.push(left_name);
+            }
+            if sides & right != 0 {
+                parts.push(right_name);
+            }
+        }
+    }
+    if m.function {
+        parts.push("fn");
+    }
+    parts
+}
+
+/// A modifier-only chord completes when all its modifiers are released.
+/// Keep the last chord on a press, not its smaller release states.
+#[derive(Default)]
+pub(super) struct ModifierRecorder {
+    held: Vec<&'static str>,
+    candidate: Option<String>,
+}
+
+impl ModifierRecorder {
+    pub(super) fn changed(&mut self, m: gpui_kit::Modifiers) -> Option<String> {
+        self.update(m, side_flags())
+    }
+
+    fn update(&mut self, m: gpui_kit::Modifiers, sides: u64) -> Option<String> {
+        let parts = modifier_parts(m, sides);
+        if parts.is_empty() {
+            self.held.clear();
+            return self.candidate.take();
+        }
+        if parts.iter().any(|p| !self.held.contains(p)) {
+            self.candidate = Some(parts.join("+"));
+        }
+        self.held = parts;
+        None
+    }
 }
 
 #[cfg(test)]
@@ -252,6 +347,60 @@ mod tests {
                 Some(format!("shift+{key}"))
             );
         }
+    }
+
+    #[test]
+    fn right_sides_fn_and_modifier_only_chords() {
+        let m = Modifiers {
+            control: true,
+            alt: true,
+            shift: true,
+            platform: true,
+            function: true,
+        };
+        let stroke = Keystroke {
+            key: "a".into(),
+            key_char: None,
+            modifiers: m,
+        };
+        assert_eq!(
+            hotkey_with_sides(&stroke, 0x2054),
+            Some("rightctrl+rightalt+rightshift+rightcmd+fn+a".into())
+        );
+        let mut recorder = ModifierRecorder::default();
+        assert_eq!(recorder.update(m, 0x2054), None);
+        assert_eq!(
+            recorder.update(
+                Modifiers {
+                    function: true,
+                    ..Default::default()
+                },
+                0
+            ),
+            None
+        );
+        assert_eq!(
+            recorder.update(Modifiers::default(), 0),
+            Some("rightctrl+rightalt+rightshift+rightcmd+fn".into())
+        );
+        assert_eq!(recorder.update(Modifiers::default(), 0), None);
+        assert_eq!(
+            recorder.update(
+                Modifiers {
+                    function: true,
+                    ..Default::default()
+                },
+                0
+            ),
+            None
+        );
+        assert_eq!(recorder.update(Modifiers::default(), 0), Some("fn".into()));
+        assert_eq!(
+            symbols("rightctrl+rightalt+rightshift+rightcmd+fn+a"),
+            "R⌃R⌥R⇧R⌘FnA"
+        );
+        assert_eq!(symbols("rightcmd"), "R⌘");
+        assert_eq!(symbols("fn"), "Fn");
     }
 
     #[test]
