@@ -62,6 +62,10 @@ pub const PALETTE: &str = "CommandPalette";
 /// The key context predicate of the search field of the palette.
 const PALETTE_FIELD: &str = "CommandPalette > Input";
 
+/// The key context of the root element of the first start window (decision
+/// 0029, section 18).
+pub const FIRST_START: &str = "FirstStart";
+
 /// The title of the View command for the sidebar.
 pub fn sidebar_title(visible: bool) -> &'static str {
     if visible {
@@ -254,6 +258,7 @@ pub fn install(cx: &mut App, panes: &Panes) {
         // Settings window (decision 0029, section 13).
         KeyBinding::new("cmd-,", OpenSettings, None),
         KeyBinding::new("cmd-w", CloseWindow, Some(SETTINGS)),
+        KeyBinding::new("cmd-w", CloseWindow, Some(FIRST_START)),
         KeyBinding::new("ctrl-cmd-s", ToggleSidebar, Some(WORKSPACE)),
         KeyBinding::new("alt-cmd-i", ToggleInspector, Some(WORKSPACE)),
         // A focused text field has its own bindings for these keys, in a

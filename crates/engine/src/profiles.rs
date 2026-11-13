@@ -118,6 +118,13 @@ impl ProfilesDir {
         Ok(list)
     }
 
+    /// True if a directory has a profile file, for any model. With no
+    /// profile, the shell shows the first start (decision 0029, section
+    /// 18). A directory that cannot be read has no profile.
+    pub fn has_profiles(&self) -> bool {
+        self.ids().is_ok_and(|ids| !ids.is_empty())
+    }
+
     /// The identity of each directory that has a profile file, in order.
     fn ids(&self) -> Result<Vec<String>> {
         let entries = match fs::read_dir(&self.dir) {
@@ -310,7 +317,11 @@ mod tests {
     fn the_list_has_the_profiles_of_one_model_in_the_order_of_the_identities() {
         let (_dir, profiles) = profiles();
         assert!(profiles.list("n4-pro").unwrap().is_empty());
+        assert!(!profiles.has_profiles());
+        fs::create_dir_all(profiles.dir().join("empty")).unwrap();
+        assert!(!profiles.has_profiles(), "a directory with no profile file");
         save(&profiles, "work", "n4-pro", "Work");
+        assert!(profiles.has_profiles());
         save(&profiles, "default", "n4-pro", "Default");
         save(&profiles, "other", "other-model", "Other");
         // Not a profile: no profile file, a file, a hidden directory, and the

@@ -871,6 +871,29 @@ outside the repository. The window tests are in
 | `.hover(..)` two times on one element stops the application: "hover style already set". The shared `button` sets a hover, thus a button with a different look needs its own element. | Measured | Window tests |
 | A Quartz mouse event with no `CGEventSetFlags` takes the modifier state of an earlier event. After the key events of a different program, a click became a Control-click: the canvas opened its context menu, and a button did nothing. Set the flags of each mouse event to 0. | Measured | Helper program; window pictures |
 
+## First start window in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+first start window of
+[issue 196](https://github.com/shantanugoel/OpenCraft/issues/196), in a
+bundle with its own identifier, started with `open -n` and an empty
+scratch profiles directory, on the computer of
+[Release measurements](#release-measurements). The device was connected,
+and one start used `OPENCRAFT_NO_DEVICE`. A helper program clicked with
+Quartz events and took pictures of the windows only. The pictures are kept
+outside the repository. The window tests are in
+`crates/app/src/first_start/tests.rs` and
+`crates/app/src/view/tests/permission_sheet.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `TitlebarOptions::traffic_light_position: Some(point(px(16.), px(13.)))` puts the centre of the window buttons in the middle of a title bar of 40. | Measured | Window picture |
+| A click handler of the first start window can call the shell, which opens the main window, and then call `window.remove_window()` for its own window. The main window opened, and the first start window closed. | Measured | Window list; window test `a_click_selects_a_card_and_start_makes_that_profile_and_opens_the_editor` |
+| `VisualTestContext::from_window(handle, cx)` gives a test context for a window that the code under test opens, for example a window that the shell opens. `simulate_resize` and `debug_bounds` then operate on that window. | Measured | `crates/app/src/first_start/tests.rs` |
+| A view can call `Entity::update` on the shell in the callback of its subscription to the events of the shell: the callback runs after the update of the shell ends. | Measured | `permission_event`; window tests |
+| `img(image).object_fit(ObjectFit::Cover)` in a cell of 14 high showed the middle band of a square engine image, at the full width of the cell. | Measured | Window picture |
+| A process that `open -n` starts from a bundle with an identifier that has no permission has the status "needs the user" for the key kinds. Thus the Accessibility request showed. The check clicked only "Not now", thus the process did not ask the system for the permission. | Measured | Window pictures |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

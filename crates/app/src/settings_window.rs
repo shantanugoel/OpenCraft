@@ -31,7 +31,7 @@ use gpui_kit::{
     Bounds, ClickEvent, Context, Div, Entity, FocusHandle, FontWeight, Render, SharedString,
     Stateful, Subscription, TitlebarOptions, Window, WindowBounds, WindowOptions,
 };
-use opencraft_engine::Status;
+use opencraft_engine::{Action, Status};
 use std::path::{Path, PathBuf};
 
 mod about;
@@ -109,6 +109,24 @@ pub fn permission(state: &ViewState) -> Permission {
     });
     let kinds = needs.iter().map(|kind| kind.name.clone()).collect();
     Permission { given, kinds }
+}
+
+/// The name of the first kind of `actions` that needs the Accessibility
+/// permission, if the permission is not given (see [`permission`]). The
+/// Accessibility request of the first start uses it (decision 0029,
+/// section 18). `None` if the permission is given, or if no action needs
+/// it.
+pub fn kind_waiting_for_permission(actions: &[Action], state: &ViewState) -> Option<String> {
+    if permission(state).given {
+        return None;
+    }
+    actions.iter().find_map(|action| {
+        state
+            .kinds
+            .iter()
+            .find(|kind| kind.kind == action.kind && kind.needs_accessibility)
+            .map(|kind| kind.name.clone())
+    })
 }
 
 /// The kinds with a status "needs the user".

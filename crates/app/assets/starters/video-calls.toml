@@ -1,0 +1,593 @@
+# Video calls: mute, camera, and leave the call, with one page for each call application.
+# A starter profile of the first start (decision 0029, section 18).
+# It uses only standard macOS applications and system actions, and no
+# image file. The test `each_starter_profile_loads_and_is_valid` checks it.
+schema_version = 4
+name = "Video calls"
+model = "n4-pro"
+color = "#22C55E"
+
+[[pages]]
+name = "Zoom"
+
+[pages.surfaces.key-face-1]
+label = "Mute"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Camera"
+color = "#298886"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Share"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Hand"
+color = "#C4A53E"
+label_size = 18
+
+[pages.surfaces.key-face-5]
+label = "Leave"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Calendar"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "FaceTime"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Vol −"
+color = "#596273"
+label_size = 22
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Vol +"
+color = "#596273"
+label_size = 22
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "Sound"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Volume"
+color = "#596273"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Zoom"
+color = "#3D875A"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Meet"
+color = "#20242B"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Teams"
+color = "#20242B"
+label_color = "#FFFFFF"
+
+[pages.bindings.key-1.press]
+kind = "opencraft.toggle"
+[pages.bindings.key-1.press.settings]
+on_label = "Muted"
+[pages.bindings.key-1.press.settings.on]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings.on.settings]
+hotkey = "shift+cmd+a"
+[pages.bindings.key-1.press.settings.off]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings.off.settings]
+hotkey = "shift+cmd+a"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.toggle"
+[pages.bindings.key-2.press.settings]
+on_label = "Camera off"
+[pages.bindings.key-2.press.settings.on]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings.on.settings]
+hotkey = "shift+cmd+v"
+[pages.bindings.key-2.press.settings.off]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings.off.settings]
+hotkey = "shift+cmd+v"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-3.press.settings]
+hotkey = "shift+cmd+s"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-4.press.settings]
+hotkey = "alt+y"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-5.press.settings]
+hotkey = "cmd+w"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-6.press.settings]
+application = "Calendar"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-7.press.settings]
+application = "FaceTime"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.volume"
+[pages.bindings.key-8.press.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.key-9.press]
+kind = "opencraft.volume"
+[pages.bindings.key-9.press.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.key-10.press]
+kind = "opencraft.volume"
+[pages.bindings.key-10.press.settings]
+operation = "mute"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.push.settings]
+operation = "mute"
+
+[pages.bindings.touch-bar-1.swipe-left]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-left.settings]
+target = "next"
+
+[pages.bindings.touch-bar-1.swipe-right]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-right.settings]
+target = "previous"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-2.tap.settings]
+target = "number"
+page = 1
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-3.tap.settings]
+target = "number"
+page = 2
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-4.tap.settings]
+target = "number"
+page = 3
+
+[[pages]]
+name = "Meet"
+
+[pages.surfaces.key-face-1]
+label = "Mute"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Camera"
+color = "#298886"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Chat"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Hand"
+color = "#C4A53E"
+label_size = 18
+
+[pages.surfaces.key-face-5]
+label = "Leave"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Calendar"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "FaceTime"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Vol −"
+color = "#596273"
+label_size = 22
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Vol +"
+color = "#596273"
+label_size = 22
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "Sound"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Volume"
+color = "#596273"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Zoom"
+color = "#20242B"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Meet"
+color = "#3D875A"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Teams"
+color = "#20242B"
+label_color = "#FFFFFF"
+
+[pages.bindings.key-1.press]
+kind = "opencraft.toggle"
+[pages.bindings.key-1.press.settings]
+on_label = "Muted"
+[pages.bindings.key-1.press.settings.on]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings.on.settings]
+hotkey = "cmd+d"
+[pages.bindings.key-1.press.settings.off]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings.off.settings]
+hotkey = "cmd+d"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.toggle"
+[pages.bindings.key-2.press.settings]
+on_label = "Camera off"
+[pages.bindings.key-2.press.settings.on]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings.on.settings]
+hotkey = "cmd+e"
+[pages.bindings.key-2.press.settings.off]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings.off.settings]
+hotkey = "cmd+e"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-3.press.settings]
+hotkey = "ctrl+cmd+c"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-4.press.settings]
+hotkey = "ctrl+cmd+h"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-5.press.settings]
+hotkey = "cmd+w"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-6.press.settings]
+application = "Calendar"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-7.press.settings]
+application = "FaceTime"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.volume"
+[pages.bindings.key-8.press.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.key-9.press]
+kind = "opencraft.volume"
+[pages.bindings.key-9.press.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.key-10.press]
+kind = "opencraft.volume"
+[pages.bindings.key-10.press.settings]
+operation = "mute"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.push.settings]
+operation = "mute"
+
+[pages.bindings.touch-bar-1.swipe-left]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-left.settings]
+target = "next"
+
+[pages.bindings.touch-bar-1.swipe-right]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-right.settings]
+target = "previous"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-2.tap.settings]
+target = "number"
+page = 1
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-3.tap.settings]
+target = "number"
+page = 2
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-4.tap.settings]
+target = "number"
+page = 3
+
+[[pages]]
+name = "Teams"
+
+[pages.surfaces.key-face-1]
+label = "Mute"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Camera"
+color = "#298886"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Share"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Hand"
+color = "#C4A53E"
+label_size = 18
+
+[pages.surfaces.key-face-5]
+label = "Leave"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Calendar"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "FaceTime"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Vol −"
+color = "#596273"
+label_size = 22
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Vol +"
+color = "#596273"
+label_size = 22
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "Sound"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Volume"
+color = "#596273"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Zoom"
+color = "#20242B"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Meet"
+color = "#20242B"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Teams"
+color = "#3D875A"
+label_color = "#FFFFFF"
+
+[pages.bindings.key-1.press]
+kind = "opencraft.toggle"
+[pages.bindings.key-1.press.settings]
+on_label = "Muted"
+[pages.bindings.key-1.press.settings.on]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings.on.settings]
+hotkey = "shift+cmd+m"
+[pages.bindings.key-1.press.settings.off]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings.off.settings]
+hotkey = "shift+cmd+m"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.toggle"
+[pages.bindings.key-2.press.settings]
+on_label = "Camera off"
+[pages.bindings.key-2.press.settings.on]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings.on.settings]
+hotkey = "shift+cmd+o"
+[pages.bindings.key-2.press.settings.off]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings.off.settings]
+hotkey = "shift+cmd+o"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-3.press.settings]
+hotkey = "shift+cmd+e"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-4.press.settings]
+hotkey = "shift+cmd+k"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-5.press.settings]
+hotkey = "shift+cmd+h"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-6.press.settings]
+application = "Calendar"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-7.press.settings]
+application = "FaceTime"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.volume"
+[pages.bindings.key-8.press.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.key-9.press]
+kind = "opencraft.volume"
+[pages.bindings.key-9.press.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.key-10.press]
+kind = "opencraft.volume"
+[pages.bindings.key-10.press.settings]
+operation = "mute"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.push.settings]
+operation = "mute"
+
+[pages.bindings.touch-bar-1.swipe-left]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-left.settings]
+target = "next"
+
+[pages.bindings.touch-bar-1.swipe-right]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-right.settings]
+target = "previous"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-2.tap.settings]
+target = "number"
+page = 1
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-3.tap.settings]
+target = "number"
+page = 2
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-4.tap.settings]
+target = "number"
+page = 3

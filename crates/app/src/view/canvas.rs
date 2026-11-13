@@ -104,7 +104,7 @@ pub(super) fn touch_bar_centre(layout: &DeviceLayout) -> f32 {
 
 /// The colour of the ring of a knob: the colour of its light in the knob
 /// light mode "Colours", else neutral. A black light is off.
-pub(super) fn knob_ring(settings: Option<&DeviceSettings>, knob: ControlId) -> Rgba {
+pub(crate) fn knob_ring(settings: Option<&DeviceSettings>, knob: ControlId) -> Rgba {
     settings
         .filter(|s| s.knob_lights.mode == KnobLightMode::Colors)
         .and_then(|s| {

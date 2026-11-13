@@ -61,7 +61,10 @@ cargo run -p opencraft-app --release
 ```
 
 The variable `OPENCRAFT_PROFILES_DIR` sets a different profiles directory,
-for example for a test.
+for example for a test. An empty directory gives the first start window.
+With the variable `OPENCRAFT_NO_DEVICE` set, the engine does not look for a
+device, and the window shows the state with no device. Use it to check the
+window while a device is connected: the engine does not open that device.
 
 CI runs four checks on each pull request. Run the same checks on your
 computer before you push. No device is necessary. CI also checks the

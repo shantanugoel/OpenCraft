@@ -4,6 +4,10 @@ This procedure makes key 1 open a web page. It uses the title, the fill
 colour, the icon, and the action of one key. Do the steps in their order.
 
 Before you start, do the steps in [Install and first start](install.md).
+If you started with a starter profile that is not **Empty**, key 1 has a
+title and an action already. This procedure replaces them. To keep them, do
+the procedure on a different key, or add a page first. See
+[Pages](controls.md#pages).
 
 ## 1. Select the key
 
@@ -276,7 +280,8 @@ can do all of this procedure with the keyboard.
 - Make sure that the action is on the card **Press**, not on the card
   **Release**.
 - For "Send a hotkey", "Type text", and "Media key", OpenCraft needs the
-  Accessibility permission. See
+  Accessibility permission. When you add the first of these actions, the
+  window asks for the permission. See
   [Give the Accessibility permission](install.md#give-the-accessibility-permission).
 
 More corrections are in [Faults and corrections](faults.md).

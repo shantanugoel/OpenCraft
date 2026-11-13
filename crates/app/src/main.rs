@@ -13,6 +13,7 @@
 //! start at login (decision 0021).
 
 mod app_menu;
+mod first_start;
 mod images;
 #[cfg(unix)]
 mod lock;
@@ -28,6 +29,7 @@ mod settings_window;
 mod shell;
 #[cfg(unix)]
 mod signals;
+mod starters;
 mod state;
 mod view;
 
@@ -77,12 +79,22 @@ fn opens_window(login: bool, settings: &settings::Settings) -> bool {
     !login && settings.show_window_at_start
 }
 
+/// True if the environment variable `OPENCRAFT_NO_DEVICE` is set. Then the
+/// engine does not look for a device, and the window shows "not connected",
+/// for a check of the window with no device while a device is connected.
+fn no_device() -> bool {
+    std::env::var_os("OPENCRAFT_NO_DEVICE").is_some()
+}
+
 /// Start the device before the GUI toolkit. The sink never waits for the GUI.
 fn start_engine(profiles_dir: PathBuf) -> (EngineHandle, async_channel::Receiver<Event>) {
     let (sender, receiver) = async_channel::unbounded();
     let trace = start_trace();
     let engine = opencraft_engine::spawn(
-        Config { profiles_dir },
+        Config {
+            profiles_dir,
+            no_device: no_device(),
+        },
         opencraft_actions::handlers(),
         move |event| {
             if trace && matches!(event, Event::Connected) {
@@ -193,6 +205,9 @@ fn main() {
             eprintln!("OpenCraft opens no window: the option to show the window at start is off.");
         }
     }
+    // Before the engine starts: with no profile file, the window is the
+    // first start window (decision 0029, section 18).
+    let first_start = !opencraft_engine::ProfilesDir::new(&profiles_dir).has_profiles();
     let (engine, events) = start_engine(profiles_dir.clone());
     // Keep ownership outside the views. The quit hook stops the engine; code
     // after the run loop is a fallback on platforms where it returns.
@@ -241,6 +256,7 @@ fn main() {
         let shell = cx.new(|cx| {
             let mut shell = Shell::new(config_dir, settings, send);
             shell.set_profiles_dir(profiles_dir);
+            shell.set_first_start(first_start);
             shell.listen(events, command_receiver, cx);
             #[cfg(target_os = "macos")]
             shell.add_menu_bar(commands);

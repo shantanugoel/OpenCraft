@@ -831,6 +831,13 @@ impl SurfaceData {
     }
 }
 
+/// Read a profile from the text of a profile file, for example a starter
+/// profile of a shell (decision 0029, section 18). The text has the format
+/// of this module. Image paths are not checked against a directory.
+pub fn profile_from_text(text: &str) -> std::result::Result<Profile, BackupReason> {
+    parse(text)
+}
+
 /// Read the text of a profile file.
 pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     let invalid = |message: String| BackupReason::Invalid(message);

@@ -104,6 +104,11 @@ pub struct ViewState {
     /// (decision 0032). Before the first event, the page has no
     /// background.
     pub background: BackgroundState,
+    /// The name of the kind of the Accessibility request that the main
+    /// window shows, for example "Media key" (decision 0029, section 18).
+    /// `None`: no request shows. The shell shows the request one time in
+    /// each run.
+    pub permission_request: Option<String>,
 }
 
 impl ViewState {

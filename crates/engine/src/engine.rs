@@ -226,6 +226,18 @@ pub enum Command {
     /// [`Event::ProfileImported`]. A file with an error, or with a profile
     /// for a different model, gives a problem and changes nothing.
     ImportProfile { path: PathBuf },
+    /// Add `profile`, a starter profile of the first start (decision 0029,
+    /// section 18), and make it the active profile, as after
+    /// [`Command::AddProfile`]. If a profile of the model has its name, the
+    /// new profile gets a number after the name.
+    ///
+    /// If the active profile is not in a file and has no change, for
+    /// example the profile that the engine made because the model had no
+    /// profile, the new profile takes its place: the engine does not write
+    /// the old profile. A profile for a different model, or a profile with
+    /// an image file, gives a problem and changes nothing: a starter
+    /// profile has no image files.
+    AddStarterProfile { profile: Profile },
     /// Undo the last step of the history: put the pages back as they were
     /// before it, and make the page that was active before it the active
     /// page. See [`Engine::undo`]. With an empty undo list, nothing occurs.
@@ -358,6 +370,7 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         | Command::SetProfileColor { .. }
         | Command::ExportProfile { .. }
         | Command::ImportProfile { .. }
+        | Command::AddStarterProfile { .. }
         | Command::SetDeviceSettings(_)
         | Command::CopyControl { .. }
         | Command::Undo
@@ -1664,6 +1677,64 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
+    /// Add the starter profile `profile`. This is
+    /// [`Command::AddStarterProfile`].
+    fn add_starter_profile(&mut self, mut profile: Profile) {
+        let failed = |e: &dyn std::fmt::Display| {
+            format!("OpenCraft could not add the profile, because {e}.")
+        };
+        if profile.model != self.descriptor.model {
+            return self.problem(failed(&format!(
+                "the profile is for a different device model ({})",
+                profile.model
+            )));
+        }
+        if profile.image_paths().next().is_some() {
+            return self.problem(failed(&"the profile refers to image files"));
+        }
+        // The profile that the engine made at the start is not in a file,
+        // and the user did not change it.
+        let replace =
+            self.can_save && self.changed_at.is_none() && !self.store.profile_path().exists();
+        let others: Vec<ProfileEntry> = self
+            .entries
+            .iter()
+            .filter(|e| !replace || e.id != self.profile_id)
+            .cloned()
+            .collect();
+        let name = profile.name.trim().to_string();
+        profile.name = free_profile_name(
+            if name.is_empty() {
+                DEFAULT_PROFILE_NAME
+            } else {
+                &name
+            },
+            &others,
+        );
+        if !replace && !self.save_before_leaving() {
+            return;
+        }
+        let taken: Vec<&str> = if replace {
+            Vec::new()
+        } else {
+            vec![self.profile_id.as_str()]
+        };
+        let id = match self.profiles.new_id(&profile.name, &taken) {
+            Ok(id) => id,
+            Err(e) => return self.problem(failed(&e)),
+        };
+        let store = self.profiles.store(&id);
+        if let Err(e) = store.save(&profile) {
+            // The directory is new and holds no profile of the user.
+            let _ = std::fs::remove_dir_all(store.dir());
+            return self.problem(failed(&e));
+        }
+        if replace {
+            self.entries = others;
+        }
+        self.change_profile(id, Some(profile));
+    }
+
     fn remove_profile(&mut self, id: String) {
         if !self.is_profile(&id) {
             return;
@@ -2010,6 +2081,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Command::SetFirstPage { profile, page } => self.set_first_page(profile, page),
             Command::ExportProfile { profile, path } => self.export_profile(profile, path),
             Command::ImportProfile { path } => self.import_profile(path),
+            Command::AddStarterProfile { profile } => self.add_starter_profile(profile),
             Command::Undo => self.undo(),
             Command::Redo => self.redo(),
             Command::StartTextEdit => self.history.start_text_edit(),

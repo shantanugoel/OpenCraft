@@ -126,8 +126,15 @@ fn main() {
             }
         }
     };
-    let engine =
-        spawn(Config { profiles_dir }, Vec::new(), sink).expect("cannot start the engine thread");
+    let engine = spawn(
+        Config {
+            profiles_dir,
+            no_device: false,
+        },
+        Vec::new(),
+        sink,
+    )
+    .expect("cannot start the engine thread");
 
     std::thread::scope(|scope| {
         let (stop, receiver) = std::sync::mpsc::channel::<()>();

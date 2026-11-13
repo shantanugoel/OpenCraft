@@ -34,9 +34,13 @@
 use crate::action::{Feedback, FeedbackState};
 use crate::icons;
 use crate::label::{self, Align, Area, Font};
-use crate::profile::{Background, BackgroundFit, Color, LabelPosition, LabelStyle, SurfaceContent};
+use crate::layout::DeviceLayout;
+use crate::profile::{
+    Background, BackgroundFit, Color, LabelPosition, LabelStyle, Page, SurfaceContent,
+};
 use image::imageops::{self, FilterType};
 use image::{DynamicImage, Rgb, RgbImage};
+use opencraft_core::{SurfaceId, SurfaceKind};
 
 /// The colour of a surface that has no colour.
 pub const DEFAULT_COLOR: Color = Color::BLACK;
@@ -238,6 +242,30 @@ pub fn icon_side(width: u32, height: u32) -> u32 {
         0 => most,
         side => side,
     }
+}
+
+/// The image of each key face and each bar panel of `page` on a device
+/// with the layout `layout`, in the order of the layout. It is a picture of
+/// a page that the device does not show, for example a page of a starter
+/// profile of the first start (decision 0029, section 18). The images have
+/// no feedback of a handler and no image file: a starter profile has no
+/// image files. The device shows the same images when the page is active,
+/// until a handler sends feedback.
+pub fn page_preview(page: &Page, layout: &DeviceLayout) -> Vec<(SurfaceId, RgbImage)> {
+    layout
+        .surfaces
+        .iter()
+        .filter(|s| matches!(s.id.kind, SurfaceKind::KeyFace | SurfaceKind::BarPanel))
+        .map(|s| {
+            let size = Size {
+                width: u32::from(s.width),
+                height: u32::from(s.height),
+            };
+            let mut content = page.content(s.id);
+            content.image = None;
+            (s.id, surface_image(size, &content, None))
+        })
+        .collect()
 }
 
 /// The vertical place of a label in its area for `position`.
@@ -719,6 +747,33 @@ mod tests {
             let image = surface_image(size, &SurfaceContent::default(), None);
             assert_eq!(image.dimensions(), (size.width, size.height));
             assert!(image.pixels().all(|p| *p == Rgb([0, 0, 0])));
+        }
+    }
+
+    #[test]
+    fn a_page_preview_has_the_key_faces_and_the_bar_panels_with_their_content() {
+        let descriptor = &opencraft_core::device::DESCRIPTORS[0];
+        let layout = DeviceLayout::from(descriptor);
+        let key = SurfaceId::new(SurfaceKind::KeyFace, 2);
+        let mut page = Page::new("Page 1");
+        page.update(key, |c| {
+            c.color = Some(RED);
+            // A preview does not load an image file.
+            c.image = Some("images/missing.png".into());
+        });
+        let preview = page_preview(&page, &layout);
+        let kinds = |kind| preview.iter().filter(|(id, _)| id.kind == kind).count();
+        assert_eq!(kinds(SurfaceKind::KeyFace), 10);
+        assert_eq!(kinds(SurfaceKind::BarPanel), 4);
+        assert_eq!(preview.len(), 14, "no background");
+        for (id, image) in &preview {
+            let surface = layout.surface(*id).unwrap();
+            assert_eq!(
+                image.dimensions(),
+                (u32::from(surface.width), u32::from(surface.height))
+            );
+            let want = if *id == key { RED } else { DEFAULT_COLOR };
+            assert!(image.pixels().all(|p| *p == Rgb(want.0)), "{id:?}");
         }
     }
 
