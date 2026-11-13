@@ -400,7 +400,7 @@ impl DeviceView {
         self.focus_workspace(window, cx);
     }
 
-    /// True if the key face has no label, no colour, no image, and no
+    /// True if the key face has no label, no colour, no image, no icon, and no
     /// binding. It then shows a dashed border and a plus icon.
     fn empty_key_face(&self, id: SurfaceId) -> bool {
         if id.kind != SurfaceKind::KeyFace {

@@ -321,6 +321,46 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
     );
 }
 
+/// Each built-in kind has the icon of decision 0029, section 20, and the
+/// icon set of the engine has it (decision 0033). The shell shows the icon
+/// on the kind tile from this data only (rule 8).
+#[test]
+fn each_built_in_kind_has_an_icon_of_the_icon_set() {
+    let mut world = World::new();
+    let kinds = world
+        .take_events()
+        .into_iter()
+        .find_map(|e| match e {
+            Event::Kinds(kinds) => Some(kinds),
+            _ => None,
+        })
+        .expect("the kinds");
+    let icons: Vec<_> = kinds
+        .iter()
+        .filter(|k| k.kind != NESTED)
+        .map(|k| (k.name.as_str(), k.icon.as_deref().unwrap_or("")))
+        .collect();
+    assert_eq!(
+        icons,
+        [
+            ("Open an application", "app-window"),
+            ("Open a URL", "globe"),
+            ("Run a shell command", "terminal"),
+            ("Send a hotkey", "keyboard"),
+            ("Type text", "type"),
+            ("Media key", "play"),
+            ("Sound volume", "volume-2"),
+            ("Change the page", "arrow-right"),
+            ("Select a profile", "layers"),
+            ("Toggle", "toggle-left"),
+            ("Sequence of actions", "list"),
+        ]
+    );
+    for (_, icon) in icons {
+        assert!(opencraft_engine::icon_set().get(icon).is_some(), "{icon}");
+    }
+}
+
 #[test]
 fn a_toggle_on_a_key_does_its_action_and_shows_its_state_with_a_frame() {
     let mut world = World::new();

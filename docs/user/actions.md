@@ -30,7 +30,8 @@ The tab **Library** of the right panel shows all action kinds in their
 groups. Each row shows the tile of the kind, its name, and at the right a
 short help text: "Accessibility" for a kind that needs the Accessibility
 permission, and "Knob" for **Sound volume**, which is best on a knob. The
-tile has the colour of the group.
+tile has the colour of the group and the icon of the kind, for example a
+globe for **Open a URL**.
 
 ![The library, after a click on "Open a URL" with key 7 selected](images/library.png)
 

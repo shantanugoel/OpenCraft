@@ -21,6 +21,10 @@
 # dependency, and no crate of the workspace. A proc-macro crate runs in the
 # compiler. Its code is not in the executable.
 #
+# The file also gives the works that are not crates and that the executable
+# contains: the icons of Lucide in the engine (decision 0033), with the
+# licence file crates/engine/icons/LICENSE.
+#
 # The other options need cargo-about (`cargo install cargo-about --locked
 # --features cli`) and jq. cargo-about runs with --offline, thus it reads
 # only the files of the crates in the cargo registry. Run `cargo fetch` one
@@ -117,7 +121,8 @@ jq -r --rawfile crates "$work/crates.txt" --arg key "$key_value" '
   "text. The OpenCraft executable for macOS on Apple silicon contains the code",
   "of the crates below. Each crate has its own licence. This file gives each",
   "crate, the licence that applies to the copy in OpenCraft, and the licence",
-  "texts with the copyright lines that the crates give.",
+  "texts with the copyright lines that the crates give. The works that are",
+  "not crates are at the end of the file.",
   "",
   "The source code of each crate is on crates.io:",
   "https://crates.io/crates/<name>/<version>.",
@@ -160,6 +165,22 @@ jq -r --rawfile crates "$work/crates.txt" --arg key "$key_value" '
       "",
       (.text | sub("\\s+$"; "")) )
 ' "$work/about.json" > "$work/notices.txt"
+
+# The works that are not crates.
+icons_licence="crates/engine/icons/LICENSE"
+[ -s "$icons_licence" ] || fail "$icons_licence does not exist."
+{
+    echo ""
+    echo ""
+    echo "== Works that are not crates (1) =="
+    echo ""
+    echo "----------------------------------------------------------------------"
+    echo "The Lucide icons (https://lucide.dev) in crates/engine/icons"
+    echo "Licence: ISC, and MIT for the icons from the Feather project"
+    echo "----------------------------------------------------------------------"
+    echo ""
+    cat "$icons_licence"
+} >> "$work/notices.txt"
 
 if [ "$mode" = "check" ]; then
     [ -f "$NOTICES" ] || fail "$NOTICES does not exist. Run scripts/notices.sh."

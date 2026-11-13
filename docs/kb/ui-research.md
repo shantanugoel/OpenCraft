@@ -82,6 +82,24 @@ the vendor or from a report about the software.
 | The default `Assets` source embeds only 101 icons. The macro `icon_assets!` embeds only the icons that it names. `AllAssets` embeds all 1,830 icons: about 731 KiB of SVG data, and 1.02 MiB more in the binary. | Source | README of `gpui-kit-assets` 0.9.1. The crate measured it on Linux x86_64. |
 | The wireframes of the overhaul draw line icons on a grid of 24, with a stroke of 1.6 to 2.0. This is the style of Lucide. | Inference | The wireframes of issue #173 |
 
+## The Lucide icons for surfaces (2026-11-13)
+
+The facts for [decision 0033](../decisions/0033-surface-icons.md). The
+source archive is the archive of the release 1.43.0 on GitHub, from the
+address that `gpui-kit-assets` 0.9.1 gives in its file `lucide.json`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The SHA-256 of the archive is `d57793fa27a720cf487249940c8d68544c7a0d2ed2a046baad65012a902536ed`, the value in `lucide.json` of `gpui-kit-assets` 0.9.1. The archive of the tag from a different address of GitHub has a different checksum. | Measured | `shasum -a 256` of the two downloads |
+| The archive has 1,818 icons: each icon is an SVG file and a JSON file with its tags and its categories. It has 42 categories, each with a title, for example "Multimedia". | Measured | `icons/` and `categories/` of the archive |
+| All 1,818 SVG files have the same element `<svg>`: 24 × 24, view box `0 0 24 24`, no fill, a stroke of width 2 in `currentColor`, and round ends and joins. | Measured | `scripts/lucide-icons.sh`, which stops if a file is different |
+| The children of the element `<svg>` use only `path`, `circle`, `rect`, `line`, `polyline`, `polygon`, and `ellipse`. 20 of them have a `fill` attribute. | Measured | The SVG files |
+| The SVG elements of all icons are 340,416 bytes, and their tags are 113,041 bytes. With the names and the categories, the data file of the engine is 499,309 bytes. | Measured | `crates/engine/icons/lucide.tsv` |
+| Each icon has one or more categories. The first category is not always the first in the order of the alphabet (713 icons), thus it is the main category of the icon. 40 of the 42 categories are the first category of at least one icon. | Measured | The JSON files |
+| The licence file of the archive is the same text as `LICENSE-LUCIDE` of `gpui-kit-assets`: ISC for Lucide, and MIT for the icons from the Feather project, with the list of these icons. | Measured | `LICENSE` of the archive |
+| `usvg` 0.46 with no default feature reads all 1,818 icons with no error. | Measured | Test `each_icon_is_a_correct_svg` in `crates/engine/src/icons.rs` |
+| The names of the 11 kind icons of decision 0029, section 20, are in the set. | Measured | Test `the_kind_icons_of_decision_0029_are_in_the_set` |
+
 ## Not known
 
 - Whether GPUI gives each part of the layout: a divider that changes the

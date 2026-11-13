@@ -849,6 +849,28 @@ a profile, on the computer of [Release measurements](#release-measurements).
 | A window test can read the text that a part of the window shows. `TestTextExt::test_text(text)` (`gpui_kit::base::TestTextExt`) on an element records the text at each paint, and `gpui_kit::base::test_support::texts(window)` returns the texts of the last frame. Without the feature `test-support`, `test_text` returns the element, thus the application has no cost. The Root of the window starts each frame. | Source; Measured | `gpui-base` 0.9.1 `src/observe.rs`, `src/test_support.rs`; `the_recorder_shows_the_symbols_in_the_order_of_macos` |
 | `debug_bounds` gives only the place of an element, and the a11y tree of the test platform is not built. The text of a window part needs `test_text`. | Source | `gpui-pre` 0.3.12 `src/window/a11y.rs` |
 
+## Icon picker in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+icon picker of [issue 190](https://github.com/shantanugoel/OpenCraft/issues/190),
+on the computer of [Release measurements](#release-measurements), with a
+scratch copy of a profile and the device connected. A helper program
+operated the real window with Quartz events and took pictures of the window
+only. A USB camera took one picture of the device. The pictures are kept
+outside the repository. The window tests are in
+`crates/app/src/view/tests/icons.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `svg().path(path)` loads the SVG through the asset source of the application. An asset source that gives `Cow::Owned` bytes for a path that the window icons do not have, and gives the other paths to the `icon_assets!` source, shows both. | Source; Measured | `gpui-pre` 0.3.12 `src/elements/svg.rs`; `crates/app/src/view/theme.rs`, `WindowAssets`; window pictures |
+| An SVG paints only with the text colour of its own style. A text colour on its parent does not go to it: the icons of the grid were not visible until each `svg()` got its own `text_color`. For a colour under the pointer, use `group` on the cell and `group_hover` on the SVG. | Source; Measured | `src/elements/svg.rs`, `paint`; window pictures |
+| `svg().data(bytes)` draws SVG data with no asset source, in its text colour. Two triangles of 22 × 11 on top of each other, one pixel apart, make the arrow of a popover with a border. | Source; Measured | `src/elements/svg.rs`; window picture |
+| An absolute child has its place from its parent, not from the nearest positioned ancestor (Taffy). An absolute element in a normal child that came after a `size_full` child showed below the popover. Give the layer of the arrow `absolute().top_0().left_0().size_full()`. | Measured | Window pictures |
+| A `canvas` child with `absolute().size_full()` in a button gets the bounds of the button in window coordinates in its prepaint. The view keeps them in a `Cell`, and the next frame puts the popover with `anchored().position(..)` at a place that the view calculates. | Measured | `crates/app/src/view/icon_picker.rs`, `place`; window pictures |
+| `list(ListState, ..)` shows rows of different heights: group titles and rows of 7 cells. `ListState::reset(count)` after a new search shows the start of the list. `Scrollbar::vertical(&ListState)` gives the scrollbar. Only the visible rows are made: 1,818 icons in 318 rows (40 group titles) showed with no delay in a debug build. | Source; Measured | `src/elements/list.rs`; `gpui-base` 0.9.1 `src/scrollbar.rs`; window pictures |
+| `.hover(..)` two times on one element stops the application: "hover style already set". The shared `button` sets a hover, thus a button with a different look needs its own element. | Measured | Window tests |
+| A Quartz mouse event with no `CGEventSetFlags` takes the modifier state of an earlier event. After the key events of a different program, a click became a Control-click: the canvas opened its context menu, and a button did nothing. Set the flags of each mouse event to 0. | Measured | Helper program; window pictures |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

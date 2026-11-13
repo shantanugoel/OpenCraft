@@ -1,6 +1,6 @@
 # Dependency licences and licence notices
 
-Last update: 2026-11-12
+Last update: 2026-11-13
 
 The decision that uses these facts is
 [decision 0026](../decisions/0026-licence-notices.md).
@@ -85,7 +85,8 @@ The tool is `cargo-about` 0.9.3 with `--offline`.
 | The crates of the workspace embed no file in the executable. The only `include_str!` calls are in tests, and they read source files of the project. | Measured | `grep` of `crates/` |
 | The bundle contains `OpenCraft.icns`. `scripts/make-icon.swift` of the project draws it. | Source | [decision 0025](../decisions/0025-release-form.md) |
 | GPUI embeds the fonts IBM Plex Sans and Lilex only in `#[cfg(test)]` code. The executable contains no font. | Source | `gpui-pre` 0.3.12 `src/svg_renderer.rs`; `gpui-pre-apple` 0.3.12 `src/text_system.rs` |
-| The Lucide icon files of `gpui-kit-assets` are not in the executable. The executable contains two SVG texts, from `gpui-base`: a chevron down and a chevron right. Their paths are the same as the Lucide icons `chevron-down` and `chevron-right`, which Lucide lists as icons from Feather. | Measured (`strings` of the release executable); Source (`gpui-base` 0.9.1, `LICENSE-LUCIDE`) | Release executable; crate sources |
+| In the release of Phase 6 (2026-11-12), the Lucide icon files of `gpui-kit-assets` were not in the executable. It contained two SVG texts, from `gpui-base`: a chevron down and a chevron right. Their paths are the same as the Lucide icons `chevron-down` and `chevron-right`, which Lucide lists as icons from Feather. | Measured (`strings` of the release executable); Source (`gpui-base` 0.9.1, `LICENSE-LUCIDE`) | Release executable; crate sources |
+| Since 2026-11-13, the executable contains the icons of Lucide 1.43.0: the file `crates/engine/icons/lucide.tsv` of the engine ([decision 0033](../decisions/0033-surface-icons.md)). The window also embeds the Lucide icons of its own buttons with `icon_assets!` of `gpui-kit-assets` (decision 0029, section 3.6). The licence is ISC, and MIT for the icons from Feather. `scripts/notices.sh` adds the licence file `crates/engine/icons/LICENSE` in the section "Works that are not crates". | Measured | `crates/engine/src/icons.rs`; `crates/app/src/view/theme.rs`; `THIRD-PARTY-NOTICES.txt` |
 | The Mirabox StreamDock Device SDK (MIT) and `mirajazz` (MPL-2.0) are not dependencies. The project read them and took facts: operation codes, byte values, intervals, and JPEG quality values. No source text of them is in OpenCraft. | Source | [decision 0002](../decisions/0002-hidapi-transport.md); comments in `crates/core/src/protocol.rs`; [streamdock-protocol.md](streamdock-protocol.md#sources) |
 | The MIT licence and the MPL-2.0 apply to copies of the software and of the covered source. Facts of a protocol are not a copy. Thus they ask for no notice in OpenCraft. The README of the repository gives credit to both. | Inference | The licence texts |
 

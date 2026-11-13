@@ -154,8 +154,12 @@ add "Set First Page": the mark of the first page is on a page, thus it is in
 the copy of the pages. The page background of
 [#191](https://github.com/shantanugoel/OpenCraft/issues/191) adds "Set
 Background", "Remove the Background", and "Set Background Fit"
-([decision 0032](0032-page-background.md)). The colour of a profile is not in the pages, and it
-has no step, as the name. An import adds a profile and makes it the active
+([decision 0032](0032-page-background.md)). The icon of a surface of
+[#190](https://github.com/shantanugoel/OpenCraft/issues/190) adds "Set
+Icon" (a new icon or a new icon colour) and "Remove the Icon" ("No icon",
+which also removes an image); the icon is in the content of the surface,
+thus the copy of the pages has it ([decision 0033](0033-surface-icons.md)).
+The colour of a profile is not in the pages, and it has no step, as the name. An import adds a profile and makes it the active
 profile, thus it empties the history. The
 editors of a toggle and a sequence of
 [#183](https://github.com/shantanugoel/OpenCraft/issues/183) send

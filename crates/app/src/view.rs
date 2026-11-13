@@ -13,6 +13,7 @@
 //! | `status_bar` | The status bar and the messages below the canvas |
 //! | `right_panel` | The right panel and its tabs |
 //! | `inspector` | The "Inspector" tab: the editor of the selection |
+//! | `icon_picker` | The row "Icon" of "Appearance", and the icon picker popover |
 //! | `page_inspector` | The inspector of the page, with the swipe gestures of the touch bar |
 //! | `knob` | The inspector of a knob: the "Turn" card, and the section of its bar panel |
 //! | `library` | The "Library" tab: the action kinds in their groups |
@@ -65,6 +66,7 @@ mod form;
 mod gesture_card;
 mod history;
 mod hotkey;
+mod icon_picker;
 mod inspector;
 mod knob;
 mod library;

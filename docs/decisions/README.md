@@ -48,6 +48,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0030](0030-undo-and-redo-in-the-engine.md) | The engine keeps the history of undo and redo, as copies of the pages | Accepted |
 | [0031](0031-profile-export-file.md) | A profile goes to one TOML file with its images as Base64 text | Accepted |
 | [0032](0032-page-background.md) | Each page has a background, and a surface with no fill shows it | Accepted |
+| [0033](0033-surface-icons.md) | The engine draws a Lucide icon on a surface from a name in the profile | Accepted |
 
 ## Template
 

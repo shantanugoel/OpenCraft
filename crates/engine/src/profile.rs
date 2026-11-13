@@ -71,11 +71,11 @@ impl FromStr for Color {
 /// Where the label of a surface is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LabelPosition {
-    /// At the top. With an image, the label is in a band above the image.
+    /// At the top. With an image or an icon, the label is in a band above it.
     Top,
-    /// At the centre. With an image, the label is on the image.
+    /// At the centre. With an image or an icon, the label is on it.
     Middle,
-    /// At the bottom. With an image, the label is in a band below the image.
+    /// At the bottom. With an image or an icon, the label is in a band below it.
     Bottom,
     /// The surface does not show the label. The text stays in the profile.
     Hidden,
@@ -115,8 +115,8 @@ pub const LABEL_SIZES: [u8; 9] = [10, 12, 14, 16, 18, 20, 24, 28, 32];
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LabelStyle {
     /// `None`: the automatic position. It is [`LabelPosition::Middle`] on a
-    /// surface with no image, and [`LabelPosition::Bottom`] on a surface
-    /// with an image. See [`LabelStyle::position_for`].
+    /// surface with no image and no icon, and [`LabelPosition::Bottom`] on a
+    /// surface with an image or an icon. See [`LabelStyle::position_for`].
     pub position: Option<LabelPosition>,
     /// The font size, in pixels of the surface image. If the text does not
     /// fit at this size, the font becomes smaller. The default is
@@ -141,10 +141,10 @@ impl Default for LabelStyle {
 }
 
 impl LabelStyle {
-    /// The position of the label on a surface with an image or with no
-    /// image.
-    pub fn position_for(&self, has_image: bool) -> LabelPosition {
-        self.position.unwrap_or(if has_image {
+    /// The position of the label on a surface with a picture (an image or
+    /// an icon) or with no picture. See [`SurfaceContent::has_picture`].
+    pub fn position_for(&self, has_picture: bool) -> LabelPosition {
+        self.position.unwrap_or(if has_picture {
             LabelPosition::Bottom
         } else {
             LabelPosition::Middle
@@ -191,6 +191,41 @@ pub struct SurfaceContent {
     /// The image, as a path relative to the profile directory. The store
     /// makes this path: see [`crate::store::ProfileStore::import_image`].
     pub image: Option<String>,
+    /// An icon of the built-in set (see [`crate::icons`]). A surface has an
+    /// image or an icon, not both: the commands remove the other one.
+    pub icon: Option<SurfaceIcon>,
+}
+
+/// An icon on a surface: a name of the built-in icon set and a colour
+/// (decision 0033).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SurfaceIcon {
+    /// The name of the icon in [`crate::icons::icon_set`], for example
+    /// `globe`. A name that the set does not have stays in the profile, and
+    /// the surface shows no icon.
+    pub name: String,
+    /// `None`: black or white, the colour that shows best on the fill. See
+    /// [`crate::render::icon_color`].
+    pub color: Option<Color>,
+}
+
+impl SurfaceIcon {
+    /// The icon `name` with the automatic colour.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            color: None,
+        }
+    }
+
+    /// True if `name` can be an icon name in the profile file: small
+    /// letters, digits, and hyphens.
+    pub fn is_name(name: &str) -> bool {
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    }
 }
 
 impl SurfaceContent {
@@ -200,6 +235,23 @@ impl SurfaceContent {
             && self.label_style == LabelStyle::default()
             && self.color.is_none()
             && self.image.is_none()
+            && self.icon.is_none()
+    }
+
+    /// True if the content shows a picture: an image, or an icon of the
+    /// built-in set. The label then has the bottom as its automatic
+    /// position (see [`LabelStyle::position_for`]).
+    pub fn has_picture(&self) -> bool {
+        self.image.is_some() || self.known_icon().is_some()
+    }
+
+    /// The icon of the built-in set that the surface shows: none if the
+    /// surface has an image, or if the set does not have the name.
+    pub fn known_icon(&self) -> Option<&'static crate::icons::Icon> {
+        if self.image.is_some() {
+            return None;
+        }
+        crate::icons::icon_set().get(&self.icon.as_ref()?.name)
     }
 }
 

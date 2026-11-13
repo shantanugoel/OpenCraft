@@ -48,6 +48,9 @@ type Handler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 pub(super) struct KindLabel {
     name: SharedString,
     letter: SharedString,
+    /// The asset path of the kind icon, if the icon set has the icon of
+    /// the description.
+    icon: Option<SharedString>,
     colour: Rgba,
     available: bool,
 }
@@ -64,17 +67,24 @@ pub(super) enum TileSize {
 
 impl KindLabel {
     /// The label of a kind with a handler. The tile has the colour of the
-    /// group of the kind (decision 0029, section 20). Until #190 gives the
-    /// kind icons, the tile shows the first letter of the name.
+    /// group of the kind and the icon of its description (decision 0029,
+    /// section 20). A kind with no icon, or with an icon that the icon set
+    /// does not have, shows the first letter of the name.
     pub(super) fn new(kind: &KindDescription) -> Self {
         let name: SharedString = kind.name.clone().into();
         let letter = name
             .chars()
             .next()
             .map_or_else(|| "?".to_string(), |c| c.to_uppercase().to_string());
+        let icon = kind
+            .icon
+            .as_deref()
+            .filter(|icon| opencraft_engine::icon_set().get(icon).is_some())
+            .map(theme::surface_icon_path);
         Self {
             name,
             letter: letter.into(),
+            icon,
             colour: theme::kind_tile(&kind.group),
             available: true,
         }
@@ -86,6 +96,7 @@ impl KindLabel {
         Self {
             name: "Not available".into(),
             letter: "?".into(),
+            icon: None,
             colour: theme::KIND_TILE_UNAVAILABLE,
             available: false,
         }
@@ -96,24 +107,33 @@ impl KindLabel {
         &self.name
     }
 
-    /// The tile of the kind: 18 × 18, 20 × 20, 24 × 24, or 22 × 22.
+    /// The tile of the kind: 18 × 18, 20 × 20, 24 × 24, or 22 × 22, with
+    /// the kind icon in white, or the first letter.
     pub(super) fn tile(&self, size: TileSize) -> Div {
-        let (size, radius, text) = match size {
+        let (size, radius, text, icon) = match size {
             TileSize::Nested => (
                 theme::KIND_TILE_NESTED,
                 theme::RADIUS_BADGE,
                 theme::TEXT_BADGE,
+                theme::ICON_KIND_NESTED,
             ),
-            TileSize::Card => (theme::KIND_TILE, theme::RADIUS_SEGMENT, theme::TEXT_CAPTION),
+            TileSize::Card => (
+                theme::KIND_TILE,
+                theme::RADIUS_SEGMENT,
+                theme::TEXT_CAPTION,
+                theme::ICON_KIND,
+            ),
             TileSize::Library => (
                 theme::KIND_TILE_LIBRARY,
                 theme::RADIUS_CONTROL,
                 theme::TEXT_LABEL,
+                theme::ICON_KIND_LIBRARY,
             ),
             TileSize::Drag => (
                 theme::KIND_TILE_DRAG,
                 theme::RADIUS_SEGMENT,
                 theme::TEXT_CAPTION,
+                theme::ICON_KIND_DRAG,
             ),
         };
         div()
@@ -127,7 +147,22 @@ impl KindLabel {
             .text_size(text)
             .font_weight(FontWeight::BOLD)
             .text_color(theme::SWITCH_KNOB_COLOUR)
-            .child(self.letter.clone())
+            .map(|d| match &self.icon {
+                Some(path) => d.child(
+                    gpui_kit::svg()
+                        .path(path.clone())
+                        .size(icon)
+                        .flex_shrink_0()
+                        .text_color(theme::SWITCH_KNOB_COLOUR),
+                ),
+                None => d.child(self.letter.clone()),
+            })
+    }
+
+    /// The asset path of the kind icon, if the tile shows an icon.
+    #[cfg(test)]
+    pub(super) fn icon(&self) -> Option<&SharedString> {
+        self.icon.as_ref()
     }
 
     /// The chip of the drag picture (decision 0029, section 12): the tile

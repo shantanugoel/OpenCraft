@@ -37,6 +37,8 @@ pub(super) struct InspectorState {
     _text_colour_subscription: Subscription,
     /// The menu of the fit of the page background is open (section 10.6).
     pub(super) fit_open: bool,
+    /// The icon picker of the row "Icon" (section 14).
+    pub(super) icon_picker: super::icon_picker::IconPicker,
 }
 
 impl InspectorState {
@@ -77,13 +79,18 @@ impl InspectorState {
             text_colour_input,
             _text_colour_subscription: text_subscription,
             fit_open: false,
+            icon_picker: super::icon_picker::IconPicker::new(window, cx),
         }
     }
 
     /// True if a menu or a popover of the "Appearance" section, or of the
     /// "Background" section of the page, is open.
     pub(super) fn is_open(&self) -> bool {
-        self.colour_open || self.size_open || self.text_colour_open || self.fit_open
+        self.colour_open
+            || self.size_open
+            || self.text_colour_open
+            || self.fit_open
+            || self.icon_picker.open
     }
 
     /// Close each menu and popover of the "Appearance" section and of the
@@ -93,6 +100,7 @@ impl InspectorState {
         self.size_open = false;
         self.text_colour_open = false;
         self.fit_open = false;
+        self.icon_picker.open = false;
     }
 }
 
@@ -356,14 +364,14 @@ impl DeviceView {
     }
 
     /// The "Appearance" section of a key face or a bar panel (section
-    /// 10.2). #190 changes "Image" to "Icon".
+    /// 10.2).
     fn appearance(&self, id: SurfaceId, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         form::section("appearance", "Appearance", None)
             .child(form::form(theme::FORM_GAP).children(self.appearance_rows(id, window, cx)))
             .into_any_element()
     }
 
-    /// The rows of "Appearance": "Image", "Title", "Position", "Text", and
+    /// The rows of "Appearance": "Icon", "Title", "Position", "Text", and
     /// "Fill". The "Bar panel" section of a knob (section 10.4) and the
     /// face "Off" of the appearance of each state (section 10.5) also have
     /// them.
@@ -373,34 +381,17 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
-        let content = self.state.surfaces.get(&id).map(|s| &s.content);
-        let has_image = content.is_some_and(|c| c.image.is_some());
-        let content = content.cloned().unwrap_or_default();
+        let content = self
+            .state
+            .surfaces
+            .get(&id)
+            .map(|s| s.content.clone())
+            .unwrap_or_default();
         let row = |label: &str, value: AnyElement| {
             form::row(label.to_string(), theme::FORM_LABEL, theme::FORM_GAP, value)
         };
         vec![
-            row(
-                "Image",
-                div()
-                    .flex()
-                    .gap(theme::GAP_ITEMS)
-                    .child(
-                        button("choose-image", "Image file…")
-                            .on_click(cx.listener(|view, _, window, cx| view.dialog(window, cx))),
-                    )
-                    .child(
-                        button_if("remove-image", "Remove", has_image).when(has_image, |d| {
-                            d.on_click(cx.listener(move |view, _, _, _| {
-                                (view.send)(Command::SetImage {
-                                    surface: id,
-                                    path: None,
-                                })
-                            }))
-                        }),
-                    )
-                    .into_any_element(),
-            ),
+            row("Icon", self.icon_row(id, &content, window, cx)),
             row(
                 "Title",
                 controls::text_field(
@@ -427,7 +418,7 @@ impl DeviceView {
     /// surface shows, also when the profile has no position (the engine
     /// gives the automatic position).
     fn label_position(&self, content: &SurfaceContent, cx: &mut Context<Self>) -> AnyElement {
-        let current = content.label_style.position_for(content.image.is_some());
+        let current = content.label_style.position_for(content.has_picture());
         let segments = LabelPosition::ALL
             .into_iter()
             .map(|position| {

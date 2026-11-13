@@ -12,6 +12,7 @@
 //! - [`store`]: one profile directory: the profile file and the image files.
 //! - [`share`]: the profile file for export and import, with the images.
 //! - [`render`] and [`label`]: the image of a surface, made from its content.
+//! - [`icons`]: the built-in icon set for surfaces.
 //! - [`device_settings`]: the device settings of each model, and their file.
 //! - [`layout`]: the layout of the device, as a message for a shell.
 //! - [`engine`]: the engine logic, with the commands and the events.
@@ -27,6 +28,7 @@ pub mod device_settings;
 pub mod engine;
 pub mod error;
 pub mod history;
+pub mod icons;
 pub mod label;
 pub mod layout;
 pub mod profile;
@@ -47,10 +49,11 @@ pub use opencraft_core::{ControlId, ControlKind, Gesture, InputEvent, SurfaceId,
 pub use runtime::{spawn, Config, EngineHandle};
 
 pub use error::{Error, Result};
+pub use icons::{icon_set, Icon, IconCategory, IconSet};
 pub use profile::{
     Background, BackgroundFit, Color, LabelChange, LabelPosition, LabelStyle, Page, Profile,
-    SurfaceContent, LABEL_SIZES,
+    SurfaceContent, SurfaceIcon, LABEL_SIZES,
 };
 pub use profiles::{ProfileEntry, ProfilesDir};
-pub use render::label_color;
+pub use render::{icon_color, label_color};
 pub use store::{default_profiles_dir, Backup, BackupReason, Loaded, ProfileStore};

@@ -26,7 +26,7 @@ Knob 1 is below bar panel 1.
 | A blue outline | The selected control. At the start, the selected control is the key at the top left. |
 | A thin blue outline | The control below the pointer |
 | A dashed blue outline on a bar panel | The bar panel that gives feedback for the selected knob. The line below the device tells which knob. |
-| A dashed border and a plus (+) on a key face | The key has no label, no colour, no image, and no action |
+| A dashed border and a plus (+) on a key face | The key has no label, no colour, no icon, no image, and no action |
 | A dashed blue border and "Drop here" | The control below the pointer during a drag from the library. See [Drag an action onto a control](actions.md#drag-an-action-onto-a-control). |
 | The ring of a knob | The colour of the knob light, when the knob lights are set to **Colours**. Else the ring is grey. |
 | A yellow glow | The control that you operate on the device now. A yellow dot shows where you touch the touch bar. |
@@ -93,7 +93,7 @@ the knob:
 | Row | What it does |
 |---|---|
 | **Face** | Shows the image of the bar panel, as the device shows it |
-| **Image**, **Title**, **Position**, **Text**, **Fill** | Change the bar panel, as in the **Appearance** section of a bar panel. See [Set the title and the fill](first-key.md#2-set-the-title-and-the-fill). |
+| **Icon**, **Title**, **Position**, **Text**, **Fill** | Change the bar panel, as in the **Appearance** section of a bar panel. See [Set the title and the fill](first-key.md#2-set-the-title-and-the-fill). |
 | **Tap** | The card of the action for a tap on that bar panel |
 
 Thus you can configure the knob and its bar panel in one inspector.
@@ -113,8 +113,8 @@ The colours of the knob lights are device settings. See
 ## The touch bar
 
 The touch bar is one long touch display. OpenCraft shows it as four bar
-panels. Each bar panel has its own label, colour, and image, as a key face
-does.
+panels. Each bar panel has its own label, colour, and icon or image, as a
+key face does.
 
 There are two types of touch gesture:
 
@@ -126,7 +126,7 @@ There are two types of touch gesture:
 To set the action of a tap:
 
 1. Click a bar panel in the device picture.
-2. Set the label, the colour, the image, and the action, as for a key. See
+2. Set the label, the colour, the icon, and the action, as for a key. See
    [Configure a key](first-key.md).
 
 To set the action of a swipe:
@@ -292,8 +292,8 @@ sheet is open.
 
 You can put a profile in one file, for example to keep a copy or to give
 the profile to a different person. The file has the extension `.opencraft`.
-It contains the pages, the images, the colour, and the first page of the
-profile.
+It contains the pages with their icons, the images, the colour, and the
+first page of the profile.
 
 | To do this | Do this in the profile settings |
 |---|---|

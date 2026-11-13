@@ -403,6 +403,29 @@ impl Shell {
         }
     }
 
+    /// The icons that the user chose last, the newest first (decision
+    /// 0029, section 14).
+    pub fn recent_icons(&self) -> &[String] {
+        &self.settings.recent_icons
+    }
+
+    /// Put the icon `name` at the start of the recent icons, and keep the
+    /// list in `shell.toml`.
+    pub fn add_recent_icon(&mut self, name: &str, cx: &mut Context<Self>) {
+        if !self.settings.add_recent_icon(name) {
+            return;
+        }
+        if let Err(error) = settings::save(&self.config_dir, &self.settings) {
+            self.problem(
+                format!(
+                    "OpenCraft cannot save the recent icons in {}: {error}",
+                    self.config_dir.join(settings::FILE_NAME).display()
+                ),
+                cx,
+            );
+        }
+    }
+
     /// A text field of the window that edits the profile got the focus
     /// (`true`) or lost it (`false`). The Edit menu then names the steps of
     /// the profile, or no step.
@@ -514,7 +537,7 @@ impl Shell {
     /// What the Settings window shows.
     pub fn settings_snapshot(&self) -> Snapshot {
         Snapshot {
-            settings: self.settings,
+            settings: self.settings.clone(),
             start_at_login: self.start_at_login(),
             has_notices: self.has_notices(),
             profiles_dir: self.profiles_dir.clone(),

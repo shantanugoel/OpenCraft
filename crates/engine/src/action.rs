@@ -247,6 +247,10 @@ pub struct KindDescription {
     pub group: String,
     /// A short help text for the library row, for example "Accessibility".
     pub help: Option<String>,
+    /// The icon of the kind on its kind tile: a name of the built-in icon
+    /// set, for example `globe` (see [`crate::icons`], decision 0033). With
+    /// no icon, the shell shows the first letter of the name.
+    pub icon: Option<String>,
     /// The kind operates only with the Accessibility permission of macOS.
     /// The shell names these kinds where it tells the user about the
     /// permission.

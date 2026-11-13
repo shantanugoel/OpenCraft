@@ -227,7 +227,8 @@ Use only these values for padding and gaps: 1, 2, 3, 4, 6, 8, 10, 12, 14,
   a Settings tab, 26 in the device inspector header.
 - The icon colour is the text colour of its control.
 - The icon set for the key faces is the decision of issue #190. It can be the
-  same set.
+  same set. Note (2026-11-13): it is the same set, Lucide 1.43.0, and the
+  engine draws it ([decision 0033](0033-surface-icons.md)).
 
 #### 3.7 States
 
