@@ -240,15 +240,82 @@ fn dark_reconnection_and_setting_edits_do_not_light_the_device() {
 }
 
 #[test]
-fn display_sleep_and_clock_wake_use_the_same_policy() {
+fn a_clock_wake_leaves_the_device_dark_while_the_displays_sleep() {
     let mut rig = Rig::new();
     let device = rig.connect();
     take_writes(&device);
     notice(&mut rig, PowerNotice::DisplaysSleep);
     assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
     assert!(has(&take_writes(&device), protocol::sleep()));
+    // A maintenance wake of the computer moves the clocks, but the
+    // displays stay dark.
+    rig.sleep_computer(Duration::from_secs(60));
+    rig.poll_for(Duration::from_millis(200));
+    assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
+    assert!(!has(&take_writes(&device), protocol::init()));
+    notice(&mut rig, PowerNotice::DisplaysWake);
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    assert!(has(&take_writes(&device), protocol::init()));
+}
+
+#[test]
+fn a_clock_wake_draws_an_awake_device_again() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    take_writes(&device);
     rig.sleep_computer(Duration::from_secs(60));
     rig.poll_for(Duration::from_millis(200));
     assert_eq!(rig.engine.display_state(), DisplayState::Awake);
     assert!(has(&take_writes(&device), protocol::init()));
+}
+
+#[test]
+fn a_wake_request_for_an_awake_device_writes_nothing() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    take_writes(&device);
+    rig.take_events();
+    rig.engine.command(Command::WakeDevice);
+    rig.engine.poll(Duration::ZERO);
+    assert!(take_writes(&device).is_empty());
+    assert!(!rig
+        .take_events()
+        .iter()
+        .any(|e| matches!(e, Event::Disconnected)));
+}
+
+#[test]
+fn a_device_input_wakes_the_device_while_the_displays_sleep() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    notice(&mut rig, PowerNotice::DisplaysSleep);
+    take_writes(&device);
+    device.borrow_mut().push_input(control_report(3, 1));
+    device.borrow_mut().push_input(control_report(3, 0));
+    rig.poll_for(Duration::from_millis(100));
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    assert!(has(&take_writes(&device), protocol::init()));
+    assert!(
+        !rig.take_events()
+            .iter()
+            .any(|e| matches!(e, Event::Input(_))),
+        "the wake gesture starts no action"
+    );
+}
+
+#[test]
+fn a_device_that_connects_late_starts_the_idle_time_again() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    let mut settings = rig.engine.device_settings().clone();
+    settings.screen_off_minutes = 1;
+    rig.engine.command(Command::SetDeviceSettings(settings));
+    device.borrow_mut().disconnect();
+    rig.poll_for(Duration::from_secs(50));
+    let second = rig.plug();
+    rig.poll_for(Duration::from_secs(30));
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    assert!(has(&take_writes(&second), protocol::init()));
+    rig.poll_for(Duration::from_secs(40));
+    assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
 }

@@ -48,7 +48,7 @@ result. Thus either answer about input after `HAN` leaves the design useful.
 | Displays sleep | Screen off |
 | Displays wake | Wake, unless the screen is still locked |
 | Computer will sleep | Device sleep before sleep; save pending data |
-| Computer did wake | Wake and full draw, unless still locked |
+| Computer did wake | Wake and full draw, unless the screen is locked or the displays sleep |
 | Clock sleep-time jump (0023) | The same recovery as computer did wake; retain as a second source |
 | Idle timeout | Screen off, not device sleep |
 | Screen off action | Screen off |
@@ -91,6 +91,23 @@ cancels it but does not wake a dark device. Reconnection keeps a dark state.
 The engine checks the deadline in its existing loop. With Never it does not
 read a clock for idle work, and with a timer it limits an existing device
 wait to the deadline. It starts no thread and no repeating timer.
+
+### Corrections after the review (2026-11-13)
+
+A review of the code found four cases that the tables did not make clear.
+
+- A wake request for a device that is awake (the window opens, the menu bar
+  wake item) sends no command. It only starts the idle period again. A wake
+  of the computer draws the device again also when the engine state is
+  awake, because the device can have lost its picture.
+- A display sleep is screen off, not a lock. A device input wakes the device
+  while the displays sleep, and the first gesture is consumed.
+- A wake of the computer does not wake its displays. If the displays sleep
+  at a wake of the computer (also at a wake from the clock jump), the device
+  stays dark until the displays wake, the screen unlocks, or a device input
+  arrives.
+- The idle period starts again when a device connects. A device that
+  connects after the timeout shows the profile.
 
 ## Results
 

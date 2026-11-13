@@ -76,7 +76,7 @@ pub(crate) fn description(kind: &str) -> KindDescription {
                 // The key keeps its name, so that an old profile loads.
                 field(
                     "application",
-                    "Application, file, or folder",
+                    "Application, file or folder",
                     InputType::Path {
                         kind: PathKind::File,
                     },
@@ -205,7 +205,7 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             vec![
                 field("text", "Text", InputType::LongText),
                 field("paste", "Paste with clipboard", InputType::Toggle),
-                field("return_after", "Press Return after", InputType::Toggle),
+                field("return_after", "Push Return after", InputType::Toggle),
             ],
         ),
         MEDIA => (
