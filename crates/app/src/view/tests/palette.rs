@@ -62,6 +62,8 @@ fn palette_window(
                 entry("work", "Work", &["Mail", "Calls"]),
             ],
             active: "default".into(),
+            default: "default".into(),
+            cause: opencraft_engine::ActiveCause::Selected,
         },
     );
     send(cx, &tx, pages(&["Main", "Meetings", "Media"], 0));

@@ -310,6 +310,7 @@ fn tab_stays_in_a_sheet_and_return_does_the_main_action(cx: &mut TestAppContext)
         "profile-colour-4",
         "profile-colour-5",
         "first-page",
+        "profile-add-application",
         "profile-export",
         "profile-remove",
         "profile-done",

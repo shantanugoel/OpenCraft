@@ -136,7 +136,7 @@ pub fn application_icon(path: &Path) -> Option<image::RgbaImage> {
     }
 }
 
-fn application_at(path: PathBuf) -> InstalledApplication {
+pub(crate) fn application_at(path: PathBuf) -> InstalledApplication {
     let (display_name, bundle_name, bundle_identifier) = read_bundle(&path);
     let name = non_empty(display_name)
         .or_else(|| non_empty(bundle_name))

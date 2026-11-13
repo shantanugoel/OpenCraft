@@ -36,6 +36,11 @@ pub(super) fn profiles(entries: &[(&str, &str)], active: &str) -> Event {
             })
             .collect(),
         active: active.into(),
+        default: entries
+            .first()
+            .map(|(id, _)| (*id).into())
+            .unwrap_or_default(),
+        cause: opencraft_engine::ActiveCause::Selected,
     }
 }
 

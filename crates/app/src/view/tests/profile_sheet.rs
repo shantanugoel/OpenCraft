@@ -16,6 +16,7 @@ fn entry(id: &str, name: &str, pages: &[&str], first_page: usize) -> ProfileEntr
         color: None,
         pages: pages.iter().map(|p| p.to_string()).collect(),
         first_page,
+        ..Default::default()
     }
 }
 
@@ -23,6 +24,8 @@ fn profiles(list: Vec<ProfileEntry>, active: &str) -> Event {
     Event::Profiles {
         profiles: list,
         active: active.into(),
+        default: active.into(),
+        cause: opencraft_engine::ActiveCause::Selected,
     }
 }
 
@@ -381,4 +384,48 @@ fn the_keys_of_the_first_page_menu_do_not_close_the_sheet(cx: &mut TestAppContex
     cx.simulate_keystrokes("enter");
     cx.run_until_parked();
     assert!(!is_open(cx));
+}
+
+#[gpui_kit::test]
+fn a_link_and_the_default_mark_send_the_commands(cx: &mut TestAppContext) {
+    let (view, cx, _tx, sent) = sheet_window(cx);
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.use_fixed_applications(
+                vec![crate::applications::InstalledApplication {
+                    name: "Safari".into(),
+                    bundle_identifier: "com.apple.Safari".into(),
+                    path: std::path::PathBuf::from("/Applications/Safari.app"),
+                }],
+                cx,
+            );
+        });
+    });
+    open_sheet(cx, "profile-work");
+    click(cx, "profile-add-application");
+    click(cx, "app-row-0");
+    assert_eq!(
+        last(&sent),
+        Some(Command::LinkApplication {
+            profile: "work".into(),
+            link: opencraft_engine::ApplicationLink {
+                bundle_id: "com.apple.Safari".into(),
+                name: "Safari".into(),
+            },
+        })
+    );
+    // "default" has the mark, so Work can take it.
+    click(cx, "default-profile");
+    assert_eq!(
+        last(&sent),
+        Some(Command::SetDefaultProfile {
+            profile: "work".into()
+        })
+    );
+    // Escape closes the list, and it does not close the sheet.
+    click(cx, "profile-add-application");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("application-picker").is_none());
+    assert!(is_open(cx));
 }

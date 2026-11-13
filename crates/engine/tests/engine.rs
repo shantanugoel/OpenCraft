@@ -36,6 +36,8 @@ mod clipboard;
 mod device_settings;
 #[path = "engine/folders.rs"]
 mod folders;
+#[path = "engine/front.rs"]
+mod front;
 #[path = "engine/history.rs"]
 mod history;
 #[path = "engine/icons.rs"]
@@ -516,7 +518,7 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
     // pages, the empty history, and the device settings come last.
     let states = surfaces(&events);
     assert_eq!(states.len(), 14);
-    assert_eq!(events.len(), 20);
+    assert_eq!(events.len(), 21);
     assert_eq!(events[1], Event::Kinds(Vec::new()));
     assert_eq!(
         events[16],
@@ -527,11 +529,14 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
                 pages: vec!["Page 1".into()],
                 ..Default::default()
             }],
-            active: "default".into()
+            active: "default".into(),
+            default: "default".into(),
+            cause: opencraft_engine::ActiveCause::Selected,
         }
     );
+    assert_eq!(events[17], Event::FollowFrontApplication(true));
     assert_eq!(
-        events[17],
+        events[18],
         Event::Pages {
             names: vec!["Page 1".into()],
             active: 0,
@@ -541,14 +546,14 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
         }
     );
     assert_eq!(
-        events[18],
+        events[19],
         Event::History {
             undo: None,
             redo: None
         }
     );
     assert_eq!(
-        events[19],
+        events[20],
         Event::DeviceSettings(DeviceSettings::defaults(DESCRIPTORS[0].settings))
     );
     for state in states {

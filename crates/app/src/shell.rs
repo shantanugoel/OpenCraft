@@ -148,6 +148,11 @@ pub enum ShellCommand {
     /// A platform power notice; the engine owns the policy.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     PowerNotice(opencraft_engine::PowerNotice),
+    /// The front application. The engine owns the policy (decision 0035).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    FrontApplication(opencraft_engine::FrontApplication),
+    /// Turn the automatic profile switch on or off.
+    SetFollowFrontApplication(bool),
     /// Wake the controller without opening a window.
     WakeDevice,
     /// Make the profile with this identity the active profile. The window
@@ -251,8 +256,14 @@ impl Shell {
         let notices = current_exe.as_deref().and_then(notices_file);
         #[cfg(target_os = "macos")]
         let executable = current_exe;
+        // The engine sends the setting at the start. Until then, use the
+        // missing-key value: the switch is on (decision 0035).
+        let state = ViewState {
+            follow_front: true,
+            ..Default::default()
+        };
         Self {
-            state: ViewState::default(),
+            state,
             settings,
             typing: false,
             profiles_dir: config_dir.join("profiles"),
@@ -427,6 +438,12 @@ impl Shell {
     pub fn command(&mut self, command: ShellCommand, cx: &mut Context<Self>) {
         match command {
             ShellCommand::Open => self.open_window(cx),
+            ShellCommand::FrontApplication(front) => {
+                (self.send)(Command::FrontApplication(front));
+            }
+            ShellCommand::SetFollowFrontApplication(follow) => {
+                (self.send)(Command::SetFollowFrontApplication(follow));
+            }
             ShellCommand::PowerNotice(notice) => {
                 (self.send)(Command::PowerNotice(notice));
                 if matches!(
@@ -556,6 +573,7 @@ impl Shell {
             profile: state.profile.clone(),
             pages: state.pages.clone(),
             page: state.page,
+            follow_front: state.follow_front,
             brightness: state.device_settings.as_ref().map(|s| Brightness {
                 value: s.brightness,
                 lowest: state
@@ -629,6 +647,7 @@ impl Shell {
             profiles_dir: self.profiles_dir.clone(),
             permission: crate::settings_window::permission(&self.state),
             notice: self.settings_notice.clone(),
+            follow_front: self.state.follow_front,
         }
     }
 
@@ -1150,6 +1169,8 @@ mod tests {
                 ..Default::default()
             }],
             active: "desk".into(),
+            default: "desk".into(),
+            cause: opencraft_engine::ActiveCause::Selected,
         }
     }
 
@@ -1183,7 +1204,13 @@ mod tests {
     fn the_state_and_the_menu_follow_the_engine_with_no_window(cx: &mut TestAppContext) {
         let f = shell(cx);
         let menu = |cx: &mut TestAppContext| cx.update(|cx| f.shell.read(cx).menu_state());
-        assert_eq!(menu(cx), MenuState::default());
+        assert_eq!(
+            menu(cx),
+            MenuState {
+                follow_front: true,
+                ..MenuState::default()
+            }
+        );
         f.events.try_send(layout()).unwrap();
         f.events.try_send(profiles()).unwrap();
         f.events
@@ -1215,6 +1242,7 @@ mod tests {
                 profile: Some("desk".into()),
                 pages: vec!["Main".into(), "Mail".into()],
                 page: 1,
+                follow_front: true,
                 // The lowest value is the one of the layout.
                 brightness: Some(Brightness {
                     value: 80,
@@ -1246,6 +1274,8 @@ mod tests {
                     },
                 ],
                 active: "desk".into(),
+                default: "desk".into(),
+                cause: opencraft_engine::ActiveCause::Selected,
             })
             .unwrap();
         f.events

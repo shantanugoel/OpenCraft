@@ -64,6 +64,8 @@ fn profiles() -> Event {
             },
         ],
         active: "desk".into(),
+        default: "calls".into(),
+        cause: opencraft_engine::ActiveCause::Selected,
     }
 }
 

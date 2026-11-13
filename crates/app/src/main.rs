@@ -16,6 +16,8 @@ mod app_menu;
 mod applications;
 mod diagnostics;
 mod first_start;
+#[cfg(target_os = "macos")]
+mod front_app;
 mod images;
 #[cfg(unix)]
 mod lock;
@@ -248,6 +250,9 @@ fn main() {
     }
     #[cfg(target_os = "macos")]
     let _power_notices = power::Notices::new(commands.clone());
+    // After the engine starts, so the first report has an engine to reach.
+    #[cfg(target_os = "macos")]
+    let _front_application = front_app::Notices::new(commands.clone());
     let reopen = commands.clone();
     // A click on the Dock icon when no window is open.
     application.on_reopen(move |_| {

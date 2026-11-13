@@ -17,12 +17,18 @@ selects the profile.
 | A bundle identifier contains only ASCII letters, digits, `-`, and `.`. | Source | Apple documentation for `CFBundleIdentifier` |
 | The bundle identifier is in the `Info.plist` file in the bundle. A move of the bundle to a different folder does not change it. The path of the bundle changes. | Inference | The two facts above |
 | An observer of the notification centre of `NSWorkspace` gets its notices on the main thread of the application, with no timer and no thread of its own. OpenCraft observes the power notices in this way (`crates/app/src/power.rs`). | Source | The code of `power.rs`; [decision 0034](../decisions/0034-device-dark-state.md) |
+| OpenCraft observes `NSWorkspaceDidActivateApplicationNotification` from the start of the process until the process ends, also when no window is open. For each notice, and one time for the front application at the start, the shell sends `Command::FrontApplication`. The shell does not compare applications, and it does not read the setting. | Source | `crates/app/src/front_app.rs`; [decision 0035](../decisions/0035-front-application-selects-the-profile.md) |
 
 ## Not known
 
 - Does macOS make `loginwindow` or the screen saver the active application
   at a screen lock or at the start of the screen saver? If yes, does that
-  notice come before or after the lock notice?
+  notice come before or after the lock notice? The engine skips a switch
+  while the screen is locked or the computer sleeps
+  ([decision 0035](../decisions/0035-front-application-selects-the-profile.md),
+  section 8). If the activation notice arrives before the lock notice, the
+  profile can still change. The order is not known, and the code does not
+  add a filter for those bundle identifiers.
 - Does the application that was active before a lock get a new activation
   notice after the unlock?
 - Does macOS compare two bundle identifiers with no difference between

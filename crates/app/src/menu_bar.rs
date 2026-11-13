@@ -317,8 +317,8 @@ impl MenuBar {
                     entry.setSubmenu(Some(&submenu));
                     entry
                 }
-                Row::Profile { checked, .. } => {
-                    let entry = menu_item(mtm, row.title().unwrap_or_default(), "");
+                Row::Profile { checked, .. } | Row::Follow { checked } => {
+                    let entry = menu_item(mtm, row.title().unwrap_or_default(), row.key());
                     self.make_selectable(&entry, row.command(), &mut table);
                     if *checked {
                         entry.setState(NSControlStateValueOn);

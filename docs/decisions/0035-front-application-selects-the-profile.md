@@ -407,9 +407,12 @@ The exact look follows [DESIGN.md](../DESIGN.md) in the task of each part.
   the list of the links (icon and name of each application, "Remove" for
   each), "Add an application…" (the application list of ACT-09,
   [#336](https://github.com/shantanugoel/OpenCraft/issues/336)), and the
-  check box "Default profile" with the help text "The device shows this
-  profile when the front application has no linked profile." The check box
-  of the default profile is on and disabled. A link in `clashes` shows
+  switch "Default profile" with the help text "The device shows this
+  profile when the front application has no linked profile." The switch
+  of the default profile is on and disabled: the user moves the mark by
+  turning the switch on for a different profile. The window uses the
+  switch of [DESIGN.md](../DESIGN.md). That document has no check box, and
+  a switch is its on/off control. A link in `clashes` shows
   "Linked to “*profile*”. That link applies." The option "Go back to the
   last profile when the app is not in front" of section 21 is not made: the
   default profile and the rule of section 8 take its place.
@@ -419,9 +422,11 @@ The exact look follows [DESIGN.md](../DESIGN.md) in the task of each part.
   active. The tooltip of "ON DEVICE" gives the cause: "Selected", "Because
   “*application*” is in front", or "The default profile: the front
   application has no linked profile".
-- **The Settings window**, group "General": the check box "Change the
-  profile with the front application", with the text of section 8 as the
-  help text.
+- **The Settings window**, group "General": the switch "Change the
+  profile with the front application". The description is the first
+  sentence of the text of section 8. A row of this window shows one line.
+  The user guide has the full text. The control is a switch, for the same
+  reason as the default profile.
 - **The menu bar item**: the item "Follow the Front Application" with a
   check mark, below the profile items. It sends the same command.
 

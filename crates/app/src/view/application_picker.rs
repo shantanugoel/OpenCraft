@@ -16,7 +16,7 @@ use gpui_kit::{
     anchored, assets::IconName, canvas, component::Icon, deferred, list, point, Bounds,
     KeyDownEvent, ListAlignment, ListState, MouseButton, Pixels,
 };
-use opencraft_engine::Value;
+use opencraft_engine::{ApplicationLink, Command, Value};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -39,6 +39,8 @@ enum CatalogSource {
 enum PickerTarget {
     /// A path field. The stored text is the path.
     Field(FieldPath),
+    /// A profile link. The stored value is the bundle identifier.
+    Link { profile: String },
 }
 
 /// A drawn icon, or the fact that this path has no icon.
@@ -170,6 +172,52 @@ impl DeviceView {
         self.application_picker.target.is_some()
     }
 
+    /// True when the list is open to add a link to `profile`.
+    pub(super) fn link_picker_open(&self, profile: &str) -> bool {
+        matches!(
+            &self.application_picker.target,
+            Some(PickerTarget::Link { profile: id }) if id == profile
+        )
+    }
+
+    /// "Add an application…" and the list, when the list is open for `profile`.
+    pub(super) fn add_application_control(
+        &self,
+        profile: &str,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let id = profile.to_string();
+        let adding = self.link_picker_open(profile);
+        let bounds = self.application_picker.button.clone();
+        div()
+            .relative()
+            .flex_shrink_0()
+            .child(
+                controls::button("profile-add-application", "Add an application…")
+                    .when(adding, |row| row.border_color(theme::ACCENT_LINE))
+                    .aria_expanded(adding)
+                    .on_click(cx.listener(move |view, _, window, cx| {
+                        if view.link_picker_open(&id) {
+                            view.dismiss_application_picker(window, cx);
+                        } else {
+                            view.open_link_picker(id.clone(), window, cx);
+                        }
+                    })),
+            )
+            .child(
+                canvas(move |b, _, _| bounds.set(Some(b)), |_, _, _, _| {})
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full(),
+            )
+            .when(adding, |row| {
+                row.child(self.application_popover(window, cx))
+            })
+            .into_any_element()
+    }
+
     /// The names that the open picker shows, in order.
     #[cfg(test)]
     pub(super) fn shown_application_names(&self) -> Vec<String> {
@@ -234,14 +282,92 @@ impl DeviceView {
         Some(self.application_icon_tile(application).into_any_element())
     }
 
+    /// Open the list for a new link of the profile `profile`.
+    pub(super) fn open_link_picker(
+        &mut self,
+        profile: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.sheet.pages_open = false;
+        self.begin_application_picker(PickerTarget::Link { profile }, window, cx);
+    }
+
+    /// Escape or Return while the list is open. `true` when the list took
+    /// the key, so a sheet does not close.
+    pub(super) fn application_picker_key(
+        &mut self,
+        key: super::modal::ModalKey,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if !self.application_picker_is_open() {
+            return false;
+        }
+        match key {
+            super::modal::ModalKey::Escape => self.close_application_picker(window, cx),
+            super::modal::ModalKey::Return => self.choose_highlighted_application(window, cx),
+        }
+        true
+    }
+
+    /// Close the list if it is open.
+    pub(super) fn dismiss_application_picker(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.close_application_picker(window, cx);
+    }
+
+    /// Start a scan so the profile sheet can show icons. A test that uses
+    /// a fixed list calls [`Self::use_fixed_applications`] instead.
+    pub(super) fn prepare_applications(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.start_application_scan(window, cx);
+    }
+
+    /// The icon of a link: the application icon when the list has it, or
+    /// the first letter of `name`.
+    pub(super) fn link_icon(&self, bundle_id: &str, name: &str) -> AnyElement {
+        let found = self
+            .application_picker
+            .applications
+            .iter()
+            .find(|application| {
+                !application.bundle_identifier.is_empty()
+                    && opencraft_engine::front::same_bundle(
+                        &application.bundle_identifier,
+                        bundle_id,
+                    )
+            });
+        if let Some(application) = found {
+            return self.application_icon_tile(application).into_any_element();
+        }
+        self.application_icon_tile(&InstalledApplication {
+            name: name.to_string(),
+            bundle_identifier: bundle_id.to_string(),
+            path: PathBuf::from(name),
+        })
+        .into_any_element()
+    }
+
     fn open_application_picker(
         &mut self,
         field: FieldPath,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.begin_application_picker(PickerTarget::Field(field), window, cx);
+    }
+
+    fn begin_application_picker(
+        &mut self,
+        target: PickerTarget,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.close_kinds();
-        self.application_picker.target = Some(PickerTarget::Field(field));
+        self.application_picker.target = Some(target);
         let search = self.application_picker.search.clone();
         search.update(cx, |search, cx| {
             search.set_value("", window, cx);
@@ -343,7 +469,9 @@ impl DeviceView {
     }
 
     fn stored_application_text(&self) -> Option<String> {
-        let PickerTarget::Field(field) = self.application_picker.target.as_ref()?;
+        let PickerTarget::Field(field) = self.application_picker.target.as_ref()? else {
+            return None;
+        };
         let binding = self.form_binding()?;
         let action = self.edit_action(binding)?;
         let action = contained(&action, &field.action)?;
@@ -381,28 +509,97 @@ impl DeviceView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(PickerTarget::Field(field)) = self.application_picker.target.clone() else {
+        let Some(target) = self.application_picker.target.clone() else {
             return;
         };
-        let Some(binding) = self.form_binding() else {
+        match target {
+            PickerTarget::Field(field) => {
+                let Some(binding) = self.form_binding() else {
+                    return;
+                };
+                self.cache_application_icon(&application.path);
+                self.set_field(
+                    binding,
+                    &field,
+                    Value::Text(application.path.to_string_lossy().into_owned()),
+                );
+                self.sync_form(window, cx);
+                self.close_application_picker(window, cx);
+            }
+            PickerTarget::Link { profile } => {
+                self.add_profile_link(profile, &application);
+                self.close_application_picker(window, cx);
+            }
+        }
+    }
+
+    /// Send the link. An application with no bundle identifier cannot be a
+    /// link: the engine compares bundle identifiers.
+    fn add_profile_link(&mut self, profile: String, application: &InstalledApplication) {
+        if application.bundle_identifier.is_empty() {
+            self.state.problems.push(
+                "OpenCraft did not add the link, because the application has no bundle \
+                 identifier."
+                    .into(),
+            );
             return;
-        };
-        self.cache_application_icon(&application.path);
-        self.set_field(
-            binding,
-            &field,
-            Value::Text(application.path.to_string_lossy().into_owned()),
-        );
-        self.sync_form(window, cx);
-        self.close_application_picker(window, cx);
+        }
+        (self.send)(Command::LinkApplication {
+            profile,
+            link: ApplicationLink {
+                bundle_id: application.bundle_identifier.clone(),
+                name: application.name.clone(),
+            },
+        });
     }
 
     fn choose_different_application(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(PickerTarget::Field(field)) = self.application_picker.target.clone() else {
+        let Some(target) = self.application_picker.target.clone() else {
             return;
         };
         self.close_application_picker(window, cx);
-        self.path_field(field, window, cx);
+        match target {
+            PickerTarget::Field(field) => self.path_field(field, window, cx),
+            PickerTarget::Link { profile } => self.choose_application_file(profile, window, cx),
+        }
+    }
+
+    /// The file dialog of "Choose a different application…" for a link.
+    fn choose_application_file(
+        &mut self,
+        profile: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let paths = cx.prompt_for_paths(gpui_kit::PathPromptOptions {
+            files: true,
+            directories: true,
+            multiple: false,
+            prompt: Some("Choose".into()),
+        });
+        cx.spawn_in(window, async move |view, cx| {
+            let result = paths.await;
+            let _ = view.update_in(cx, |view, window, cx| {
+                match result {
+                    Ok(Ok(Some(paths))) => {
+                        if let Some(path) = paths.first() {
+                            let application = applications::application_at(path.clone());
+                            view.add_profile_link(profile, &application);
+                        }
+                    }
+                    Ok(Ok(None)) => {}
+                    _ => view
+                        .state
+                        .problems
+                        .push("OpenCraft could not open the file dialog.".into()),
+                }
+                if view.sheet.profile.is_some() {
+                    window.focus(&view.sheet.focus, cx);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     fn application_popover(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {

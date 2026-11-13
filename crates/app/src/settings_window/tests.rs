@@ -403,6 +403,24 @@ fn the_dock_icon_switch_follows_and_keeps_the_option(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn the_front_application_switch_starts_on_and_sends_the_command(cx: &mut TestAppContext) {
+    let (f, cx) = window(cx);
+    assert!(is_on(cx, "switch-follow-front"));
+    click(cx, "switch-follow-front");
+    assert_eq!(
+        f.sent.borrow().as_slice(),
+        [Command::SetFollowFrontApplication(false)]
+    );
+    // The engine event turns the switch. The test sets that state.
+    f.shell.update(cx, |shell, cx| {
+        shell.state.follow_front = false;
+        cx.notify();
+    });
+    settle(cx);
+    assert!(!is_on(cx, "switch-follow-front"));
+}
+
+#[gpui_kit::test]
 fn the_switch_for_the_window_at_start_follows_and_keeps_the_option(cx: &mut TestAppContext) {
     let (f, cx) = window(cx);
     assert!(is_on(cx, "switch-window-at-start"));
@@ -1084,6 +1102,7 @@ fn tab_reaches_the_tabs_and_each_control_and_space_operates_them(cx: &mut TestAp
         "switch-start-at-login",
         "switch-dock-icon",
         "switch-window-at-start",
+        "switch-follow-front",
         "open-system-settings",
         "show-profiles",
         "show-log-file",

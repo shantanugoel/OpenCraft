@@ -27,6 +27,7 @@ pub mod clipboard;
 pub mod device_settings;
 pub mod engine;
 pub mod error;
+pub mod front;
 pub mod history;
 pub mod icons;
 pub mod label;
@@ -51,10 +52,12 @@ pub use power::{DisplayState, PowerNotice};
 pub use runtime::{spawn, Config, EngineHandle};
 
 pub use error::{Error, Result};
+pub use front::{ActiveCause, FrontApplication};
 pub use icons::{icon_set, Icon, IconCategory, IconSet};
 pub use profile::{
-    Background, BackgroundFit, Color, Folder, FolderEntry, FolderId, LabelChange, LabelPosition,
-    LabelStyle, Page, ParseFolderIdError, Profile, SurfaceContent, SurfaceIcon, LABEL_SIZES,
+    ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry, FolderId, LabelChange,
+    LabelPosition, LabelStyle, Page, ParseFolderIdError, Profile, SurfaceContent, SurfaceIcon,
+    LABEL_SIZES,
 };
 pub use profiles::{ProfileEntry, ProfilesDir};
 pub use render::{icon_color, label_color, page_preview};

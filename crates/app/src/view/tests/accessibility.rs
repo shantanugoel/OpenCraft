@@ -103,6 +103,7 @@ fn the_main_parts_have_a_role_and_the_label_of_the_record(cx: &mut TestAppContex
     assert_has(&nodes, Role::Button, "Add a profile");
     assert_has(&nodes, Role::Tree, "Profiles");
     assert_has(&nodes, Role::TreeItem, "Default, on device");
+    assert_has(&nodes, Role::Label, "Selected");
     assert_has(&nodes, Role::TreeItem, "Work");
     for page in ["Main", "Meetings", "Media"] {
         assert_has(&nodes, Role::TreeItem, page);
@@ -204,6 +205,8 @@ fn the_profile_sheet_is_a_dialog_with_labels(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::Label, "Profile settings");
     assert_has(&nodes, Role::TextInput, "Name");
     assert_has(&nodes, Role::ComboBox, "First page");
+    assert_has(&nodes, Role::Button, "Add an application…");
+    assert_has(&nodes, Role::Switch, "Default profile");
     assert_has(&nodes, Role::Button, "Done");
 }
 
@@ -274,6 +277,73 @@ fn the_import_command_in_the_palette_has_a_role_and_label(cx: &mut TestAppContex
     cx.simulate_input("import a profile");
     cx.run_until_parked();
     assert_has(&frame(cx), Role::Button, "Import a profile…");
+}
+
+#[gpui_kit::test]
+fn a_profile_shows_its_application_and_the_default_mark(cx: &mut TestAppContext) {
+    use opencraft_engine::{ActiveCause, ApplicationLink, ProfileEntry};
+    let (_view, cx, tx, _sent) = window(cx);
+    let calls = ProfileEntry {
+        id: "calls".into(),
+        name: "Calls".into(),
+        pages: vec!["Main".into()],
+        applications: vec![ApplicationLink {
+            bundle_id: "us.zoom.xos".into(),
+            name: "zoom.us".into(),
+        }],
+        ..Default::default()
+    };
+    let work = ProfileEntry {
+        id: "work".into(),
+        name: "Work".into(),
+        pages: vec!["Mail".into()],
+        applications: vec![
+            ApplicationLink {
+                bundle_id: "us.zoom.xos".into(),
+                name: "zoom.us".into(),
+            },
+            ApplicationLink {
+                bundle_id: "com.apple.Safari".into(),
+                name: "Safari".into(),
+            },
+        ],
+        clashes: vec!["us.zoom.xos".into()],
+        ..Default::default()
+    };
+    tx.try_send(Event::Profiles {
+        profiles: vec![calls, work],
+        active: "calls".into(),
+        default: "work".into(),
+        cause: ActiveCause::Linked {
+            bundle_id: "us.zoom.xos".into(),
+        },
+    })
+    .unwrap();
+    cx.run_until_parked();
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::Label, "Because “zoom.us” is in front");
+    // The first profile keeps zoom.us. Work shows the link that applies,
+    // and the default mark, because Work is not active.
+    assert_has(&nodes, Role::Label, "Safari DEFAULT");
+    let position = cx
+        .debug_bounds("profile-work")
+        .expect("the profile row")
+        .center();
+    cx.simulate_event(MouseDownEvent {
+        button: MouseButton::Right,
+        position,
+        modifiers: Modifiers::default(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    cx.run_until_parked();
+    cx.dispatch_action(ProfileSettingsRow);
+    cx.run_until_parked();
+    assert_has(
+        &frame(cx),
+        Role::Label,
+        "Linked to “Calls”. That link applies.",
+    );
 }
 
 #[gpui_kit::test]

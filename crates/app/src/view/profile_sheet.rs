@@ -134,6 +134,7 @@ impl DeviceView {
         self.sheet
             .name
             .update(cx, |input, cx| input.set_value(name, window, cx));
+        self.prepare_applications(window, cx);
         window.focus(&self.sheet.focus, cx);
         cx.notify();
     }
@@ -141,6 +142,7 @@ impl DeviceView {
     /// Close the sheet. A new name in the field goes to the engine first.
     pub(super) fn close_profile_sheet(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.save_sheet_name(cx);
+        self.dismiss_application_picker(window, cx);
         self.sheet.profile = None;
         self.sheet.pages_open = false;
         self.focus_workspace(window, cx);
@@ -239,6 +241,9 @@ impl DeviceView {
     /// first: Escape closes it, and Return selects its highlighted item
     /// (`view::menu`), and neither closes the sheet.
     fn sheet_key(&mut self, key: ModalKey, window: &mut Window, cx: &mut Context<Self>) {
+        if self.application_picker_key(key, window, cx) {
+            return;
+        }
         if self.sheet.pages_open {
             if key == ModalKey::Escape {
                 self.sheet.pages_open = false;
@@ -300,9 +305,7 @@ impl DeviceView {
                 "First page",
                 self.first_page_popup(&id, &pages, first, window, cx),
             ));
-        // "Switch to this profile automatically" is a LATER place between
-        // the form and "Share" (decision 0029, section 21). It is one more
-        // section in this list.
+        let applications = self.applications_section(&entry, window, cx);
         let share = div()
             .flex_shrink_0()
             .mt(theme::SPACE_16)
@@ -342,6 +345,7 @@ impl DeviceView {
                 format!("Profile “{}” · {}", entry.name, page_count(pages.len())),
             ))
             .child(form)
+            .child(applications)
             .child(share)
             .child(button_row(Some(remove), vec![done]));
         Some(modal.render(content, window))
@@ -471,6 +475,148 @@ impl DeviceView {
             .children(menu)
             .into_any_element()
     }
+
+    /// The links of the profile, "Add an application…", and the default
+    /// profile switch (decision 0035, section 11).
+    fn applications_section(
+        &self,
+        entry: &opencraft_engine::ProfileEntry,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        div()
+            .flex_shrink_0()
+            .mt(theme::SPACE_16)
+            .px(theme::SPACE_24)
+            .flex()
+            .flex_col()
+            .gap(theme::SPACE_8)
+            .child(sheet_section_header("Applications"))
+            .children(
+                entry
+                    .applications
+                    .iter()
+                    .enumerate()
+                    .map(|(index, link)| self.link_row(entry, index, link, cx)),
+            )
+            .child(self.add_application_control(&entry.id, window, cx))
+            .child(self.default_profile_row(entry, cx))
+    }
+
+    /// One link: the icon, the name, a clash note, and "Remove".
+    fn link_row(
+        &self,
+        entry: &opencraft_engine::ProfileEntry,
+        index: usize,
+        link: &opencraft_engine::ApplicationLink,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let profile = entry.id.clone();
+        let bundle_id = link.bundle_id.clone();
+        let clash = entry
+            .clashes
+            .iter()
+            .any(|clash| opencraft_engine::front::same_bundle(clash, &link.bundle_id));
+        let owner = clash.then(|| clash_owner(&self.state.profiles, &link.bundle_id));
+        div()
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_8)
+            .child(self.link_icon(&link.bundle_id, &link.name))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(theme::SPACE_2)
+                    .child(div().truncate().child(link.name.clone()))
+                    .when_some(owner.flatten(), |column, name| {
+                        let text = format!("Linked to “{name}”. That link applies.");
+                        column.child(
+                            div()
+                                .id(SharedString::from(format!("profile-clash-{index}")))
+                                .readable_text(text.clone())
+                                .text_size(theme::TEXT_HELP)
+                                .text_color(theme::TEXT_TERTIARY)
+                                .child(text),
+                        )
+                    }),
+            )
+            .child(
+                controls::small_button(format!("profile-unlink-{index}"), "Remove", true).on_click(
+                    cx.listener(move |view, _, _, cx| {
+                        (view.send)(Command::UnlinkApplication {
+                            profile: profile.clone(),
+                            bundle_id: bundle_id.clone(),
+                        });
+                        cx.notify();
+                    }),
+                ),
+            )
+            .into_any_element()
+    }
+
+    /// The switch "Default profile". It is on and disabled for the profile
+    /// that already has the mark: the user moves the mark to a different
+    /// profile.
+    fn default_profile_row(
+        &self,
+        entry: &opencraft_engine::ProfileEntry,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let marked = self.state.default_profile.as_deref() == Some(entry.id.as_str());
+        let id = entry.id.clone();
+        div()
+            .flex()
+            .flex_col()
+            .gap(theme::SPACE_4)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(theme::SPACE_8)
+                    .child(
+                        controls::switch_if(
+                            "default-profile",
+                            "Default profile",
+                            marked,
+                            !marked,
+                            theme::SWITCH_INSPECTOR,
+                        )
+                        .when(!marked, |row| {
+                            row.on_click(cx.listener(move |view, _, _, cx| {
+                                (view.send)(Command::SetDefaultProfile {
+                                    profile: id.clone(),
+                                });
+                                cx.notify();
+                            }))
+                        }),
+                    )
+                    .child("Default profile"),
+            )
+            .child(super::form::help(
+                "The device shows this profile when the front application has no linked profile.",
+            ))
+    }
+}
+
+/// The name of the profile that keeps `bundle_id`. A link in `clashes` does
+/// not apply, so the first profile that links the application and has no
+/// clash for it is the owner.
+fn clash_owner(profiles: &[opencraft_engine::ProfileEntry], bundle_id: &str) -> Option<String> {
+    profiles
+        .iter()
+        .find(|entry| {
+            entry.applications.iter().any(|link| {
+                opencraft_engine::front::same_bundle(&link.bundle_id, bundle_id)
+                    && !entry
+                        .clashes
+                        .iter()
+                        .any(|clash| opencraft_engine::front::same_bundle(clash, bundle_id))
+            })
+        })
+        .map(|entry| entry.name.clone())
 }
 
 #[cfg(test)]
