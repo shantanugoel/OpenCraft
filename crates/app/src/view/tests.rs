@@ -14,8 +14,11 @@ use std::cell::RefCell;
 
 type Commands = Rc<RefCell<Vec<Command>>>;
 
-fn window(
+/// Open a window on `state`. No engine event follows. A test that wants the
+/// usual first events uses [`window`].
+fn open_window(
     cx: &mut TestAppContext,
+    state: ViewState,
 ) -> (
     Entity<DeviceView>,
     &mut VisualTestContext,
@@ -49,26 +52,29 @@ fn window(
     });
     let mut child = None;
     let (_, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| {
-            DeviceView::new(
-                &shell,
-                ViewState::default(),
-                Panes::default(),
-                send,
-                window,
-                cx,
-            )
-        });
+        let view = cx.new(|cx| DeviceView::new(&shell, state, Panes::default(), send, window, cx));
         child = Some(view.clone());
         gpui_kit::base::Root::new(view, window, cx)
     });
     let (width, height) = theme::WINDOW_SIZE;
     cx.simulate_resize(size(px(width), px(height)));
+    (child.unwrap(), cx, tx, sent)
+}
+
+fn window(
+    cx: &mut TestAppContext,
+) -> (
+    Entity<DeviceView>,
+    &mut VisualTestContext,
+    async_channel::Sender<Event>,
+    Commands,
+) {
+    let (view, cx, tx, sent) = open_window(cx, ViewState::default());
     tx.try_send(layout()).unwrap();
     tx.try_send(surface(key(), "Mail")).unwrap();
     tx.try_send(surface(bar(), "Sound")).unwrap();
     cx.run_until_parked();
-    (child.unwrap(), cx, tx, sent)
+    (view, cx, tx, sent)
 }
 
 fn surface(id: SurfaceId, label: &str) -> Event {

@@ -144,3 +144,47 @@ fn the_recorder_shows_the_symbols_in_the_order_of_macos(cx: &mut TestAppContext)
         assert_eq!(sent.borrow().len(), count + 1, "one undo step");
     }
 }
+
+/// The window can open after the engine already selected a key, for example
+/// a start with no window. The title and the page name are filled, and the
+/// action form has an edit owner, so the recorder can save with no other
+/// selection first.
+#[gpui_kit::test]
+fn a_restored_selection_fills_the_fields_and_lets_the_recorder_save(cx: &mut TestAppContext) {
+    let mut state = ViewState::default();
+    let now = std::time::Instant::now();
+    state.apply(Event::Kinds(vec![kind()]), now);
+    state.apply(layout(), now);
+    state.apply(surface(key(), "Mail"), now);
+    state.apply(
+        Event::Pages {
+            names: vec!["Main".into()],
+            active: 0,
+            first: 0,
+        },
+        now,
+    );
+    state.apply(event("cmd+a"), now);
+    let (view, cx, _tx, sent) = open_window(cx, state);
+    cx.run_until_parked();
+    cx.update(|_, cx| {
+        assert_eq!(view.read(cx).input.read(cx).value().as_ref(), "Mail");
+        assert_eq!(
+            view.read(cx).page_inspector.name.read(cx).value().as_ref(),
+            "Main"
+        );
+        assert!(view.read(cx).form_binding().is_some());
+    });
+    assert!(show(cx, "⌘A"), "{:?}", shown(cx));
+    assert!(sent.borrow().is_empty(), "the open sends no command");
+    click(cx, "hotkey-0");
+    cx.simulate_keystrokes("shift-cmd-4");
+    cx.run_until_parked();
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&Command::SetBinding {
+            binding: binding(),
+            action: Some(action("shift+cmd+4")),
+        })
+    );
+}

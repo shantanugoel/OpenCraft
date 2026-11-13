@@ -275,8 +275,7 @@ impl DeviceView {
         };
         if changed {
             self.close_kinds();
-            self.load_label(window, cx);
-            self.sync_form(window, cx);
+            self.sync_inspector_fields(window, cx);
             cx.notify();
         }
         self.open_control_menu(false, position, window, cx);

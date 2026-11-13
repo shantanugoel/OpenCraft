@@ -222,7 +222,7 @@ impl DeviceView {
         if state.permission_request.is_some() {
             window.focus(&permission.focus, cx);
         }
-        Self {
+        let mut view = Self {
             state,
             shell: shell.clone(),
             _shell_subscription: shell_subscription,
@@ -252,7 +252,15 @@ impl DeviceView {
             inspector_scroll: ScrollHandle::new(),
             _focus_lost: focus_lost,
             _focus_return: focus_return,
-        }
+        };
+        // The selection can already be in the state when the window opens,
+        // for example after a start with no window. A change of the
+        // selection fills the title and gives the action form its edit
+        // owner. This open does that work. It also fills the page name,
+        // which an event would fill.
+        view.sync_inspector_fields(window, cx);
+        view.sync_page_name(window, cx);
+        view
     }
 
     fn receive(&mut self, event: Event, window: &mut Window, cx: &mut Context<Self>) {
@@ -366,6 +374,18 @@ impl DeviceView {
                 .update(cx, |shell, _| shell.dismiss_problem(&text));
         }
         cx.notify();
+    }
+
+    /// Give the inspector the content of the current selection.
+    ///
+    /// The title field shows the label of the surface. The action form gets
+    /// the edit owner of the open card, so a control such as the hotkey
+    /// recorder can save. A change of the selection calls this. The window
+    /// also calls this when it opens: the selection can already be in the
+    /// state, and then no change of the selection runs.
+    fn sync_inspector_fields(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.load_label(window, cx);
+        self.sync_form(window, cx);
     }
 
     fn load_label(&mut self, window: &mut Window, cx: &mut Context<Self>) {

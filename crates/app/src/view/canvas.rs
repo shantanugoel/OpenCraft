@@ -372,8 +372,7 @@ impl DeviceView {
         }
         if self.state.select(id) {
             self.close_kinds();
-            self.load_label(window, cx);
-            self.sync_form(window, cx);
+            self.sync_inspector_fields(window, cx);
             self.focus_workspace(window, cx);
             cx.notify();
         }
@@ -391,8 +390,7 @@ impl DeviceView {
         if self.state.select_control(id) {
             self.close_kinds();
             // A knob shows the title of its bar panel.
-            self.load_label(window, cx);
-            self.sync_form(window, cx);
+            self.sync_inspector_fields(window, cx);
             self.focus_workspace(window, cx);
             cx.notify();
         }
@@ -405,8 +403,7 @@ impl DeviceView {
         }
         if self.state.select_page() {
             self.close_kinds();
-            self.load_label(window, cx);
-            self.sync_form(window, cx);
+            self.sync_inspector_fields(window, cx);
             cx.notify();
         }
         self.focus_workspace(window, cx);
