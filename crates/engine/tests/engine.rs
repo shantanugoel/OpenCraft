@@ -28,6 +28,8 @@ use tempfile::TempDir;
 
 #[path = "engine/actions.rs"]
 mod actions;
+#[path = "engine/clipboard.rs"]
+mod clipboard;
 #[path = "engine/device_settings.rs"]
 mod device_settings;
 #[path = "engine/history.rs"]

@@ -105,6 +105,7 @@ fn main() {
             Event::History { undo, redo } => {
                 println!("[{at:8.3}] history: undo {undo:?}, redo {redo:?}")
             }
+            Event::Clipboard(kind) => println!("[{at:8.3}] clipboard: {kind:?}"),
             Event::Status { kind, status } => println!("[{at:8.3}] status: {kind}: {status:?}"),
             Event::Counters(counters) => println!("[{at:8.3}] counters: {counters:?}"),
             Event::Problem(text) => println!("[{at:8.3}] problem: {text}"),

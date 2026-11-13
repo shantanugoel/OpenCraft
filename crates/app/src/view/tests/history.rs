@@ -31,8 +31,16 @@ fn history_commands(sent: &Commands) -> Vec<Command> {
         .collect()
 }
 
-/// The titles of the items of the Edit menu.
+/// The titles of the history items of the Edit menu: Undo and Redo. The
+/// clipboard items are in `tests/clipboard.rs`.
 fn edit_menu(cx: &mut VisualTestContext) -> Vec<String> {
+    let mut items = edit_menu_items(cx);
+    items.truncate(2);
+    items
+}
+
+/// The titles of the items of the Edit menu.
+pub(super) fn edit_menu_items(cx: &mut VisualTestContext) -> Vec<String> {
     let menus = cx.update(|_, cx| cx.get_menus()).unwrap_or_default();
     menus
         .into_iter()

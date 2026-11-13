@@ -21,6 +21,7 @@
 //! gives the shell the types of the device layer that are in the messages.
 
 pub mod action;
+pub mod clipboard;
 pub mod device_settings;
 pub mod engine;
 pub mod error;

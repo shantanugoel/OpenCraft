@@ -466,6 +466,9 @@ fn the_shortcuts_list_the_key_commands_that_have_a_key_binding(cx: &mut TestAppC
         [
             ("Undo", "⌘Z".to_string()),
             ("Redo", "⇧⌘Z".to_string()),
+            ("Copy the control", "⌘C".to_string()),
+            ("Paste on the control", "⌘V".to_string()),
+            ("Clear the control", "⌫".to_string()),
             ("Hide or show the sidebar", "⌃⌘S".to_string()),
             ("Hide or show the inspector", "⌥⌘I".to_string()),
             ("Settings", "⌘,".to_string()),

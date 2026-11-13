@@ -93,6 +93,10 @@ pub struct ViewState {
     /// does again. `None` is an empty list (decision 0030).
     pub undo: Option<String>,
     pub redo: Option<String>,
+    /// The kind of the control in the clipboard of the engine. `None`
+    /// before the first copy. A paste is possible only on a control of this
+    /// kind (decision 0029, section 13).
+    pub clipboard: Option<ControlKind>,
 }
 
 impl ViewState {
@@ -178,6 +182,7 @@ impl ViewState {
                 self.undo = undo;
                 self.redo = redo;
             }
+            Event::Clipboard(kind) => self.clipboard = Some(kind),
             Event::Counters(_) => {}
         }
         None

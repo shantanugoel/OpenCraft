@@ -22,6 +22,7 @@
 //! | `form` | The parts of an inspector: the header, a section, the rows of a form |
 //! | `gesture_card` | The gesture card |
 //! | `history` | Undo and redo, and the text edits for the history |
+//! | `clipboard` | Copy, Paste, Clear, and Copy to All Pages of the selected control |
 //! | `controls` | Controls that more than one part uses |
 //! | `theme` | The visual constants |
 
@@ -51,6 +52,7 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Instant};
 
 mod actions;
 mod canvas;
+mod clipboard;
 pub(crate) mod controls;
 mod device;
 mod device_inspector;
@@ -362,6 +364,7 @@ impl Render for DeviceView {
                 view.toggle_inspector(window, cx)
             }))
             .map(|root| self.sidebar_actions(root, cx))
+            .map(|root| self.clipboard_actions(root, window, cx))
             // With no handler, macOS disables the Edit menu item.
             .when(self.can_history(true, window, cx), |d| {
                 d.on_action(

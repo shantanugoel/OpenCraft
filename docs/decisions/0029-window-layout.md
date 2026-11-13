@@ -1113,6 +1113,13 @@ the same kind; else it is disabled. "Clear" removes the appearance and the
 bindings of the control. "Copy to All Pages" puts the content on the same
 control on each page of the profile.
 
+The content of a knob is its bindings and its bar panel: the content of
+its feedback surface and the bindings of the bar panel control of that
+surface, because the knob inspector shows that bar panel (section 10.4).
+The engine keeps the clipboard (rule 12), and a copy stays when the
+profile changes: a paste copies the image into the active profile. The
+clipboard is not the clipboard of macOS (#187).
+
 ### 14. The icon picker (#190)
 
 A popover attached to the button "Choose icon…", with an arrow of 16 that

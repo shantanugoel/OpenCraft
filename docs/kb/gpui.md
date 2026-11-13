@@ -705,6 +705,26 @@ repository.
 | A function that returns the result of `cx.listener(..)` as `impl Fn(..) + 'static` does not compile in Rust 2024: the opaque type captures the lifetime of `Context`, also with `use<>`. A `Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>` works, and `on_click` takes it. | Measured | Build errors; `crates/app/src/view/inspector.rs`, `choose_text_colour` |
 | The device showed each label position, size, colour, and weight as the canvas showed them: the engine makes one image for both (rule 11). | Measured | Camera picture and window picture at the same time |
 
+## Copy, paste, and clear in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with Copy,
+Paste, and Clear of
+[issue 187](https://github.com/shantanugoel/OpenCraft/issues/187), on the
+computer of [Release measurements](#release-measurements), with a copy of a
+real profile and the device connected. A helper program operated the real
+window with Quartz events, read the Edit menu through System Events, and
+took pictures of the window only. The pictures are kept outside the
+repository. The window tests are in `crates/app/src/view/tests/clipboard.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| GPUI dispatches the actions of all bindings that match a keystroke, from the highest precedence, until a handler stops the propagation. An action with no handler does not stop it. Thus two bindings of ⌘V in `"Workspace"` (`PasteNotPossible` first, then `Paste`) give `Paste` when its handler is there, and else `PasteNotPossible`. The Edit menu item "Paste" is then disabled, and ⌘V shows the reason in the status bar. | Source; Measured (window test and real window) | `gpui-pre` 0.3.12 `src/window.rs`, `dispatch_key_event`; `a_paste_on_a_control_of_a_different_kind_is_not_possible` |
+| The Edit menu shows the key equivalent of the first binding of an action. With `delete` and then `backspace` for Clear, the menu showed ⌦. The list of the Settings window shows the last binding. Clear has only `backspace` (⌫). | Measured | AX menu item; window picture |
+| GPUI dispatches the matched actions before the key-down listeners. A handler on the root element for ⌘C, ⌘V, or Delete would take the key from the hotkey recorder. The root element has no clipboard handler while the recorder waits, and then the key goes on to `capture_key_down`. | Source | `gpui-pre` 0.3.12 `src/window.rs`, `dispatch_key_event` and `finish_dispatch_key_event` |
+| A label field that has the focus kept ⌘C and Delete: Delete removed one letter, and no copy of the control occurred. | Measured | Window picture |
+| The label field shows the label of the selection. It loads the label at the first event after a change, thus the engine sends the surface of a paste before the bindings. With the bindings first, the field showed the old label. | Measured | Window pictures |
+| A `NativeMenu` with `menu_with_disabled` and `separator` showed "Copy", a dim "Paste", "Clear", a line, and "Copy to All Pages" at the pointer. | Measured | Window picture |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
