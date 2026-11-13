@@ -336,7 +336,7 @@ impl DeviceView {
 
     /// Show the Inspector tab of the right panel, and the panel if it is
     /// hidden.
-    fn show_inspector(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn show_inspector(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.panes.inspector_visible {
             self.toggle_inspector(window, cx);
         }
@@ -367,7 +367,12 @@ impl DeviceView {
         }
     }
 
-    fn select_control(&mut self, id: ControlId, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn select_control(
+        &mut self,
+        id: ControlId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if std::mem::take(&mut self.device.open) {
             cx.notify();
         }

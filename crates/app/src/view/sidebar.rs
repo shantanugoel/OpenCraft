@@ -530,7 +530,12 @@ impl DeviceView {
     /// A click on a page row makes the page the active page. The device is
     /// not the selection now. The selection of the canvas stays (decision
     /// 0029, section 8.3).
-    fn activate_page(&mut self, page: usize, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn activate_page(
+        &mut self,
+        page: usize,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if std::mem::take(&mut self.device.open) {
             cx.notify();
         }

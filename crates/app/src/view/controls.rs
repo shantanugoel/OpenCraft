@@ -814,6 +814,22 @@ pub(super) fn menu_separator() -> Div {
         .bg(theme::LINE_SECTION)
 }
 
+/// The box of a key hint, for example "⌘K" in the search field of the
+/// toolbar (sections 3.4 and 5): `caption`, padding 1 5, border 1
+/// `border-overlay`, radius 4. The text colour is the colour of the parent.
+pub(super) fn key_hint(keys: impl Into<SharedString>) -> Div {
+    let keys: SharedString = keys.into();
+    div()
+        .flex_shrink_0()
+        .py(theme::SPACE_1)
+        .px(theme::KEY_HINT_PADDING_X)
+        .rounded(theme::RADIUS_BADGE)
+        .border_1()
+        .border_color(theme::BORDER_OVERLAY)
+        .text_size(theme::TEXT_CAPTION)
+        .child(keys)
+}
+
 /// A link (section 3.7): `label`, `accent-text`, no underline, and
 /// `accent-text-hover` under the pointer. A link does the work at once, for
 /// example "Set left and right apart" in the "Turn" card of a knob.

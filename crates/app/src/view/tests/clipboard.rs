@@ -62,7 +62,7 @@ fn the_edit_menu_has_copy_paste_and_clear_after_the_history(cx: &mut TestAppCont
     let (_, cx, _, _) = window(cx);
     assert_eq!(
         super::history::edit_menu_items(cx),
-        ["Undo", "Redo", "Copy", "Paste", "Clear"]
+        ["Undo", "Redo", "Copy", "Paste", "Clear", "Search…"]
     );
 }
 

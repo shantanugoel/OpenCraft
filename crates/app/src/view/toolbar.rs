@@ -1,10 +1,9 @@
 //! The toolbar above the canvas and the right panel (decision 0029,
 //! section 5).
 //!
-//! The items, from the leading side: the title block, Undo and Redo, the
-//! button "Device settings" (until #180), a flexible space, the live state
-//! pill, and the button that hides the right panel. The place of the search
-//! field (#192) is after the pill.
+//! The items, from the leading side: the title block, Undo and Redo, a
+//! flexible space, the live state pill, the search field that opens the
+//! command palette (`palette`), and the button that hides the right panel.
 
 use super::{
     controls::{dot, icon_button, toolbar_button},
@@ -85,6 +84,7 @@ impl DeviceView {
             .child(self.history_button(false, cx))
             .child(self.moves_window(div().id("toolbar-space").flex_1().min_w_0().h_full(), cx))
             .child(self.live_pill())
+            .child(self.toolbar_search(cx))
             .child(
                 icon_button(
                     "toggle-inspector",
