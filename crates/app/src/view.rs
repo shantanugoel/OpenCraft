@@ -138,9 +138,6 @@ pub struct DeviceView {
     /// (decision 0029, section 6.1), and the timer that removes it.
     status_message: Option<SharedString>,
     message_timer: Option<Task<()>>,
-    /// True from a press on an empty part of the toolbar to the first move
-    /// of the pointer, which then moves the window.
-    window_move: bool,
     /// The panes of this window. The shell keeps them in `shell.toml`.
     pub(crate) panes: Panes,
     form: actions::ActionForm,
@@ -239,7 +236,6 @@ impl DeviceView {
             input_timer: None,
             status_message: None,
             message_timer: None,
-            window_move: false,
             panes,
             form: actions::ActionForm::default(),
             inspector: inspector::InspectorState::new(window, cx),
