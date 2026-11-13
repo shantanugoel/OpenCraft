@@ -181,12 +181,33 @@ fn each_text_kind_does_its_work() {
 }
 
 #[test]
+fn media_keys_of_an_old_profile_keep_their_names_and_system_keys() {
+    // The values that profiles of an earlier version hold. Their meaning
+    // must not change when new keys join the choice.
+    let mut rig = Rig::new("media-key", true);
+    for (value, key) in [
+        ("play-pause", crate::system::MediaKey::PlayPause),
+        ("next", crate::system::MediaKey::Next),
+        ("previous", crate::system::MediaKey::Previous),
+        ("volume-up", crate::system::MediaKey::VolumeUp),
+        ("volume-down", crate::system::MediaKey::VolumeDown),
+        ("mute", crate::system::MediaKey::Mute),
+    ] {
+        rig.invoke(text_action("media-key", "key", value));
+        assert_eq!(rig.system.calls().last(), Some(&Call::Media(key)));
+    }
+    assert!(rig.messages.try_recv().is_err());
+}
+
+#[test]
 fn each_media_key_has_the_correct_system_key() {
     let mut rig = Rig::new("media-key", true);
     for (value, key) in [
         ("play-pause", crate::system::MediaKey::PlayPause),
         ("next", crate::system::MediaKey::Next),
         ("previous", crate::system::MediaKey::Previous),
+        ("fast-forward", crate::system::MediaKey::FastForward),
+        ("rewind", crate::system::MediaKey::Rewind),
         ("volume-up", crate::system::MediaKey::VolumeUp),
         ("volume-down", crate::system::MediaKey::VolumeDown),
         ("mute", crate::system::MediaKey::Mute),
@@ -253,6 +274,7 @@ fn missing_empty_and_wrong_type_text_settings_are_problems_without_work() {
 fn incorrect_choices_hotkeys_and_blank_open_or_command_settings_do_no_work() {
     for (kind, key, bad, label) in [
         ("media-key", "key", "play", "Key"),
+        ("media-key", "key", "stop", "Key"),
         ("hotkey", "hotkey", "cmd+unknown", "Hotkey"),
         ("hotkey", "hotkey", "cmd+bad", "Hotkey"),
         ("open-application", "application", "  ", "Application"),
@@ -787,6 +809,8 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
                 "play-pause",
                 "next",
                 "previous",
+                "fast-forward",
+                "rewind",
                 "volume-up",
                 "volume-down",
                 "mute",

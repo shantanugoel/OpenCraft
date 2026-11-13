@@ -48,6 +48,8 @@ pub enum MediaKey {
     PlayPause,
     Next,
     Previous,
+    FastForward,
+    Rewind,
     VolumeUp,
     VolumeDown,
     Mute,

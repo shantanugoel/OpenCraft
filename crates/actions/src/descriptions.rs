@@ -183,6 +183,8 @@ pub(crate) fn description(kind: &str) -> KindDescription {
                     ("play-pause", "Play or pause"),
                     ("next", "Next"),
                     ("previous", "Previous"),
+                    ("fast-forward", "Fast forward"),
+                    ("rewind", "Rewind"),
                     ("volume-up", "Volume up"),
                     ("volume-down", "Volume down"),
                     ("mute", "Mute"),

@@ -32,6 +32,8 @@ fn main() {
             "play" => MediaKey::PlayPause,
             "next" => MediaKey::Next,
             "previous" => MediaKey::Previous,
+            "fast" => MediaKey::FastForward,
+            "rewind" => MediaKey::Rewind,
             "up" => MediaKey::VolumeUp,
             "down" => MediaKey::VolumeDown,
             "mute" => MediaKey::Mute,

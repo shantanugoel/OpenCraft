@@ -303,9 +303,17 @@ clipboard later can miss the paste. Use typing mode for that application.
 
 | Setting | What to give |
 |---|---|
-| Key | Play or pause, Next, Previous, Volume up, Volume down, or Mute |
+| Key | Play or pause, Next, Previous, Fast forward, Rewind, Volume up, Volume down, or Mute |
 
 OpenCraft sends the media key, as the media keys of a keyboard do.
+
+- Fast forward and Rewind are the keys F9 and F7 of a Mac keyboard. The
+  media application decides what they do. Some applications skip a track.
+  Other applications move in the track while the key is down. OpenCraft
+  sends one short press.
+- There is no Stop key. macOS has no system key for Stop, so OpenCraft
+  cannot send it. Use Play or pause to stop a player.
+- A profile that you made before these keys existed does not change.
 
 ## Sound volume
 
