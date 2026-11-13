@@ -589,6 +589,9 @@ pub enum Event {
     /// possibly lost its images during the sleep, and an input event during
     /// the sleep, for example a release, is lost.
     Connected,
+    /// The firmware of the connected device, or `None` if its read failed.
+    /// Sent before `Connected`. This contains no device serial number.
+    Firmware(Option<String>),
     /// The device is gone, or the computer slept. The engine looks for the
     /// device again, or draws it again. See [`Event::Connected`].
     Disconnected,
@@ -2306,7 +2309,19 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// draw lost the device, the link gives `Disconnected` next, and the
     /// shell gets no `Connected`.
     fn announce_connected(&mut self) {
+        let firmware = self
+            .link
+            .with_device(|device| device.firmware_version())
+            .ok()
+            .map(|version| {
+                version
+                    .chars()
+                    .filter(|c| !c.is_control())
+                    .collect::<String>()
+            })
+            .filter(|version| !version.trim().is_empty());
         if self.link.is_connected() {
+            (self.sink)(Event::Firmware(firmware));
             (self.sink)(Event::Connected);
         }
     }

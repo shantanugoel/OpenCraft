@@ -87,6 +87,28 @@ impl DeviceView {
             );
         };
         inspector
+            .child(
+                form::section("device-information", "Device", None).child(form::row(
+                    "Firmware",
+                    theme::FORM_LABEL_WIDE,
+                    theme::FORM_GAP,
+                    div()
+                        .id("device-firmware")
+                        .debug_selector(|| "device-firmware".into())
+                        .text_size(theme::TEXT_LABEL)
+                        .text_color(theme::TEXT_SECONDARY)
+                        .readable_text(format!(
+                            "Firmware: {}",
+                            self.state.firmware.as_deref().unwrap_or("Not available")
+                        ))
+                        .child(
+                            self.state
+                                .firmware
+                                .clone()
+                                .unwrap_or_else(|| "Not available".into()),
+                        ),
+                )),
+            )
             .children(
                 self.device
                     .brightness

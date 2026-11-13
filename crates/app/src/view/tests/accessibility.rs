@@ -138,6 +138,7 @@ fn the_library_and_the_device_settings_have_labels(cx: &mut TestAppContext) {
     click(cx, "tab-inspector");
     let nodes = frame(cx);
     assert_has(&nodes, Role::Group, "Test device");
+    assert_has(&nodes, Role::Label, "Firmware: Not available");
     assert_has(&nodes, Role::Switch, "Haptic feedback");
     assert_has(&nodes, Role::RadioButton, "Colours");
     assert_has(&nodes, Role::Button, "Knob 1 light colour #FFFFFF");

@@ -45,6 +45,8 @@ pub struct ViewState {
     pub layout: Option<Arc<DeviceLayout>>,
     pub surfaces: BTreeMap<SurfaceId, SurfaceState>,
     pub connected: bool,
+    /// Firmware of the current connection only. No device identity is kept.
+    pub firmware: Option<String>,
     pub selected: Option<SurfaceId>,
     pub selected_control: Option<ControlId>,
     /// True when the page is the selection (decision 0029, section 8.3).
@@ -146,9 +148,11 @@ impl ViewState {
                 self.surfaces.insert(surface.id, surface);
             }
             Event::Background(background) => self.background = background,
+            Event::Firmware(version) => self.firmware = version,
             Event::Connected => self.connected = true,
             Event::Disconnected => {
                 self.connected = false;
+                self.firmware = None;
                 self.clear_input();
             }
             // The same text shows one time. For example, each press of a key

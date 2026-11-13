@@ -92,6 +92,7 @@ fn main() {
             Event::Background(state) => {
                 println!("[{at:8.3}] background: {:?}", state.background)
             }
+            Event::Firmware(_) => {}
             Event::Connected => println!("[{at:8.3}] connected"),
             Event::Disconnected => println!("[{at:8.3}] disconnected"),
             Event::Input(input) => {

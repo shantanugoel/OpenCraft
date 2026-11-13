@@ -332,7 +332,11 @@ profile or of the page does not change them.
 
 ![The device settings](images/device-settings.png)
 
-The inspector has a header and three sections. The header shows the model of
+The **Device** section shows the firmware version. It shows "Not available"
+when no device is connected or the version cannot be read. No serial number
+is shown.
+
+The inspector has a header and the settings sections. The header shows the model of
 the device and "Connected by USB" or "Not connected". A device model that
 does not have a setting does not show the section of that setting. The
 arrows at the right of the device in the sidebar open the list of the
