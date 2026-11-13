@@ -59,6 +59,10 @@ pub struct ViewState {
     /// the application runs (decision 0029, section 10.3). A control that is
     /// not in this map opens its first card with an action.
     pub open_cards: BTreeMap<ControlId, Option<GestureKind>>,
+    /// The knobs that show the cards "Turn left" and "Turn right" after a
+    /// click on "Set left and right apart" (decision 0029, section 10.4),
+    /// while the application runs.
+    pub turns_apart: BTreeSet<ControlId>,
     pub kinds: Vec<KindDescription>,
     /// The page that the device shows. The commands for a binding use it.
     pub page: usize,
@@ -366,10 +370,55 @@ impl ViewState {
     }
 
     pub fn binding_id(&self) -> Option<BindingId> {
+        self.binding_of(self.gesture?)
+    }
+
+    /// The binding of `gesture` in the inspector of the selected control.
+    /// The inspector of a knob also shows the "Tap" card of its bar panel
+    /// (decision 0029, section 10.4): that gesture is of the bar panel.
+    pub fn binding_of(&self, gesture: GestureKind) -> Option<BindingId> {
+        let selected = self.selected_control?;
+        let control = if selected.kind == ControlKind::Knob
+            && !gestures(selected.kind).iter().any(|(g, _)| *g == gesture)
+        {
+            self.feedback_panel(selected)?
+        } else {
+            selected
+        };
         Some(BindingId {
             page: self.page,
-            control: self.selected_control?,
-            gesture: self.gesture?,
+            control,
+            gesture,
+        })
+    }
+
+    /// The bar panel that gives the feedback of the knob `knob`, from the
+    /// layout.
+    pub fn feedback_panel(&self, knob: ControlId) -> Option<ControlId> {
+        let layout = self.layout.as_ref()?;
+        let surface = layout
+            .controls
+            .iter()
+            .find(|c| c.id == knob)?
+            .feedback_surface?;
+        layout
+            .controls
+            .iter()
+            .find(|c| c.id.kind == ControlKind::BarPanel && c.surface == Some(surface))
+            .map(|c| c.id)
+    }
+
+    /// The surface that the "Appearance" rows of the inspector change: the
+    /// selected surface, or for a knob the bar panel of its feedback.
+    pub fn edit_surface(&self) -> Option<SurfaceId> {
+        self.selected.or_else(|| {
+            let panel = self.feedback_panel(self.selected_control?)?;
+            self.layout
+                .as_ref()?
+                .controls
+                .iter()
+                .find(|c| c.id == panel)?
+                .surface
         })
     }
 

@@ -10,7 +10,7 @@ own card, and each gesture can have a different action. The procedure is in
 | Control | How to select it | Gestures |
 |---|---|---|
 | Key | Click its key face | Press, Release |
-| Knob | Click the knob below the bar panels | Turn left, Turn right, Push |
+| Knob | Click the knob below the bar panels | Turn (Turn left and Turn right), Push. The inspector of a knob also shows the bar panel above it, with its Tap gesture. |
 | Bar panel | Click the bar panel | Tap |
 | Touch bar | Click the small control "◀ Touch bar ▶" above the bar panels. This selects the page: the swipes are part of the page. | Swipe left, Swipe right |
 
@@ -50,12 +50,54 @@ device picture is smaller, down to half of its full size.
 
 ## Knobs
 
-1. Click a knob, for example **Knob 1**. The inspector shows the cards
-   **Turn left**, **Turn right**, and **Push**. The header shows the bar
-   panel that gives the feedback of the knob, for example "Feedback on bar
-   panel 1".
-2. On the card of a gesture, click **Add an action**, and set an action.
-   See [Actions](actions.md).
+1. Click a knob, for example **Knob 1**. The header of the inspector shows
+   the bar panel that gives the feedback of the knob, for example "Feedback
+   on bar panel 1".
+2. On the **Turn** card, click **Add an action**, and set an action. See
+   [Actions](actions.md). The action is for a turn to the left and for a
+   turn to the right.
+3. On the **Push** card, set the action for a push of the knob.
+
+![The knob inspector with "Sound volume" on Turn, and the section of bar panel 1](images/knob-inspector.png)
+
+### The Turn card
+
+The **Turn** card sets one action for the two turn directions. OpenCraft
+keeps two actions in the profile: one for **Turn left** and one for **Turn
+right**.
+
+- Some actions have a direction, for example **Sound volume**. The card
+  then shows the row **Direction**:
+  - **Right is up**: a turn to the right makes the sound louder, and a turn
+    to the left makes it quieter.
+  - **Left is up**: the other way.
+- A change to a setting on the card changes the two actions. One undo
+  (⌘Z) removes the change from the two actions.
+- An action with no direction gets the same settings for the two turns.
+
+To set a different action for each direction, click **Set left and right
+apart**. The inspector then shows the cards **Turn left** and **Turn
+right**. The actions do not change. If the two actions agree again, the
+cards show **Join left and right**. Click it to see the **Turn** card again.
+
+The inspector shows the two cards also when the two actions are different,
+for example when they have different settings, or when only one turn has
+an action.
+
+### The bar panel of a knob
+
+Below the gestures, the section **Bar panel N** shows the bar panel above
+the knob:
+
+| Row | What it does |
+|---|---|
+| **Face** | Shows the image of the bar panel, as the device shows it |
+| **Image**, **Title**, **Position**, **Text**, **Fill** | Change the bar panel, as in the **Appearance** section of a bar panel. See [Set the title and the fill](first-key.md#2-set-the-title-and-the-fill). |
+| **Tap** | The card of the action for a tap on that bar panel |
+
+Thus you can configure the knob and its bar panel in one inspector.
+
+### How a knob operates
 
 - Each click of a turn does the action one time. A fast turn does the action
   many times.

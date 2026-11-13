@@ -204,16 +204,29 @@ fn a_click_sets_the_kind_on_the_open_card_or_on_the_first_gesture(cx: &mut TestA
         Some("Key 2 gets “Toggle” for Release")
     );
 
-    // A knob with no open card: "Turn right".
+    // A knob with no open card: "Turn", which writes the two turn
+    // bindings in one group (decision 0029, section 10.4).
     click(cx, "control-knob 2");
     click(cx, "library-0");
+    let Some(Command::Group { name, commands }) = sent.borrow().last().cloned() else {
+        panic!("expected a group")
+    };
+    assert_eq!(name, "Set Action");
+    let knob = |gesture| BindingId {
+        page: 0,
+        control: ControlId::new(ControlKind::Knob, 2),
+        gesture,
+    };
+    assert!(matches!(
+        commands.as_slice(),
+        [
+            Command::SetBinding { binding: right, action: Some(_) },
+            Command::SetBinding { binding: left, action: Some(_) },
+        ] if *right == knob(GestureKind::TurnRight) && *left == knob(GestureKind::TurnLeft)
+    ));
     assert_eq!(
-        last_set(&sent).map(|(binding, _)| binding),
-        Some(BindingId {
-            page: 0,
-            control: ControlId::new(ControlKind::Knob, 2),
-            gesture: GestureKind::TurnRight,
-        })
+        message(&view, cx).as_deref(),
+        Some("Knob 2 gets “Open an application” for Turn")
     );
 
     // The message goes after 4 seconds, and the last input shows again.

@@ -4,8 +4,8 @@
 //!
 //! The inspector of a key face or a bar panel has the header, the
 //! "Appearance" section, and the "Gestures" section with one gesture card
-//! for each gesture (`actions`). A knob has the header and the "Gestures"
-//! section. The page, with the swipes of the touch bar, has its own
+//! for each gesture (`actions`). A knob has the header, its gesture cards,
+//! and the section of the bar panel of its feedback (`knob`). The page, with the swipes of the touch bar, has its own
 //! inspector (`page_inspector`). The parts are in `form` and
 //! `gesture_card`.
 
@@ -264,7 +264,17 @@ impl DeviceView {
             )
             .child(
                 form::section("gestures", "Gestures", Some(gestures_hint(control.id.kind)))
-                    .children(self.gesture_cards(control.id, window, cx)),
+                    .children(if control.id.kind == ControlKind::Knob {
+                        self.knob_cards(control.id, window, cx)
+                    } else {
+                        self.gesture_cards(control.id, window, cx)
+                    }),
+            )
+            // A knob also edits the bar panel of its feedback (section 10.4).
+            .children(
+                (control.id.kind == ControlKind::Knob)
+                    .then(|| self.knob_panel(control.id, layout, window, cx))
+                    .flatten(),
             )
     }
 
@@ -328,7 +338,7 @@ impl DeviceView {
 
     /// Change one label option of the selected surface.
     fn set_label_style(&mut self, change: LabelChange) {
-        if let Some(surface) = self.state.selected {
+        if let Some(surface) = self.state.edit_surface() {
             (self.send)(Command::SetLabelStyle { surface, change });
         }
     }
@@ -336,53 +346,67 @@ impl DeviceView {
     /// The "Appearance" section of a key face or a bar panel (section
     /// 10.2). #190 changes "Image" to "Icon".
     fn appearance(&self, id: SurfaceId, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        form::section("appearance", "Appearance", None)
+            .child(form::form(theme::FORM_GAP).children(self.appearance_rows(id, window, cx)))
+            .into_any_element()
+    }
+
+    /// The rows of "Appearance": "Image", "Title", "Position", "Text", and
+    /// "Fill". The "Bar panel" section of a knob (section 10.4) also has
+    /// them.
+    pub(super) fn appearance_rows(
+        &self,
+        id: SurfaceId,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
         let content = self.state.surfaces.get(&id).map(|s| &s.content);
         let has_image = content.is_some_and(|c| c.image.is_some());
         let content = content.cloned().unwrap_or_default();
         let row = |label: &str, value: AnyElement| {
             form::row(label.to_string(), theme::FORM_LABEL, theme::FORM_GAP, value)
         };
-        form::section("appearance", "Appearance", None)
-            .child(
-                form::form(theme::FORM_GAP)
-                    .child(row(
-                        "Image",
-                        div()
-                            .flex()
-                            .gap(theme::GAP_ITEMS)
-                            .child(button("choose-image", "Image file…").on_click(
-                                cx.listener(|view, _, window, cx| view.dialog(window, cx)),
-                            ))
-                            .child(button_if("remove-image", "Remove", has_image).when(
-                                has_image,
-                                |d| {
-                                    d.on_click(cx.listener(move |view, _, _, _| {
-                                        (view.send)(Command::SetImage {
-                                            surface: id,
-                                            path: None,
-                                        })
-                                    }))
-                                },
-                            ))
-                            .into_any_element(),
-                    ))
-                    .child(row(
-                        "Title",
-                        controls::text_field(
-                            &AnyInputState::Input(self.input.clone()),
-                            theme::BG_FIELD,
-                            window,
-                            cx,
-                        )
-                        .id("title-field")
-                        .debug_selector(|| "title-field".into())
-                        .into_any_element(),
-                    ))
-                    .child(row("Position", self.label_position(&content, cx)))
-                    .child(row("Text", self.label_text(&content, window, cx)))
-                    .child(row("Fill", self.fill_samples(id, window, cx))),
-            )
-            .into_any_element()
+        vec![
+            row(
+                "Image",
+                div()
+                    .flex()
+                    .gap(theme::GAP_ITEMS)
+                    .child(
+                        button("choose-image", "Image file…")
+                            .on_click(cx.listener(|view, _, window, cx| view.dialog(window, cx))),
+                    )
+                    .child(
+                        button_if("remove-image", "Remove", has_image).when(has_image, |d| {
+                            d.on_click(cx.listener(move |view, _, _, _| {
+                                (view.send)(Command::SetImage {
+                                    surface: id,
+                                    path: None,
+                                })
+                            }))
+                        }),
+                    )
+                    .into_any_element(),
+            ),
+            row(
+                "Title",
+                controls::text_field(
+                    &AnyInputState::Input(self.input.clone()),
+                    theme::BG_FIELD,
+                    window,
+                    cx,
+                )
+                .id("title-field")
+                .debug_selector(|| "title-field".into())
+                .into_any_element(),
+            ),
+            row("Position", self.label_position(&content, cx)),
+            row("Text", self.label_text(&content, window, cx)),
+            row("Fill", self.fill_samples(id, window, cx)),
+        ]
+        .into_iter()
+        .map(IntoElement::into_any_element)
+        .collect()
     }
 
     /// The row "Position": a segmented control with "Top", "Middle",

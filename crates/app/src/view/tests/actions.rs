@@ -402,19 +402,20 @@ fn cards_open_set_a_kind_change_a_setting_and_clear_an_action(cx: &mut TestAppCo
 
     // A knob has the cards of its gestures. The old gesture buttons are
     // gone.
+    // With no turn binding, the knob has the one "Turn" card.
     click(cx, "control-knob 2");
-    for id in ["gesture-TurnLeft", "gesture-TurnRight", "gesture-Push"] {
+    for id in ["gesture-Turn", "gesture-Push"] {
         assert!(cx.debug_bounds(id).is_some(), "{id}");
     }
+    assert!(cx.debug_bounds("gesture-TurnLeft").is_none());
     assert!(cx.debug_bounds("gesture-Press").is_none());
-    assert!(cx.debug_bounds("choose-image").is_none());
-    click(cx, "gesture-TurnLeft-kind");
+    click(cx, "gesture-Push-kind");
     click(cx, "kind-0");
     assert!(matches!(
         sent.borrow().last(),
         Some(Command::SetBinding {
             binding: BindingId {
-                gesture: GestureKind::TurnLeft,
+                gesture: GestureKind::Push,
                 control: ControlId {
                     kind: ControlKind::Knob,
                     ..

@@ -100,13 +100,13 @@ pub(super) fn no_result(text: &str) -> String {
 
 /// The gesture that a click in the library or a drop sets when no card is
 /// open: the first gesture of the control (section 12). For a knob it is
-/// "Turn right", until #182 makes one "Turn" gesture.
+/// "Turn": the binding "Turn right" stands for the "Turn" card, and
+/// [`DeviceView::set_turn`] writes the two turn bindings.
 pub(super) fn first_gesture(control: ControlKind) -> Option<(GestureKind, &'static str)> {
-    let all = gestures(control);
-    all.iter()
-        .find(|(gesture, _)| control == ControlKind::Knob && *gesture == GestureKind::TurnRight)
-        .or_else(|| all.first())
-        .copied()
+    if control == ControlKind::Knob {
+        return Some((GestureKind::TurnRight, "Turn"));
+    }
+    gestures(control).first().copied()
 }
 
 /// The status bar text after a click in the library or a drop, for example
@@ -137,11 +137,13 @@ impl DeviceView {
             self.focus_workspace(window, cx);
             return;
         };
+        // The open card can be the "Turn" card of a knob, or the "Tap" card
+        // of its bar panel (section 10.4).
         let open = self
             .state
             .gesture
-            .and_then(|open| gestures(control.kind).iter().find(|(g, _)| *g == open))
-            .copied();
+            .and_then(|open| Some((open, self.card_name(control, open)?)));
+        let first = open.is_none();
         let (Some((gesture, gesture_name)), Some(name)) = (
             open.or_else(|| first_gesture(control.kind)),
             self.state
@@ -153,9 +155,17 @@ impl DeviceView {
             return;
         };
         self.close_kinds();
-        self.choose_card(gesture, Some(kind.to_string()));
+        if first && control.kind == ControlKind::Knob {
+            self.set_turn(control, Some(kind.to_string()));
+        } else {
+            self.choose_card(gesture, Some(kind.to_string()));
+        }
         self.sync_form(window, cx);
-        self.show_message(assigned_text(control, &name, gesture_name), window, cx);
+        let target = self
+            .state
+            .binding_of(gesture)
+            .map_or(control, |b| b.control);
+        self.show_message(assigned_text(target, &name, gesture_name), window, cx);
         self.focus_workspace(window, cx);
     }
 
@@ -353,7 +363,7 @@ mod tests {
         );
         assert_eq!(
             first_gesture(ControlKind::Knob),
-            Some((GestureKind::TurnRight, "Turn right"))
+            Some((GestureKind::TurnRight, "Turn"))
         );
         assert_eq!(
             assigned_text(

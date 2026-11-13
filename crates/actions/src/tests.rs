@@ -753,6 +753,42 @@ fn the_kinds_that_ask_the_engine_have_the_fields_of_their_decisions() {
 }
 
 #[test]
+fn sound_volume_has_a_direction_for_a_turn_and_no_other_kind_has_one() {
+    let kinds: Vec<_> = handlers().iter().flat_map(|h| h.kinds()).collect();
+    let volume = kinds.iter().find(|d| d.kind == "opencraft.volume").unwrap();
+    let direction = volume.direction.as_ref().expect("a direction");
+    assert_eq!(
+        (
+            direction.key.as_str(),
+            direction.right.as_str(),
+            direction.left.as_str()
+        ),
+        ("operation", "up", "down")
+    );
+    // The key is a choice field, and the two values are options of it.
+    let field = volume
+        .fields
+        .iter()
+        .find(|f| f.key == direction.key)
+        .unwrap();
+    let InputType::Choice { options } = &field.input else {
+        panic!("expected a choice")
+    };
+    let label = |value: &str| {
+        options
+            .iter()
+            .find(|o| o.value == value)
+            .map(|o| o.label.as_str())
+    };
+    assert_eq!(label(&direction.right), Some("Up"));
+    assert_eq!(label(&direction.left), Some("Down"));
+    assert!(kinds
+        .iter()
+        .filter(|d| d.kind != volume.kind)
+        .all(|d| d.direction.is_none()));
+}
+
+#[test]
 fn production_intervals_match_the_specification() {
     let intervals = handlers::Intervals::default();
     assert_eq!(intervals.volume, Duration::from_secs(2));

@@ -753,3 +753,19 @@ pub(super) fn menu_separator() -> Div {
         .h(theme::SPACE_1)
         .bg(theme::LINE_SECTION)
 }
+
+/// A link (section 3.7): `label`, `accent-text`, no underline, and
+/// `accent-text-hover` under the pointer. A link does the work at once, for
+/// example "Set left and right apart" in the "Turn" card of a knob.
+pub(super) fn link(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .text_size(theme::TEXT_LABEL)
+        .text_color(theme::ACCENT_TEXT)
+        .cursor_pointer()
+        .hover(|d| d.text_color(theme::ACCENT_TEXT_HOVER))
+        .child(text.into())
+}

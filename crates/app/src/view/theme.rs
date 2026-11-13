@@ -81,6 +81,8 @@ pub const ACCENT: Rgba = hex(0x1a6fd8);
 pub const ACCENT_LINE: Rgba = hex(0x3b95ff);
 /// A link, and the dot of the last input.
 pub const ACCENT_TEXT: Rgba = hex(0x4da3ff);
+/// A link under the pointer.
+pub const ACCENT_TEXT_HOVER: Rgba = hex(0x7dbbff);
 /// The accent at 14 %: the background of a selected card.
 pub const ACCENT_TINT: Rgba = hex_alpha(0x1a6fd8, 0.14);
 /// The dot of a connected device.
@@ -338,6 +340,10 @@ pub const RADIUS_PAGE_PICTURE_ITEM: Pixels = px(2.);
 pub const HEADER_KNOB_RING: Pixels = px(4.);
 /// The mark at the top of the knob picture in the inspector header.
 pub const HEADER_KNOB_MARK: Pixels = px(6.);
+/// The width of the image of the bar panel in the "Bar panel" section of
+/// the knob inspector (section 10.4). The height follows the bar panel: 94
+/// for the bar panels of the N4 Pro.
+pub const KNOB_PANEL_FACE: Pixels = px(148.);
 /// A kind tile in a gesture card and in the kind menu, and in a nested card.
 pub const KIND_TILE: Pixels = px(20.);
 pub const KIND_TILE_NESTED: Pixels = px(18.);

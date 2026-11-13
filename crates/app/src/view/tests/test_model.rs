@@ -143,16 +143,23 @@ fn the_window_shows_each_control_of_the_test_model_and_no_other(cx: &mut TestApp
     );
     click(cx, "control-knob 1");
     cx.update(|_, cx| assert_eq!(view.read(cx).state.selected, None));
-    click(cx, "gesture-TurnRight-kind");
+    // The "Turn" card writes the two turn bindings in one group.
+    click(cx, "gesture-Turn-kind");
     click(cx, "kind-0");
-    assert_eq!(
-        last_binding(&sent),
-        Some(BindingId {
-            page: 0,
-            control: ControlId::new(ControlKind::Knob, 1),
-            gesture: GestureKind::TurnRight,
+    let Some(Command::Group { commands, .. }) = sent.borrow().last().cloned() else {
+        panic!("expected a group")
+    };
+    let gestures: Vec<_> = commands
+        .iter()
+        .filter_map(|c| match c {
+            Command::SetBinding { binding, .. } => {
+                assert_eq!(binding.control, ControlId::new(ControlKind::Knob, 1));
+                Some(binding.gesture)
+            }
+            _ => None,
         })
-    );
+        .collect();
+    assert_eq!(gestures, [GestureKind::TurnRight, GestureKind::TurnLeft]);
 }
 
 #[gpui_kit::test]

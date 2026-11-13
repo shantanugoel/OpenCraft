@@ -1,6 +1,8 @@
 //! The descriptions that the shell uses to make the settings form.
 
-use opencraft_engine::{ChoiceOption, Field, InputType, KindDescription, PathKind, Value};
+use opencraft_engine::{
+    ChoiceOption, Direction, Field, InputType, KindDescription, PathKind, Value,
+};
 
 pub(crate) const APPLICATION: &str = "opencraft.open-application";
 pub(crate) const URL: &str = "opencraft.open-url";
@@ -171,6 +173,21 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         help: help.map(Into::into),
         needs_accessibility: KEY_KINDS.contains(&kind),
         fields,
+        direction: direction(kind),
+    }
+}
+
+/// The direction field of a kind for a turn of a knob (decision 0014):
+/// "Sound volume" goes up for a turn to the right, and down for a turn to
+/// the left.
+fn direction(kind: &str) -> Option<Direction> {
+    match kind {
+        VOLUME => Some(Direction {
+            key: "operation".into(),
+            right: "up".into(),
+            left: "down".into(),
+        }),
+        _ => None,
     }
 }
 
