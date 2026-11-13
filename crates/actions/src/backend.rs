@@ -26,6 +26,9 @@ pub trait System: Send + Sync + 'static {
         let _ = event;
         Err(crate::system::Error::NotSupported)
     }
+    fn mac_function(&self, _function: crate::mac_function::MacFunction) -> Result<()> {
+        Err(crate::system::Error::NotSupported)
+    }
     fn type_text(&self, text: &str) -> Result<()>;
     fn media_key(&self, key: MediaKey) -> Result<()>;
     fn volume(&self) -> Result<Volume>;
@@ -56,6 +59,9 @@ impl System for RealSystem {
     }
     fn mouse_event(&self, event: crate::mouse::MouseEvent) -> Result<()> {
         system::mouse_event(event)
+    }
+    fn mac_function(&self, function: crate::mac_function::MacFunction) -> Result<()> {
+        system::mac_function(function)
     }
     fn media_key(&self, key: MediaKey) -> Result<()> {
         system::media_key(key)

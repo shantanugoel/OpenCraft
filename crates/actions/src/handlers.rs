@@ -205,6 +205,7 @@ enum KeyWork<'a> {
     Text(&'a str),
     Media(MediaKey),
     Mouse(crate::mouse::MouseEvent),
+    MacFunction(crate::mac_function::MacFunction),
 }
 
 /// The problem of a key action when OpenCraft does not have the permission
@@ -223,6 +224,14 @@ fn key_work(action: &Action) -> Result<KeyWork<'_>> {
             text(action, "hotkey")?
                 .parse()
                 .map_err(|_| setting_problem(HOTKEY, "hotkey"))?,
+        ),
+        MAC_FUNCTION => KeyWork::MacFunction(
+            crate::mac_function::MacFunction::from_name(match action.settings.get("function") {
+                None => "mission-control",
+                Some(Value::Text(value)) => value,
+                _ => return Err(setting_problem(MAC_FUNCTION, "function")),
+            })
+            .ok_or_else(|| setting_problem(MAC_FUNCTION, "function"))?,
         ),
         MOUSE => KeyWork::Mouse(crate::mouse::work(action)?),
         TEXT => KeyWork::Text(text(action, "text")?),
@@ -316,6 +325,12 @@ impl KeyHandler {
             KeyWork::Text(text) => self.system.type_text(text),
             KeyWork::Media(key) => self.system.media_key(key),
             KeyWork::Mouse(event) => self.system.mouse_event(event),
+            KeyWork::MacFunction(function) => {
+                return self
+                    .system
+                    .mac_function(function)
+                    .map_err(|e| format!("Cannot do the Mac system function: {e}."));
+            }
         };
         result.map_err(|e| format!("Cannot send keys or mouse events: {e}."))
     }

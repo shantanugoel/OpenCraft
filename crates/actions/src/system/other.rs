@@ -18,6 +18,10 @@ pub fn mouse_event(_: crate::mouse::MouseEvent) -> Result<()> {
     Err(Error::NotSupported)
 }
 
+pub fn mac_function(_: crate::mac_function::MacFunction) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
 pub fn type_text(_: &str) -> Result<()> {
     Err(Error::NotSupported)
 }

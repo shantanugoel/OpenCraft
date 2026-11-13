@@ -14,6 +14,7 @@ mod support;
 use support::*;
 
 mod flow;
+mod mac_function;
 mod mouse;
 
 struct Rig {
@@ -129,7 +130,8 @@ fn statuses(messages: Vec<Message>, ready: bool) {
             "opencraft.hotkey",
             "opencraft.type-text",
             "opencraft.media-key",
-            "opencraft.mouse"
+            "opencraft.mouse",
+            "opencraft.mac-function"
         ]
         .map(str::to_string)
         .into()
@@ -686,9 +688,9 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 15);
+    assert_eq!(real.len(), 16);
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 15);
+    assert_eq!(kinds.len(), 16);
     for (kind, name, key, input) in [
         (
             "open-application",

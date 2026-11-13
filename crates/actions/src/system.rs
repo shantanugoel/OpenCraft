@@ -14,6 +14,8 @@ use std::process::{Child, Command, Stdio};
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
+mod macos_functions;
+#[cfg(target_os = "macos")]
 mod macos_mouse;
 #[cfg(target_os = "macos")]
 use macos as platform;
@@ -78,6 +80,12 @@ pub fn send_hotkey(hotkey: &Hotkey) -> Result<()> {
 /// Send a complete mouse operation to the front application.
 pub fn mouse_event(event: crate::mouse::MouseEvent) -> Result<()> {
     platform::mouse_event(event)
+}
+
+/// Do a Mac system function. Sleep, lock and screen saver interrupt the
+/// session. A caller must ask the user before testing those operations.
+pub fn mac_function(function: crate::mac_function::MacFunction) -> Result<()> {
+    platform::mac_function(function)
 }
 
 /// Type `text` into the application that has the keyboard focus.
