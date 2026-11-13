@@ -377,6 +377,15 @@ pub const HEADER_PICTURE: Pixels = px(64.);
 pub const PAGE_PICTURE_WIDTH: Pixels = px(72.);
 pub const PAGE_PICTURE_HEIGHT: Pixels = px(44.);
 pub const RADIUS_PAGE_PICTURE_ITEM: Pixels = px(2.);
+/// The preview of the background image in the page inspector (section
+/// 10.6), and the space from its edges to the size text.
+pub const BACKGROUND_PREVIEW_WIDTH: Pixels = px(140.);
+pub const BACKGROUND_PREVIEW_HEIGHT: Pixels = px(84.);
+pub const BACKGROUND_BADGE_INSET: Pixels = SPACE_6;
+/// The backing of the size text on a background image.
+pub const BADGE_ON_IMAGE: Rgba = hex_alpha(0x000000, 0.55);
+/// The menu of the fit of the background image.
+pub const WIDTH_FIT_MENU: Pixels = px(140.);
 /// The ring of the knob picture in the inspector header.
 pub const HEADER_KNOB_RING: Pixels = px(4.);
 /// The mark at the top of the knob picture in the inspector header.

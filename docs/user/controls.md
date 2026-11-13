@@ -186,6 +186,7 @@ The header shows a small picture of the page, the name of the page, and
 | **Order** | The arrow up moves the page up in the list. The arrow down moves the page down. An arrow is dim on the first or the last page. |
 | **Duplicate** | Adds a copy of the page |
 | **Remove…** | Asks for a confirmation, and then removes the page. It is dim when the profile has one page only. |
+| **BACKGROUND** | The background of the page. See [The background of a page](#the-background-of-a-page). |
 | **TOUCH BAR GESTURES** | The cards **Swipe left** and **Swipe right** of this page. See [The touch bar](#the-touch-bar). |
 
 ⌘Z undoes each of these changes. One edit of the name is one step.
@@ -202,6 +203,42 @@ Example: on each page, set "Swipe left" of the touch bar to "Next page", and
 
 To hide the pages of the active profile, click the arrow at the left of its
 name. Click the arrow again to show them.
+
+### The background of a page
+
+Each page can have a background. The device shows it on its full display,
+800 × 480 pixels, behind the key faces and the bar panels. The window shows
+the same background behind the controls in the device picture.
+
+A key face or a bar panel with no fill colour shows the part of the
+background at its position, behind its title and its image. A fill colour
+covers the background. To show the background on a key face, click the
+sample "No fill" in its **Fill** row. The automatic text colour is black or
+white for the background behind the title.
+
+To set the background, select the page (see
+[The page inspector](#the-page-inspector)). Then use the section
+**BACKGROUND**:
+
+| Segment | What it does |
+|---|---|
+| **None** | Removes the background. The display is black behind the controls. |
+| **Colour** | Shows the colour samples. Click a colour. Or click **+**, type the colour as `#RRGGBB`, and push Return. |
+| **Image** | Shows a preview of the background, **Choose image…**, and the fit. Click **Choose image…**, and select a PNG or a JPEG file. |
+| **Video** | Dim. A later version of OpenCraft can show a video. |
+
+The fit tells how an image that is not 800 × 480 goes on the display:
+
+| Fit | Result |
+|---|---|
+| **Fill** (the default) | The image covers all of the display. The parts of the image out of the display do not show. |
+| **Fit** | All of the image shows. Black fills the rest of the display. |
+
+OpenCraft keeps a copy of the image in the profile. Thus you can move or
+delete the original file. A copy of the page, the export of the profile, and
+⌘Z include the background.
+
+![The page inspector with a background image, and the background behind the controls in the device picture](images/page-background.png)
 
 ## Profiles
 

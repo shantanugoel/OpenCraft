@@ -46,7 +46,10 @@ use crate::clipboard::{ControlContent, Parts};
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::history::{History, Target};
 use crate::layout::DeviceLayout;
-use crate::profile::{Color, LabelChange, Page, Profile, SurfaceContent, DEFAULT_PROFILE_NAME};
+use crate::profile::{
+    Background, BackgroundFit, Color, LabelChange, Page, Profile, SurfaceContent,
+    DEFAULT_PROFILE_NAME,
+};
 use crate::profiles::{ProfileEntry, ProfilesDir};
 use crate::render::{self, Size};
 use crate::store::ProfileStore;
@@ -138,6 +141,18 @@ pub enum Command {
         binding: BindingId,
         action: Option<Action>,
     },
+    /// Set the background of `page`, or remove it with `None`. For an image,
+    /// the engine makes a copy of the image file in the profile: see
+    /// [`ProfileStore::import_background`]. A model with no background
+    /// gives a problem. The reasons are in
+    /// `docs/decisions/0032-page-background.md`.
+    SetBackground {
+        page: usize,
+        background: Option<NewBackground>,
+    },
+    /// Change the fit of the background image of `page`. A page with no
+    /// background image does not change.
+    SetBackgroundFit { page: usize, fit: BackgroundFit },
     /// Make `page` the active page. The device shows it.
     SelectPage { page: usize },
     /// Add a page after the last page, and make it the active page. With
@@ -288,6 +303,14 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
             None,
         ),
         Command::SetColor { .. } => step("Set Fill", None),
+        Command::SetBackground {
+            background: Some(_),
+            ..
+        } => step("Set Background", None),
+        Command::SetBackground {
+            background: None, ..
+        } => step("Remove the Background", None),
+        Command::SetBackgroundFit { .. } => step("Set Background Fit", None),
         Command::SetImage { path: Some(_), .. } => step("Set Image", None),
         Command::SetImage { path: None, .. } => step("Remove the Image", None),
         Command::SetBinding {
@@ -375,6 +398,28 @@ pub struct SurfaceState {
     pub states: Option<StateImages>,
 }
 
+/// A new background for a page, in [`Command::SetBackground`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NewBackground {
+    /// One colour on all of the display.
+    Color(Color),
+    /// An image file of the user, with its fit.
+    Image { path: PathBuf, fit: BackgroundFit },
+}
+
+/// The background of the active page: its setting in the profile, and the
+/// image that the engine made from it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BackgroundState {
+    /// `None`: the page has no background.
+    pub background: Option<Background>,
+    /// The upright image of the full display, with the size of the
+    /// background of the model. The device shows this same image (rule 11).
+    /// `None` when the page has no background, or when the model has no
+    /// background.
+    pub image: Option<Arc<RgbImage>>,
+}
+
 /// The images of a surface with a feedback of two states.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateImages {
@@ -398,6 +443,27 @@ pub struct Counters {
     /// [`EngineRequest::Invoke`] is not in this count: it is not input, and
     /// the count must agree with the input events.
     pub invokes_sent: u64,
+}
+
+/// A write of the background to the device.
+enum BackgroundWrite {
+    /// The background image, encoded for the background surface.
+    Image(Vec<u8>),
+    /// The page has no background: remove the background behind the keys
+    /// and behind the touch bar.
+    Clear,
+}
+
+impl BackgroundWrite {
+    fn send<T: opencraft_core::Transport>(
+        &self,
+        device: &mut opencraft_core::Device<T>,
+    ) -> opencraft_core::Result<()> {
+        match self {
+            BackgroundWrite::Image(data) => device.send_background(data),
+            BackgroundWrite::Clear => device.clear_background(),
+        }
+    }
 }
 
 /// An event from the engine to a shell.
@@ -483,6 +549,13 @@ pub enum Event {
     /// surface, after each change, and for each surface after a change of
     /// the active page.
     Surface(SurfaceState),
+    /// The background of the active page, when it changes: a change of the
+    /// background, of the active page, of the active profile, or of the
+    /// model. Before the first event, the active page has no background,
+    /// thus a page with no background at the start sends no event. It
+    /// comes before the surfaces, because a surface with no fill colour
+    /// shows a part of it.
+    Background(BackgroundState),
     /// A device is connected, and the engine sent the image of each surface
     /// to it. Before this event, no device is connected.
     ///
@@ -533,6 +606,12 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     descriptor: &'static Descriptor,
     /// The image of each surface that has a slot (rule 10).
     images: BTreeMap<SurfaceId, Arc<RgbImage>>,
+    /// The background image of the active page, if the page has a
+    /// background and the model has one (rule 10).
+    background: Option<Arc<RgbImage>>,
+    /// The last background state that the shell got. Before the first
+    /// event, the shell knows no background.
+    background_sent: BackgroundState,
     /// True if the connected device does not show all images.
     needs_draw: bool,
     /// The time of the last change of the profile that is not in the file.
@@ -602,6 +681,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             can_save: true,
             descriptor: default_model,
             images: BTreeMap::new(),
+            background: None,
+            background_sent: BackgroundState::default(),
             needs_draw: false,
             changed_at: None,
             save_failed: false,
@@ -835,6 +916,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// These are steps 2 and 3 of a page change.
     fn redraw(&mut self) {
         let before = std::mem::take(&mut self.images);
+        let background_before = self.background.take();
+        self.render_background();
         let surfaces: Vec<&'static Surface> = self.descriptor.slot_surfaces().collect();
         for surface in &surfaces {
             self.render(surface);
@@ -843,8 +926,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .into_iter()
             .filter(|s| before.get(&s.id) != self.images.get(&s.id))
             .collect();
+        let background = background_before != self.background;
         if self.link.is_connected() && !self.needs_draw {
-            self.draw(&changed);
+            self.draw(background, &changed);
         }
     }
 
@@ -1073,7 +1157,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         };
         self.render(surface);
         if self.link.is_connected() && !self.needs_draw {
-            self.draw(&[surface]);
+            self.draw(false, &[surface]);
         }
     }
 
@@ -1547,11 +1631,14 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Err(e) => return self.problem(failed(&e)),
         };
         let store = self.profiles.store(&id);
-        let written = package.write_images(&store).and_then(|mut profile| {
-            profile.name = name;
-            store.save(&profile)?;
-            Ok(profile)
-        });
+        let size = self.background_size();
+        let written = package
+            .write_images(&store, (size.width, size.height))
+            .and_then(|mut profile| {
+                profile.name = name;
+                store.save(&profile)?;
+                Ok(profile)
+            });
         match written {
             Ok(profile) => {
                 self.change_profile(id.clone(), Some(profile));
@@ -1604,9 +1691,108 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.ports.iter().flat_map(|p| p.kinds.clone()).collect(),
         ));
         self.images.clear();
+        self.render_background();
         for surface in self.descriptor.slot_surfaces() {
             self.render(surface);
         }
+    }
+
+    /// The size of the background of the model, in pixels. A model with no
+    /// background gives the size of its display.
+    fn background_size(&self) -> Size {
+        let (width, height) = self
+            .descriptor
+            .background()
+            .map_or(self.descriptor.display_size(), |s| (s.width, s.height));
+        Size {
+            width: u32::from(width),
+            height: u32::from(height),
+        }
+    }
+
+    /// Make the background image of the active page, keep it, and send the
+    /// state of the background. Make the images of the surfaces after
+    /// this: a surface with no fill colour shows a part of it.
+    fn render_background(&mut self) {
+        let background = self.page().background.clone();
+        let image = match (&background, self.descriptor.background()) {
+            (Some(background), Some(_)) => {
+                let source =
+                    background
+                        .image()
+                        .and_then(|path| match self.store.load_image(path) {
+                            Ok(image) => Some(image),
+                            Err(e) => {
+                                self.problem(format!(
+                                "OpenCraft could not show the background image of the page: {e}"
+                            ));
+                                None
+                            }
+                        });
+                Some(Arc::new(render::background_image(
+                    self.background_size(),
+                    background,
+                    source.as_ref(),
+                )))
+            }
+            _ => None,
+        };
+        self.background = image.clone();
+        let state = BackgroundState { background, image };
+        if state != self.background_sent {
+            self.background_sent = state.clone();
+            (self.sink)(Event::Background(state));
+        }
+    }
+
+    /// Change the background of `page` with `change`. If it changes on the
+    /// active page, make the new images, send them to the shell, and draw
+    /// on the device only the parts that changed.
+    fn change_background(&mut self, page: usize, change: impl FnOnce(&mut Option<Background>)) {
+        if !self.is_page(page) {
+            return;
+        }
+        let Some(target) = self.profile.page_mut(page) else {
+            return;
+        };
+        let before = target.background.clone();
+        change(&mut target.background);
+        if target.background == before {
+            return;
+        }
+        self.changed_at = Some(self.now());
+        if page == self.active {
+            self.redraw();
+        }
+    }
+
+    /// Set the background of `page`. This is [`Command::SetBackground`].
+    fn set_background(&mut self, page: usize, background: Option<NewBackground>) {
+        if !self.is_page(page) {
+            return;
+        }
+        if background.is_some() && self.descriptor.background().is_none() {
+            self.problem("This device has no background.".to_string());
+            return;
+        }
+        let new = match background {
+            None => None,
+            Some(NewBackground::Color(color)) => Some(Background::Color(color)),
+            Some(NewBackground::Image { path, fit }) => {
+                let size = self.background_size();
+                match self
+                    .store
+                    .import_background(&path, (size.width, size.height))
+                {
+                    Ok(image) => Some(Background::Image { image, fit }),
+                    Err(e) => {
+                        self.problem(format!("OpenCraft could not use the image: {e}"));
+                        return;
+                    }
+                }
+            }
+        };
+        self.change_background(page, |background| *background = new);
     }
 
     /// Make the image of `surface` from the profile, keep it, and send the
@@ -1636,20 +1822,26 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .filter(|(binding, _)| self.feedback_surface(binding.control) == Some(surface.id))
             .max_by_key(|(_, (order, _))| *order)
             .map(|(_, (_, feedback))| feedback);
-        let image = Arc::new(render::surface_image_with_feedback(
+        // A surface with no fill colour shows the background (decision 0032).
+        let backdrop = self.background.as_ref().map(|background| {
+            render::backdrop(background, u32::from(surface.x), u32::from(surface.y), size)
+        });
+        let image = Arc::new(render::surface_image_on_background(
             size,
             &content,
             source.as_ref(),
             feedback,
+            backdrop.as_ref(),
         ));
         let states = feedback.and_then(|feedback| {
             let now = feedback.state?;
             let other = render::other_state(feedback);
-            let other = Arc::new(render::surface_image_with_feedback(
+            let other = Arc::new(render::surface_image_on_background(
                 size,
                 &content,
                 source.as_ref(),
                 Some(&other),
+                backdrop.as_ref(),
             ));
             let (off, on) = match now {
                 FeedbackState::Off => (Arc::clone(&image), other),
@@ -1763,6 +1955,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.change(surface, |c| c.image = image);
             }
             Command::SetBinding { binding, action } => self.set_binding(binding, action),
+            Command::SetBackground { page, background } => self.set_background(page, background),
+            Command::SetBackgroundFit { page, fit } => self.change_background(page, |background| {
+                if let Some(Background::Image { fit: old, .. }) = background {
+                    *old = fit;
+                }
+            }),
             Command::SelectPage { page } => self.select_page(page),
             Command::AddPage { copy_of } => self.add_page(copy_of),
             Command::RenamePage { page, name } => self.rename_page(page, name),
@@ -1940,7 +2138,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.changed_at = Some(self.now());
         self.render(surface);
         if self.link.is_connected() && !self.needs_draw {
-            self.draw(&[surface]);
+            self.draw(false, &[surface]);
         }
     }
 
@@ -2045,9 +2243,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// surface to the device (rule 10). The order is that of decision 0022:
     /// `DIS`, `LIG` with the brightness setting, `CLE 0xFF`, `STP`, then the
     /// knob light commands (`SETLB` and `LBLIG`, or `LBLIG 0` only), then
-    /// `QUCMD`, then the images, then `STP`. The device keeps no setting
-    /// after a USB restart, and not the knob light colours after `DC`
-    /// (measured), so each full draw sends all settings.
+    /// `QUCMD`, then the background (`BGPIC` with the image, or `BGCLE` for a
+    /// page with no background; decision 0032), then the images, then
+    /// `STP`. The device keeps no setting after a USB restart, and not the
+    /// knob light colours after `DC` (measured), so each full draw sends all
+    /// settings.
     fn draw_all(&mut self) {
         let mut encoded = Vec::with_capacity(self.images.len());
         for surface in self.descriptor.slot_surfaces() {
@@ -2055,12 +2255,18 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 encoded.push(data);
             }
         }
+        let background = self.encode_background();
         let brightness = self.settings.brightness;
         let commands = SettingCommands::new(&self.settings, self.descriptor.settings);
         let result = self.link.with_device(|device| {
             device.start(brightness)?;
             for command in commands.after_start() {
                 device.send(command.clone())?;
+            }
+            // The device possibly keeps a background of an earlier run,
+            // thus a page with no background removes it.
+            if let Some(background) = &background {
+                background.send(device)?;
             }
             for (slot, data) in &encoded {
                 device.send_image(*slot, data)?;
@@ -2085,13 +2291,23 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     /// Send the images of `surfaces` to the device, and then one commit.
-    /// With no image, send nothing.
-    fn draw(&mut self, surfaces: &[&Surface]) {
+    /// With `background`, send the background of the active page first: its
+    /// image, or the command that removes it. With nothing to send, send
+    /// nothing.
+    fn draw(&mut self, background: bool, surfaces: &[&Surface]) {
+        let background = if background {
+            self.encode_background()
+        } else {
+            None
+        };
         let encoded: Vec<_> = surfaces.iter().filter_map(|s| self.encode(s)).collect();
-        if encoded.is_empty() {
+        if encoded.is_empty() && background.is_none() {
             return;
         }
         let result = self.link.with_device(|device| {
+            if let Some(background) = &background {
+                background.send(device)?;
+            }
             for (slot, data) in &encoded {
                 device.send_image(*slot, data)?;
             }
@@ -2103,6 +2319,26 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 // The state of the device is not known. Draw all again.
                 self.link_error(&e);
                 self.needs_draw = true;
+            }
+        }
+    }
+
+    /// The write of the background of the active page, in the form that the
+    /// device needs: its image, or the command that removes it. `None` for
+    /// a model with no background, and after an error, which goes to the
+    /// shell.
+    fn encode_background(&mut self) -> Option<BackgroundWrite> {
+        let surface = self.descriptor.background()?;
+        let Some(image) = &self.background else {
+            return Some(BackgroundWrite::Clear);
+        };
+        match encode_for(surface, image, jpeg_quality_for(surface)) {
+            Ok(data) => Some(BackgroundWrite::Image(data)),
+            Err(e) => {
+                self.problem(format!(
+                    "OpenCraft could not make the background image: {e}"
+                ));
+                None
             }
         }
     }

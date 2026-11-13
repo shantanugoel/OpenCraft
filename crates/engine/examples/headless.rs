@@ -89,6 +89,9 @@ fn main() {
             Event::Surface(state) => {
                 println!("[{at:8.3}] surface: {} {:?}", state.id, state.content)
             }
+            Event::Background(state) => {
+                println!("[{at:8.3}] background: {:?}", state.background)
+            }
             Event::Connected => println!("[{at:8.3}] connected"),
             Event::Disconnected => println!("[{at:8.3}] disconnected"),
             Event::Input(input) => {

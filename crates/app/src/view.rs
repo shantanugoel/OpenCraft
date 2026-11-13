@@ -114,6 +114,8 @@ pub struct DeviceView {
     shell: Entity<Shell>,
     _shell_subscription: Subscription,
     images: BTreeMap<SurfaceId, Arc<RenderImage>>,
+    /// The background image of the active page from the engine (rule 11).
+    background_image: Option<Arc<RenderImage>>,
     send: Rc<dyn Fn(Command)>,
     /// The focus of the root element. The key commands of the window and the
     /// hotkey recorder need the focus in this element. After a click that
@@ -186,6 +188,7 @@ impl DeviceView {
             .iter()
             .map(|(id, surface)| (*id, images::from_rgb(&surface.image)))
             .collect();
+        let background_image = state.background.image.as_deref().map(images::from_rgb);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let library = library::LibraryState::new(state.kinds.len(), window, cx);
@@ -194,6 +197,7 @@ impl DeviceView {
             shell: shell.clone(),
             _shell_subscription: shell_subscription,
             images,
+            background_image,
             send,
             focus,
             input,
@@ -241,6 +245,12 @@ impl DeviceView {
                 .images
                 .insert(surface.id, images::from_rgb(&surface.image))
             {
+                let _ = window.drop_image(old);
+            }
+        }
+        if let Event::Background(background) = &event {
+            let new = background.image.as_deref().map(images::from_rgb);
+            if let Some(old) = std::mem::replace(&mut self.background_image, new) {
                 let _ = window.drop_image(old);
             }
         }

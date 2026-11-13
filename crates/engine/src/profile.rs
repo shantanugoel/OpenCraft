@@ -203,10 +203,69 @@ impl SurfaceContent {
     }
 }
 
+/// How a background image that does not have the proportion of the display
+/// goes on the display. The reasons are in
+/// `docs/decisions/0032-page-background.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum BackgroundFit {
+    /// The image covers all of the display, with its proportion, at the
+    /// centre. The parts of the image out of the display do not show. This
+    /// is the default.
+    #[default]
+    Fill,
+    /// All of the image is on the display, with its proportion, at the
+    /// centre. Black fills the rest of the display.
+    Fit,
+}
+
+impl BackgroundFit {
+    /// All fits, in the order of the window.
+    pub const ALL: [BackgroundFit; 2] = [Self::Fill, Self::Fit];
+
+    /// The text form in the profile file.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Fill => "fill",
+            Self::Fit => "fit",
+        }
+    }
+
+    /// Read the text form. See [`BackgroundFit::key`].
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|f| f.key() == key)
+    }
+}
+
+/// The background of a page: the image on the full display, behind the key
+/// faces and the bar panels. A surface with no fill colour shows the part of
+/// the background at its position (decision 0032).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Background {
+    /// One colour on all of the display.
+    Color(Color),
+    /// An image, as a path relative to the profile directory. The store
+    /// makes this path: see
+    /// [`crate::store::ProfileStore::import_background`].
+    Image { image: String, fit: BackgroundFit },
+}
+
+impl Background {
+    /// The image path, if the background is an image.
+    pub fn image(&self) -> Option<&str> {
+        match self {
+            Background::Image { image, .. } => Some(image),
+            Background::Color(_) => None,
+        }
+    }
+}
+
 /// One full set of bindings and surface content for a device.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Page {
     pub name: String,
+    /// The background of the page. `None`: the page has no background, and
+    /// the display is black behind the surfaces.
+    pub background: Option<Background>,
     /// The content of each surface that has content. A surface with no
     /// content is not in the map: use [`Page::update`] to change the map.
     surfaces: BTreeMap<SurfaceId, SurfaceContent>,
@@ -221,6 +280,7 @@ impl Page {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
+            background: None,
             surfaces: BTreeMap::new(),
             bindings: BTreeMap::new(),
             first: false,
@@ -264,15 +324,24 @@ impl Page {
         self.surfaces.iter().map(|(id, content)| (*id, content))
     }
 
-    /// Change the image path of each surface with `map`. `None` from `map`
-    /// removes the image. An import of a profile file uses this: see
-    /// [`crate::share`].
-    pub(crate) fn map_images(&mut self, mut map: impl FnMut(&str) -> Option<String>) {
+    /// Change the image path of each surface and of the background with
+    /// `map`. The second argument of `map` tells the use of the image.
+    /// `None` from `map` removes the image, or the background. An export
+    /// and an import of a profile file use this: see [`crate::share`].
+    pub(crate) fn map_images(&mut self, mut map: impl FnMut(&str, ImageUse) -> Option<String>) {
         let ids: Vec<SurfaceId> = self.surfaces.keys().copied().collect();
         for id in ids {
             self.update(id, |content| {
-                content.image = content.image.as_deref().and_then(&mut map);
+                content.image = content
+                    .image
+                    .as_deref()
+                    .and_then(|p| map(p, ImageUse::Surface));
             });
+        }
+        if let Some(Background::Image { image, fit }) = &self.background {
+            let fit = *fit;
+            self.background =
+                map(image, ImageUse::Background).map(|image| Background::Image { image, fit });
         }
     }
 
@@ -295,6 +364,14 @@ impl Page {
         }
         true
     }
+}
+
+/// The use of an image file of the profile. A surface image and a
+/// background have different sizes: see [`crate::store`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ImageUse {
+    Surface,
+    Background,
 }
 
 /// A named set of pages for one device model.
@@ -443,20 +520,34 @@ impl Profile {
             .expect("a name that no page has")
     }
 
-    /// Change the image path of each surface of each page with `map`. See
-    /// [`Page::map_images`].
-    pub(crate) fn map_images(&mut self, mut map: impl FnMut(&str) -> Option<String>) {
+    /// Change the image path of each surface and of each background of
+    /// each page with `map`. See [`Page::map_images`].
+    pub(crate) fn map_images(&mut self, mut map: impl FnMut(&str, ImageUse) -> Option<String>) {
         for page in &mut self.pages {
             page.map_images(&mut map);
         }
     }
 
-    /// Each image path that a surface of the profile uses.
+    /// Each image path that a surface or a background of the profile uses.
     pub fn image_paths(&self) -> impl Iterator<Item = &str> {
-        self.pages
+        self.image_uses().map(|(path, _)| path)
+    }
+
+    /// Each image path that the profile uses, with its use: the images of
+    /// the surfaces, then the backgrounds of the pages.
+    pub fn image_uses(&self) -> impl Iterator<Item = (&str, ImageUse)> {
+        let surfaces = self
+            .pages
             .iter()
             .flat_map(|p| p.surfaces.values())
             .filter_map(|c| c.image.as_deref())
+            .map(|p| (p, ImageUse::Surface));
+        let backgrounds = self
+            .pages
+            .iter()
+            .filter_map(|p| p.background.as_ref().and_then(Background::image))
+            .map(|p| (p, ImageUse::Background));
+        surfaces.chain(backgrounds)
     }
 }
 

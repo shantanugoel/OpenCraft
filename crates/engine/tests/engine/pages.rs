@@ -72,7 +72,7 @@ pub(super) fn image_slots(sent: &[Sent]) -> Vec<u8> {
     sent.iter()
         .filter_map(|s| match s {
             Sent::Image { slot, .. } => Some(*slot),
-            Sent::Op(_) => None,
+            Sent::Op(_) | Sent::Background { .. } => None,
         })
         .collect()
 }

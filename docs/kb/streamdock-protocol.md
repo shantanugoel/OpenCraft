@@ -144,6 +144,17 @@ A camera recorded these facts on 2026-11-11:
 | Thus one image of 800 × 122 with x 0, y 0 draws the touch bar area only (upright y from 358 to 479) | Measured |
 | The device showed background JPEG files of 286 904, 460 967, 704 568, and 1 191 260 bytes. The limit is not found. The write time of the largest file was 527 ms. | Measured |
 
+A camera recorded these facts on 2026-11-13, with the engine of OpenCraft
+and the page background of
+[decision 0032](../decisions/0032-page-background.md):
+
+| Fact | Confidence |
+|---|---|
+| `BGPIC`, then slot images, then one `STP` in one transfer show the background and the slot images. This occurred in the full draw after `DIS` and at a page change. | Measured: 6 times |
+| `BGCLE 0x03`, then slot images, then one `STP` remove the background at a page change | Measured: 1 time |
+| The device showed a background, OpenCraft quit, and OpenCraft started again on a page with no background. The full draw sent `BGCLE 0x03` after the device settings, and the device showed no background. It is not known if the device keeps a background across a quit and a start with no `BGCLE`. | Measured: 1 time |
+| A key face image that is the part of the background at the position of the key face (from [n4-pro-hardware.md](n4-pro-hardware.md#positions-on-the-display)) continues the lines of the background around it. The camera saw no offset. | Measured |
+
 OpenCraft has no builder for `LOG`. A test in `protocol.rs` makes sure that
 `protocol.rs` and `connection.rs` do not contain it. The probe command
 `background` sends `BGPIC`, then `STP`. With `--clear`, it sends

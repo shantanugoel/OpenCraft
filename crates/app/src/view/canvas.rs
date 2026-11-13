@@ -605,6 +605,17 @@ impl DeviceView {
             .h(px(display_height))
             .rounded(px(theme::DEVICE_DISPLAY_RADIUS * scale))
             .bg(theme::DEVICE_DISPLAY)
+            // The background of the page from the engine, behind the
+            // surfaces (rule 11, #191).
+            .children(self.background_image.clone().map(|image| {
+                img(image)
+                    .debug_selector(|| "display-background".into())
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .rounded(px(theme::DEVICE_DISPLAY_RADIUS * scale))
+            }))
             // A click on an empty part of the display selects the page. The
             // body of the device would select the device.
             .on_click(cx.listener(|view, _, window, cx| {

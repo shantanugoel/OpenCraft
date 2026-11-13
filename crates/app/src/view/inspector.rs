@@ -35,6 +35,8 @@ pub(super) struct InspectorState {
     /// The field for `#RRGGBB` in that popover.
     text_colour_input: Entity<InputState>,
     _text_colour_subscription: Subscription,
+    /// The menu of the fit of the page background is open (section 10.6).
+    pub(super) fit_open: bool,
 }
 
 impl InspectorState {
@@ -44,7 +46,7 @@ impl InspectorState {
             cx.subscribe_in(&colour_input, window, |view, input, event, window, cx| {
                 if matches!(event, TextEvent::PressEnter { .. }) {
                     if let Some(colour) = parse_colour(&input.read(cx).value()) {
-                        view.set_colour(Some(colour));
+                        view.pick_colour(Some(colour));
                         view.inspector.colour_open = false;
                         view.focus_workspace(window, cx);
                         cx.notify();
@@ -74,19 +76,23 @@ impl InspectorState {
             text_colour_open: false,
             text_colour_input,
             _text_colour_subscription: text_subscription,
+            fit_open: false,
         }
     }
 
-    /// True if a menu or a popover of the "Appearance" section is open.
+    /// True if a menu or a popover of the "Appearance" section, or of the
+    /// "Background" section of the page, is open.
     pub(super) fn is_open(&self) -> bool {
-        self.colour_open || self.size_open || self.text_colour_open
+        self.colour_open || self.size_open || self.text_colour_open || self.fit_open
     }
 
-    /// Close each menu and popover of the "Appearance" section.
+    /// Close each menu and popover of the "Appearance" section and of the
+    /// "Background" section.
     pub(super) fn close(&mut self) {
         self.colour_open = false;
         self.size_open = false;
         self.text_colour_open = false;
+        self.fit_open = false;
     }
 }
 
@@ -683,6 +689,34 @@ impl DeviceView {
     /// colour", which opens a popover with a field for `#RRGGBB`.
     fn fill_samples(&self, id: SurfaceId, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let current = self.state.surfaces.get(&id).and_then(|s| s.content.color);
+        self.colour_samples(current, true, "Fill", window, cx)
+    }
+
+    /// Use the colour of a sample: the fill of the selected surface, or the
+    /// background colour of the page when the page is the selection
+    /// (section 10.6). `None` is "No fill".
+    pub(super) fn pick_colour(&mut self, color: Option<Color>) {
+        if self.state.page_selected {
+            if let Some(color) = color {
+                self.set_background_colour(color);
+            }
+        } else {
+            self.set_colour(color);
+        }
+    }
+
+    /// The colour samples of section 10.2: "No fill" if `none`, the colours
+    /// of [`COLOURS`], and "Other colour". `current` is the selected colour.
+    /// `what` starts the tooltip of a colour, for example "Fill #1A6FD8". A
+    /// click calls [`Self::pick_colour`].
+    pub(super) fn colour_samples(
+        &self,
+        current: Option<Color>,
+        none: bool,
+        what: &'static str,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let custom = current.filter(|c| !COLOURS.iter().any(|&v| colour(v) == *c));
         let other = controls::colour_sample(
             "other-colour",
@@ -772,26 +806,28 @@ impl DeviceView {
             .flex()
             .flex_wrap()
             .gap(theme::SPACE_6)
-            .child(
-                controls::colour_sample(
-                    "no-colour",
-                    None,
-                    current.is_none(),
-                    Some("No fill".into()),
+            .when(none, |d| {
+                d.child(
+                    controls::colour_sample(
+                        "no-colour",
+                        None,
+                        current.is_none(),
+                        Some("No fill".into()),
+                    )
+                    .on_click(cx.listener(|view, _, _, cx| {
+                        view.pick_colour(None);
+                        cx.notify();
+                    })),
                 )
-                .on_click(cx.listener(|view, _, _, cx| {
-                    view.set_colour(None);
-                    cx.notify();
-                })),
-            )
+            })
             .children(COLOURS.into_iter().enumerate().map(|(index, value)| {
                 controls::colour_sample(
                     format!("colour-{index}"),
                     Some(rgb(value)),
                     current == Some(colour(value)),
-                    Some(format!("Fill #{value:06X}").into()),
+                    Some(format!("{what} #{value:06X}").into()),
                 )
-                .on_click(cx.listener(move |view, _, _, _| view.set_colour(Some(colour(value)))))
+                .on_click(cx.listener(move |view, _, _, _| view.pick_colour(Some(colour(value)))))
             }))
             .child(other)
             .into_any_element()

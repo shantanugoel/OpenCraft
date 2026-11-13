@@ -28,6 +28,8 @@ use tempfile::TempDir;
 
 #[path = "engine/actions.rs"]
 mod actions;
+#[path = "engine/backgrounds.rs"]
+mod backgrounds;
 #[path = "engine/clipboard.rs"]
 mod clipboard;
 #[path = "engine/device_settings.rs"]
@@ -359,6 +361,8 @@ enum Sent {
     Op(String),
     /// An image for a slot, with the image data.
     Image { slot: u8, data: Vec<u8> },
+    /// A background image (`BGPIC`), with the image data.
+    Background { data: Vec<u8> },
 }
 
 /// Read the writes of the fake transport as commands and images.
@@ -386,6 +390,17 @@ fn sent(fake: &Rc<RefCell<FakeTransport>>) -> Vec<Sent> {
             }
             data.truncate(len);
             out.push(Sent::Image { slot, data });
+        } else if code == "BGPIC" {
+            let len = u32::from_be_bytes(report[11..15].try_into().unwrap()) as usize;
+            let position: Vec<u8> = report[15..23].to_vec();
+            assert_eq!(position, [0, 0, 0, 0, 3, 0x20, 1, 0xE0], "the full display");
+            let mut data = Vec::new();
+            while data.len() < len {
+                data.extend_from_slice(&writes[i][1..]);
+                i += 1;
+            }
+            data.truncate(len);
+            out.push(Sent::Background { data });
         } else {
             out.push(Sent::Op(code));
         }
@@ -439,7 +454,8 @@ fn assert_color(image: &RgbImage, x: u32, y: u32, want: Color) {
 }
 
 /// The full draw after a connection: the start sequence, the device
-/// settings, 14 images, and the commit.
+/// settings, the background (here the command that removes it, for a page
+/// with no background), 14 images, and the commit.
 fn assert_full_draw(sent: &[Sent]) {
     assert_eq!(
         &sent[..4],
@@ -451,7 +467,12 @@ fn assert_full_draw(sent: &[Sent]) {
         [op("SETLB"), op("LBLIG"), op("QUCMD")],
         "the device settings after the start sequence"
     );
-    let slots: Vec<u8> = sent[7..sent.len() - 1]
+    assert!(
+        matches!(&sent[7], Sent::Background { .. }) || sent[7] == op("BGCLE"),
+        "the background after the device settings: {:?}",
+        sent[7]
+    );
+    let slots: Vec<u8> = sent[8..sent.len() - 1]
         .iter()
         .map(|s| match s {
             Sent::Image { slot, .. } => *slot,

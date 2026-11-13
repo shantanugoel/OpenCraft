@@ -79,7 +79,8 @@ fn after_start(settings: &DeviceSettings) -> Vec<Vec<u8>> {
 }
 
 /// Check the start of a full draw: `DIS`, `LIG` with `brightness`,
-/// `CLE 0xFF`, `STP`, then `settings` exactly. Then images and the commit.
+/// `CLE 0xFF`, `STP`, then `settings` exactly. Then the removal of the
+/// background (the page has no background), the images, and the commit.
 fn assert_start(writes: &[Vec<u8>], brightness: u8, settings: &[Vec<u8>]) {
     let start = reports(&[
         protocol::init(),
@@ -93,7 +94,10 @@ fn assert_start(writes: &[Vec<u8>], brightness: u8, settings: &[Vec<u8>]) {
         settings,
         "the device settings after the start sequence"
     );
-    let next = &writes[4 + settings.len()];
+    let mut next = &writes[4 + settings.len()];
+    if next[..11] == *b"\0CRT\0\0BGCLE" {
+        next = &writes[5 + settings.len()];
+    }
     assert_eq!(&next[..9], b"\0CRT\0\0BAT", "then the images");
     assert_eq!(writes.last(), Some(&full_report(protocol::commit())));
 }
