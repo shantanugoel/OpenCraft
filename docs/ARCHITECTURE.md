@@ -156,8 +156,11 @@ These rules stay true in all phases.
    [decision 0009](decisions/0009-profile-file-format.md).
 10. **The engine holds the necessary state of each surface.** The engine can
     draw all surfaces again at any time. It does this after a connection, a
-    page change, and a wake from sleep. The device layer finds the wake. See
-    [decision 0023](decisions/0023-wake-from-the-sleep-time-of-the-clocks.md).
+    page change, and a wake from sleep. The shell reports system notices,
+    and the device layer also finds a wake from the clocks. The engine holds
+    the dark state. See decisions
+    [0023](decisions/0023-wake-from-the-sleep-time-of-the-clocks.md) and
+    [0034](decisions/0034-device-dark-state.md).
 11. **One image, two destinations.** The engine makes the image for a surface
     one time. The device and the GUI show that same image. The GUI does not
     make its own copy.

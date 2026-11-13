@@ -413,6 +413,28 @@ Thus the commands to wake the device are the brightness command and `DIS`.
 
 In the dark state after `DC` and `HAN`, a key press and a knob turn changed nothing on the device: the displays and the knob lights stayed off. (Measured: owner, 2026-11-12)
 
+### Dark-state check (2026-11-15)
+
+A scratch driver outside the repository sent commands to the vendor interface.
+A camera took fresh frames after each wait. No person touched the controls.
+The driver sent `CONNECT` each 8 seconds except in the stop-state check.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| With green on all 14 slots, `LIG 0` and `LBLIG 0` left the images visible for 40 seconds. Only the knob lights went off. | Measured | Scratch driver and camera, 1 run |
+| `HAN` made the displays and knob lights dark. They stayed dark at 2 and 42 seconds with the keep-alive in operation. | Measured | Same run |
+| One more `CONNECT` after that did not wake the display in the next 2 seconds | Measured | Same run |
+| A full start (`DIS`, `LIG 80`, clear, images, settings, commit) restored all green slots and blue knob lights in the next 2 seconds | Measured | Same run |
+| `DC`, then `HAN`, stayed dark for 45 seconds with no keep-alive. The same full start restored the images and lights. | Measured | Same run |
+| Thus brightness 0 cannot implement screen off on this device | Inference | The first row |
+
+Whether the device sends user input after `HAN`, with or without `DC`, is
+not known. The earlier owner check saw no light change after `DC` and `HAN`;
+it did not establish whether reports arrived. The owner procedure is in
+[#255](https://github.com/shantanugoel/OpenCraft/issues/255). The policy that
+does not require those reports is in
+[decision 0034](../decisions/0034-device-dark-state.md).
+
 ## Device configuration
 
 `QUCMD` sets 6 device settings in one command. The haptic feedback is one of
