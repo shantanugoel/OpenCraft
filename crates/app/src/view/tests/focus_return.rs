@@ -109,6 +109,7 @@ fn escape_gives_the_focus_back_to_a_knob_light(cx: &mut TestAppContext) {
         &tx,
         Event::DeviceSettings(DeviceSettings {
             brightness: 80,
+            screen_off_minutes: 0,
             haptic: true,
             knob_lights: KnobLights {
                 mode: KnobLightMode::Colors,

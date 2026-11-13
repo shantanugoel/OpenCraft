@@ -774,7 +774,9 @@ impl DeviceView {
         }
         let escape = event.keystroke.key == "escape"
             && event.keystroke.modifiers == gpui_kit::Modifiers::default();
-        if escape && (self.form.menu.is_some() || self.inspector.is_open()) {
+        if escape
+            && (self.form.menu.is_some() || self.inspector.is_open() || self.device.timer_open)
+        {
             cx.stop_propagation();
             self.close_kinds();
             cx.notify();
@@ -801,6 +803,7 @@ impl DeviceView {
         self.form.menu = None;
         self.inspector.close();
         self.device.colour_open = None;
+        self.device.timer_open = false;
     }
 
     /// The label of the popup of `action`.

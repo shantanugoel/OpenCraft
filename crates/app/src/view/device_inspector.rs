@@ -113,7 +113,7 @@ impl DeviceView {
                 self.device
                     .brightness
                     .as_ref()
-                    .map(|slider| self.display_section(settings, slider)),
+                    .map(|slider| self.display_section(settings, slider, window, cx)),
             )
             .children(support.haptic.then(|| self.feedback_section(settings, cx)))
             .children(
@@ -135,11 +135,13 @@ impl DeviceView {
             )
     }
 
-    /// The section "Display": the brightness.
+    /// The section "Display": brightness and the inactivity timer.
     fn display_section(
         &self,
         settings: &DeviceSettings,
         slider: &Entity<SliderState>,
+        window: &Window,
+        cx: &mut Context<Self>,
     ) -> AnyElement {
         form::section("display", "Display", None)
             .child(slider_row(
@@ -148,6 +150,18 @@ impl DeviceView {
                 settings.brightness,
                 slider,
                 false,
+            ))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(theme::FORM_GAP)
+                    .child(value_label(screen_off::SCREEN_OFF_LABEL))
+                    .child(self.screen_off_popup(settings.screen_off_minutes, window, cx)),
+            )
+            .child(form::help(
+                "No device input for this time makes the device dark.",
             ))
             .into_any_element()
     }

@@ -75,6 +75,23 @@ there is no new timer wake-up. With a timeout, use the existing engine loop
 and one deadline, not a polling thread. Check the deadline with a fake clock
 in tests. Reconnection must not cancel a lock or an explicit dark state.
 
+### Timer setting (2026-11-13)
+
+The device inspector offers Never, 1, 5, 10, 15, 30 and 60 minutes. The file
+`device-settings.toml` keeps `screen_off_minutes` in each model table. Zero
+means Never. A missing value also means Never. The engine accepts 0 to 1440
+minutes and fits a larger value to that range. This additive field uses
+settings schema 1: old builds ignore it, but remove it if they save settings.
+It changes no profile schema. No timer or light state is in the profile.
+
+One optional engine deadline uses the link clock. Only device input and an
+explicit wake restart it; action feedback, file saves and USB keep-alives
+do not. A change of the timeout restarts it if the device is awake. Never
+cancels it but does not wake a dark device. Reconnection keeps a dark state.
+The engine checks the deadline in its existing loop. With Never it does not
+read a clock for idle work, and with a timer it limits an existing device
+wait to the deadline. It starts no thread and no repeating timer.
+
 ## Results
 
 The computer can recover the device without a device key. The owner check

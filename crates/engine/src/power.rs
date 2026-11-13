@@ -30,5 +30,7 @@ pub(crate) struct Power {
     pub displays_asleep: bool,
     pub ready_after: Option<Instant>,
     pub consumed_key: Option<crate::ControlId>,
+    pub down_key: Option<crate::ControlId>,
     pub consumed_touch: bool,
+    pub idle_deadline: Option<Instant>,
 }

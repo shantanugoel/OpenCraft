@@ -83,6 +83,7 @@ mod panes;
 mod permission_sheet;
 mod profile_sheet;
 mod right_panel;
+mod screen_off;
 mod sidebar;
 mod states;
 mod status_bar;

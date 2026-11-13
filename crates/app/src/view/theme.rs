@@ -456,6 +456,8 @@ pub const BACKGROUND_BADGE_INSET: Pixels = SPACE_6;
 pub const BADGE_ON_IMAGE: Rgba = hex_alpha(0x000000, 0.55);
 /// The menu of the fit of the background image.
 pub const WIDTH_FIT_MENU: Pixels = px(140.);
+/// The device inactivity popup button and its menu.
+pub const WIDTH_SCREEN_OFF_MENU: Pixels = px(160.);
 /// The ring of the knob picture in the inspector header.
 pub const HEADER_KNOB_RING: Pixels = px(4.);
 /// The mark at the top of the knob picture in the inspector header.

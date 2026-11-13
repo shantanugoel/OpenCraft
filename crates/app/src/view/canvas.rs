@@ -1050,6 +1050,7 @@ mod tests {
         let knob = |n| ControlId::new(ControlKind::Knob, n);
         let mut settings = DeviceSettings {
             brightness: 80,
+            screen_off_minutes: 0,
             haptic: true,
             knob_lights: opencraft_engine::KnobLights {
                 mode: KnobLightMode::Colors,

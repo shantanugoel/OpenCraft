@@ -3,6 +3,23 @@ use crate::power::{DisplayState, PowerNotice};
 use opencraft_core::link::KEEP_ALIVE_INTERVAL;
 
 impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
+    /// Restart one deadline. With Never, add no timer, thread, or processor wake-up.
+    pub(super) fn restart_idle(&mut self) {
+        self.power.idle_deadline = if self.settings.screen_off_minutes == 0
+            || self.power.state != DisplayState::Awake
+        {
+            None
+        } else {
+            Some(self.now() + Duration::from_secs(u64::from(self.settings.screen_off_minutes) * 60))
+        };
+    }
+
+    pub(super) fn check_idle(&mut self) {
+        if self.power.idle_deadline.is_some_and(|at| self.now() >= at) {
+            self.set_display_state(DisplayState::ScreenOff);
+        }
+    }
+
     /// Current requested device light state.
     pub fn display_state(&self) -> DisplayState {
         self.power.state
@@ -60,6 +77,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.link.set_keep_alive_interval(Some(KEEP_ALIVE_INTERVAL));
         }
         self.power.state = DisplayState::Awake;
+        self.restart_idle();
         self.needs_draw = true;
         if self.link.is_connected() {
             (self.sink)(Event::Disconnected);
@@ -77,6 +95,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             return;
         }
         self.power.state = state;
+        self.power.idle_deadline = None;
         self.needs_draw = true;
         self.apply_dark();
     }
@@ -110,13 +129,28 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// touch completion. Acknowledgements never call this method.
     pub(super) fn consume_dark_input(&mut self, event: InputEvent) -> bool {
         use opencraft_core::Gesture;
+        let was_down = self.power.down_key == Some(event.control);
+        match event.gesture {
+            Gesture::Press => self.power.down_key = Some(event.control),
+            Gesture::Release if was_down => self.power.down_key = None,
+            _ => {}
+        }
         if self.power.locked || self.power.sleeping {
+            if event.gesture == Gesture::Press {
+                self.power.consumed_key = Some(event.control);
+            }
+            if matches!(
+                event.gesture,
+                Gesture::TouchStart { .. } | Gesture::TouchPoint { .. }
+            ) {
+                self.power.consumed_touch = true;
+            }
             return true;
         }
         if self.power.state != DisplayState::Awake {
             // The release of the key that requested screen off is not a new
             // gesture and must not wake the device at once.
-            if event.gesture == Gesture::Release {
+            if event.gesture == Gesture::Release && was_down {
                 return true;
             }
             if event.gesture == Gesture::Press {
@@ -135,6 +169,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             } else if event.gesture == Gesture::Press {
                 // A lost release must not swallow the next press.
                 self.power.consumed_key = None;
+                self.restart_idle();
                 return false;
             }
             return true;
@@ -153,6 +188,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 _ => {}
             }
         }
+        self.restart_idle();
         false
     }
 }

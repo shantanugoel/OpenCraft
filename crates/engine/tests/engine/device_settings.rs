@@ -32,6 +32,7 @@ fn n4_defaults() -> DeviceSettings {
 fn custom() -> DeviceSettings {
     DeviceSettings {
         brightness: 42,
+        screen_off_minutes: 0,
         haptic: false,
         knob_lights: KnobLights {
             mode: KnobLightMode::Colors,
