@@ -66,6 +66,15 @@ The permission of a program that launchd starts is in
 | Quartz has the Fn flag and key code `0x3F`. Right Control, Option, Shift and Command have separate virtual key codes. | Source | Core Graphics `CGEventTypes.h`; Carbon `Events.h` |
 | The recorder reads right Control and Fn from local synthetic modifier events and saves a modifier-only chord on release. A shell-started sender with right Shift types an uppercase letter into the OpenCraft title field. | Measured | Signed development window, scratch profile, issue #275 |
 
+## Mouse events (2026-11-13)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| Quartz creates mouse, drag and scroll events with public Event Services calls. Line scroll uses `CGEventCreateScrollWheelEvent2`. | Source | Core Graphics `CGEvent.h` |
+| A shell-started sender selects key 2 in the OpenCraft window with a left click. A line scroll moves the mouse form in that window at both test sizes. No other application is a receiver. | Measured | Signed development window and scratch profiles, issue #281 |
+| A mouse click that the action sends has the Unix process ID of the OpenCraft process in its event source. The local AppKit event keeps that ID. | Measured | Passive event tap, issue #281 |
+| A click action tested on its own test button sends one click only. The shared test command ignores the event that this process sent. | Measured | Signed development window, issue #281 |
+
 ## Not known
 
 - Whether the permission stays after a change of the signing identity, for

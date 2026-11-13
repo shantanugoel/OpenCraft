@@ -41,6 +41,10 @@ pub fn ask_to_send_keys() {
     unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef().cast()) };
 }
 
+pub fn mouse_event(event: crate::mouse::MouseEvent) -> Result<()> {
+    super::macos_mouse::send(event)
+}
+
 // --- Keys and text -----------------------------------------------------------
 
 /// The virtual key code of a key name, for the ANSI keyboard layout.

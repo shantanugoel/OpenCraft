@@ -14,6 +14,10 @@ pub fn send_hotkey(_: &Hotkey) -> Result<()> {
     Err(Error::NotSupported)
 }
 
+pub fn mouse_event(_: crate::mouse::MouseEvent) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
 pub fn type_text(_: &str) -> Result<()> {
     Err(Error::NotSupported)
 }

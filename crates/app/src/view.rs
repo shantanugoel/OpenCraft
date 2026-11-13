@@ -87,6 +87,7 @@ mod screen_off;
 mod sidebar;
 mod states;
 mod status_bar;
+mod synthetic_input;
 pub(crate) mod theme;
 mod toolbar;
 

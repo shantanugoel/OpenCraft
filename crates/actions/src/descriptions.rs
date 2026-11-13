@@ -11,7 +11,8 @@ pub(crate) const TEXT: &str = "opencraft.type-text";
 pub(crate) const MEDIA: &str = "opencraft.media-key";
 pub(crate) const VOLUME: &str = "opencraft.volume";
 pub(crate) const SHELL: &str = "opencraft.shell-command";
-pub(crate) const KEY_KINDS: [&str; 3] = [HOTKEY, TEXT, MEDIA];
+pub(crate) const MOUSE: &str = "opencraft.mouse";
+pub(crate) const KEY_KINDS: [&str; 4] = [HOTKEY, TEXT, MEDIA, MOUSE];
 pub(crate) const PAGE: &str = "opencraft.page";
 pub(crate) const PROFILE: &str = "opencraft.profile";
 pub(crate) const TOGGLE: &str = "opencraft.toggle";
@@ -97,6 +98,55 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             "Send a hotkey",
             vec![field("hotkey", "Hotkey", InputType::Hotkey)],
         ),
+        MOUSE => {
+            let mut operation = field(
+                "operation",
+                "Operation",
+                choice(&[
+                    ("click", "Click"),
+                    ("double-click", "Double click"),
+                    ("move", "Move to position"),
+                    ("move-relative", "Move by offset"),
+                    ("scroll-up", "Scroll up"),
+                    ("scroll-down", "Scroll down"),
+                    ("scroll-left", "Scroll left"),
+                    ("scroll-right", "Scroll right"),
+                    ("drag", "Drag to position"),
+                ]),
+            );
+            operation.default = Some(Value::Text("click".into()));
+            let mut button = field(
+                "button",
+                "Button",
+                choice(&[("left", "Left"), ("right", "Right"), ("middle", "Middle")]),
+            );
+            button.default = Some(Value::Text("left".into()));
+            let mut x = field(
+                "x",
+                "X",
+                InputType::Integer {
+                    min: -100_000,
+                    max: 100_000,
+                },
+            );
+            x.default = Some(Value::Integer(0));
+            let mut y = field(
+                "y",
+                "Y",
+                InputType::Integer {
+                    min: -100_000,
+                    max: 100_000,
+                },
+            );
+            y.default = Some(Value::Integer(0));
+            let mut step = field(
+                "step",
+                "Scroll step",
+                InputType::Integer { min: 1, max: 1000 },
+            );
+            step.default = Some(Value::Integer(3));
+            ("Mouse event", vec![operation, button, x, y, step])
+        }
         TEXT => (
             "Type text",
             vec![field("text", "Text", InputType::LongText)],
@@ -212,6 +262,7 @@ fn icon(kind: &str) -> &'static str {
         URL => "globe",
         SHELL => "terminal",
         HOTKEY => "keyboard",
+        MOUSE => "mouse-pointer-2",
         TEXT => "type",
         MEDIA => "play",
         VOLUME => "volume-2",
@@ -231,6 +282,11 @@ fn icon(kind: &str) -> &'static str {
 /// the left.
 fn direction(kind: &str) -> Option<Direction> {
     match kind {
+        MOUSE => Some(Direction {
+            key: "operation".into(),
+            right: "scroll-down".into(),
+            left: "scroll-up".into(),
+        }),
         VOLUME | DEVICE_BRIGHTNESS => Some(Direction {
             key: "operation".into(),
             right: "up".into(),
@@ -247,7 +303,7 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
         SCREEN_OFF | DEVICE_SLEEP => ("Device", Some("Computer wake")),
         DEVICE_BRIGHTNESS => ("Device", Some("Knob")),
-        HOTKEY | TEXT => (SYSTEM, Some(ACCESSIBILITY)),
+        HOTKEY | TEXT | MOUSE => (SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
         PAGE | PROFILE => (NAVIGATION, None),

@@ -130,7 +130,7 @@ fn the_first_binding_that_needs_the_permission_opens_the_request_one_time(cx: &m
     });
     assert_eq!(
         request_text("Send a hotkey"),
-        "“Send a hotkey” sends keys to other apps. macOS lets OpenCraft do this only with the \
+        "“Send a hotkey” sends input to other apps. macOS lets OpenCraft do this only with the \
          Accessibility permission. The binding stays in the profile. The action operates after \
          you give the permission."
     );
