@@ -22,6 +22,10 @@ pub fn mac_function(_: crate::mac_function::MacFunction) -> Result<()> {
     Err(Error::NotSupported)
 }
 
+pub fn paste_text(_: &str) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
 pub fn type_text(_: &str) -> Result<()> {
     Err(Error::NotSupported)
 }

@@ -30,6 +30,7 @@ pub trait System: Send + Sync + 'static {
         Err(crate::system::Error::NotSupported)
     }
     fn type_text(&self, text: &str) -> Result<()>;
+    fn paste_text(&self, text: &str) -> Result<()>;
     fn media_key(&self, key: MediaKey) -> Result<()>;
     fn volume(&self) -> Result<Volume>;
     fn set_volume_level(&self, level: u8) -> Result<()>;
@@ -76,6 +77,9 @@ impl System for RealSystem {
     }
     fn mac_function(&self, function: crate::mac_function::MacFunction) -> Result<()> {
         system::mac_function(function)
+    }
+    fn paste_text(&self, text: &str) -> Result<()> {
+        system::paste_text(text)
     }
     fn media_key(&self, key: MediaKey) -> Result<()> {
         system::media_key(key)

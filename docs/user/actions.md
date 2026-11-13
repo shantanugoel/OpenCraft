@@ -289,9 +289,15 @@ The calls and their verification limits are in the
 | Setting | What to give |
 |---|---|
 | Text | One or more lines of text |
+| Paste with clipboard | On to paste long text with Command-V. Off to type it. |
+| Press Return after | On to press Return after the text. |
 
 OpenCraft types the text into the application in front. The text can have
-letters with accents, currency signs, and emoji.
+letters with accents, currency signs, and emoji. Both switches are Off in
+old profiles. Paste mode keeps all clipboard formats and puts them back
+300 ms after the paste. If another application changes the clipboard in
+that time, OpenCraft keeps that new content. An application that reads the
+clipboard later can miss the paste. Use typing mode for that application.
 
 ## Media key
 

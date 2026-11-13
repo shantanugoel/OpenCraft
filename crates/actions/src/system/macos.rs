@@ -226,6 +226,65 @@ pub fn type_text(text: &str) -> Result<()> {
     Ok(())
 }
 
+/// Copy every materialized representation before changing the pasteboard.
+/// Do not restore over a copy made by another application during the paste.
+pub fn paste_text(text: &str) -> Result<()> {
+    use objc2::rc::Retained;
+    use std::sync::Mutex;
+    use std::time::Duration;
+    static PASTE: Mutex<()> = Mutex::new(());
+    let _guard = PASTE.lock().unwrap_or_else(|e| e.into_inner());
+    autoreleasepool(|_| {
+        // SAFETY: AppKit objects stay in this pool. Each saved item owns its
+        // data independently of the general pasteboard. No GUI object is used.
+        unsafe {
+            let board: *mut AnyObject = msg_send![class!(NSPasteboard), generalPasteboard];
+            let saved: Retained<AnyObject> = msg_send![class!(NSMutableArray), new];
+            let items: *mut AnyObject = msg_send![board, pasteboardItems];
+            let count: usize = msg_send![items, count];
+            for index in 0..count {
+                let item: *mut AnyObject = msg_send![items, objectAtIndex: index];
+                let copy: Retained<AnyObject> = msg_send![class!(NSPasteboardItem), new];
+                let types: *mut AnyObject = msg_send![item, types];
+                let type_count: usize = msg_send![types, count];
+                for index in 0..type_count {
+                    let kind: *mut AnyObject = msg_send![types, objectAtIndex: index];
+                    let data: *mut AnyObject = msg_send![item, dataForType: kind];
+                    if data.is_null() {
+                        return Err(Error::NotSupported);
+                    }
+                    let ok: bool = msg_send![&*copy, setData: data, forType: kind];
+                    if !ok {
+                        return Err(Error::System(0));
+                    }
+                }
+                let _: () = msg_send![&*saved, addObject: &*copy];
+            }
+            let kind = CFString::from_static_string("public.utf8-plain-text");
+            let value = CFString::new(text);
+            let _: isize = msg_send![board, clearContents];
+            let ok: bool = msg_send![board, setString: value.as_concrete_TypeRef().cast::<AnyObject>(), forType: kind.as_concrete_TypeRef().cast::<AnyObject>()];
+            let written: isize = msg_send![board, changeCount];
+            let result = if ok {
+                send_hotkey(&"cmd+v".parse().expect("Paste key"))
+            } else {
+                Err(Error::System(0))
+            };
+            // The target reads the clipboard after the queued key event.
+            std::thread::sleep(Duration::from_millis(300));
+            let current: isize = msg_send![board, changeCount];
+            if current == written {
+                let _: isize = msg_send![board, clearContents];
+                let restored: bool = msg_send![board, writeObjects: &*saved];
+                if !restored && count != 0 {
+                    return Err(Error::System(0));
+                }
+            }
+            result
+        }
+    })
+}
+
 // --- Media keys --------------------------------------------------------------
 
 #[link(name = "AppKit", kind = "framework")]

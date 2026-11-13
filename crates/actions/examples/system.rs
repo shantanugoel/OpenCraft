@@ -63,6 +63,7 @@ fn main() {
             .map(|()| wait())
         }
         ["type", text] => system::type_text(text).map(|()| wait()),
+        ["paste", text] => system::paste_text(text).map(|()| wait()),
         ["app", name] => system::open_application(name),
         ["url", url] => system::open_url(url),
         ["shell", command] => system::start_shell_command(command).map(|mut child| {
@@ -71,7 +72,7 @@ fn main() {
         _ => {
             eprintln!(
                 "usage: system can-send-keys | ask | volume | set-volume N | mute on|off | \
-                 media play|next|previous|up|down|mute | hotkey TEXT | type TEXT | app NAME | \
+                 media play|next|previous|up|down|mute | hotkey TEXT | type TEXT | paste TEXT | app NAME | \
                  url URL | shell COMMAND | mouse-click left|right|middle | mouse-scroll X Y | mac-function NAME"
             );
             std::process::exit(2);
