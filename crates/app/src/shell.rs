@@ -914,6 +914,7 @@ mod tests {
             profiles: vec![ProfileEntry {
                 id: "desk".into(),
                 name: "Desk".into(),
+                ..Default::default()
             }],
             active: "desk".into(),
         }
@@ -955,6 +956,7 @@ mod tests {
             .try_send(Event::Pages {
                 names: vec!["Main".into(), "Mail".into()],
                 active: 1,
+                first: 0,
             })
             .unwrap();
         f.events
@@ -971,6 +973,7 @@ mod tests {
                 profiles: vec![ProfileEntry {
                     id: "desk".into(),
                     name: "Desk".into(),
+                    ..Default::default()
                 }],
                 profile: Some("desk".into()),
                 pages: vec!["Main".into(), "Mail".into()],
@@ -997,10 +1000,12 @@ mod tests {
                     ProfileEntry {
                         id: "desk".into(),
                         name: "Desk".into(),
+                        ..Default::default()
                     },
                     ProfileEntry {
                         id: "video".into(),
                         name: "Video".into(),
+                        ..Default::default()
                     },
                 ],
                 active: "desk".into(),
@@ -1010,6 +1015,7 @@ mod tests {
             .try_send(Event::Pages {
                 names: vec!["Main".into(), "Mail".into()],
                 active: 0,
+                first: 0,
             })
             .unwrap();
         cx.run_until_parked();

@@ -31,6 +31,11 @@ pub enum Error {
     #[error("cannot use the profile file {path}: {reason}")]
     Unusable { path: PathBuf, reason: String },
 
+    /// A profile file for export and import has an error, or is too large.
+    /// The text tells the user what is wrong with the file.
+    #[error("{0}")]
+    ProfileFile(String),
+
     /// The profile could not be written as text.
     #[error("cannot write the profile as text: {0}")]
     Format(#[from] toml::ser::Error),

@@ -177,6 +177,30 @@ pub enum Command {
     /// active profile, the profile after it in the list becomes the active
     /// profile. If it was the last profile, the profile before it does.
     RemoveProfile { profile: String },
+    /// Give the profile `profile` the colour `color` for the user. `None`
+    /// removes the colour. The undo history does not cover it, as for the
+    /// name of a profile (decision 0030).
+    SetProfileColor {
+        profile: String,
+        color: Option<Color>,
+    },
+    /// Make `page` the first page of the profile `profile`: the page that
+    /// the device shows when the profile becomes the active profile. For
+    /// the active profile, this is a step of the history, because the mark
+    /// is on the page.
+    SetFirstPage { profile: String, page: usize },
+    /// Write the profile `profile` and its images to the file `path`, in the
+    /// format of [`crate::share`]. The engine sends
+    /// [`Event::ProfileExported`], or a problem.
+    ExportProfile { profile: String, path: PathBuf },
+    /// Read a profile from the file `path` in the format of
+    /// [`crate::share`], and add it as a new profile. If a profile of the
+    /// model has its name, the new profile gets a number after the name.
+    /// The new profile becomes the active profile, as after
+    /// [`Command::AddProfile`], and the engine then sends
+    /// [`Event::ProfileImported`]. A file with an error, or with a profile
+    /// for a different model, gives a problem and changes nothing.
+    ImportProfile { path: PathBuf },
     /// Undo the last step of the history: put the pages back as they were
     /// before it, and make the page that was active before it the active
     /// page. See [`Engine::undo`]. With an empty undo list, nothing occurs.
@@ -278,6 +302,9 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         }
         Command::MovePage { .. } => step("Move Page", None),
         Command::RemovePage { .. } => step("Remove Page", None),
+        // The mark of the first page is on a page. For a profile that is not
+        // active, the pages do not change, and no step occurs.
+        Command::SetFirstPage { .. } => step("Set First Page", None),
         Command::Group { name, commands } => step(name, group_target(commands, active)),
         Command::PasteControl { .. } => step("Paste", None),
         Command::ClearControl { .. } => step("Clear", None),
@@ -290,6 +317,12 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         | Command::AddProfile { .. }
         | Command::RenameProfile { .. }
         | Command::RemoveProfile { .. }
+        // The colour is a part of the profile that is not in the pages, as
+        // the name. An export changes nothing. An import adds a profile and
+        // makes it the active profile.
+        | Command::SetProfileColor { .. }
+        | Command::ExportProfile { .. }
+        | Command::ImportProfile { .. }
         | Command::SetDeviceSettings(_)
         | Command::CopyControl { .. }
         | Command::Undo
@@ -313,6 +346,19 @@ fn group_target(commands: &[Command], active: usize) -> Option<Target> {
         .map(|c| step_of(c, active).and_then(|(_, target)| target))
         .collect::<Option<Vec<_>>>()?;
     targets.first().copied()
+}
+
+/// `name` if no profile in `entries` has it, else `name 2`, `name 3`, and so
+/// on, with the lowest free number.
+fn free_profile_name(name: &str, entries: &[ProfileEntry]) -> String {
+    let free = |candidate: &str| !entries.iter().any(|e| e.name == candidate);
+    if free(name) {
+        return name.to_string();
+    }
+    (2..)
+        .map(|n| format!("{name} {n}"))
+        .find(|candidate| free(candidate))
+        .expect("a free name exists")
 }
 
 /// The state of one surface: its content in the profile, and the image that
@@ -373,8 +419,9 @@ pub enum Event {
         profiles: Vec<ProfileEntry>,
         active: String,
     },
-    /// The names of the pages in their order, and the number of the active
-    /// page. Page numbers start at 0.
+    /// The names of the pages in their order, the number of the active
+    /// page, and the number of the first page of the profile (see
+    /// [`Profile::first_page`]). Page numbers start at 0.
     ///
     /// The engine sends this event at the start and after each change of
     /// the pages or of the active page. When a shell gets it, the shell
@@ -386,7 +433,11 @@ pub enum Event {
     /// If the active page changed, the engine sends [`Event::Surface`] for
     /// each surface before this event. After a change of the active profile,
     /// [`Event::Profiles`] comes between the surfaces and this event.
-    Pages { names: Vec<String>, active: usize },
+    Pages {
+        names: Vec<String>,
+        active: usize,
+        first: usize,
+    },
     /// A binding of the active page: after each [`Event::Pages`], and after
     /// a change of the binding. An unavailable kind stays. A state with no
     /// action tells that the binding is gone.
@@ -432,6 +483,13 @@ pub enum Event {
     Disconnected,
     /// The user did a gesture on a control.
     Input(InputEvent),
+    /// The engine wrote the profile `profile` to the file `path`: the
+    /// response to [`Command::ExportProfile`].
+    ProfileExported { profile: String, path: PathBuf },
+    /// The engine added the profile `profile` from a file: the response to
+    /// [`Command::ImportProfile`]. It comes after the events of the change
+    /// of the active profile.
+    ProfileImported { profile: String },
     /// Something went wrong that the user must know. The text is for the
     /// user.
     Problem(String),
@@ -716,9 +774,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .iter()
             .map(|p| p.name.clone())
             .collect();
+        // The entry of the active profile follows the pages.
+        self.update_entry();
         (self.sink)(Event::Pages {
             names,
             active: self.active,
+            first: self.profile.first_page(),
         });
         for (binding, action) in self.page_bindings() {
             self.binding_event(binding, Some(action));
@@ -1141,12 +1202,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     /// Make `profile` with the identity `id` the active profile, with its
-    /// first page as the active page. Put it in the list of profiles.
+    /// first page (see [`Profile::first_page`]) as the active page. Put it
+    /// in the list of profiles.
     fn use_profile(&mut self, id: String, profile: Profile, can_save: bool) {
         self.store = self.profiles.store(&id);
+        self.active = profile.first_page();
         self.profile = profile;
         self.profile_id = id;
-        self.active = 0;
         self.can_save = can_save;
         self.changed_at = None;
         self.save_failed = false;
@@ -1158,10 +1220,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Put the name of the active profile in the list of profiles. Add the
     /// entry if the list does not have it.
     fn update_entry(&mut self) {
-        let entry = ProfileEntry {
-            id: self.profile_id.clone(),
-            name: self.profile.name.clone(),
-        };
+        let entry = ProfileEntry::of(self.profile_id.clone(), &self.profile);
         match self.entries.binary_search_by(|e| e.id.cmp(&entry.id)) {
             Ok(at) => self.entries[at] = entry,
             Err(at) => self.entries.insert(at, entry),
@@ -1360,6 +1419,136 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.send_profiles();
     }
 
+    /// Change a part of the profile `id` that is not in the pages with
+    /// `change`, and send the list of profiles if the part changed. For a
+    /// profile that is not active, the engine reads its file, changes it,
+    /// and writes it. `what` names the change in a problem.
+    fn change_profile_settings(
+        &mut self,
+        id: String,
+        what: &str,
+        change: impl Fn(&mut Profile) -> bool,
+    ) {
+        if !self.is_profile(&id) {
+            return;
+        }
+        if id == self.profile_id {
+            if !change(&mut self.profile) {
+                return;
+            }
+            self.changed_at = Some(self.now());
+            self.update_entry();
+        } else {
+            let store = self.profiles.store(&id);
+            let changed = store.read().and_then(|mut profile| {
+                if !change(&mut profile) {
+                    return Ok(None);
+                }
+                store.save(&profile)?;
+                Ok(Some(profile))
+            });
+            match changed {
+                Ok(Some(profile)) => {
+                    if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
+                        *entry = ProfileEntry::of(id, &profile);
+                    }
+                }
+                Ok(None) => return,
+                Err(e) => {
+                    self.problem(format!("OpenCraft could not change the {what}: {e}"));
+                    return;
+                }
+            }
+        }
+        self.send_profiles();
+    }
+
+    fn set_first_page(&mut self, id: String, page: usize) {
+        if id == self.profile_id {
+            if !self.is_page(page) {
+                return;
+            }
+            if self.profile.set_first_page(page) {
+                self.changed_at = Some(self.now());
+                self.send_pages();
+            }
+            return;
+        }
+        self.change_profile_settings(id, "first page", |profile| profile.set_first_page(page));
+    }
+
+    /// Write the profile `id` to the file `path`. This is
+    /// [`Command::ExportProfile`]. For the active profile, the engine uses
+    /// the profile in memory, thus a change that is not in its file yet is
+    /// in the export.
+    fn export_profile(&mut self, id: String, path: PathBuf) {
+        if !self.is_profile(&id) {
+            return;
+        }
+        let store = self.profiles.store(&id);
+        let profile = if id == self.profile_id {
+            Ok(self.profile.clone())
+        } else {
+            store.read()
+        };
+        match profile.and_then(|profile| crate::share::export(&profile, &store, &path)) {
+            Ok(()) => (self.sink)(Event::ProfileExported { profile: id, path }),
+            Err(e) => self.problem(format!("OpenCraft could not export the profile: {e}")),
+        }
+    }
+
+    /// Add a profile from the file `path`. This is
+    /// [`Command::ImportProfile`].
+    fn import_profile(&mut self, path: PathBuf) {
+        let failed = |e: &dyn std::fmt::Display| {
+            format!("OpenCraft could not import the profile, because {e}.")
+        };
+        let package = match crate::share::import(&path) {
+            Ok(package) => package,
+            Err(e) => return self.problem(failed(&e)),
+        };
+        let model = self.descriptor.model;
+        if package.profile.model != model {
+            return self.problem(failed(&format!(
+                "the profile in the file is for a different device model ({})",
+                package.profile.model
+            )));
+        }
+        let name = package.profile.name.trim().to_string();
+        let name = free_profile_name(
+            if name.is_empty() {
+                DEFAULT_PROFILE_NAME
+            } else {
+                &name
+            },
+            &self.entries,
+        );
+        if !self.save_before_leaving() {
+            return;
+        }
+        let id = match self.profiles.new_id(&name, &[&self.profile_id]) {
+            Ok(id) => id,
+            Err(e) => return self.problem(failed(&e)),
+        };
+        let store = self.profiles.store(&id);
+        let written = package.write_images(&store).and_then(|mut profile| {
+            profile.name = name;
+            store.save(&profile)?;
+            Ok(profile)
+        });
+        match written {
+            Ok(profile) => {
+                self.change_profile(id.clone(), Some(profile));
+                (self.sink)(Event::ProfileImported { profile: id });
+            }
+            Err(e) => {
+                // The directory is new and holds no profile of the user.
+                let _ = std::fs::remove_dir_all(store.dir());
+                self.problem(failed(&e));
+            }
+        }
+    }
+
     fn remove_profile(&mut self, id: String) {
         if !self.is_profile(&id) {
             return;
@@ -1551,6 +1740,14 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Command::AddProfile { name, copy_of } => self.add_profile(name, copy_of),
             Command::RenameProfile { profile, name } => self.rename_profile(profile, name),
             Command::RemoveProfile { profile } => self.remove_profile(profile),
+            Command::SetProfileColor { profile, color } => {
+                self.change_profile_settings(profile, "colour of the profile", |p| {
+                    std::mem::replace(&mut p.color, color) != color
+                })
+            }
+            Command::SetFirstPage { profile, page } => self.set_first_page(profile, page),
+            Command::ExportProfile { profile, path } => self.export_profile(profile, path),
+            Command::ImportProfile { path } => self.import_profile(path),
             Command::Undo => self.undo(),
             Command::Redo => self.redo(),
             Command::StartTextEdit => self.history.start_text_edit(),

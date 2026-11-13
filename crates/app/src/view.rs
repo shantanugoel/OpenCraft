@@ -23,6 +23,8 @@
 //! | `gesture_card` | The gesture card |
 //! | `history` | Undo and redo, and the text edits for the history |
 //! | `clipboard` | Copy, Paste, Clear, and Copy to All Pages of the selected control |
+//! | `profile_sheet` | The profile settings sheet, with the export and the import of a profile |
+//! | `modal` | The modal layer of a sheet or the command palette, and the parts of a sheet |
 //! | `controls` | Controls that more than one part uses |
 //! | `theme` | The visual constants |
 
@@ -63,9 +65,11 @@ mod hotkey;
 mod inspector;
 mod knob;
 mod library;
+pub(crate) mod modal;
 mod page_inspector;
 mod pages;
 mod panes;
+mod profile_sheet;
 mod right_panel;
 mod sidebar;
 mod status_bar;
@@ -133,6 +137,8 @@ pub struct DeviceView {
     page_inspector: page_inspector::PageInspector,
     device: device::DevicePanel,
     library: library::LibraryState,
+    /// The profile settings sheet (decision 0029, section 16).
+    sheet: profile_sheet::ProfileSheet,
     /// The scroll position of the inspector. It shows a scrollbar when its
     /// content is taller than the window.
     inspector_scroll: ScrollHandle,
@@ -196,6 +202,7 @@ impl DeviceView {
             page_inspector: page_inspector::PageInspector::new(window, cx),
             device: device::DevicePanel::new(window, cx),
             library,
+            sheet: profile_sheet::ProfileSheet::new(window, cx),
             inspector_scroll: ScrollHandle::new(),
         }
     }
@@ -215,6 +222,7 @@ impl DeviceView {
             self.focus_workspace(window, cx);
         }
         self.page_event(&event, window, cx);
+        self.profile_sheet_event(&event, window, cx);
         if let Event::Surface(surface) = &event {
             if let Some(old) = self
                 .images
@@ -352,6 +360,22 @@ impl DeviceView {
 
 impl Render for DeviceView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The modal layer is not in the element of the key context of the
+        // window, thus the key commands of the window do not operate while
+        // it is open (`modal`).
+        let sheet = self.profile_sheet(window, cx);
+        div()
+            .relative()
+            .size_full()
+            .child(self.workspace(window, cx))
+            .children(sheet)
+    }
+}
+
+impl DeviceView {
+    /// The root element of the window content, with the key context
+    /// `"Workspace"`: the panes, the key commands, and the menu actions.
+    fn workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Stateful<Div> {
         div()
             .id("workspace")
             .key_context(WORKSPACE)

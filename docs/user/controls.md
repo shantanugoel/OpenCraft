@@ -228,6 +228,54 @@ the mark **ON DEVICE**, and its pages are below it.
 - To change the profile from the device, set the action "Select a profile"
   on a control. See [Select a profile](actions.md#select-a-profile).
 
+### Profile settings
+
+Right-click a profile in the sidebar, and select **Profile settings…**. A
+sheet opens on the window. You can open the settings of each profile, also
+of a profile that is not active. The window does not operate while the
+sheet is open.
+
+![The profile settings sheet of the profile "Streaming", with a colour and the first page "Audio"](images/profile-settings.png)
+
+| Setting | What it does |
+|---|---|
+| **Name** | The name of the profile. The new name applies when you push Return, click **Done**, or click a different control. An empty name does not change the name. |
+| **Colour** | The colour of the profile icon in the sidebar. The circle with no colour removes the colour. |
+| **First page** | The page that the device shows when the profile becomes the active profile, also when OpenCraft starts. If you remove this page, the first page in the list is the first page again. |
+
+- Each change applies at once. Edit > Undo can undo a change of the first
+  page of the active profile. It cannot undo a change of the name or of the
+  colour.
+- Click **Done**, or push Return or Escape, to close the sheet.
+- **Remove the profile…** asks for a confirmation, and then removes the
+  profile, as **Remove…** in the sidebar does.
+
+### Export and import a profile
+
+You can put a profile in one file, for example to keep a copy or to give
+the profile to a different person. The file has the extension `.opencraft`.
+It contains the pages, the images, the colour, and the first page of the
+profile.
+
+| To do this | Do this in the profile settings |
+|---|---|
+| Put a profile in a file | Click **Export as a file…**. Select a folder and a name, and click **Save**. The status bar shows the name of the file. |
+| Add a profile from a file | Click **Import…**. Select the file, and click **Import**. |
+
+- An import adds a new profile and makes it the active profile. The device
+  then shows its first page. The sheet shows the settings of the new
+  profile.
+- If a profile has the same name, the new profile gets a number after its
+  name, for example "Work 2".
+- The file contains the settings of each action as they are, for example the
+  command of "Run a shell command" or the path of an application. Look at
+  your actions before you give the file to a different person.
+- OpenCraft imports only a profile for the model of your device.
+- OpenCraft checks a file before it uses it. A file that is not a profile
+  file, that is too large, or that has an error gives a message, and
+  OpenCraft adds no profile. See
+  [Messages in the window](faults.md#messages-in-the-window).
+
 ## Device settings
 
 The device settings are for the device, not for a profile. A change of the

@@ -221,6 +221,7 @@ mod tests {
         ProfileEntry {
             id: id.into(),
             name: name.into(),
+            ..Default::default()
         }
     }
 

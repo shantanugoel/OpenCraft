@@ -89,6 +89,9 @@ pub(super) enum MenuItem {
     Duplicate,
     MoveUp,
     MoveDown,
+    /// "Profile settings…" on a profile row: the sheet of decision 0029,
+    /// section 16.
+    ProfileSettings,
     Separator,
     Remove,
 }
@@ -100,6 +103,7 @@ impl MenuItem {
             Self::Duplicate => "Duplicate",
             Self::MoveUp => "Move Up",
             Self::MoveDown => "Move Down",
+            Self::ProfileSettings => "Profile settings…",
             Self::Separator => "",
             Self::Remove => "Remove…",
         }
@@ -150,6 +154,7 @@ impl DeviceView {
             Row::Profile(_) => vec![
                 (MenuItem::Rename, true),
                 (MenuItem::Duplicate, true),
+                (MenuItem::ProfileSettings, true),
                 (MenuItem::Separator, true),
                 (MenuItem::Remove, self.state.profiles.len() > 1),
             ],
@@ -197,6 +202,9 @@ impl DeviceView {
                 page: *page,
                 to: page + 1,
             }),
+            (MenuItem::ProfileSettings, Row::Profile(id)) => {
+                self.open_profile_sheet(id.clone(), window, cx)
+            }
             (MenuItem::Remove, _) => self.confirm_remove(row, window, cx),
             _ => {}
         }

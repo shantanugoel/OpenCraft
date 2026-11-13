@@ -106,6 +106,7 @@ fn pages(names: &[&str], active: usize) -> Event {
     Event::Pages {
         names: names.iter().map(|n| n.to_string()).collect(),
         active,
+        first: 0,
     }
 }
 

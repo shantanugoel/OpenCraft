@@ -64,6 +64,8 @@ fn entries(list: &[(&str, &str)]) -> Vec<ProfileEntry> {
         .map(|(id, name)| ProfileEntry {
             id: id.to_string(),
             name: name.to_string(),
+            pages: vec!["Page 1".into()],
+            ..Default::default()
         })
         .collect()
 }
@@ -130,7 +132,12 @@ fn an_old_default_directory_with_a_version_two_file_is_the_active_profile_with_n
 
     let events = rig.take_events();
     assert!(problems(&events).is_empty(), "{events:?}");
-    assert!(events.contains(&profiles_event(&[("default", "Mine")], "default")));
+    let mut entry = entries(&[("default", "Mine")]);
+    entry[0].pages = vec!["Main".into(), "Media".into()];
+    assert!(events.contains(&Event::Profiles {
+        profiles: entry,
+        active: "default".into(),
+    }));
     assert_eq!(rig.engine.active_profile(), "default");
     assert_eq!(rig.engine.profile().model, MODEL);
     assert_eq!(rig.engine.profile().pages().len(), 2);
@@ -283,14 +290,18 @@ fn a_bad_profile_that_is_not_active_does_not_stop_the_start_and_does_not_change(
     assert!(problems(&events).is_empty(), "{events:?}");
     assert_eq!(rig.engine.active_profile(), "default");
     // The profile with no readable name has its identity as its name.
-    assert!(events.contains(&profiles_event(
-        &[
-            ("broken", "broken"),
-            ("default", "Default"),
-            ("newer", "Newer")
-        ],
-        "default"
-    )));
+    // A file with no readable pages lists no page.
+    let mut list = entries(&[
+        ("broken", "broken"),
+        ("default", "Default"),
+        ("newer", "Newer"),
+    ]);
+    list[0].pages.clear();
+    list[2].pages.clear();
+    assert!(events.contains(&Event::Profiles {
+        profiles: list,
+        active: "default".into(),
+    }));
     rig.poll_for(Duration::from_secs(2));
     assert_eq!(names_in(broken.dir()), [PROFILE_FILE]);
     assert_eq!(fs::read_to_string(broken.profile_path()).unwrap(), text);
@@ -382,7 +393,8 @@ fn a_profile_change_sends_disappear_then_writes_only_changed_images_then_sends_a
         events[15],
         Event::Pages {
             names: vec!["Page 1".into()],
-            active: 0
+            active: 0,
+            first: 0,
         }
     );
     assert_eq!(binding_states(&events[16..]), [key_3()]);
@@ -421,7 +433,8 @@ fn a_profile_change_starts_on_the_first_page_and_removes_the_feedback() {
     let events = rig.take_events();
     assert!(events.contains(&Event::Pages {
         names: vec!["Page 1".into(), "Page 2".into()],
-        active: 0
+        active: 0,
+        first: 0,
     }));
 }
 

@@ -579,6 +579,48 @@ pub const SETTINGS_MESSAGE_TEXT_MAX: Pixels = px(32.);
 /// line height.
 pub const SETTINGS_LINE_HEIGHT: f32 = 1.25;
 
+// MARK: Sheets and the modal layer (sections 15, 16, and 18)
+
+/// The layer that covers the window behind a sheet or the command palette:
+/// black at 25 %.
+pub const MODAL_DIM: Rgba = hex_alpha(0x000000, 0.25);
+/// The corner radius of a sheet and of the command palette.
+pub const RADIUS_SHEET: Pixels = px(14.);
+/// The space from the top of the window to the top of a sheet: the sheet
+/// shows below the toolbar, as a sheet of macOS does.
+pub const SHEET_TOP: Pixels = px(76.);
+/// The space from the bottom of the window to the bottom of a sheet at the
+/// smallest window height.
+pub const SHEET_BOTTOM: Pixels = SPACE_24;
+/// The width of the profile settings sheet (section 16).
+pub const PROFILE_SHEET_WIDTH: Pixels = px(600.);
+/// The label column of the form of a sheet.
+pub const SHEET_LABEL: Pixels = px(110.);
+/// A text field, a popup button, and a button of the button row of a
+/// sheet.
+pub const HEIGHT_SHEET_CONTROL: Pixels = px(30.);
+/// The popup button "First page" of the profile settings sheet.
+pub const WIDTH_SHEET_POPUP: Pixels = px(200.);
+/// A colour circle of a profile (section 16), and of the icon picker
+/// (section 14).
+pub const COLOUR_CIRCLE: Pixels = px(20.);
+/// The border of the colour circle "None".
+pub const BORDER_NO_COLOUR: Rgba = BORDER_SAMPLE_OTHER;
+/// The colours of a profile (section 16). These are data: the profile keeps
+/// the colour that the user selects.
+pub const PROFILE_COLOURS: [u32; 6] = [0x3b82f6, 0x14b8a6, 0x22c55e, 0xf59e0b, 0xef4444, 0xa855f7];
+
+/// The shadow of a sheet and of the command palette: 0 24 60, black at 55 %.
+pub fn sheet_shadow() -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: hex_alpha(0x000000, 0.55).into(),
+        offset: point(px(0.), px(24.)),
+        blur_radius: px(60.),
+        spread_radius: px(0.),
+        inset: false,
+    }]
+}
+
 // MARK: Icons (section 3.6)
 
 // The window embeds only the icons in this list. A new icon in the window

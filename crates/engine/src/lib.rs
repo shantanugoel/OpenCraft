@@ -10,6 +10,7 @@
 //! - [`profiles`]: the profiles directory: one directory for each profile,
 //!   and the active profile of each device model.
 //! - [`store`]: one profile directory: the profile file and the image files.
+//! - [`share`]: the profile file for export and import, with the images.
 //! - [`render`] and [`label`]: the image of a surface, made from its content.
 //! - [`device_settings`]: the device settings of each model, and their file.
 //! - [`layout`]: the layout of the device, as a message for a shell.
@@ -32,6 +33,7 @@ pub mod profile;
 pub mod profiles;
 pub mod render;
 pub mod runtime;
+pub mod share;
 pub mod store;
 
 pub use action::*;

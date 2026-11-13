@@ -68,6 +68,9 @@ pub struct ViewState {
     pub page: usize,
     /// The names of the pages of the active profile, in their order.
     pub pages: Vec<String>,
+    /// The first page of the active profile: the page that the device shows
+    /// when the profile becomes active.
+    pub first_page: usize,
     /// The profiles of the device model, and the identity of the active profile.
     pub profiles: Vec<ProfileEntry>,
     pub profile: Option<String>,
@@ -158,10 +161,15 @@ impl ViewState {
                 self.profiles = profiles;
                 self.profile = Some(active);
             }
-            Event::Pages { names, active } => {
+            Event::Pages {
+                names,
+                active,
+                first,
+            } => {
                 // The engine sends each binding of the active page next.
                 self.page = active;
                 self.pages = names;
+                self.first_page = first;
                 self.bindings.clear();
                 self.epoch += 1;
                 self.update_open_card();
@@ -183,7 +191,8 @@ impl ViewState {
                 self.redo = redo;
             }
             Event::Clipboard(kind) => self.clipboard = Some(kind),
-            Event::Counters(_) => {}
+            // The window shows a message for these events.
+            Event::Counters(_) | Event::ProfileExported { .. } | Event::ProfileImported { .. } => {}
         }
         None
     }
@@ -727,6 +736,7 @@ pub(crate) mod tests {
             Event::Pages {
                 names: vec!["Page 1".into(), "Page 2".into()],
                 active: 1,
+                first: 0,
             },
             now,
         );

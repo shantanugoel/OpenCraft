@@ -19,7 +19,7 @@
 //! ```
 
 use crate::error::Result;
-use crate::profile::default_model;
+use crate::profile::{default_model, Color, Profile};
 use crate::store::{io_error, write_and_rename, ProfileStore, PROFILE_FILE};
 use std::fs;
 use std::io;
@@ -38,12 +38,36 @@ const ID_LIMIT: usize = 64;
 const FALLBACK_ID: &str = "profile";
 
 /// One profile in the list for a shell.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The pages and the first page let a shell show the profile settings of a
+/// profile that is not active. For the active profile, they are the values
+/// of the last [`crate::Event::Profiles`]: [`crate::Event::Pages`] gives the
+/// current values.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProfileEntry {
     /// The identity: the name of the directory. It does not change.
     pub id: String,
     /// The name for the user.
     pub name: String,
+    /// The colour of the profile for the user. `None`: no colour.
+    pub color: Option<Color>,
+    /// The names of the pages, in their order.
+    pub pages: Vec<String>,
+    /// The number of the first page, from 0: see [`Profile::first_page`].
+    pub first_page: usize,
+}
+
+impl ProfileEntry {
+    /// The entry of `profile` with the identity `id`.
+    pub fn of(id: impl Into<String>, profile: &Profile) -> Self {
+        Self {
+            id: id.into(),
+            name: profile.name.clone(),
+            color: profile.color,
+            pages: profile.pages().iter().map(|p| p.name.clone()).collect(),
+            first_page: profile.first_page(),
+        }
+    }
 }
 
 /// The profiles directory.
@@ -79,10 +103,16 @@ impl ProfilesDir {
     pub fn list(&self, model: &str) -> Result<Vec<ProfileEntry>> {
         let mut list = Vec::new();
         for id in self.ids()? {
-            let (name, found) = self.store(&id).summary();
-            if found.as_deref().unwrap_or(default_model()) == model {
-                let name = name.unwrap_or_else(|| id.clone());
-                list.push(ProfileEntry { id, name });
+            let summary = self.store(&id).summary();
+            if summary.model.as_deref().unwrap_or(default_model()) == model {
+                let name = summary.name.unwrap_or_else(|| id.clone());
+                list.push(ProfileEntry {
+                    id,
+                    name,
+                    color: summary.color,
+                    pages: summary.pages,
+                    first_page: summary.first_page,
+                });
             }
         }
         Ok(list)
@@ -230,7 +260,6 @@ fn free_name(base: &str, in_use: impl Fn(&str) -> bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::profile::Profile;
     use tempfile::TempDir;
 
     fn profiles() -> (TempDir, ProfilesDir) {
@@ -294,6 +323,8 @@ mod tests {
         let entry = |id: &str, name: &str| ProfileEntry {
             id: id.into(),
             name: name.into(),
+            pages: vec!["Page 1".into()],
+            ..Default::default()
         };
         assert_eq!(
             profiles.list("n4-pro").unwrap(),
