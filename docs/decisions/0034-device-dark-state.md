@@ -135,7 +135,9 @@ firmware timer before a sleep of the computer and at quit. A key press in
 that state shows the firmware logo and sends no report. Neither state needs
 a change to persistent firmware configuration.
 
-The owner checks for a sleep of the computer and for lock and unlock remain
-in [#255](https://github.com/shantanugoel/OpenCraft/issues/255). A fake
+The lock and the unlock of 2026-11-14 are in
+[kb/sleep-and-wake.md](../kb/sleep-and-wake.md#checks-by-the-owner-2026-11-14).
+A sleep of the computer stays in
+[#143](https://github.com/shantanugoel/OpenCraft/issues/143). A fake
 transport tests the engine policy. It can inject a report that the firmware
 does not send.

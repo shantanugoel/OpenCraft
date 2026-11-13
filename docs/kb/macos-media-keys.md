@@ -1,6 +1,6 @@
 # Media keys
 
-Last update: 2026-11-13
+Last update: 2026-11-14
 
 The implementation is `media_key` in `crates/actions/src/system/macos.rs`.
 It posts a system-defined event with the subtype "auxiliary control
@@ -32,11 +32,22 @@ shell watched the session with a listen-only event tap.
 | The check did not start a media player. It does not show what a player does with Fast forward and Rewind. | Measured | Not applicable |
 | The result of the key depends on the application that holds the "now playing" role. Some players skip a track at a short press. | Inference | Behaviour of the system media keys on a keyboard |
 
+## Owner check (2026-11-14)
+
+The owner used the check profile of that date with the signed development
+release bundle. A media player had a track that played. The procedure does
+not name the player.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| One press of Fast forward moved the track forward or skipped to the next track. | Measured | Owner check, [issue #255](https://github.com/shantanugoel/OpenCraft/issues/255) |
+| One press of Rewind moved the track back or skipped to the previous track. | Measured | Owner check, issue #255 |
+
 ## Not known
 
-- What Music, Spotify and a browser video do with one short Fast forward
-  and Rewind press. The owner procedure is in
-  [#255](https://github.com/shantanugoel/OpenCraft/issues/255).
+- What Music, Spotify, and a browser video do with one short press, when
+  the player is one of those three. The owner check used one media player
+  and did not name it.
 - Whether any public call can stop a player. Stop exists in the private
   MediaRemote framework. OpenCraft does not use a private framework.
 - The result on macOS 12 to 26.
