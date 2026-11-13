@@ -819,6 +819,45 @@ pub(super) fn colour_button(
         })
 }
 
+/// A filter chip (section 3.7): height 24, radius 12, padding 0 10, `label`
+/// weight 500. Selected: border `accent-line`, `accent-tint` 25 %,
+/// `text-on-accent`. Else: border `border-field`, transparent,
+/// `text-secondary`, and a light background under the pointer. The caller
+/// adds the click handler. The tabs of the icon picker use it (section 14).
+pub(super) fn chip(
+    id: impl Into<SharedString>,
+    text: impl Into<SharedString>,
+    selected: bool,
+) -> Stateful<Div> {
+    let id: SharedString = id.into();
+    let text: SharedString = text.into();
+    div()
+        .id(id.clone())
+        .debug_selector(move || id.to_string())
+        .flex_shrink_0()
+        .h(theme::HEIGHT_CHIP)
+        .px(theme::SPACE_10)
+        .flex()
+        .items_center()
+        .rounded(theme::RADIUS_CHIP)
+        .border_1()
+        .text_size(theme::TEXT_LABEL)
+        .font_weight(gpui_kit::FontWeight::MEDIUM)
+        .map(|d| {
+            if selected {
+                d.border_color(theme::ACCENT_LINE)
+                    .bg(theme::ACCENT_TINT_CHIP)
+                    .text_color(theme::TEXT_ON_ACCENT)
+            } else {
+                d.border_color(theme::BORDER_FIELD)
+                    .text_color(theme::TEXT_SECONDARY)
+                    .cursor_pointer()
+                    .hover(|d| d.bg(theme::HOVER_ROW))
+            }
+        })
+        .child(text)
+}
+
 /// A line between two groups of rows of a menu.
 pub(super) fn menu_separator() -> Div {
     div()

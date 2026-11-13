@@ -1,7 +1,7 @@
 # Configure a key
 
 This procedure makes key 1 open a web page. It uses the title, the fill
-colour, the image, and the action of one key. Do the steps in their order.
+colour, the icon, and the action of one key. Do the steps in their order.
 
 Before you start, do the steps in [Install and first start](install.md).
 
@@ -17,7 +17,7 @@ the top of the right panel. The inspector has these parts, from the top:
 | Part | What it shows |
 |---|---|
 | Header | The image of the key face, the name "Key 1", and the position "Top row, first key" |
-| **Appearance** | The rows **Image**, **Title**, **Position**, **Text**, and **Fill** |
+| **Appearance** | The rows **Icon**, **Title**, **Position**, **Text**, and **Fill** |
 | **Gestures** | One card for each gesture of the key: **Press** and **Release** |
 
 If the inspector is not tall enough, it shows a scrollbar at the right.
@@ -54,16 +54,58 @@ below the field **Title**.
 | **Text** | **B** | Bold. Click it to change the title to bold or to normal. **B** is light when the title is bold. |
 
 - At the start, a title is bold, 20 pt, and in the automatic colour. With
-  no image, it is at the centre. With an image, it is at the bottom.
+  no icon and no image, it is at the centre. With an icon or an image, it is
+  at the bottom.
 - If a long title does not fit at its size, OpenCraft makes the text
   smaller.
-- With an image, a title at the top or at the bottom has its own band, and
-  the image is smaller. A title at the middle is on the image.
+- With an icon or an image, a title at the top or at the bottom has its own
+  band, and the icon or the image is smaller. A title at the middle is on
+  the icon or the image.
 - A bar panel has the same rows.
 
-## 3. Set an image (optional)
+## 3. Set an icon (optional)
 
-1. In the row **Image**, click **Image file…**.
+OpenCraft has a set of 1,818 line icons. You do not need an image file.
+
+1. In the row **Icon**, click **Choose icon…**. A window with the icons
+   opens next to the button.
+2. Type a word in the field **Search icons**, for example `globe`. The grid
+   shows the icons that agree with the word. The field has the cursor when
+   the window opens.
+3. Click an icon.
+
+![The icon picker with the search "globe". The icon "globe" is selected, and the key face shows it.](images/icon-picker.png)
+
+The key face in the window and key 1 on the device show the icon above the
+title. The icon of the key has a blue cell in the grid. The window stays
+open, so that you can try more icons.
+
+| To do this | Do this in the icon picker |
+|---|---|
+| Find an icon | Type a word in the search field. A word can be a part of the name, for example `arr` for the arrows, or a word for the use, for example `mute`. With no word, the grid shows all icons in groups, for example **MULTIMEDIA**. The number at the right of the field is the number of icons in the grid. |
+| Use an icon again | Click **Recent**. It shows the last 21 icons that you selected, the newest first. Click **Icons** to see all icons again. |
+| Change the colour of the icon | In the row **Icon colour**, click a colour. The icon changes immediately. If the key has no icon yet, the next icon that you click gets the colour. |
+| Use an image file in place of the icon | Click **Image file…**. See [Set an image](#set-an-image). |
+| Remove the icon or the image | Click **No icon**. |
+| Close the icon picker | Push Esc, or click out of the window of the icon picker. |
+
+- At the start, an icon has the automatic colour: black or white, the
+  colour that shows best on the fill colour.
+- The tile at the start of the row **Icon** shows the icon on the fill
+  colour of the key.
+- A key has an icon or an image, not both. A new icon removes the image, and
+  a new image removes the icon.
+- Each new icon and each new colour is one change. You can undo it. See
+  [Undo a change](#undo-a-change).
+- The icons are from Lucide. The licence notices of OpenCraft include the
+  licence of the icons.
+
+### Set an image
+
+You can use an image file in place of an icon.
+
+1. In the row **Icon**, click **Image file…**. Or click **Image file…** in
+   the icon picker.
 2. In the file dialog, select a PNG or JPEG file, and click
    **Select an image**.
 
@@ -73,7 +115,7 @@ image shows the fill colour of the key face.
 - OpenCraft makes a copy of the image in the profile. You can move or delete
   the original file after this step.
 - A large image becomes smaller. A square image is best for a key face.
-- To remove the image, click **Remove**.
+- To remove the image, click **Choose icon…**, and click **No icon**.
 
 ## 4. Set an action
 
@@ -152,7 +194,7 @@ You can undo each change to the pages of the profile, and then do it again.
   typing in that field only. The toolbar button undoes the last change of
   the profile.
 - The undo covers the label and its position, size, colour, and weight, the
-  colour, the image, the actions, the
+  colour, the icon and its colour, the image, the actions, the
   add, rename, move, duplicate, and removal of a page, and **Paste**,
   **Clear**, and **Copy to All Pages**.
 - The undo does not cover the profiles and the device settings. When you
@@ -162,7 +204,8 @@ You can undo each change to the pages of the profile, and then do it again.
 ## Copy a key to a different key
 
 You can copy all of a key to a different key: the title, the look of the
-title, the fill, the image, and the actions of all its gestures. You can do
+title, the fill, the icon or the image, and the actions of all its
+gestures. You can do
 the same with a bar panel and a knob.
 
 ![The menu of the "⋯" button of the inspector, with Copy, Paste, Clear, and Copy to All Pages](images/copy-paste.png)
@@ -172,15 +215,15 @@ the same with a bar panel and a knob.
 | Copy the selected control | Select **Edit > Copy**. Or push Command-C. Or right-click the control, and select **Copy**. Or click **⋯** at the top of the inspector, and select **Copy**. |
 | Put the copy on the selected control | Select **Edit > Paste**. Or push Command-V. Or right-click the control, and select **Paste**. Or use the **⋯** menu. |
 | Remove all of the selected control | Select **Edit > Clear**. Or push Delete. Or right-click the control, and select **Clear**. Or use the **⋯** menu. |
-| Put the selected control on each page | Click **⋯** at the top of the inspector, and select **Copy to All Pages**. The same control on each page of the profile gets the title, the fill, the image, and the actions. |
+| Put the selected control on each page | Click **⋯** at the top of the inspector, and select **Copy to All Pages**. The same control on each page of the profile gets the title, the fill, the icon or the image, and the actions. |
 
 - **Paste** replaces all of the control. The control that you paste on
-  keeps nothing of its old title, fill, image, and actions.
+  keeps nothing of its old title, fill, icon, image, and actions.
 - You can paste a key only on a key, a bar panel only on a bar panel, and a
   knob only on a knob. If the copy is of a different kind, **Paste** is dim,
   and the status bar tells you why when you push Command-V.
 - A knob takes its bar panel with it: the bar panel that shows the feedback
-  of the knob, with its title, fill, image, and its **Tap** action.
+  of the knob, with its title, fill, icon or image, and its **Tap** action.
 - You can paste on a different page, and in a different profile. The copy
   stays until you copy a different control or quit OpenCraft.
 - When a text field has the cursor, Command-C, Command-V, Delete, and the

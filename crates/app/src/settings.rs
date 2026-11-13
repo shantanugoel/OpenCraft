@@ -6,8 +6,9 @@
 //! lock file of decision 0019.
 //!
 //! The file also keeps the panes of the window (decision 0029, section 4),
-//! the options of the Settings window, and the pane of that window that was
-//! visible last (decision 0029, section 17).
+//! the options of the Settings window, the pane of that window that was
+//! visible last (decision 0029, section 17), and the icons that the user
+//! chose last in the icon picker (section 14).
 
 use crate::view::theme;
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
@@ -20,7 +21,7 @@ pub const FILE_NAME: &str = "shell.toml";
 
 /// The settings of the shell. A missing file or a missing value gives the
 /// default.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     /// Show the Dock icon. If false, the application uses the accessory
@@ -35,6 +36,14 @@ pub struct Settings {
     pub settings_pane: SettingsPane,
     #[serde(flatten)]
     pub panes: Panes,
+    /// The icons that the user chose last in the icon picker, the newest
+    /// first: names of the icon set of the engine. The tab "Recent" shows
+    /// them (decision 0029, section 14).
+    #[serde(
+        deserialize_with = "recent_icons",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub recent_icons: Vec<String>,
 }
 
 impl Default for Settings {
@@ -44,7 +53,23 @@ impl Default for Settings {
             show_window_at_start: true,
             settings_pane: SettingsPane::default(),
             panes: Panes::default(),
+            recent_icons: Vec::new(),
         }
+    }
+}
+
+impl Settings {
+    /// Put the icon `name` at the start of [`Settings::recent_icons`]. The
+    /// list has each name one time, and keeps [`theme::RECENT_ICONS`] names
+    /// at the most. Return true if the list changes.
+    pub fn add_recent_icon(&mut self, name: &str) -> bool {
+        if self.recent_icons.first().map(String::as_str) == Some(name) {
+            return false;
+        }
+        self.recent_icons.retain(|n| n != name);
+        self.recent_icons.insert(0, name.to_string());
+        self.recent_icons.truncate(theme::RECENT_ICONS);
+        true
     }
 }
 
@@ -157,6 +182,14 @@ fn tab<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RightPanelTab, D::E
 
 fn settings_pane<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SettingsPane, D::Error> {
     lenient(deserializer, SettingsPane::default(), |_| true)
+}
+
+/// A list of names. An incorrect value gives an empty list, and the list
+/// keeps [`theme::RECENT_ICONS`] names at the most.
+fn recent_icons<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<String>, D::Error> {
+    let mut names: Vec<String> = lenient(deserializer, Vec::new(), |_| true)?;
+    names.truncate(theme::RECENT_ICONS);
+    Ok(names)
 }
 
 /// The directory of the files of the shell: the parent directory of the
@@ -323,6 +356,34 @@ mod tests {
         );
         std::fs::write(dir.path().join(FILE_NAME), "sidebar_width = 120.5\n").unwrap();
         assert_eq!(load(dir.path()).0.panes, Panes::default());
+    }
+
+    #[test]
+    fn the_recent_icons_are_kept_newest_first_with_no_name_two_times() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut settings = Settings::default();
+        assert!(settings.add_recent_icon("globe"));
+        assert!(settings.add_recent_icon("mail"));
+        assert!(!settings.add_recent_icon("mail"));
+        assert!(settings.add_recent_icon("globe"));
+        assert_eq!(settings.recent_icons, ["globe", "mail"]);
+        for n in 0..30 {
+            settings.add_recent_icon(&format!("icon-{n}"));
+        }
+        assert_eq!(settings.recent_icons.len(), theme::RECENT_ICONS);
+        assert_eq!(settings.recent_icons[0], "icon-29");
+        save(dir.path(), &settings).unwrap();
+        assert_eq!(load(dir.path()), (settings, None));
+        // An incorrect value gives an empty list, and the other values stay.
+        std::fs::write(
+            dir.path().join(FILE_NAME),
+            "show_dock_icon = false\nrecent_icons = \"globe\"\n",
+        )
+        .unwrap();
+        let (loaded, problem) = load(dir.path());
+        assert_eq!(problem, None);
+        assert!(!loaded.show_dock_icon);
+        assert!(loaded.recent_icons.is_empty());
     }
 
     #[test]

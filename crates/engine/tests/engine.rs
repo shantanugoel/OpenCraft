@@ -36,6 +36,8 @@ mod clipboard;
 mod device_settings;
 #[path = "engine/history.rs"]
 mod history;
+#[path = "engine/icons.rs"]
+mod icons;
 #[path = "engine/labels.rs"]
 mod labels;
 #[path = "engine/pages.rs"]

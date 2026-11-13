@@ -8,6 +8,7 @@ This directory holds the scripts for work on the computer of a developer.
 | `sign-dev.sh` | Builds the GUI application as a bundle and signs it with a stable identity, so that macOS keeps the Accessibility permission |
 | `release.sh` | Makes the release: the signed bundle, the disk image, the notarization, and the checksum. See [decision 0025](../docs/decisions/0025-release-form.md). |
 | `notices.sh` | Makes and checks `THIRD-PARTY-NOTICES.txt`, the licence notices of the dependencies. See [decision 0026](../docs/decisions/0026-licence-notices.md). |
+| `lucide-icons.sh` | Makes the icon data of the engine from one Lucide release. See [decision 0033](../docs/decisions/0033-surface-icons.md). |
 | `homebrew-cask.sh` | Writes the Homebrew cask file for one release. See [decision 0027](../docs/decisions/0027-homebrew-cask.md). |
 | `make-icon.swift` | Draws the application icon `assets/macos/OpenCraft.icns` |
 | `record-input.sh` | Records the input reports of each control of the N4 Pro. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
@@ -226,7 +227,9 @@ stops if the file is missing or the keys are not the same. Then run
 ## notices.sh
 
 The script makes `THIRD-PARTY-NOTICES.txt` in the root of the repository:
-the licence texts of the crates that the release executable contains. The
+the licence texts of the crates that the release executable contains. At the
+end, it adds the works that are not crates: the Lucide icons of the engine,
+with `crates/engine/icons/LICENSE`. The
 decision is [decision 0026](../docs/decisions/0026-licence-notices.md). The
 facts are in [kb/dependency-licences.md](../docs/kb/dependency-licences.md).
 
@@ -253,6 +256,31 @@ changed its licence file. Read the new file, and change the entry in
 not accepted, read the duties of that licence first. Write them in
 [kb/dependency-licences.md](../docs/kb/dependency-licences.md), and add the
 licence to `deny.toml` and to `about.toml` only if the owner accepts it.
+
+## lucide-icons.sh
+
+The script makes the icon data of the engine: `crates/engine/icons/lucide.tsv`
+and the licence file `crates/engine/icons/LICENSE`. The decision is
+[decision 0033](../docs/decisions/0033-surface-icons.md). The facts are in
+[kb/ui-research.md](../docs/kb/ui-research.md#the-lucide-icons-for-surfaces-2026-11-13).
+
+It needs `jq`, `tar`, and `awk`, and `curl` when it downloads the archive.
+
+```sh
+scripts/lucide-icons.sh                 # download the archive from GitHub
+scripts/lucide-icons.sh lucide.tar.gz   # use an archive that you downloaded
+```
+
+The script stops if the SHA-256 of the archive is not the value in the
+script. Run it only to change the Lucide version. Then:
+
+1. Change `VERSION` and `SHA256` in the script. Use the version of the icons
+   of the GUI toolkit (`lucide.json` of `gpui-kit-assets`).
+2. Run the script and `scripts/notices.sh`.
+3. Run the tests. The tests of `crates/engine/src/icons.rs` give the number
+   of icons and categories, and check the kind icons.
+4. Commit the two files, `THIRD-PARTY-NOTICES.txt`, and the changes of the
+   tests.
 
 ## homebrew-cask.sh
 

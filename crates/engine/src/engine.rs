@@ -45,9 +45,10 @@ use crate::action::{
 use crate::clipboard::{ControlContent, Parts};
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::history::{History, Target};
+use crate::icons;
 use crate::layout::DeviceLayout;
 use crate::profile::{
-    Background, BackgroundFit, Color, LabelChange, Page, Profile, SurfaceContent,
+    Background, BackgroundFit, Color, LabelChange, Page, Profile, SurfaceContent, SurfaceIcon,
     DEFAULT_PROFILE_NAME,
 };
 use crate::profiles::{ProfileEntry, ProfilesDir};
@@ -129,10 +130,19 @@ pub enum Command {
         color: Option<Color>,
     },
     /// Set the image of a surface from an image file of the user. The engine
-    /// makes a copy of the image in the profile. `None` removes the image.
+    /// makes a copy of the image in the profile, and removes the icon of the
+    /// surface. `None` removes the image.
     SetImage {
         surface: SurfaceId,
         path: Option<PathBuf>,
+    },
+    /// Set the icon of a surface: a name of the built-in icon set and a
+    /// colour (decision 0033). The engine removes the image of the surface.
+    /// `None` removes the icon and the image ("No icon" in the window). A
+    /// name that the set does not have gives a problem and changes nothing.
+    SetIcon {
+        surface: SurfaceId,
+        icon: Option<SurfaceIcon>,
     },
     /// Set or remove a binding. The page of `binding` must be the active
     /// page. If it is not, the engine changes nothing and gives a problem: the
@@ -313,6 +323,8 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         Command::SetBackgroundFit { .. } => step("Set Background Fit", None),
         Command::SetImage { path: Some(_), .. } => step("Set Image", None),
         Command::SetImage { path: None, .. } => step("Remove the Image", None),
+        Command::SetIcon { icon: Some(_), .. } => step("Set Icon", None),
+        Command::SetIcon { icon: None, .. } => step("Remove the Icon", None),
         Command::SetBinding {
             binding,
             action: Some(_),
@@ -1952,7 +1964,27 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         }
                     },
                 };
-                self.change(surface, |c| c.image = image);
+                self.change(surface, |c| {
+                    if image.is_some() {
+                        c.icon = None;
+                    }
+                    c.image = image;
+                });
+            }
+            Command::SetIcon { surface, icon } => {
+                if let Some(icon) = &icon {
+                    if icons::icon_set().get(&icon.name).is_none() {
+                        self.problem(format!(
+                            "The icon set does not have the icon '{}'.",
+                            icon.name
+                        ));
+                        return true;
+                    }
+                }
+                self.change(surface, |c| {
+                    c.image = None;
+                    c.icon = icon;
+                });
             }
             Command::SetBinding { binding, action } => self.set_binding(binding, action),
             Command::SetBackground { page, background } => self.set_background(page, background),

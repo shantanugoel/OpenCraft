@@ -27,6 +27,10 @@ base64 = "0.22"
 core-text = { version = "22", default-features = false, features = ["link", "mountainlion"] }
 core-graphics = { version = "0.25", default-features = false, features = ["link"] }
 core-foundation = { version = "0.10", default-features = false, features = ["link"] }
+# The SVG renderer that GPUI already uses in `Cargo.lock`, for the icons on
+# surfaces (decision 0033). With no default feature, it has no text and no
+# raster images.
+resvg = { version = "0.46", default-features = false }
 # The Objective-C runtime, for the media keys in the built-in actions.
 objc2 = "0.6"
 

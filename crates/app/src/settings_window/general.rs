@@ -47,7 +47,7 @@ pub fn permission_texts(permission: &Permission) -> (&'static str, String) {
 
 impl SettingsView {
     pub(super) fn general(&self) -> AnyElement {
-        let settings = self.snapshot.settings;
+        let settings = &self.snapshot.settings;
         let login = self.snapshot.start_at_login;
         let permission = self.snapshot.permission.clone();
         let profiles = tilde(&self.snapshot.profiles_dir);

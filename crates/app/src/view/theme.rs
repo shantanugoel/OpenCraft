@@ -716,6 +716,51 @@ pub fn sheet_shadow() -> Vec<BoxShadow> {
     }]
 }
 
+// MARK: The icon picker (section 14)
+
+/// The popover of the icon picker: its size, and the side of its arrow.
+pub const ICON_PICKER_WIDTH: Pixels = px(360.);
+pub const ICON_PICKER_HEIGHT: Pixels = px(550.);
+pub const ICON_PICKER_ARROW: Pixels = px(16.);
+/// The smallest height of the popover in a low window. The grid then
+/// scrolls in less space.
+pub const ICON_PICKER_MIN_HEIGHT: Pixels = px(300.);
+/// The space between the popover and the edge of the window.
+pub const ICON_PICKER_WINDOW_MARGIN: Pixels = SPACE_8;
+/// The columns of the icon grid, the height of a cell, and the icon in a
+/// cell.
+pub const ICON_GRID_COLUMNS: usize = 7;
+pub const ICON_CELL_HEIGHT: Pixels = px(40.);
+pub const ICON_CELL_ICON: Pixels = px(20.);
+/// An icon in a cell of the icon grid.
+pub const TEXT_ICON_CELL: Rgba = hex(0xd0d2d8);
+/// A cell of the icon grid under the pointer: one step lighter than
+/// [`BG_BAR`], with the border of a button.
+pub const HOVER_ICON_CELL: Rgba = BG_CONTROL;
+/// The height of a filter chip, for example the tab "Icons" (section 3.5),
+/// and its corner radius.
+pub const HEIGHT_CHIP: Pixels = px(24.);
+pub const RADIUS_CHIP: Pixels = px(12.);
+/// The accent at 25 %: the background of a selected chip.
+pub const ACCENT_TINT_CHIP: Rgba = hex_alpha(0x1a6fd8, 0.25);
+/// The button "Image file…" of the icon picker.
+pub const BG_IMAGE_BUTTON: Rgba = hex(0x34363c);
+/// The colours of an icon (section 14). These are data: the profile keeps
+/// the colour that the user selects. The second colour has a border, so
+/// that it shows on the popover.
+pub const ICON_COLOURS: [u32; 6] = [0xffffff, 0x111214, 0xf59e0b, 0x22c55e, 0xff6b6b, 0x60a5fa];
+pub const ICON_COLOUR_WITH_BORDER: u32 = 0x111214;
+/// The number of icons in the tab "Recent".
+pub const RECENT_ICONS: usize = 21;
+/// The tile of the row "Icon" in "Appearance" (section 10.2), and the icon
+/// in it.
+pub const ICON_TILE: Pixels = px(28.);
+pub const ICON_TILE_ICON: Pixels = px(18.);
+/// The kind icon in a kind tile of 24 (a library row) and of 22 (the drag
+/// picture).
+pub const ICON_KIND_LIBRARY: Pixels = px(14.);
+pub const ICON_KIND_DRAG: Pixels = px(13.);
+
 // MARK: Icons (section 3.6)
 
 // The window embeds only the icons in this list. A new icon in the window
@@ -756,3 +801,36 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     TriangleAlert,
     Undo2,
 ]);
+
+/// The asset source of the window: the icons of [`WindowIcons`], and each
+/// icon of the icon set of the engine at the path of [`surface_icon_path`]
+/// (decision 0033). The icon picker and the kind tiles show the icons of the
+/// engine, so the window and the key faces use the same drawings, and the
+/// executable holds them one time.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct WindowAssets;
+
+/// The start of the asset path of an icon of the engine.
+const SURFACE_ICON_PREFIX: &str = "surface-icons/";
+
+/// The asset path of the icon `name` of the icon set of the engine.
+pub fn surface_icon_path(name: &str) -> gpui_kit::SharedString {
+    format!("{SURFACE_ICON_PREFIX}{name}.svg").into()
+}
+
+impl gpui_kit::AssetSource for WindowAssets {
+    fn load(&self, path: &str) -> gpui_kit::Result<Option<std::borrow::Cow<'static, [u8]>>> {
+        if let Some(name) = path
+            .strip_prefix(SURFACE_ICON_PREFIX)
+            .and_then(|p| p.strip_suffix(".svg"))
+        {
+            let svg = opencraft_engine::icon_set().get(name).map(|i| i.svg());
+            return Ok(svg.map(|svg| std::borrow::Cow::Owned(svg.into_bytes())));
+        }
+        WindowIcons.load(path)
+    }
+
+    fn list(&self, path: &str) -> gpui_kit::Result<Vec<gpui_kit::SharedString>> {
+        WindowIcons.list(path)
+    }
+}

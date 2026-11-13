@@ -10,22 +10,29 @@
 //! - The colour fills the surface. With no colour, the surface shows the
 //!   part of the page background at its position, or black on a page with
 //!   no background (decision 0032).
+//! - The picture is the image or the icon of the content (a surface has one
+//!   or none of them).
 //! - The image is as large as possible in its area, with its proportion, at
 //!   the centre. The colour shows through the transparent parts.
+//! - The icon is a square at the centre of its area, in its colour (see
+//!   [`icon_color`]). Its side is a multiple of 24 pixels, the grid of the
+//!   icons, so that each line of the grid is on the edge of a pixel: see
+//!   [`icon_side`] and decision 0033.
 //! - The label has the position, the size, the colour, and the weight of its
-//!   [`LabelStyle`]. The default position is the middle with no image, and
-//!   the bottom with an image.
-//! - With a label and no image, the label is at the top, at the centre, or
+//!   [`LabelStyle`]. The default position is the middle with no picture, and
+//!   the bottom with a picture.
+//! - With a label and no picture, the label is at the top, at the centre, or
 //!   at the bottom of the surface.
-//! - With a label at the top or at the bottom and an image, the label is in
-//!   a band at that edge, and the image has the rest of the surface. A label
-//!   at the middle is on the image, at the centre.
+//! - With a label at the top or at the bottom and a picture, the label is in
+//!   a band at that edge, and the picture has the rest of the surface. A
+//!   label at the middle is on the picture, at the centre.
 //! - A label with the position "none" does not show.
 //!
 //! Feedback of a handler changes this layout: see
 //! [`surface_image_with_feedback`].
 
 use crate::action::{Feedback, FeedbackState};
+use crate::icons;
 use crate::label::{self, Align, Area, Font};
 use crate::profile::{Background, BackgroundFit, Color, LabelPosition, LabelStyle, SurfaceContent};
 use image::imageops::{self, FilterType};
@@ -147,7 +154,9 @@ fn surface_image_on(
         return canvas;
     }
     let style = content.label_style;
-    let position = style.position_for(image.is_some());
+    let icon = content.known_icon().filter(|_| image.is_none());
+    let has_picture = image.is_some() || icon.is_some();
+    let position = style.position_for(has_picture);
     let text = content
         .label
         .as_deref()
@@ -169,11 +178,11 @@ fn surface_image_on(
         height: size.height.saturating_sub(2 * MARGIN),
     };
 
-    // The area of the image, from its top: all of the surface, or the part
-    // that the band of the label does not use.
+    // The area of the picture, from its top: all of the surface, or the
+    // part that the band of the label does not use.
     let (mut image_top, mut image_height) = (0, size.height);
-    match (text, image, position) {
-        (Some(text), Some(_), LabelPosition::Top | LabelPosition::Bottom) => {
+    match (text, has_picture, position) {
+        (Some(text), true, LabelPosition::Top | LabelPosition::Bottom) => {
             let band = label::band_height(text, font, width, size.height);
             image_height = size.height - band;
             let y = if position == LabelPosition::Top {
@@ -190,7 +199,7 @@ fn surface_image_on(
             };
             label::draw(&mut canvas, area, text, font, text_color, Align::Middle);
         }
-        (Some(text), None, _) => {
+        (Some(text), false, _) => {
             label::draw(&mut canvas, full, text, font, text_color, align(position));
         }
         _ => {}
@@ -198,12 +207,37 @@ fn surface_image_on(
 
     if let Some(image) = image {
         draw_image(&mut canvas, image, image_top, size.width, image_height);
-        // A label at the middle is on the image.
-        if let (Some(text), LabelPosition::Middle) = (text, position) {
-            label::draw(&mut canvas, full, text, font, text_color, Align::Middle);
-        }
+    } else if let Some(icon) = icon {
+        let side = icon_side(size.width, image_height);
+        let x = (size.width - side) / 2;
+        let y = image_top + (image_height - side) / 2;
+        // The automatic colour is black or white for what is behind the
+        // icon, as for the label: the fill, or the page background.
+        let colour = content
+            .icon
+            .as_ref()
+            .and_then(|i| i.color)
+            .unwrap_or_else(|| self::text_color(base.tone()));
+        icons::draw(&mut canvas, icon, colour, x, y, side);
+    }
+    // A label at the middle is on the picture.
+    if let (Some(text), true, LabelPosition::Middle) = (text, has_picture, position) {
+        label::draw(&mut canvas, full, text, font, text_color, Align::Middle);
     }
     canvas
+}
+
+/// The side of an icon in an area of `width` × `height` pixels: the largest
+/// multiple of 24 that is not more than three quarters of the shorter side.
+/// Thus the icon has a margin, and it keeps the same size on a key face of
+/// 112 and inside the frame of the state "on". On a small area, the side
+/// is three quarters of the shorter side.
+pub fn icon_side(width: u32, height: u32) -> u32 {
+    let most = width.min(height) * 3 / 4;
+    match most / 24 * 24 {
+        0 => most,
+        side => side,
+    }
 }
 
 /// The vertical place of a label in its area for `position`.
@@ -221,6 +255,20 @@ fn align(position: LabelPosition) -> Align {
 pub fn label_color(content: &SurfaceContent) -> Color {
     let LabelStyle { color, .. } = content.label_style;
     color.unwrap_or_else(|| text_color(content.color.unwrap_or(DEFAULT_COLOR)))
+}
+
+/// The colour of the icon of `content`: the colour of its [`SurfaceIcon`],
+/// or else black or white for the fill (see [`text_color`]). A shell can
+/// use it to show the colour of the icon. On a surface with no fill and a
+/// page background, the image uses the colour for the background.
+///
+/// [`SurfaceIcon`]: crate::profile::SurfaceIcon
+pub fn icon_color(content: &SurfaceContent) -> Color {
+    content
+        .icon
+        .as_ref()
+        .and_then(|icon| icon.color)
+        .unwrap_or_else(|| text_color(content.color.unwrap_or(DEFAULT_COLOR)))
 }
 
 /// The feedback of the state that a feedback with a state does not show:
@@ -927,6 +975,175 @@ mod tests {
             );
             assert_eq!(image.dimensions(), (width, height));
         }
+    }
+
+    /// `content` with the icon `name` in `color`.
+    fn with_icon(
+        label: Option<&str>,
+        fill: Option<Color>,
+        name: &str,
+        color: Option<Color>,
+    ) -> SurfaceContent {
+        SurfaceContent {
+            icon: Some(crate::profile::SurfaceIcon {
+                name: name.into(),
+                color,
+            }),
+            ..content(label, fill)
+        }
+    }
+
+    /// The first and the last row and column with a pixel of the colour
+    /// `want`.
+    fn box_of(image: &RgbImage, want: Rgb<u8>) -> Option<(u32, u32, u32, u32)> {
+        let points: Vec<(u32, u32)> = image
+            .enumerate_pixels()
+            .filter(|(_, _, p)| **p == want)
+            .map(|(x, y, _)| (x, y))
+            .collect();
+        Some((
+            points.iter().map(|p| p.0).min()?,
+            points.iter().map(|p| p.1).min()?,
+            points.iter().map(|p| p.0).max()?,
+            points.iter().map(|p| p.1).max()?,
+        ))
+    }
+
+    const AMBER: Color = Color::rgb(245, 158, 11);
+
+    #[test]
+    fn an_icon_is_a_square_of_a_multiple_of_24_at_the_centre_of_a_key_face_and_a_bar_panel() {
+        // The icon "square" has its stroke from 2 to 22 of 24: the box of
+        // the ink is the square of the icon less 1/12 at each side.
+        for size in [KEY, BAR] {
+            let image = surface_image(
+                size,
+                &with_icon(None, Some(RED), "square", Some(AMBER)),
+                None,
+            );
+            assert_eq!(image.dimensions(), (size.width, size.height));
+            let side = icon_side(size.width, size.height);
+            assert_eq!(side, 72, "{size:?}");
+            let (left, top, right, bottom) = box_of(&image, Rgb(AMBER.0)).expect("the icon");
+            let x = (size.width - side) / 2;
+            let y = (size.height - side) / 2;
+            assert_eq!((left, top), (x + 6, y + 6), "{size:?}");
+            assert_eq!((right, bottom), (x + side - 7, y + side - 7), "{size:?}");
+            // The fill is around and inside the icon.
+            assert_eq!(image.get_pixel(1, 1), &Rgb(RED.0));
+            assert_eq!(
+                image.get_pixel(size.width / 2, size.height / 2),
+                &Rgb(RED.0)
+            );
+        }
+    }
+
+    #[test]
+    fn the_side_of_an_icon_is_a_multiple_of_24_up_to_three_quarters_of_the_area() {
+        assert_eq!(icon_side(112, 112), 72);
+        assert_eq!(icon_side(176, 112), 72);
+        assert_eq!(icon_side(100, 100), 72);
+        assert_eq!(icon_side(112, 84), 48);
+        assert_eq!(icon_side(72, 72), 48);
+        assert_eq!(icon_side(30, 30), 22);
+        assert_eq!(icon_side(0, 50), 0);
+    }
+
+    #[test]
+    fn an_icon_with_no_colour_is_black_or_white_for_the_fill() {
+        let image = surface_image(KEY, &with_icon(None, None, "square", None), None);
+        assert!(image.pixels().any(|p| *p == Rgb([255, 255, 255])));
+        let image = surface_image(
+            KEY,
+            &with_icon(None, Some(Color::WHITE), "square", None),
+            None,
+        );
+        assert!(image.pixels().any(|p| *p == Rgb([0, 0, 0])));
+        assert_eq!(
+            icon_color(&with_icon(None, Some(Color::WHITE), "x", None)),
+            Color::BLACK
+        );
+        assert_eq!(icon_color(&with_icon(None, None, "x", Some(AMBER))), AMBER);
+    }
+
+    #[test]
+    fn an_icon_that_the_set_does_not_have_draws_nothing() {
+        assert_eq!(
+            surface_image(KEY, &with_icon(None, Some(RED), "no-such-icon", None), None),
+            surface_image(KEY, &content(None, Some(RED)), None)
+        );
+    }
+
+    #[test]
+    fn an_image_hides_the_icon_of_the_same_content() {
+        let both = with_icon(None, Some(RED), "square", Some(AMBER));
+        assert_eq!(
+            surface_image(KEY, &both, Some(&green(112, 112))),
+            surface_image(KEY, &content(None, Some(RED)), Some(&green(112, 112)))
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn each_label_position_puts_the_label_there_on_a_surface_with_an_icon() {
+        for size in [KEY, BAR] {
+            let draw = |position| {
+                let mut content = with_icon(Some("Mail"), Some(RED), "square", Some(AMBER));
+                content.label_style = at(position);
+                surface_image(size, &content, None)
+            };
+            let h = size.height;
+            // Top: a band at the top, and the icon below it.
+            let image = draw(LabelPosition::Top);
+            let (_, label_bottom) = rows_of(&image, WHITE).unwrap();
+            let (_, icon_top, _, _) = box_of(&image, Rgb(AMBER.0)).unwrap();
+            assert!(
+                label_bottom < icon_top,
+                "{size:?} {label_bottom} {icon_top}"
+            );
+            // Bottom: the icon above, and a band at the bottom.
+            let image = draw(LabelPosition::Bottom);
+            let (label_top, _) = rows_of(&image, WHITE).unwrap();
+            let (_, _, _, icon_bottom) = box_of(&image, Rgb(AMBER.0)).unwrap();
+            assert!(icon_bottom < label_top, "{size:?}");
+            // The automatic position is the bottom.
+            assert_eq!(
+                image,
+                surface_image(
+                    size,
+                    &with_icon(Some("Mail"), Some(RED), "square", Some(AMBER)),
+                    None
+                )
+            );
+            // Middle: the icon has all of the surface, and the label is on it.
+            let image = draw(LabelPosition::Middle);
+            let (label_top, label_bottom) = rows_of(&image, WHITE).unwrap();
+            assert!(label_top > h / 3 && label_bottom < h * 2 / 3, "{size:?}");
+            let (_, icon_top, _, _) = box_of(&image, Rgb(AMBER.0)).unwrap();
+            assert_eq!(icon_top, (h - 72) / 2 + 6, "{size:?}");
+            // None: only the icon, as with no label.
+            assert_eq!(
+                draw(LabelPosition::Hidden),
+                surface_image(
+                    size,
+                    &with_icon(None, Some(RED), "square", Some(AMBER)),
+                    None
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn the_state_on_keeps_the_size_of_the_icon_inside_the_frame() {
+        let content = with_icon(None, Some(RED), "square", Some(AMBER));
+        let off = surface_image(KEY, &content, None);
+        let on = surface_image_with_feedback(KEY, &content, None, Some(&on(None, None)));
+        let size = |image: &RgbImage| {
+            let (left, top, right, bottom) = box_of(image, Rgb(AMBER.0)).unwrap();
+            (right - left, bottom - top)
+        };
+        assert_eq!(size(&off), size(&on));
+        assert!(has_frame(&on, FRAME, Color::WHITE));
     }
 
     #[test]

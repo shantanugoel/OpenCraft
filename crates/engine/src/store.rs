@@ -59,10 +59,19 @@
 //! copy is larger than a surface image copy: see
 //! [`ProfileStore::import_background`].
 //!
-//! A later task can add more keys to version 4 (for example the icon of a
-//! surface, #190), if no release of
-//! OpenCraft writes version 4 before that task. Else the task increases the
-//! version.
+//! Version 4 also adds the icon of a surface (issue #190, decision 0033):
+//!
+//! | Key | Value | With no key |
+//! |---|---|---|
+//! | `icon` | The name of an icon of the built-in set, for example `"globe"`: small letters, digits, and hyphens | No icon |
+//! | `icon_color` | `#RRGGBB`. Only with `icon`. | Black or white, for the fill |
+//!
+//! A surface has `image` or `icon`, not both. An icon name that the set of
+//! this engine does not have loads and stays in the file, and the surface
+//! shows no icon.
+//!
+//! A later task can add more keys to version 4, if no release of OpenCraft
+//! writes version 4 before that task. Else the task increases the version.
 //!
 //! ```toml
 //! schema_version = 4
@@ -79,6 +88,8 @@
 //! label = "Mail"
 //! label_position = "top"
 //! label_size = 14
+//! icon = "mail"
+//! icon_color = "#F59E0B"
 //! [pages.bindings.key-3.press]
 //! kind = "opencraft.hotkey"
 //! [pages.bindings.key-3.press.settings]
@@ -100,7 +111,7 @@ use crate::error::{Error, Result};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
     default_model, parse_surface_key, surface_key, Background, BackgroundFit, Color, LabelPosition,
-    LabelStyle, Page, Profile, SurfaceContent, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
+    LabelStyle, Page, Profile, SurfaceContent, SurfaceIcon, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, ImageReader};
@@ -706,8 +717,8 @@ impl BackgroundData {
     }
 }
 
-/// The content of one surface. The keys that start with `label_` came in
-/// version 4.
+/// The content of one surface. The keys that start with `label_` and the
+/// keys `icon` and `icon_color` came in version 4.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SurfaceData {
@@ -725,14 +736,44 @@ struct SurfaceData {
     color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    icon_color: Option<String>,
 }
 
 impl SurfaceData {
-    fn has_label_options(&self) -> bool {
+    /// True if the data has a key of version 4.
+    fn has_version_4_keys(&self) -> bool {
         self.label_position.is_some()
             || self.label_size.is_some()
             || self.label_color.is_some()
             || self.label_bold.is_some()
+            || self.icon.is_some()
+            || self.icon_color.is_some()
+    }
+
+    /// The icon of the file data. The error text names the key.
+    fn icon(&self) -> std::result::Result<Option<SurfaceIcon>, String> {
+        let color = match &self.icon_color {
+            None => None,
+            Some(text) => Some(
+                text.parse::<Color>()
+                    .map_err(|e| format!("icon_color '{text}': {e}"))?,
+            ),
+        };
+        match &self.icon {
+            None if color.is_some() => Err("icon_color with no icon".to_string()),
+            None => Ok(None),
+            Some(name) if !SurfaceIcon::is_name(name) => {
+                Err(format!("icon '{name}' is not an icon name"))
+            }
+            Some(_) if self.image.is_some() => Err("an image and an icon".to_string()),
+            Some(name) => Ok(Some(SurfaceIcon {
+                name: name.clone(),
+                color,
+            })),
+        }
     }
 
     /// The label style of the file data. The error text names the key.
@@ -780,6 +821,12 @@ impl SurfaceData {
             label_bold: (style.bold != default.bold).then_some(style.bold),
             color: content.color.map(|c| c.to_string()),
             image: content.image.clone(),
+            icon: content.icon.as_ref().map(|i| i.name.clone()),
+            icon_color: content
+                .icon
+                .as_ref()
+                .and_then(|i| i.color)
+                .map(|c| c.to_string()),
         }
     }
 }
@@ -857,20 +904,22 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
                     )));
                 }
             }
-            if version < LABEL_OPTIONS_VERSION && surface.has_label_options() {
+            if version < LABEL_OPTIONS_VERSION && surface.has_version_4_keys() {
                 return Err(invalid(format!(
-                    "{key}: version {version} has no label options"
+                    "{key}: version {version} has no label options and no icon"
                 )));
             }
             let label_style = surface
                 .label_style()
                 .map_err(|e| invalid(format!("{key}: {e}")))?;
+            let icon = surface.icon().map_err(|e| invalid(format!("{key}: {e}")))?;
             page.update(id, |content| {
                 *content = SurfaceContent {
                     label: surface.label,
                     label_style,
                     color,
                     image: surface.image,
+                    icon,
                 };
             });
         }
@@ -1102,6 +1151,33 @@ image = "images/4f1c2a9be07d3356.png"
     }
 
     #[test]
+    fn an_icon_saves_and_loads_and_an_unknown_icon_name_stays() {
+        let (_dir, store) = store();
+        let mut profile = sample();
+        profile.page_mut(0).unwrap().update(BAR_1, |c| {
+            c.icon = Some(SurfaceIcon {
+                name: "volume-2".into(),
+                color: Some(Color::rgb(0xF5, 0x9E, 0x0B)),
+            })
+        });
+        // A later icon set can have a name that this set does not have.
+        profile
+            .page_mut(0)
+            .unwrap()
+            .update(SurfaceId::new(SurfaceKind::KeyFace, 1), |c| {
+                c.icon = Some(SurfaceIcon::new("icon-of-a-later-set"))
+            });
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(
+            text.contains("icon = \"volume-2\"\nicon_color = \"#F59E0B\"\n"),
+            "{text}"
+        );
+        assert!(text.contains("icon = \"icon-of-a-later-set\"\n"), "{text}");
+        assert_eq!(store.load().unwrap().profile, profile);
+    }
+
+    #[test]
     fn a_file_with_a_newer_schema_version_is_kept_as_a_backup() {
         let (_dir, store) = store();
         let text = "schema_version = 5\nname = \"Later\"\nnew_field = true\n";
@@ -1147,6 +1223,16 @@ image = "images/4f1c2a9be07d3356.png"
             b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_size = 300\n",
             b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_color = \"white\"\n",
             b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_bold = \"yes\"\n",
+            // Version 4 adds the icon. Versions 1 to 3 have none, an icon
+            // name has only small letters, digits, and hyphens, a colour
+            // needs an icon, and a surface has an image or an icon.
+            b"schema_version = 3\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon = \"globe\"\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon = \"Globe\"\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon = \"\"\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon = \"../globe\"\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon_color = \"#FFFFFF\"\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon = \"globe\"\nicon_color = \"amber\"\n",
+            b"schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nicon = \"globe\"\nimage = \"images/4f1c2a9be07d3356.png\"\n",
         ];
         for (i, text) in cases.iter().enumerate() {
             let (_dir, store) = store();

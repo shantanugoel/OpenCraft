@@ -206,9 +206,10 @@ fn main() {
     });
 
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-    // The window embeds only the icons that it uses (decision 0029, section 3.6).
+    // The window embeds only the icons that it uses (decision 0029, section
+    // 3.6), and it shows the icons of the engine (decision 0033).
     let mut application = gpui_kit::platform::application()
-        .with_assets(view::theme::WindowIcons)
+        .with_assets(view::theme::WindowAssets)
         .with_quit_mode(QuitMode::Explicit);
     // With the Dock icon hidden, the icon must not show during the start.
     // On Linux, "headless" means no display server, thus macOS only.

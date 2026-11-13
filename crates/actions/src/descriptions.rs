@@ -171,6 +171,7 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         name: name.into(),
         group: group.into(),
         help: help.map(Into::into),
+        icon: Some(icon(kind).into()),
         needs_accessibility: KEY_KINDS.contains(&kind),
         fields,
         direction: direction(kind),
@@ -178,6 +179,25 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         states: (kind == TOGGLE).then(|| TwoStates {
             on_label: Some("on_label".into()),
         }),
+    }
+}
+
+/// The icon of a built-in kind on its kind tile: a name of the icon set of
+/// the engine (decision 0029, section 20, and decision 0033).
+fn icon(kind: &str) -> &'static str {
+    match kind {
+        APPLICATION => "app-window",
+        URL => "globe",
+        SHELL => "terminal",
+        HOTKEY => "keyboard",
+        TEXT => "type",
+        MEDIA => "play",
+        VOLUME => "volume-2",
+        PAGE => "arrow-right",
+        PROFILE => "layers",
+        TOGGLE => "toggle-left",
+        SEQUENCE => "list",
+        _ => "circle-help",
     }
 }
 

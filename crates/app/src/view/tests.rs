@@ -236,6 +236,7 @@ mod clipboard;
 mod device;
 mod history;
 mod hotkey;
+mod icons;
 mod knob;
 mod label_options;
 mod library;

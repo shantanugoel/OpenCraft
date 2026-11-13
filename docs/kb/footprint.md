@@ -1,6 +1,6 @@
 # Footprint of OpenCraft
 
-Last update: 2026-11-12
+Last update: 2026-11-13
 
 This entry holds the measured values for the
 [product targets](../ROADMAP.md#product-targets). The reference is the vendor
@@ -527,6 +527,28 @@ Not measured with the bundle: nobody turned a knob. The counts of
 | Processor use when idle: less than 0.5 % of one core | 0.22 to 0.23 % mean, with and with no window. No sample of 5 seconds above 0.4 % with the Developer ID bundle; one sample of 1.6 % with the ad-hoc copy. | Met |
 | Cold start to a ready device: less than 300 ms | 101 ms median (94 to 125 ms) for a repeated start; 305 to 639 ms for the first start of a new file; not measured for the first start of the notarized bundle and after a start of the computer | Met for a repeated start only. Not met for the first start of a new file. Issue [#143](https://github.com/shantanugoel/OpenCraft/issues/143) and issue [#151](https://github.com/shantanugoel/OpenCraft/issues/151). |
 | Lost input events: none | Not measured with the bundle. The input path is the path of the Phase 3 and Phase 4 counts. | Met in Phase 3 and Phase 4. Not measured with the bundle. |
+
+## Icons on surfaces (2026-11-13)
+
+The change is the icon set of the engine and the icon picker of
+[decision 0033](../decisions/0033-surface-icons.md) (issue
+[#190](https://github.com/shantanugoel/OpenCraft/issues/190)). The build is
+the release profile of the workspace (`lto = "thin"`, `strip = true`),
+`cargo build --release -p opencraft-app`, on the computer of
+[Phase 2](#phase-2) (Apple M1 Max, macOS 27.2). The times come from a test
+program, not in the repository, in a release build of the engine crate.
+
+| Fact | Confidence |
+|---|---|
+| The release executable has 23,934,896 bytes before the change (commit `9d7b386`) and 24,563,760 bytes after it: 628,864 bytes (2.6 %) more. A first measurement on commit `fb1d202`, with an earlier version of the change, gave 23,768,848 and 24,464,080 bytes: 695,232 bytes (2.9 %) more. | Measured |
+| The icon data `crates/engine/icons/lucide.tsv` has 499,309 bytes. The executable contains it as it is. The rest of the difference, 130,000 to 196,000 bytes, is code: the drawing of an icon with `resvg`, the search, and the icon picker. The two measurements are different, possibly because the link-time optimization puts the code in a different way. | Measured (the sizes); Inference (the parts of the rest and the cause) |
+| No crate came into the executable. `resvg` 0.46 and its dependencies were in it before, through GPUI. | Measured: `cargo tree` |
+| The engine reads the data in 1.1 ms, at the first use of an icon. | Measured |
+| The drawing of one icon of 72 × 72 pixels takes 80 µs, the mean of all 1,818 icons. | Measured |
+| The image of a key face of 112 × 112 with an icon and a label takes 0.67 ms. With the label only, it takes 0.23 ms. | Measured: the mean of 100 images |
+| One search of all icons ("arrow") takes 0.39 ms. | Measured: the mean of 100 searches |
+| The data of the set in memory, after the first use, is approximately 100 KB: one entry of 56 bytes for each icon, with references into the data of the executable. | Inference: the size of the entry |
+| The memory and the processor use of the application were not measured again with icons on the surfaces. An icon changes only the time to make an image, as a label does. | Inference |
 
 ## Not known
 

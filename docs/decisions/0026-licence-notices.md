@@ -49,6 +49,11 @@ ones are:
   paths that are the same as two Lucide icons. The cost is small.
 - The Mirabox SDK and `mirajazz` get no notice, because no code of them is
   in OpenCraft. The README gives credit to both.
+- Note (2026-11-13): the engine now contains the Lucide icons for the
+  surfaces ([decision 0033](0033-surface-icons.md)). They are not a crate,
+  thus `scripts/notices.sh` adds the section "Works that are not crates" at
+  the end of the file, with `crates/engine/icons/LICENSE` (ISC, and MIT for
+  the icons from Feather).
 
 ### The file is in the repository, and two checks keep it correct
 
