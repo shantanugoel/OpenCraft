@@ -1,6 +1,6 @@
 # VSD N4 Pro hardware
 
-Last update: 2026-11-12
+Last update: 2026-11-13
 
 The VSD N4 Pro is a Mirabox StreamDock N4 Pro with a different brand name.
 VSDinside is the retail brand. The protocol is in
@@ -344,6 +344,20 @@ The display brightness is in
 [streamdock-protocol.md](streamdock-protocol.md#brightness). The knob lights
 are in [Knob lights](#knob-lights).
 
+## USB connection (2026-11-13)
+
+These facts come from the vendor pages. OpenCraft did not test them on the
+device. The user guide uses them in
+[faults.md](../user/faults.md#the-device-is-not-found).
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The vendor tells the user to connect the computer to the port on the N4 Pro that shows "PC". That port gives power to the device. | Source | VSDinside, "VSD Stream Dock Connection Issues", 2025-12-25 |
+| The vendor says that the other three USB 3.0 ports on the N4 Pro are hub ports. They give no power. The user connects a mouse, a keyboard, or a USB drive to them. | Source | Same page |
+| The vendor tells the user not to use a USB hub, a port on the front of a desktop computer, or a port on a monitor. The cable goes directly to the computer. | Source | Same page |
+| The vendor tells the user not to use a USB hub or a dock. The user uses a USB port on the back of the computer. | Source | VSDinside, "Stream Dock Not Connecting / Unstable Connection", 2025-11-16 |
+| The vendor says that many cables for phone charge carry no data. | Source | Same page |
+
 ## Not known
 
 The project did not answer these questions. Each question has a reason.
@@ -372,3 +386,7 @@ The project did not answer these questions. Each question has a reason.
 - Mirabox N4 Pro product page: <https://mirabox.net/products/mirabox-stream-dock-n4-pro>
 - VSDinside, N4 Pro and Stream Deck Plus comparison:
   <https://www.vsdinside.com/blogs/blog/n4-pro-vs-stream-deck-plus-knob-ring-lights-touch-bar-and-full-screen-dynamic-background>
+- VSDinside, "VSD Stream Dock Connection Issues", 2025-12-25:
+  <https://www.vsdinside.com/blogs/tutorial/vsd-stream-dock-connection-issues>
+- VSDinside, "Stream Dock Not Connecting / Unstable Connection", 2025-11-16:
+  <https://www.vsdinside.com/blogs/tutorial/stream-dock-not-connecting-unstable-connection-complete-troubleshooting-guide-bookmark-this>

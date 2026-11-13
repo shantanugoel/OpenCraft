@@ -31,10 +31,15 @@ The connection in the toolbar shows "Not connected", and the device does not
 change.
 
 1. Quit VSD Craft. See [The vendor software runs](#the-vendor-software-runs).
-2. Disconnect the USB cable of the device. Wait 5 seconds. Connect it again.
-3. Use a different USB cable or a different USB port. Some cables carry
-   only power and no data.
-4. Wait some seconds. OpenCraft looks for the device each second. You do not
+2. Connect the cable to the port on the device that shows "PC". Do not
+   use a different port on the device.
+3. Connect the other end of the cable directly to a USB port of the
+   computer. Do not use a USB hub or a dock. Do not use a port on a monitor.
+   On a desktop computer, use a port on the back.
+4. If the device is still not found, disconnect the cable. Wait 5 seconds.
+   Connect it again. Use a different USB cable if you have one. Some cables
+   carry only power and no data.
+5. Wait some seconds. OpenCraft looks for the device each second. You do not
    have to start OpenCraft again.
 
 If the window shows a message about the device, read the full message. It
