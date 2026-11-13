@@ -119,7 +119,12 @@ impl World {
     /// The engine with all built-in handlers and the recorder, on an empty
     /// profiles directory, with the device connected.
     fn new() -> Self {
-        let dir = TempDir::new().unwrap();
+        Self::open(TempDir::new().unwrap())
+    }
+
+    /// The engine with all built-in handlers and the recorder, on `dir`,
+    /// with the device connected.
+    fn open(dir: TempDir) -> Self {
         let nested = Arc::new(Mutex::new(Vec::new()));
         let mut all = handlers_with_system(Arc::new(Fake::default()));
         all.push(Box::new(Recorder(nested.clone())));
@@ -164,6 +169,13 @@ impl World {
         assert!(world.engine.link().is_connected());
         world.pump();
         world
+    }
+
+    /// Save the profile and start again on the same directory.
+    fn restart(mut self) -> Self {
+        self.engine.finish();
+        let World { _dir, .. } = self;
+        Self::open(_dir)
     }
 
     /// Move each request to its handler and each message to the engine,
@@ -248,22 +260,67 @@ impl World {
 
 #[test]
 fn device_actions_use_the_handler_path_and_do_not_change_brightness() {
-    for (kind, state) in [
-        ("screen-off", opencraft_engine::DisplayState::ScreenOff),
-        ("device-sleep", opencraft_engine::DisplayState::DeviceSleep),
-    ] {
-        let mut world = World::new();
-        world.bind_key_3(built_in(kind, vec![]));
-        let before = world.engine.device_settings().clone();
-        world.press_key_3();
-        assert_eq!(world.engine.display_state(), state);
-        assert_eq!(world.engine.device_settings(), &before);
-        world.command(Command::WakeDevice);
-        assert_eq!(
-            world.engine.display_state(),
-            opencraft_engine::DisplayState::Awake
-        );
-    }
+    let mut world = World::new();
+    world.bind_key_3(built_in("screen-off", vec![]));
+    let before = world.engine.device_settings().clone();
+    world.press_key_3();
+    assert_eq!(
+        world.engine.display_state(),
+        opencraft_engine::DisplayState::ScreenOff
+    );
+    assert_eq!(world.engine.device_settings(), &before);
+    world.command(Command::WakeDevice);
+    assert_eq!(
+        world.engine.display_state(),
+        opencraft_engine::DisplayState::Awake
+    );
+}
+
+/// A profile from before this change can still contain `opencraft.device-sleep`.
+/// Rule 8 keeps the binding. No handler has the kind, so the engine reports
+/// that the action is not available. A press does not change the display.
+#[test]
+fn a_profile_keeps_device_sleep_and_reports_it_as_not_available() {
+    let mut world = World::new();
+    let kinds = world
+        .take_events()
+        .into_iter()
+        .find_map(|event| match event {
+            Event::Kinds(kinds) => Some(kinds),
+            _ => None,
+        })
+        .expect("the kinds");
+    assert!(kinds
+        .iter()
+        .all(|kind| kind.kind != "opencraft.device-sleep"));
+    let action = built_in("device-sleep", vec![]);
+    world.bind_key_3(action.clone());
+    let id = key_3(world.engine.active_page());
+    assert_eq!(
+        world.engine.profile().pages()[id.page].binding(id.control, id.gesture),
+        Some(&action)
+    );
+    assert!(world.take_events().iter().any(|event| matches!(
+        event,
+        Event::Binding(state)
+            if state.binding == id && state.action.as_ref() == Some(&action) && !state.available
+    )));
+    world.press_key_3();
+    assert_eq!(
+        world.engine.display_state(),
+        opencraft_engine::DisplayState::Awake
+    );
+    assert_eq!(world.engine.counters().invokes_sent, 0);
+    let mut world = world.restart();
+    assert_eq!(
+        world.engine.profile().pages()[id.page].binding(id.control, id.gesture),
+        Some(&action)
+    );
+    assert!(world.take_events().iter().any(|event| matches!(
+        event,
+        Event::Binding(state)
+            if state.binding == id && state.action.as_ref() == Some(&action) && !state.available
+    )));
 }
 
 #[test]
@@ -362,7 +419,6 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Mac system function", "System", accessibility, true),
             ("Sound volume", "Media", Some("Knob"), false),
             ("Screen off", "Device", Some("Computer wake"), false),
-            ("Device sleep", "Device", Some("Computer wake"), false),
             ("Device brightness", "Device", Some("Knob"), false),
             ("Microphone mute", "Media", None, false),
             ("Sound output", "Media", None, false),
@@ -409,7 +465,6 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Mac system function", "monitor"),
             ("Sound volume", "volume-2"),
             ("Screen off", "monitor-off"),
-            ("Device sleep", "moon"),
             ("Device brightness", "sun"),
             ("Microphone mute", "mic"),
             ("Sound output", "speaker"),

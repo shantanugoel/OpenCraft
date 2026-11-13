@@ -24,7 +24,6 @@ pub(crate) const PROFILE: &str = "opencraft.profile";
 pub(crate) const TOGGLE: &str = "opencraft.toggle";
 pub(crate) const SEQUENCE: &str = "opencraft.sequence";
 pub(crate) const SCREEN_OFF: &str = "opencraft.screen-off";
-pub(crate) const DEVICE_SLEEP: &str = "opencraft.device-sleep";
 pub(crate) const DEVICE_BRIGHTNESS: &str = "opencraft.device-brightness";
 
 /// The groups of the built-in kinds in the library (decision 0029, section
@@ -102,7 +101,6 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             ("Device brightness", vec![operation, value, step])
         }
         SCREEN_OFF => ("Screen off", vec![]),
-        DEVICE_SLEEP => ("Device sleep", vec![]),
         QUIT => (
             "Quit an application",
             vec![
@@ -381,7 +379,6 @@ fn icon(kind: &str) -> &'static str {
         TOGGLE => "toggle-left",
         SEQUENCE => "list",
         SCREEN_OFF => "monitor-off",
-        DEVICE_SLEEP => "moon",
         DEVICE_BRIGHTNESS => "sun",
         _ => "circle-help",
     }
@@ -411,7 +408,7 @@ fn direction(kind: &str) -> Option<Direction> {
 /// Accessibility permission, thus their help text names it.
 fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
-        SCREEN_OFF | DEVICE_SLEEP => ("Device", Some("Computer wake")),
+        SCREEN_OFF => ("Device", Some("Computer wake")),
         DEVICE_BRIGHTNESS => ("Device", Some("Knob")),
         HOTKEY | TEXT | MOUSE | MAC_FUNCTION => (SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),

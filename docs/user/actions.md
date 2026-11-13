@@ -19,7 +19,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | System | [Type text](#type-text) | Yes |
 | Media | [Media key](#media-key) | Yes |
 | Media | [Sound volume](#sound-volume) | No |
-| Device | [Screen off and Device sleep](#screen-off-and-device-sleep) | No |
+| Device | [Screen off](#screen-off) | No |
 | Device | [Device brightness](#device-brightness) | No |
 | Navigation | [Change the page](#change-the-page) | No |
 | Navigation | [Select a profile](#select-a-profile) | No |
@@ -400,26 +400,22 @@ knob lights do not change. The action does not wake a dark or locked device.
 
 ![Device brightness settings](images/device-brightness-action.png)
 
-## Screen off and Device sleep
+## Screen off
 
-These kinds are in the **Device** group of the library. They have no settings.
-They do not change the saved brightness.
+This kind is in the **Device** group of the library. It has no settings. It
+does not change the saved brightness. The library shows the help text
+"Computer wake".
 
-- **Screen off** makes the displays and knob lights dark. OpenCraft keeps
-  the connection and its keep-alive in operation.
-- **Device sleep** makes them dark and stops the device keep-alive timer.
-  Use this when you do not need the device for a time.
+**Screen off** makes the displays and the knob lights dark. OpenCraft keeps
+the connection and the keep-alive in operation.
 
-To wake either state, select **Wake Device** in the menu bar item or open the
-OpenCraft window. The full profile and stored settings return. A device input
-report also wakes it, if the firmware sends that report while dark. That
-first gesture, including its release, does not run an action. Whether this
-firmware sends input after sleep is not verified. Do not rely on a device
-key as the only wake path. While the screen is locked, no wake or device
-action can override the lock. See
-[Sleep and screen lock](background.md#sleep-and-screen-lock).
+A key of the device wakes it. The first press starts no action. The release
+of that key also starts no action. **Wake Device** in the menu bar item and
+the OpenCraft window also wake the device. The full profile and the stored
+settings return. While the screen is locked, a wake cannot override the
+lock. See [Sleep and screen lock](background.md#sleep-and-screen-lock).
 
-![The Device actions in the library](images/device-actions.png)
+![The Device group of the library](images/device-actions.png)
 
 ## Sound output
 

@@ -15,8 +15,9 @@ engine still owns all device state.
 The camera checks are in
 [the protocol entry](../kb/streamdock-protocol.md#dark-state-check-2026-11-13).
 Brightness 0 is not screen off. Thus the proposed brightness-0 dark state
-cannot meet the requirement. Whether input reports arrive after `HAN` is
-not known. No wake path may depend only on such a report.
+cannot meet the requirement. The input result is in
+[Result of the owner check (2026-11-14)](#result-of-the-owner-check-2026-11-14).
+No wake of the stop state depends on an input report.
 
 ## Decision
 
@@ -27,7 +28,7 @@ profile.
 |---|---|---|
 | Awake | The usual full draw and stored settings | Dispatch actions |
 | Screen off | Send `HAN`; keep the handle, input reads, and `CONNECT` timer in operation | If a user input report arrives, wake and consume the first gesture; do not dispatch its action |
-| Device sleep | Send `DC`, then `HAN`, as in 0022; suspend the keep-alive, but keep input reads possible | The same rule if input arrives; input is not a required wake source |
+| Device sleep | Send `DC`, then `HAN`, as in 0022; suspend the keep-alive. The engine can still read input | The device sends no input report. Only the computer wakes this state. If a report arrives, wake and consume that gesture; do not dispatch its action |
 
 A wake sends the full start sequence, all settings, and all surfaces. A
 `CONNECT` alone is not a wake command. After `DC`, allow at least 100 ms
@@ -36,10 +37,10 @@ finish dark, not display the profile. A wake that fails uses the normal
 reconnection path.
 
 The computer always has wake paths: open the window, select the menu bar
-wake item, unlock the screen, or wake the computer or its displays. The
-screen-off and device-sleep actions must explain this fallback. Do not claim
-that a device key always wakes either state until the owner check gives the
-result. Thus either answer about input after `HAN` leaves the design useful.
+wake item, unlock the screen, or wake the computer or its displays. A
+device key wakes Screen off. The first gesture starts no action. A device
+key does not wake the stop state. The Screen off action tells the user
+both facts.
 
 | Cause | Engine result |
 |---|---|
@@ -52,7 +53,6 @@ result. Thus either answer about input after `HAN` leaves the design useful.
 | Clock sleep-time jump (0023) | The same recovery as computer did wake; retain as a second source |
 | Idle timeout | Screen off, not device sleep |
 | Screen off action | Screen off |
-| Device sleep action | Device sleep |
 
 While locked, input cannot wake the device or dispatch an action. A window
 or menu wake cannot override a lock or a pending computer sleep. Suppress the
@@ -109,13 +109,33 @@ A review of the code found four cases that the tables did not make clear.
 - The idle period starts again when a device connects. A device that
   connects after the timeout shows the profile.
 
+### Result of the owner check (2026-11-14)
+
+The owner check and one measurement give the input behaviour. The details
+are in
+[the protocol entry](../kb/streamdock-protocol.md#input-after-the-dark-states-2026-11-14).
+
+- **Screen off:** the input report arrives. The first gesture wakes the
+  device and starts no action. This is the result of the owner check.
+- **Stop state** (`DC`, then `HAN`): the device sends no input report. A
+  key press shows the firmware logo. Only the computer can wake this state.
+- The action kind **Device sleep** is removed. No release of OpenCraft had
+  this kind. A profile that still has the kind keeps the binding. The
+  window shows that the action is not available.
+
+The engine state `DeviceSleep` stays. A sleep of the computer and a quit of
+OpenCraft still use the stop state. `EngineRequest::DeviceDisplay` stays.
+After the stop state, a key cannot wake the device into the profile.
+
 ## Results
 
-The computer can recover the device without a device key. The owner check
-can improve the guidance without a new architecture. Screen off keeps the
-link alive; device sleep stops the firmware timer before computer sleep.
-Neither state needs a change to persistent firmware configuration.
+The computer can recover the device without a device key. Screen off keeps
+the link alive, and a device key wakes it. The stop state stops the
+firmware timer before a sleep of the computer and at quit. A key press in
+that state shows the firmware logo and sends no report. Neither state needs
+a change to persistent firmware configuration.
 
-The physical input check after `HAN`, computer sleep, and lock/unlock remain
-owner checks in [#255](https://github.com/shantanugoel/OpenCraft/issues/255).
-A fake transport tests the engine policy, not the unmeasured firmware input.
+The owner checks for a sleep of the computer and for lock and unlock remain
+in [#255](https://github.com/shantanugoel/OpenCraft/issues/255). A fake
+transport tests the engine policy. It can inject a report that the firmware
+does not send.

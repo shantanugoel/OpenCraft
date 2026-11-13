@@ -43,34 +43,33 @@ mod tests {
     }
 
     #[test]
-    fn device_kinds_send_requests_without_system_calls() {
+    fn screen_off_sends_a_request_without_a_system_call() {
         let mut handler = DeviceHandler::default();
         let (sender, messages) = std::sync::mpsc::channel();
         handler.start(sender);
-        for (kind, state) in [
-            (SCREEN_OFF, DisplayState::ScreenOff),
-            (DEVICE_SLEEP, DisplayState::DeviceSleep),
-        ] {
-            let description = description(kind);
-            assert_eq!(description.group, "Device");
-            assert!(description.fields.is_empty());
-            assert!(!description.needs_accessibility);
-            handler.handle(Request::Invoke {
-                binding: BindingId {
-                    page: 0,
-                    control: ControlId::new(ControlKind::Key, 1),
-                    gesture: GestureKind::Press,
-                },
-                action: Action {
-                    kind: kind.into(),
-                    settings: Default::default(),
-                },
-            });
-            assert_eq!(
-                messages.try_recv().unwrap(),
-                Message::Engine(EngineRequest::DeviceDisplay(state))
-            );
-        }
+        let description = description(SCREEN_OFF);
+        assert_eq!(description.group, "Device");
+        assert!(description.fields.is_empty());
+        assert!(!description.needs_accessibility);
+        assert!(handler
+            .kinds()
+            .iter()
+            .all(|kind| kind.kind != "opencraft.device-sleep"));
+        handler.handle(Request::Invoke {
+            binding: BindingId {
+                page: 0,
+                control: ControlId::new(ControlKind::Key, 1),
+                gesture: GestureKind::Press,
+            },
+            action: Action {
+                kind: SCREEN_OFF.into(),
+                settings: Default::default(),
+            },
+        });
+        assert_eq!(
+            messages.try_recv().unwrap(),
+            Message::Engine(EngineRequest::DeviceDisplay(DisplayState::ScreenOff))
+        );
         assert!(messages.try_recv().is_err());
     }
 }
@@ -112,9 +111,7 @@ pub(crate) struct DeviceHandler {
 }
 impl Handler for DeviceHandler {
     fn kinds(&self) -> Vec<KindDescription> {
-        [SCREEN_OFF, DEVICE_SLEEP, DEVICE_BRIGHTNESS]
-            .map(description)
-            .into()
+        [SCREEN_OFF, DEVICE_BRIGHTNESS].map(description).into()
     }
     fn start(&mut self, sender: MessageSender) {
         self.sender = Some(sender);
@@ -123,7 +120,6 @@ impl Handler for DeviceHandler {
         if let Request::Invoke { action, .. } = request {
             let request = match action.kind.as_str() {
                 SCREEN_OFF => Ok(EngineRequest::DeviceDisplay(DisplayState::ScreenOff)),
-                DEVICE_SLEEP => Ok(EngineRequest::DeviceDisplay(DisplayState::DeviceSleep)),
                 DEVICE_BRIGHTNESS => {
                     brightness_request(&action).map(EngineRequest::DeviceBrightness)
                 }

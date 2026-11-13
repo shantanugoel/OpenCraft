@@ -167,7 +167,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
         if self.power.state != DisplayState::Awake {
             // The release of the key that requested screen off is not a new
-            // gesture and must not wake the device at once.
+            // gesture and must not wake the device at once. The stop state
+            // sends no input report, so only the computer wakes it. A report
+            // that arrives still wakes the device and starts no action.
             if event.gesture == Gesture::Release && was_down {
                 return true;
             }
