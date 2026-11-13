@@ -154,6 +154,11 @@ add "Set First Page": the mark of the first page is on a page, thus it is in
 the copy of the pages. The colour of a profile is not in the pages, and it
 has no step, as the name. An import adds a profile and makes it the active
 profile, thus it empties the history. The
+editors of a toggle and a sequence of
+[#183](https://github.com/shantanugoel/OpenCraft/issues/183) send
+`Command::Group` with the names "Add Step", "Move Step", "Remove Step", and
+"Remove the Action" (a contained action). Before a change, they end the open
+text edit, so that the change does not join the step of the text. The
 names are in `step_of` in `crates/engine/src/engine.rs`. The toolbar button ends an open text edit first, and then sends Undo or Redo
 to the engine.
 

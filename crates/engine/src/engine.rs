@@ -39,8 +39,8 @@
 //! are in `docs/decisions/0011-engine-thread-model.md`.
 
 use crate::action::{
-    Action, BindingId, BindingState, EngineRequest, Feedback, GestureKind, HandlerPort,
-    KindDescription, Message, Request, Status,
+    Action, BindingId, BindingState, EngineRequest, Feedback, FeedbackState, GestureKind,
+    HandlerPort, KindDescription, Message, Request, Status,
 };
 use crate::clipboard::{ControlContent, Parts};
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
@@ -369,6 +369,19 @@ pub struct SurfaceState {
     pub content: SurfaceContent,
     /// The upright image. The device shows this same image.
     pub image: Arc<RgbImage>,
+    /// The image of each state, when the feedback on the surface has a
+    /// state (decision 0017). One of the two is `image`. The shell shows
+    /// them in the appearance of each state (decision 0029, section 10.5).
+    pub states: Option<StateImages>,
+}
+
+/// The images of a surface with a feedback of two states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateImages {
+    /// The state that the surface shows now.
+    pub now: FeedbackState,
+    pub off: Arc<RgbImage>,
+    pub on: Arc<RgbImage>,
 }
 
 /// Counts since this engine starts. A test of the device compares them, to
@@ -1079,6 +1092,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 }
                 if let Some(mut feedback) = feedback {
                     feedback.level = feedback.level.map(|v| v.min(100));
+                    if let Some(other) = &mut feedback.other_state {
+                        other.level = other.level.map(|v| v.min(100));
+                    }
                     self.feedback_order += 1;
                     self.feedback
                         .insert(binding, (self.feedback_order, feedback));
@@ -1626,11 +1642,27 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             source.as_ref(),
             feedback,
         ));
+        let states = feedback.and_then(|feedback| {
+            let now = feedback.state?;
+            let other = render::other_state(feedback);
+            let other = Arc::new(render::surface_image_with_feedback(
+                size,
+                &content,
+                source.as_ref(),
+                Some(&other),
+            ));
+            let (off, on) = match now {
+                FeedbackState::Off => (Arc::clone(&image), other),
+                FeedbackState::On => (other, Arc::clone(&image)),
+            };
+            Some(StateImages { now, off, on })
+        });
         self.images.insert(surface.id, Arc::clone(&image));
         (self.sink)(Event::Surface(SurfaceState {
             id: surface.id,
             content,
             image,
+            states,
         }));
     }
 

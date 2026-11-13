@@ -33,6 +33,7 @@ each kind:
 | Needs Accessibility | Yes or no: the kind operates only with the Accessibility permission of macOS |
 | Fields | The list of the settings, in the order in which the shell shows them |
 | Direction | Optional. The direction field for a turn of a knob: the key of a choice field, the value for a turn to the right, and the value for a turn to the left. For "Sound volume": `operation`, `up`, `down`. |
+| Two states | Optional. The kind has the states Off and On, and the key of the text field with the label of the state On, if the kind has one |
 
 Note (2026-11-13): issue
 [#184](https://github.com/shantanugoel/OpenCraft/issues/184) added the
@@ -55,6 +56,15 @@ right" and the left value to "Turn left", or the other way for "Left is
 up". The values come from the description, thus the shell has no action
 logic (rule 12). A kind with no direction gets the same settings on the two
 bindings.
+
+Note (2026-11-13): issue
+[#183](https://github.com/shantanugoel/OpenCraft/issues/183) added the two
+states (decision
+[0029](0029-window-layout.md#105-toggle-and-sequence-183), section 10.5).
+The toggle has them, with the field `on_label`. The shell then shows the
+section "Appearance for each state", and shows the field of the label there,
+not in the card. The labels of the two action fields of the toggle are now
+"From Off to On" (`on`) and "From On to Off" (`off`).
 
 A field has a key, a label for the user, an input type, and an optional
 default value. The key is the name of the value in the settings of the

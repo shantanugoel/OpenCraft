@@ -367,7 +367,7 @@ fn volume_feedback(sender: &Option<MessageSender>, binding: BindingId, volume: V
                 } else {
                     volume.level.min(100)
                 }),
-                state: None,
+                ..Feedback::default()
             }),
         },
     );

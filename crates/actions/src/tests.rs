@@ -80,6 +80,7 @@ impl Rig {
                     level: Some(level),
                     label: muted.then(|| "Muted".into()),
                     state: None,
+                    other_state: None,
                 }),
             }
         );

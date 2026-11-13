@@ -17,6 +17,8 @@
 //! | `knob` | The inspector of a knob: the "Turn" card, and the section of its bar panel |
 //! | `library` | The "Library" tab: the action kinds in their groups |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
+//! | `nested` | The nested card of a contained action, and the step list of a sequence |
+//! | `states` | The appearance of each state of a toggle |
 //! | `device`, `pages`, `hotkey` | The state of the device settings, the changes of the pages and the profiles, the hotkey names |
 //! | `device_inspector` | The inspector of the device: the header and the sections of the device settings |
 //! | `form` | The parts of an inspector: the header, a section, the rows of a form |
@@ -66,12 +68,14 @@ mod inspector;
 mod knob;
 mod library;
 pub(crate) mod modal;
+mod nested;
 mod page_inspector;
 mod pages;
 mod panes;
 mod profile_sheet;
 mod right_panel;
 mod sidebar;
+mod states;
 mod status_bar;
 pub(crate) mod theme;
 mod toolbar;
@@ -139,6 +143,7 @@ pub struct DeviceView {
     library: library::LibraryState,
     /// The profile settings sheet (decision 0029, section 16).
     sheet: profile_sheet::ProfileSheet,
+    faces: states::StateFaces,
     /// The scroll position of the inspector. It shows a scrollbar when its
     /// content is taller than the window.
     inspector_scroll: ScrollHandle,
@@ -203,6 +208,7 @@ impl DeviceView {
             device: device::DevicePanel::new(window, cx),
             library,
             sheet: profile_sheet::ProfileSheet::new(window, cx),
+            faces: states::StateFaces::new(window, cx),
             inspector_scroll: ScrollHandle::new(),
         }
     }
@@ -223,6 +229,7 @@ impl DeviceView {
         }
         self.page_event(&event, window, cx);
         self.profile_sheet_event(&event, window, cx);
+        self.state_images_event(&event, window);
         if let Event::Surface(surface) = &event {
             if let Some(old) = self
                 .images
@@ -389,6 +396,7 @@ impl DeviceView {
             }))
             .map(|root| self.sidebar_actions(root, cx))
             .map(|root| self.clipboard_actions(root, window, cx))
+            .map(|root| self.step_actions(root, cx))
             // With no handler, macOS disables the Edit menu item.
             .when(self.can_history(true, window, cx), |d| {
                 d.on_action(

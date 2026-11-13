@@ -377,6 +377,7 @@ fn feedback(rig: &mut Rig, binding: BindingId, label: &str, level: u8) {
             label: Some(label.into()),
             level: Some(level),
             state: None,
+            other_state: None,
         }),
     });
 }
@@ -928,6 +929,7 @@ fn feedback_with_the_state_on_draws_a_frame_and_off_removes_it() {
                 label: None,
                 level: None,
                 state: Some(state),
+                other_state: None,
             }),
         });
     };
@@ -947,4 +949,60 @@ fn feedback_with_the_state_on_draws_a_frame_and_off_removes_it() {
     let image = last_state(&rig.take_events(), KEY_3).image.clone();
     assert_color(&image, 1, 1, RED);
     assert_color(&shown_at(&sent(&device), KEY_3_SLOT), 1, 1, RED);
+}
+
+#[test]
+fn feedback_with_a_state_gives_the_image_of_each_state_to_the_shell() {
+    use opencraft_engine::FeedbackState::{Off, On};
+    let kind = "test.state";
+    let (port, _requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let id = binding(ControlKind::Key, 3, GestureKind::Press);
+    set_binding(&mut rig, id, Some(action(kind)));
+    rig.set_color(KEY_3, RED);
+    // No feedback: no state images.
+    assert!(last_state(&rig.take_events(), KEY_3).states.is_none());
+    let device = rig.connect();
+    sent(&device);
+    rig.take_events();
+
+    // The state Off, with the feedback of the state On.
+    rig.engine.handler_message(Message::Feedback {
+        binding: id,
+        feedback: Some(Feedback {
+            state: Some(Off),
+            other_state: Some(Box::new(Feedback {
+                label: Some("Live".into()),
+                state: Some(On),
+                ..Feedback::default()
+            })),
+            ..Feedback::default()
+        }),
+    });
+    let surface = last_state(&rig.take_events(), KEY_3).clone();
+    let states = surface
+        .states
+        .clone()
+        .expect("the images of the two states");
+    assert_eq!(states.now, Off);
+    assert_eq!(states.off, surface.image);
+    assert_color(&states.off, 1, 1, RED);
+    assert_color(&states.on, 1, 1, Color::WHITE);
+    // The device shows only the image of the state now.
+    assert_same_picture(&shown_at(&sent(&device), KEY_3_SLOT), &surface.image);
+
+    // With no feedback of the other state, the other image has the same
+    // parts with the other state.
+    rig.engine.handler_message(Message::Feedback {
+        binding: id,
+        feedback: Some(Feedback {
+            state: Some(On),
+            ..Feedback::default()
+        }),
+    });
+    let surface = last_state(&rig.take_events(), KEY_3).clone();
+    let states = surface.states.clone().unwrap();
+    assert_eq!(states.now, On);
+    assert_eq!(states.on, surface.image);
+    assert_color(&states.off, 1, 1, RED);
 }

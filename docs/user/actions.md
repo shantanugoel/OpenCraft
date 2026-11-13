@@ -72,7 +72,7 @@ each row. The control of a setting agrees with its type:
 | Hotkey | A field that records a hotkey. See [Send a hotkey](#send-a-hotkey). |
 | File or application | A text field and **Choose…** |
 | Action | A card in the card, with its own action kind and settings. See [Toggle](#toggle). |
-| List of actions | A list of cards. See [Sequence of actions](#sequence-of-actions). |
+| List of actions | A list of steps above the other settings. See [Sequence of actions](#sequence-of-actions). |
 
 If a setting has a long name, the name is above the control.
 
@@ -243,17 +243,40 @@ the state, and does the action for the new state.
 
 | Setting | What to give |
 |---|---|
-| Action for on | The action to do when the state changes to on |
-| Action for off | The action to do when the state changes to off |
+| From Off to On | The action to do when the state changes to on |
+| From On to Off | The action to do when the state changes to off |
 | Label for on | Optional. The label that the surface shows in the state on. |
 
-1. Below "Action for on", click **Add an action**. Select an action kind.
-2. Set the settings of that action on its card.
-3. Do the same steps below "Action for off".
-4. Optional: type a label in "Label for on".
+![A toggle on key 6. The face Off is "Mic", the face On is "Live" with a frame. The action "From Off to On" is a sequence with its second step open.](images/toggle-and-sequence.png)
 
-To remove the action for on or off, click the button with its action name,
-and click **Remove the action**.
+The card of the toggle shows each action as a card in the card:
+
+1. Below "From Off to On", click **Add an action**. Select an action kind.
+   The card of the new action opens.
+2. Set the settings of that action on its card.
+3. Do the same steps below "From On to Off".
+
+- A closed card shows the action kind and a short value, for example the
+  keys of a hotkey. Click the card to open it. Click the top row of an open
+  card to close it.
+- To change the action kind, click the kind name at the top of the open
+  card, and select a different kind. To remove the action, select **Remove
+  the action**.
+
+**Appearance for each state.** When the action of **Press** of a key, or
+of **Tap** of a bar panel, is a toggle, the inspector shows the section
+"Appearance for each state" in place of "Appearance".
+
+- The section shows the face **Off** and the face **On** next to each other,
+  as the device shows them. The face of the state now has the text "· now".
+  The second line of the inspector header also shows the state, for example
+  "Toggle · the state now is Off".
+- Click **Off** to change the image, the title, the label options, and the
+  fill of the key.
+- Click **On** to change the label for on in **Title**. The face On uses the
+  fill and the image of the face Off, with a frame.
+
+Notes:
 
 - A toggle starts in the state off. Thus the first operation does the
   action for on.
@@ -268,21 +291,36 @@ and click **Remove the action**.
 
 ## Sequence of actions
 
-A sequence does a list of actions, one after the other.
+A sequence does a list of actions, one after the other. Each action is a
+step.
 
 | Setting | What to give |
 |---|---|
-| Actions | The list of actions, in their order |
+| The steps | The list of actions, in their order |
 | Delay between two actions, in milliseconds | From 0 to 10000. The default is 100. |
 
-1. Below "Actions", click **Add an action**. Select an action kind.
-2. Set the settings of that action on its card.
+![A sequence of four steps. Step 1 is open.](images/sequence.png)
+
+The card of the sequence shows one row for each step: a handle, the number,
+the action kind, and a short value.
+
+1. Click **Add a step**. Select an action kind. The new step opens.
+2. Set the settings of that step on its card.
 3. Do steps 1 and 2 again for each action.
-4. To change the order, click **↑** or **↓** above an action. To remove an
-   action, click **Remove** above it.
+
+- Click a step to open it. Click the top row of the open step to close it.
+- To move a step, drag its handle (six dots) to a different row. You can
+  also right-click the step, and click **Move Up** or **Move Down**.
+- To remove a step, right-click it and click **Remove**. An open step also
+  has the button **⋯** with the same menu.
+- Each change is one step of the undo history, for example "Undo Move Step".
+  Push Command-Z to undo it.
+
+Notes:
 
 - The sequence does not wait until an action is complete. The delay is the
   only wait. For an action that needs time, for example the start of an
   application, set a longer delay.
 - A sequence and a toggle can contain each action kind, also a different
-  toggle or sequence.
+  toggle or sequence. For example, the action "From Off to On" of a toggle
+  can be a sequence.

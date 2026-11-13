@@ -155,6 +155,11 @@ pub struct Feedback {
     /// On or off. For on, the engine draws a frame around the surface, in
     /// the colour of the label. For off, it draws no frame.
     pub state: Option<FeedbackState>,
+    /// The feedback of the other state, for a feedback with a state. The
+    /// engine makes the image of each state from the two feedbacks and sends
+    /// both images to the shell (decision 0017). Without it, the image of
+    /// the other state has the same parts with the other state.
+    pub other_state: Option<Box<Feedback>>,
 }
 
 /// The state part of [`Feedback`].
@@ -251,6 +256,10 @@ pub struct KindDescription {
     /// then shows one "Turn" card for the two turn gestures, and writes the
     /// two values to the two bindings (decision 0029, section 10.4).
     pub direction: Option<Direction>,
+    /// The kind has two states, Off and On, and shows the state on the
+    /// surface (decision 0017). The shell then shows the appearance of each
+    /// state.
+    pub states: Option<TwoStates>,
 }
 
 /// The direction field of a kind: a choice field, and its values for a turn
@@ -264,6 +273,14 @@ pub struct Direction {
     pub right: String,
     /// The value of that field for the binding "Turn left".
     pub left: String,
+}
+
+/// The two states of a kind: see [`KindDescription::states`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TwoStates {
+    /// The key of the text field with the label of the state On, if the kind
+    /// has one. The shell shows this field with the face of the state On.
+    pub on_label: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

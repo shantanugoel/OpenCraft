@@ -69,6 +69,24 @@ for "on", the action for "off", and an optional label for the state "on".
 The handler of the toggle sends the state, and the label for "on" if the
 user gave one.
 
+Note (2026-11-13): issue
+[#183](https://github.com/shantanugoel/OpenCraft/issues/183) added one more
+optional part, so that the window can show the face of each state
+([decision 0029](0029-window-layout.md#105-toggle-and-sequence-183),
+section 10.5, and rule 11):
+
+| Part | Meaning |
+|---|---|
+| Other state | The feedback of the state that the surface does not show now. |
+
+- The engine makes the image of the surface from the feedback, as before,
+  and also the image of the other state. With no other state part, the
+  image of the other state has the same parts with the other state.
+- The device gets only the image of the state now. The surface event to the
+  shell has the image of each state, and the state now.
+- The handler of the toggle sends the other state with each feedback. Thus
+  in the state off, the shell can show the face on with its label.
+
 **The sequence.** The kind `opencraft.sequence` has these settings: a list
 of actions, and a delay between two actions in milliseconds.
 

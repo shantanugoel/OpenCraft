@@ -248,19 +248,26 @@ impl DeviceView {
             );
         };
         let name = control_name(control.id);
+        // A control with two states shows its state (section 10.5).
+        let second_line = self
+            .state_line()
+            .unwrap_or_else(|| position_text(&control, layout));
+        let two_states = self.faces_binding().is_some();
         editor
             .child(form::header(
                 self.header_picture(&control, layout),
                 name.clone(),
-                position_text(&control, layout),
+                second_line,
                 (control.id.kind != ControlKind::TouchBar)
                     .then(|| self.control_more_button(control.id, cx)),
             ))
-            .children(
-                self.state
-                    .selected
-                    .map(|surface| self.appearance(surface, window, cx)),
-            )
+            .children(self.state.selected.map(|surface| {
+                if two_states {
+                    self.state_appearance(surface, window, cx)
+                } else {
+                    self.appearance(surface, window, cx)
+                }
+            }))
             .child(
                 form::section("gestures", "Gestures", Some(gestures_hint(control.id.kind)))
                     .children(if control.id.kind == ControlKind::Knob {
@@ -351,7 +358,8 @@ impl DeviceView {
     }
 
     /// The rows of "Appearance": "Image", "Title", "Position", "Text", and
-    /// "Fill". The "Bar panel" section of a knob (section 10.4) also has
+    /// "Fill". The "Bar panel" section of a knob (section 10.4) and the
+    /// face "Off" of the appearance of each state (section 10.5) also have
     /// them.
     pub(super) fn appearance_rows(
         &self,

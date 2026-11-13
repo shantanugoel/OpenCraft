@@ -639,6 +639,7 @@ pub(crate) mod tests {
                 ..Default::default()
             },
             image: Arc::new(RgbImage::new(90, 90)),
+            states: None,
         };
         s.apply(Event::Surface(surface.clone()), now);
         assert_eq!(s.surfaces[&key()], surface);
