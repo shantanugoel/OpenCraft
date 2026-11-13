@@ -138,7 +138,7 @@ pub(super) fn parse_colour(text: &str) -> Option<Color> {
 }
 
 /// The text `#RRGGBB` of a colour.
-fn colour_text(colour: Color) -> String {
+pub(super) fn colour_text(colour: Color) -> String {
     let [r, g, b] = colour.0;
     format!("#{r:02X}{g:02X}{b:02X}")
 }
@@ -808,15 +808,8 @@ impl DeviceView {
                         })),
                 )
             })
-            .children(COLOURS.into_iter().enumerate().map(|(index, value)| {
-                controls::colour_sample(
-                    format!("colour-{index}"),
-                    Some(theme::sample(value)),
-                    current == Some(colour(value)),
-                    format!("{what} #{value:06X}"),
-                    true,
-                )
-                .on_click(cx.listener(move |view, _, _, _| view.pick_colour(Some(colour(value)))))
+            .children(form::colour_palette("colour", current, what, |value| {
+                cx.listener(move |view, _, _, _| view.pick_colour(Some(value)))
             }))
             .child(other)
             .into_any_element()

@@ -1056,6 +1056,17 @@ does not show continuous work. These shorter runs are not the same procedure
 as the 5-minute [vendor reference](vsd-craft.md#footprint-when-it-runs).
 Source: measurements above; [product targets](../ROADMAP.md#product-targets).
 
+## Run-time choices and colour fields (2026-11-15)
+
+A signed development build with a temporary test handler showed both field
+types in the real window. The test used a scratch profile, no device and
+the GUI lock. The temporary handler was not kept in the code. At 1440 × 900,
+the form showed the saved missing identifier, the reply in its choice menu,
+the shared fill samples and the hex field. A choice changed the field.
+“Test the action” ran the test handler. At 1080 × 700, the inspector scrolled
+to the last row. The pictures show the window only, with no personal data.
+The automated window tests cover the roles, edits and late replies.
+
 ## Platform functions and CI
 
 | Fact | Confidence | Source |

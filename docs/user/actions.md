@@ -98,6 +98,8 @@ each row. The control of a setting agrees with its type:
 | Text | A text field. Some text fields have three lines or more. |
 | Number | A small text field for digits. A number out of the range changes to the nearest permitted number. |
 | Selection | A button with the selected value. Click it, and click a value in the menu. |
+| Current selection | A menu that the action fills when the form opens. A saved value that is not available stays visible and stays in the profile. Open the form again to refresh the list. |
+| Colour | The fill colour samples and a field for `#RRGGBB`. An incomplete value changes nothing. |
 | On or off | A switch |
 | Hotkey | A field that records a hotkey. See [Send a hotkey](#send-a-hotkey). |
 | File or application | A text field and **Choose…** |
@@ -105,6 +107,10 @@ each row. The control of a setting agrees with its type:
 | List of actions | A list of steps above the other settings. See [Sequence of actions](#sequence-of-actions). |
 
 If a setting has a long name, the name is above the control.
+
+This test form shows a current selection and a colour field:
+
+![A test form with a current choice menu and shared colour samples](images/action-field-types.png)
 
 ## Test an action
 

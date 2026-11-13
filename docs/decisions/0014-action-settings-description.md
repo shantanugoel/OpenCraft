@@ -86,9 +86,29 @@ action.
 | Long text | Many lines of text | Text |
 | Integer, with a minimum and a maximum | A number | Integer |
 | Choice, with a list of options | One option. An option has a value and a label. | Text: the value of the option |
+| Run-time choice | One option from the handler | Text: a stable identifier |
+| Colour | An RGB colour | Text: `#RRGGBB`, with no alpha channel |
 | Toggle | On or off | Boolean |
 | Hotkey | A key with modifier keys | Text, for example `shift+cmd+4` |
 | Path, of a file or of an application | A file that the user selects or types | Text |
+
+Note (2026-11-15): issue
+[#277](https://github.com/shantanugoel/OpenCraft/issues/277) added the
+run-time choice and colour types. When a form opens, the shell sends
+`Command::Choices`: an opaque request identifier, the action and the field
+key. The engine forwards `Request::Choices` to the handler of that kind.
+The handler returns `Message::Choices` with the identifier and a list of
+options. The engine sends the reply as `Event::Choices`. These are messages
+only, also for a later plug-in process. No handler object or callback goes
+to the shell. A reply changes no profile. The shell drops replies for an
+old form or old settings, and asks again after a change of settings.
+
+An option has a stable value and a display label. The handler must not use
+a temporary position as the value. A saved value that is not in the reply
+stays in the settings. The popup shows that value with “not available”.
+The handler checks availability when it runs the action. An empty list
+does not clear a setting. Colour fields use the shared fill samples and a
+hex field. Only a complete RGB colour changes the settings.
 
 The form of a hotkey text: the modifiers `ctrl`, `alt`, `shift`, and `cmd`,
 in this order, and then one key name, all in small letters with `+` between

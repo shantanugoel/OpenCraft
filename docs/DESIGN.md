@@ -234,6 +234,7 @@ not repeat "focus" for them. A text field shows its focus with its border.
 | `group_title` | A group title in a list or a menu: the library, the kind menu | A section of the inspector (`form::section`) | none |
 | `key_hint` | A key command in a box: "⌘K" | A key command in a row (plain text) | none |
 | `dot` | A state dot of 6 | Decoration | none |
+| `form::colour_palette` | The shared fill samples, in a fill row or an action colour field. The caller supplies the change handler. A colour field has the hex field below the samples, with `HEX_HELP`. | — | selected, hover, focus |
 | `HEX_HELP` | The help text below a field for `#RRGGBB` | — | — |
 | `keyboard_focus`, `Ring` | Each new control, row, or card with a click handler: Tab reaches it, Space and Return operate it, and it has the focus ring | A disabled control, a menu row (the menu has its own keys), a control of the device drawing | focus ring |
 | `keyboard_focus_tracked` | A group in which the arrow keys move the selection and the focus: the cards of the first start window | Other controls | focus ring |

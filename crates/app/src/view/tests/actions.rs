@@ -41,6 +41,105 @@ pub(super) fn input_text(
     cx.update(|_, cx| input.value(cx).to_string())
 }
 
+pub(super) fn dynamic_kind() -> KindDescription {
+    KindDescription {
+        kind: "test.dynamic".into(),
+        name: "Dynamic fields".into(),
+        group: "Tests".into(),
+        fields: vec![
+            Field {
+                key: "device".into(),
+                label: "Device".into(),
+                input: InputType::RuntimeChoice,
+                default: Some(Value::Text("saved-device".into())),
+            },
+            Field {
+                key: "colour".into(),
+                label: "Colour".into(),
+                input: InputType::Colour,
+                default: Some(Value::Text("#1A6FD8".into())),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
+#[gpui_kit::test]
+fn runtime_choices_keep_missing_values_reject_late_replies_and_edit_colours(
+    cx: &mut TestAppContext,
+) {
+    let (view, cx, tx, sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(1600.)));
+    let kind = dynamic_kind();
+    let mut expected = Action {
+        kind: kind.kind.clone(),
+        settings: kind
+            .fields
+            .iter()
+            .map(|f| (f.key.clone(), f.default.clone().unwrap()))
+            .collect(),
+    };
+    tx.try_send(Event::Kinds(vec![kind])).unwrap();
+    tx.try_send(event(binding(GestureKind::Press), expected.clone(), true))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    let request = sent
+        .borrow()
+        .iter()
+        .find_map(|c| match c {
+            Command::Choices { id, field, .. } if field == "device" => Some(*id),
+            _ => None,
+        })
+        .unwrap();
+    let before = sent.borrow().len();
+    tx.try_send(Event::Choices {
+        id: request,
+        options: vec![ChoiceOption {
+            value: "new-device".into(),
+            label: "New output".into(),
+        }],
+    })
+    .unwrap();
+    cx.run_until_parked();
+    assert_eq!(sent.borrow().len(), before);
+    click(cx, "choice-0");
+    click(cx, "choice-0-0");
+    expect_change(
+        &sent,
+        &mut expected,
+        "device",
+        Value::Text("new-device".into()),
+    );
+    click(cx, "field-colour-1-0");
+    expect_change(
+        &sent,
+        &mut expected,
+        "colour",
+        Value::Text(format!("#{:06X}", crate::view::theme::FILL_COLOURS[0])),
+    );
+    type_field(&view, cx, "colour", "#0a0b0c");
+    expect_change(
+        &sent,
+        &mut expected,
+        "colour",
+        Value::Text("#0A0B0C".into()),
+    );
+    let before = sent.borrow().len();
+    type_field(&view, cx, "colour", "bad");
+    assert!(!sent.borrow()[before..]
+        .iter()
+        .any(|c| matches!(c, Command::SetBinding { .. })));
+    // A closed form no longer accepts the reply of its earlier request.
+    click(cx, "surface-key face 2");
+    tx.try_send(Event::Choices {
+        id: request,
+        options: vec![],
+    })
+    .unwrap();
+    cx.run_until_parked();
+}
+
 fn kind() -> KindDescription {
     KindDescription {
         kind: "test.kind".into(),

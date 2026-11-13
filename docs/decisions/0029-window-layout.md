@@ -751,6 +751,8 @@ order, with the field labels:
 | `LongText` | A text field of three lines, height 60 |
 | `Integer` | A text field 56 wide that takes digits only, in the range |
 | `Choice` | A popup button with the option labels, height 28 |
+| `RuntimeChoice` | The shared choice popup. It asks the handler when the form opens. A missing saved value shows with “not available” and stays in the settings (decision 0014). |
+| `Colour` | The shared fill samples, without “No fill”, and a hex field below them. The field has the shared hex help text. |
 | `Toggle` | A switch 30 × 18 |
 | `Hotkey` | The current hotkey recorder. It shows the hotkey with the symbols of the short value of section 10.5, for example "⇧⌘A". The profile keeps the text of decision 0014. |
 | `Path` | A text field and a button "Choose…" |

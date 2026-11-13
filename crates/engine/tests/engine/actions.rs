@@ -3,6 +3,49 @@
 use super::*;
 
 #[test]
+fn runtime_choices_are_messages_and_do_not_change_the_profile() {
+    let kind = "test.dynamic";
+    let (port, requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    rig.take_events();
+    let action = action(kind);
+    rig.engine.command(Command::Choices {
+        id: 42,
+        action: action.clone(),
+        field: "device".into(),
+    });
+    assert_eq!(
+        requests.try_recv().unwrap(),
+        Request::Choices {
+            id: 42,
+            action,
+            field: "device".into()
+        }
+    );
+    let options = vec![opencraft_engine::ChoiceOption {
+        value: "stable-id".into(),
+        label: "Output".into(),
+    }];
+    rig.engine.handler_message(Message::Choices {
+        id: 42,
+        options: options.clone(),
+    });
+    assert_eq!(rig.take_events(), [Event::Choices { id: 42, options }]);
+    rig.engine.command(Command::Choices {
+        id: 43,
+        action: super::action("missing.kind"),
+        field: "device".into(),
+    });
+    assert_eq!(
+        rig.take_events(),
+        [Event::Choices {
+            id: 43,
+            options: vec![]
+        }]
+    );
+}
+
+#[test]
 fn a_new_kind_dispatches_settings_without_engine_changes() {
     let kind = "test.a-new-kind";
     let (port, requests) = port(kind);
