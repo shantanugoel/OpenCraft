@@ -859,7 +859,8 @@ fn a_device_of_a_different_model_selects_the_profiles_of_that_model() {
     assert_eq!(binding_states(&events[18..19]), [key_3()]);
     assert!(matches!(events[19], Event::History { undo: None, .. }));
     assert!(matches!(events[20], Event::DeviceSettings(_)));
-    assert_eq!(events[21], Event::Connected);
+    assert_eq!(events[21], Event::Firmware(None));
+    assert_eq!(events[22], Event::Connected);
     assert_color(&shown_at(&sent(&device), KEY_3_SLOT), 2, 2, GREEN);
 }
 

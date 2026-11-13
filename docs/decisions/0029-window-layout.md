@@ -971,8 +971,9 @@ image across the touch bar", "Knob light colours for this page".
 (`label`, `text-secondary`, a dot of 6): "Connected by USB" (`success` dot)
 or "Not connected" (`text-disabled` dot).
 
-The rows "Model" and "Firmware" of the wireframe are a LATER place. The
-engine does not send these values now.
+The "Device" section shows the firmware version from the engine. It shows
+"Not available" when no device is connected or the read failed. The model
+name stays in the header. No serial number is shown.
 
 The sections show only the settings that the model has
 ([decision 0022](0022-device-settings-and-stop-state.md#the-descriptor)).
@@ -1519,7 +1520,7 @@ screen.
 | Inspector | "Show the level on bar panel *N*" | A row in the "Turn" card |
 | Inspector | The settings forms of a plug-in | Gesture cards, from the settings description (section 22, rule 4) |
 | Inspector | "Use the same swipes on all pages of this profile"; "One image across the touch bar"; "Video" background | The page inspector. "Video" shows as a disabled segment now. |
-| Inspector | "Model" and "Firmware" rows; "Screen off after"; "Release the device to other software" | The device inspector |
+| Inspector | "Screen off after"; "Release the device to other software" | The device inspector |
 | Inspector | A "Wait" step | The kind menu of a step list |
 | Library | Filters "Icons", "Backgrounds", "Starter pages"; icon packs; video backgrounds | The chip row (section 11) |
 | Library | "Open a folder", "Wait"; a group for each plug-in, with "Browse plug-ins…" | Rows and groups (section 11) |

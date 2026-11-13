@@ -97,7 +97,7 @@ fn the_full_draw_has_the_settings_and_the_slots_of_the_test_model() {
     rig.set_color(face(2), RED);
     rig.take_events();
     let device = connect_test_model(&mut rig);
-    assert_eq!(rig.take_events(), [Event::Connected]);
+    assert_eq!(rig.take_events(), [Event::Firmware(None), Event::Connected]);
 
     let writes = device.borrow().writes().to_vec();
     assert!(writes.iter().all(|w| w.len() == 1 + TEST_MODEL.packet_size));

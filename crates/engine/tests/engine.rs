@@ -566,13 +566,27 @@ fn a_connection_gives_the_start_sequence_and_each_image() {
     rig.take_events();
     let device = rig.connect();
 
-    assert_eq!(rig.take_events(), [Event::Connected]);
+    assert_eq!(rig.take_events(), [Event::Firmware(None), Event::Connected]);
     assert_full_draw(&sent(&device));
 
     // After the draw, only the keep-alive goes to the device.
     rig.poll_for(Duration::from_secs(25));
     assert_eq!(sent(&device), [op("CONNECT"), op("CONNECT")]);
     assert!(rig.take_events().is_empty());
+}
+
+#[test]
+fn the_firmware_comes_from_the_feature_report_on_each_connection() {
+    let mut rig = Rig::new();
+    rig.take_events();
+    let fake = rig.plug();
+    // The fake selects report 1 by its first byte; the text follows it.
+    fake.borrow_mut().set_feature_report(b"\x01V2.3\0".to_vec());
+    rig.poll_for(Duration::from_secs(2));
+    assert_eq!(
+        rig.take_events(),
+        [Event::Firmware(Some("V2.3".into())), Event::Connected]
+    );
 }
 
 // --- Changes -------------------------------------------------------------------
@@ -720,7 +734,7 @@ fn after_a_disconnection_and_a_new_connection_the_device_shows_the_profile_again
     rig.take_events();
 
     let second = rig.connect();
-    assert_eq!(rig.take_events(), [Event::Connected]);
+    assert_eq!(rig.take_events(), [Event::Firmware(None), Event::Connected]);
     let sent = sent(&second);
     assert_full_draw(&sent);
     assert_color(&shown_at(&sent, KEY_3_SLOT), 2, 2, RED);
@@ -1161,7 +1175,10 @@ fn a_wake_gives_the_start_sequence_and_a_full_draw() {
     rig.engine.poll(POLL_INTERVAL);
 
     // The shell drops its input marks, and gets Connected after the draw.
-    assert_eq!(rig.take_events(), [Event::Disconnected, Event::Connected]);
+    assert_eq!(
+        rig.take_events(),
+        [Event::Disconnected, Event::Firmware(None), Event::Connected]
+    );
     let sent_after = sent(&device);
     assert_eq!(sent_after[0], op("CONNECT"), "the keep-alive first");
     assert_full_draw(&sent_after[1..]);
@@ -1230,7 +1247,10 @@ fn a_device_restart_some_seconds_after_the_wake_also_ends_in_a_full_draw() {
     let second = rig.plug();
     rig.poll_for(Duration::from_secs(2));
 
-    assert_eq!(rig.take_events(), [Event::Disconnected, Event::Connected]);
+    assert_eq!(
+        rig.take_events(),
+        [Event::Disconnected, Event::Firmware(None), Event::Connected]
+    );
     assert_full_draw(&sent(&second));
 }
 

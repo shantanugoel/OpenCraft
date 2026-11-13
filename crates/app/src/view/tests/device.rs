@@ -52,6 +52,20 @@ fn open(
     (view, cx, tx, sent)
 }
 
+#[gpui_kit::test]
+fn firmware_is_current_connection_data(cx: &mut TestAppContext) {
+    let (view, cx, tx, _) = open(cx, defaults());
+    send(cx, &tx, Event::Firmware(Some("V2.3".into())));
+    send(cx, &tx, Event::Connected);
+    assert!(cx.debug_bounds("device-firmware").is_some());
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.firmware.as_deref(), Some("V2.3")));
+    send(cx, &tx, Event::Disconnected);
+    cx.update(|_, cx| assert!(view.read(cx).state.firmware.is_none()));
+    send(cx, &tx, Event::Firmware(None));
+    send(cx, &tx, Event::Connected);
+    cx.update(|_, cx| assert!(view.read(cx).state.firmware.is_none()));
+}
+
 /// Let the throttle time of the settings commands end.
 fn wait_interval(cx: &mut VisualTestContext) {
     cx.executor().advance_clock(SETTINGS_INTERVAL * 2);
