@@ -11,7 +11,7 @@ use super::{
     *,
 };
 use crate::app_menu::{redo_title, undo_title};
-use gpui_kit::{assets::IconName, FontWeight, MouseButton, MouseDownEvent, MouseMoveEvent};
+use gpui_kit::{assets::IconName, FontWeight, MouseButton, MouseDownEvent};
 
 /// The tooltip of "Not connected", and its accessible description.
 const NOT_CONNECTED_HELP: &str = "Connect the device with a USB cable. If VSD Craft runs, quit it.";
@@ -26,34 +26,27 @@ pub(super) fn profile_line(profile: &str, pages: usize) -> String {
 
 impl DeviceView {
     /// An empty part of the toolbar or of the top of the sidebar moves the
-    /// window, as a title bar does. The move starts at the first move of the
-    /// pointer with the button down. A double click does the double-click
-    /// action of the title bar that the user chose in System Settings.
+    /// window, as a title bar does. The move starts in the mouse-down
+    /// handler, because AppKit starts a window move only from the mouse-down
+    /// event: a start from a later drag event fails when the pointer moves
+    /// immediately (see `docs/kb/gpui.md`). A double click does the
+    /// double-click action of the title bar that the user chose in System
+    /// Settings.
     pub(super) fn moves_window(
         &self,
         element: Stateful<Div>,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        element
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|view, event: &MouseDownEvent, window, _| {
-                    view.window_move = event.click_count < 2;
-                    if !view.window_move {
-                        window.titlebar_double_click();
-                    }
-                }),
-            )
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|view, _, _, _| view.window_move = false),
-            )
-            .on_mouse_move(cx.listener(|view, event: &MouseMoveEvent, window, _| {
-                if view.window_move && event.dragging() {
-                    view.window_move = false;
+        element.on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|_, event: &MouseDownEvent, window, _| {
+                if event.click_count < 2 {
                     window.start_window_move();
+                } else {
+                    window.titlebar_double_click();
                 }
-            }))
+            }),
+        )
     }
 
     pub(super) fn toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
