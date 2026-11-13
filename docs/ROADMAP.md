@@ -24,6 +24,8 @@ application that other persons can adopt.
 | 5 | Background operation | Complete |
 | 6 | First public release | Complete |
 | — | UI overhaul, after Phase 6 | Complete, with owner checks open |
+| 7 | A reliable daily driver | In work |
+| 8 | Everyday actions | In work |
 
 ## Checks for each phase
 
@@ -418,6 +420,90 @@ record of the checks.
   #197: a key, a knob, and the touch bar from the device, a disconnection
   with a page background (#191), VoiceOver (#243), and a drag of the window
   with a real mouse (#176).
+
+## Phase 7: A reliable daily driver (In work)
+
+**Goal.** The N4 Pro operates after a sleep, a screen lock, and a login with
+no user action. The user can make the device dark from a key. A user can
+report a fault with the correct data. The phase issue is
+[#199](https://github.com/shantanugoel/OpenCraft/issues/199). The umbrella
+issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
+
+**Scope.**
+
+- Recovery after computer sleep, a screen lock, and a start at login.
+- Keys for screen off, device sleep, and device brightness.
+- Media keys for stop, fast forward, and rewind.
+- A timer that makes the device dark.
+- The firmware version in the window, and a support report with no serial
+  number.
+- USB guidance, a privacy statement, and help links in the user guide.
+
+**Exit criteria.**
+
+- [ ] After a computer sleep of 1 minute or more, the device shows the
+  profile in 10 s or less, and a key operates. The owner did this check.
+- [ ] At a screen lock and an unlock, the device does what decision P7-D1
+  says. Engine tests with the fake transport cover it.
+- [ ] After a start at login, a key with "Send a hotkey" operates with no
+  restart of OpenCraft. The owner did this check with the release bundle.
+- [ ] A "Screen off" key makes the device dark, and the wake that P7-D1
+  gives operates on the device. Engine tests with a fake clock cover the
+  screen-off timer.
+- [ ] Play/pause, next, previous, and stop operate in the release bundle on
+  macOS 27.
+- [ ] The window shows the firmware version. "Copy diagnostics" gives no
+  serial number and no home path. A test checks this.
+- [ ] The user guide has the USB guidance, the privacy statement, and the
+  help links.
+- [ ] The idle processor use stays below 0.5 % of one core with the timer
+  on. The value is in `kb/footprint.md`.
+
+**Decisions that this phase forces.** The dark state of the device: what
+the device does at a screen lock, after an idle time, and at a key press
+in the dark state. The record is decision 0034. Decision 0034 builds on
+decisions
+[0022](decisions/0022-device-settings-and-stop-state.md) and
+[0023](decisions/0023-wake-from-the-sleep-time-of-the-clocks.md).
+
+## Phase 8: Everyday actions (In work)
+
+**Goal.** The keys and knobs do the daily Mac tasks that VSD Craft users
+expect, with no shell command. The phase issue is
+[#200](https://github.com/shantanugoel/OpenCraft/issues/200). The umbrella
+issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
+
+**Scope.**
+
+- A paste mode for long text, and an option to press Return after the text.
+- Open a file or a folder. Bring a running application to the front. Open a
+  URL in a chosen browser.
+- The page number on the key of a page action.
+- Mute the microphone. Switch the sound output device. Play a sound file.
+  Quit an application.
+- Keys for Mission Control, Launchpad, a screenshot, the screen saver,
+  sleep, lock, and Show Desktop.
+- Click, move, and scroll with the mouse. A knob turn can scroll.
+- A delay for each step of a sequence.
+- Two field types: a choice list that the handler fills, and a colour.
+
+**Exit criteria.**
+
+- [ ] Each new kind has handler tests with the fake `System`.
+- [ ] Each new kind shows in its group of the library, with a form that comes
+  from its description.
+- [ ] The owner pressed each new key in the release bundle, and each key did
+  its work.
+- [ ] A knob turn scrolls the front window with the mouse action.
+- [ ] A sequence runs each step after its own delay. Old profiles with one
+  delay load with no change of behaviour.
+- [ ] OpenCraft asks for no new permission. Mouse and key actions use the
+  Accessibility permission only.
+- [ ] `docs/user/actions.md` describes each new kind.
+
+**Decisions that this phase forces.** No new record. New field types are
+amendments of
+[decision 0014](decisions/0014-action-settings-description.md).
 
 ## Not in a phase
 
