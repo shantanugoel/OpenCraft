@@ -206,6 +206,64 @@ fn the_profile_sheet_is_a_dialog_with_labels(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn the_application_picker_has_a_dialog_and_rows(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(2400.)));
+    let kind = KindDescription {
+        kind: "test.application".into(),
+        name: "Open an application".into(),
+        fields: vec![Field {
+            key: "application".into(),
+            label: "Application, file or folder".into(),
+            input: InputType::Path {
+                kind: PathKind::Application,
+            },
+            default: Some(Value::Text(String::new())),
+        }],
+        ..Default::default()
+    };
+    let action = Action {
+        kind: kind.kind.clone(),
+        settings: kind
+            .fields
+            .iter()
+            .map(|field| (field.key.clone(), field.default.clone().unwrap()))
+            .collect(),
+    };
+    tx.try_send(Event::Kinds(vec![kind])).unwrap();
+    tx.try_send(Event::Binding(BindingState {
+        binding: BindingId {
+            page: 0,
+            control: ControlId::new(ControlKind::Key, 2),
+            gesture: GestureKind::Press,
+        },
+        action: Some(action),
+        available: true,
+    }))
+    .unwrap();
+    cx.run_until_parked();
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.use_fixed_applications(
+                vec![crate::applications::InstalledApplication {
+                    name: "Calendar".into(),
+                    bundle_identifier: "com.example.calendar".into(),
+                    path: std::path::PathBuf::from("/Applications/OpenCraftTestCalendar.app"),
+                }],
+                cx,
+            );
+        });
+    });
+    click(cx, "surface-key face 2");
+    click(cx, "path-0");
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::Dialog, "Choose an application");
+    assert_has(&nodes, Role::SearchInput, "Search applications");
+    assert_has(&nodes, Role::MenuItem, "Calendar");
+    assert_has(&nodes, Role::MenuItem, "Choose a different application…");
+}
+
+#[gpui_kit::test]
 fn the_import_command_in_the_palette_has_a_role_and_label(cx: &mut TestAppContext) {
     let (_view, cx, _tx, _sent) = named_window(cx);
     cx.dispatch_action(crate::app_menu::Search);

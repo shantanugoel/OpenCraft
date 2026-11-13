@@ -73,11 +73,13 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             "Open an application",
             vec![
                 // The key keeps its name, so that an old profile loads.
+                // Kind Application asks the shell for the list of installed
+                // applications. The stored text is still a name or a path.
                 field(
                     "application",
                     "Application, file or folder",
                     InputType::Path {
-                        kind: PathKind::File,
+                        kind: PathKind::Application,
                     },
                 ),
                 field("arguments", "Arguments", InputType::Text),

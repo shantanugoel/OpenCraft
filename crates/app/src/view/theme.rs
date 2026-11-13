@@ -555,6 +555,8 @@ pub const ICON_MESSAGE: Pixels = px(14.);
 pub const ICON_ROW: Pixels = px(15.);
 /// The icon of a toolbar button, for example Undo.
 pub const ICON_TOOLBAR: Pixels = px(16.);
+/// An application icon in the application picker and in its field.
+pub const ICON_APPLICATION: Pixels = px(16.);
 /// The icon of a pane button.
 pub const ICON_PANE: Pixels = px(17.);
 /// The device icon of the device card.
@@ -819,6 +821,7 @@ pub const ICON_PICKER_ARROW_HEIGHT: f32 = 11.;
 pub const ICON_PICKER_MIN_HEIGHT: Pixels = px(300.);
 /// The space between the popover and the edge of the window.
 pub const ICON_PICKER_WINDOW_MARGIN: Pixels = SPACE_8;
+
 /// The columns of the icon grid, the height of a cell, and the icon in a
 /// cell.
 pub const ICON_GRID_COLUMNS: usize = 7;
@@ -852,6 +855,17 @@ pub const ICON_TILE_ICON: Pixels = px(18.);
 /// picture).
 pub const ICON_KIND_LIBRARY: Pixels = px(14.);
 pub const ICON_KIND_DRAG: Pixels = px(13.);
+
+// MARK: The application picker
+
+/// The popover of the application picker. It aligns to the trailing edge
+/// of the button "Choose…".
+pub const APPLICATION_PICKER_WIDTH: Pixels = px(320.);
+/// The height of the popover when the window has room for it.
+pub const APPLICATION_PICKER_HEIGHT: Pixels = px(360.);
+/// The smallest height of the popover in a low window. The list then
+/// scrolls in less space.
+pub const APPLICATION_PICKER_MIN_HEIGHT: Pixels = px(220.);
 
 // MARK: The first start window and the Accessibility request (section 18)
 

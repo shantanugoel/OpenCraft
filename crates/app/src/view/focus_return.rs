@@ -2,7 +2,7 @@
 //! `docs/DESIGN.md`, section 5).
 //!
 //! An overlay is a popover with a text field (a colour popover), the icon
-//! picker, a sheet, or the command palette. When it opens, the keyboard
+//! picker, the application picker, a sheet, or the command palette. When it opens, the keyboard
 //! focus moves into it. When it closes, the focus goes back to the control
 //! that had the keyboard focus before, as on macOS. Thus the next Tab starts
 //! after that control.

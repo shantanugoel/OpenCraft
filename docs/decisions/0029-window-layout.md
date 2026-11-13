@@ -765,6 +765,14 @@ order, with the field labels:
 | `Action` | A nested card (section 10.5) |
 | `ActionList` | A step list (section 10.5) |
 
+A path of kind Application uses the same text field and the button
+"Choose…". "Choose…" opens the list of installed applications. The list
+shows the name and the icon of each application, and a search field. The
+last row is "Choose a different application…". It opens the file dialog.
+The field stores the path of the application that the user picks. A typed
+name stays as the user typed it. The dialog has the label "Choose an
+application".
+
 - The last row of the body: an empty label cell, and at the trailing end the
   button "Test the action" (#188): height 26, padding 0 10, a play icon 11,
   `label` weight 500. Until #188, the row is not there.

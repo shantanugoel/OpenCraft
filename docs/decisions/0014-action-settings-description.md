@@ -93,6 +93,14 @@ action.
 | Hotkey | A key with modifier keys | Text, for example `shift+cmd+4` |
 | Path, of a file or of an application | A file that the user selects or types | Text |
 
+Note (2026-11-14): issue
+[#336](https://github.com/shantanugoel/OpenCraft/issues/336). A path of
+kind Application asks the shell for the list of installed applications.
+The value in the settings stays text: a name or a path. The user can type
+a name. "Choose…" opens the list. "Choose a different application…" opens
+the file dialog. The list gives the name, the bundle identifier, and the
+path. The action "Open an application" stores the path.
+
 Note (2026-11-15): issue
 [#277](https://github.com/shantanugoel/OpenCraft/issues/277) added the
 run-time choice and colour types. When a form opens, the shell sends

@@ -18,6 +18,7 @@
 //! | `knob` | The inspector of a knob: the "Turn" card, and the section of its bar panel |
 //! | `library` | The "Library" tab: the action kinds in their groups |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
+//! | `application_picker` | The list of installed applications for a path field of kind Application |
 //! | `nested` | The nested card of a contained action, and the step list of a sequence |
 //! | `states` | The appearance of each state of a toggle |
 //! | `device`, `pages`, `hotkey` | The state of the device settings, the changes of the pages and the profiles, the hotkey names |
@@ -59,6 +60,7 @@ use opencraft_engine::{
 use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Instant};
 
 mod actions;
+mod application_picker;
 pub(crate) mod canvas;
 mod clipboard;
 pub(crate) mod controls;
@@ -147,6 +149,8 @@ pub struct DeviceView {
     pub(crate) panes: Panes,
     form: actions::ActionForm,
     inspector: inspector::InspectorState,
+    /// The picker of installed applications (issue 336).
+    application_picker: application_picker::ApplicationPicker,
     lists: pages::Lists,
     page_inspector: page_inspector::PageInspector,
     device: device::DevicePanel,
@@ -262,6 +266,7 @@ impl DeviceView {
             panes,
             form: actions::ActionForm::default(),
             inspector: inspector::InspectorState::new(window, cx),
+            application_picker: application_picker::ApplicationPicker::new(window, cx),
             lists: pages::Lists::new(window, cx),
             page_inspector: page_inspector::PageInspector::new(window, cx),
             device: device::DevicePanel::new(window, cx),
