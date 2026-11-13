@@ -40,7 +40,7 @@
 
 use crate::action::{
     Action, BindingId, BindingState, EngineRequest, Feedback, FeedbackState, GestureKind,
-    HandlerPort, KindDescription, Message, Request, Status,
+    HandlerPort, KindDescription, Message, ProfileTarget, Request, Status,
 };
 use crate::clipboard::{ControlContent, Parts};
 mod power;
@@ -1292,19 +1292,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     ));
                 }
             }
-            Message::Engine(EngineRequest::SelectProfile { name }) => {
-                // The list is in the order of the identities, so the first
-                // profile with the name wins.
-                match self.entries.iter().find(|e| e.name == name) {
-                    Some(entry) => {
-                        let id = entry.id.clone();
-                        self.select_profile(&id);
-                    }
-                    None => self.problem(format!(
-                        "OpenCraft did not change the profile, because no profile has the name \
-                         '{name}'."
-                    )),
-                }
+            Message::Engine(EngineRequest::SelectProfile { target, page }) => {
+                self.select_profile_request(target, page);
             }
         }
     }
@@ -1450,6 +1439,104 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.change_profile(id.to_string(), None);
     }
 
+    /// [`EngineRequest::SelectProfile`]. A key uses this. The window uses
+    /// [`Command::SelectProfile`], which names an identity and shows the
+    /// first page.
+    fn select_profile_request(&mut self, target: ProfileTarget, page: Option<usize>) {
+        /// The page of a profile request.
+        enum AskedPage {
+            /// No page. A different profile opens at its first page. The
+            /// active profile stays on its page.
+            Unspecified,
+            /// This page, from 0.
+            Number(usize),
+            /// The request named a page that the profile does not have.
+            /// Open the first page.
+            First,
+        }
+
+        let Some(id) = self.resolve_profile_target(target) else {
+            return;
+        };
+        let (name, count, first) = self.profile_page_facts(&id);
+        let page = match page {
+            Some(page) if page < count => AskedPage::Number(page),
+            Some(page) => {
+                self.problem(format!("The profile \"{name}\" has no page {}.", page + 1));
+                AskedPage::First
+            }
+            None => AskedPage::Unspecified,
+        };
+        if id != self.profile_id {
+            if !self.save_before_leaving() {
+                return;
+            }
+            let page = match page {
+                AskedPage::Number(page) => Some(page),
+                AskedPage::First | AskedPage::Unspecified => None,
+            };
+            self.change_profile_at(id, None, page);
+            return;
+        }
+        match page {
+            AskedPage::Unspecified => {}
+            AskedPage::First => self.select_page(first),
+            AskedPage::Number(page) => self.select_page(page),
+        }
+    }
+
+    /// The profile that `target` names. `None` after a problem, or when the
+    /// model has no profile.
+    fn resolve_profile_target(&mut self, target: ProfileTarget) -> Option<String> {
+        match target {
+            ProfileTarget::Profile(text) => {
+                if let Some(entry) = self.entries.iter().find(|entry| entry.id == text) {
+                    return Some(entry.id.clone());
+                }
+                if let Some(entry) = self.entries.iter().find(|entry| entry.name == text) {
+                    return Some(entry.id.clone());
+                }
+                self.problem(format!(
+                    "OpenCraft did not change the profile, because no profile has the \
+                     identity or the name '{text}'."
+                ));
+                None
+            }
+            other => {
+                let count = self.entries.len();
+                if count == 0 {
+                    return None;
+                }
+                let index = self
+                    .entries
+                    .iter()
+                    .position(|entry| entry.id == self.profile_id)
+                    .unwrap_or(0);
+                let step = if other == ProfileTarget::Next {
+                    1
+                } else {
+                    count - 1
+                };
+                Some(self.entries[(index + step) % count].id.clone())
+            }
+        }
+    }
+
+    /// The name, the page count, and the first page of the profile `id`.
+    fn profile_page_facts(&self, id: &str) -> (String, usize, usize) {
+        if id == self.profile_id {
+            return (
+                self.profile.name.clone(),
+                self.profile.pages().len(),
+                self.profile.first_page(),
+            );
+        }
+        match self.entries.iter().find(|entry| entry.id == id) {
+            Some(entry) => (entry.name.clone(), entry.pages.len(), entry.first_page),
+            None => (id.to_string(), 0, 0),
+        }
+    }
+
     /// True if `id` is a profile of the model. If it is not, tell the shell.
     fn is_profile(&mut self, id: &str) -> bool {
         let found = self.entries.iter().any(|e| e.id == id);
@@ -1492,10 +1579,19 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// profile. With `profile`, the engine uses that profile in memory, and
     /// does not read the file.
     fn change_profile(&mut self, id: String, profile: Option<Profile>) {
+        self.change_profile_at(id, profile, None);
+    }
+
+    /// [`Self::change_profile`]. `page` becomes the active page when it is a
+    /// page of the profile. `None` keeps the first page.
+    fn change_profile_at(&mut self, id: String, profile: Option<Profile>, page: Option<usize>) {
         self.disappear();
         match profile {
             Some(profile) => self.use_profile(id, profile, true),
             None => self.load_profile(id),
+        }
+        if let Some(page) = page.filter(|page| *page < self.profile.pages().len()) {
+            self.active = page;
         }
         self.redraw();
         self.send_profiles();

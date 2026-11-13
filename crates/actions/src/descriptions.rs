@@ -302,10 +302,35 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             let show = field("show_number", "Show the page number", InputType::Toggle);
             ("Change the page", vec![target, page, show])
         }
-        PROFILE => (
-            "Select a profile",
-            vec![field("profile", "Profile name", InputType::Text)],
-        ),
+        PROFILE => {
+            let mut target = field(
+                "target",
+                "Select",
+                choice(&[
+                    ("profile", "A profile"),
+                    ("next", "Next profile"),
+                    ("previous", "Previous profile"),
+                ]),
+            );
+            target.default = Some(Value::Text("profile".into()));
+            let mut page = field(
+                "page",
+                "Page",
+                InputType::Integer {
+                    min: 0,
+                    max: PAGE_LIMIT,
+                },
+            );
+            page.default = Some(Value::Integer(0));
+            (
+                "Select a profile",
+                vec![
+                    target,
+                    field("profile", "Profile", InputType::Profile),
+                    page,
+                ],
+            )
+        }
         TOGGLE => (
             "Toggle",
             vec![
@@ -437,7 +462,10 @@ pub(crate) fn setting_problem(kind: &str, key: &str) -> String {
             format!("set the field \"{label}\" to a number from {min} to {max}")
         }
         Some(
-            InputType::Choice { .. } | InputType::RuntimeChoice | InputType::RuntimeChoiceList,
+            InputType::Choice { .. }
+            | InputType::RuntimeChoice
+            | InputType::RuntimeChoiceList
+            | InputType::Profile,
         ) => {
             format!("select a value in the field \"{label}\"")
         }
