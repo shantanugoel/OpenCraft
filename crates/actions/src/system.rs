@@ -20,6 +20,8 @@ mod macos_mouse;
 #[cfg(target_os = "macos")]
 mod macos_quit;
 #[cfg(target_os = "macos")]
+mod macos_sound;
+#[cfg(target_os = "macos")]
 use macos as platform;
 
 #[cfg(not(target_os = "macos"))]
@@ -145,6 +147,15 @@ pub fn set_output(id: &str) -> Result<()> {
 }
 pub fn watch_output(changed: std::sync::mpsc::Sender<()>) -> Result<Box<dyn AudioWatch>> {
     platform::watch_output(changed)
+}
+
+/// Start to play a sound file. `volume` is a percent of the system volume.
+pub fn play_sound(file: &std::path::Path, volume: u8, device: Option<&str>) -> Result<()> {
+    platform::play_sound(file, volume, device)
+}
+/// Stop each sound that [`play_sound`] started.
+pub fn stop_sounds() -> Result<()> {
+    platform::stop_sounds()
 }
 
 /// A property listener. Refresh attaches to a changed default device.

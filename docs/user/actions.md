@@ -450,6 +450,34 @@ action asks for no new permission.
 
 ![The menu of the field "Cycle list", with a check on each output of the list](images/sound-output.png)
 
+## Play a sound
+
+Group: **Media**. A push plays a sound file, and the push does not wait for
+the end of the sound. Sounds can play at the same time.
+
+- **File**: the sound file. Click **Choose…** to select it. macOS reads
+  the usual types, for example WAV, AIFF, MP3, and M4A.
+- **Volume**: from 0 to 100. It is a percent of the system volume. The
+  default is 100.
+- **Output**: **Default output** plays the sound on the current default
+  output of the Mac. Select a different output to always play the sound
+  there. If that output is not connected, the action shows a message and
+  plays nothing.
+
+If macOS cannot read the file, the action shows a message with a code. Not
+more than 16 sounds play at the same time. A new sound above that number
+stops the oldest sound.
+
+![The form of "Play a sound"](images/play-sound.png)
+
+## Stop all sound
+
+Group: **Media**. This action has no settings. A push stops each sound that
+**Play a sound** started. It does not stop the sound of other programs. To
+stop music in a player, use **Media key** with **Play or pause**.
+
+The two actions ask for no permission.
+
 ## Microphone mute
 
 Group: **Media**. This action has no settings. A push switches the mute of

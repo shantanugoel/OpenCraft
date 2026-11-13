@@ -64,6 +64,20 @@ pub trait System: Send + Sync + 'static {
     ) -> Result<Box<dyn system::AudioWatch>> {
         Err(system::Error::NotSupported)
     }
+    /// Start to play a sound file and return at once. The volume is a percent
+    /// of the system volume. With no device, the sound uses the default output.
+    fn play_sound(
+        &self,
+        _file: &std::path::Path,
+        _volume: u8,
+        _device: Option<&str>,
+    ) -> Result<()> {
+        Err(system::Error::NotSupported)
+    }
+    /// Stop each sound that [`System::play_sound`] started.
+    fn stop_sounds(&self) -> Result<()> {
+        Err(system::Error::NotSupported)
+    }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()>;
     fn open_file(&self, path: &str) -> Result<()>;
     fn quit_application(&self, application: &str, force: bool) -> Result<()>;
@@ -136,6 +150,12 @@ impl System for RealSystem {
         changed: std::sync::mpsc::Sender<()>,
     ) -> Result<Box<dyn system::AudioWatch>> {
         system::watch_output(changed)
+    }
+    fn play_sound(&self, file: &std::path::Path, volume: u8, device: Option<&str>) -> Result<()> {
+        system::play_sound(file, volume, device)
+    }
+    fn stop_sounds(&self) -> Result<()> {
+        system::stop_sounds()
     }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()> {
         system::open_application(application, arguments)

@@ -49,6 +49,14 @@ pub fn mac_function(function: crate::mac_function::MacFunction) -> Result<()> {
     super::macos_functions::run(function)
 }
 
+pub fn play_sound(file: &std::path::Path, volume: u8, device: Option<&str>) -> Result<()> {
+    super::macos_sound::play(file, volume, device)
+}
+
+pub fn stop_sounds() -> Result<()> {
+    super::macos_sound::stop_all()
+}
+
 // --- Keys and text -----------------------------------------------------------
 
 /// The virtual key code of a key name, for the ANSI keyboard layout.

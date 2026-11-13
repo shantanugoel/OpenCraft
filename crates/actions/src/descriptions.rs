@@ -13,6 +13,8 @@ pub(crate) const MEDIA: &str = "opencraft.media-key";
 pub(crate) const VOLUME: &str = "opencraft.volume";
 pub(crate) const MICROPHONE: &str = "opencraft.microphone-mute";
 pub(crate) const OUTPUT: &str = "opencraft.sound-output";
+pub(crate) const PLAY_SOUND: &str = "opencraft.play-sound";
+pub(crate) const STOP_SOUND: &str = "opencraft.stop-sound";
 pub(crate) const SHELL: &str = "opencraft.shell-command";
 pub(crate) const MOUSE: &str = "opencraft.mouse";
 pub(crate) const MAC_FUNCTION: &str = "opencraft.mac-function";
@@ -242,6 +244,27 @@ pub(crate) fn description(kind: &str) -> KindDescription {
                 ],
             )
         }
+        PLAY_SOUND => {
+            let mut volume = field("volume", "Volume", InputType::Integer { min: 0, max: 100 });
+            volume.default = Some(Value::Integer(100));
+            let mut device = field("device", "Output", InputType::RuntimeChoice);
+            device.default = Some(Value::Text(String::new()));
+            (
+                "Play a sound",
+                vec![
+                    field(
+                        "file",
+                        "File",
+                        InputType::Path {
+                            kind: PathKind::File,
+                        },
+                    ),
+                    volume,
+                    device,
+                ],
+            )
+        }
+        STOP_SOUND => ("Stop all sound", vec![]),
         VOLUME => {
             let mut operation = field(
                 "operation",
@@ -349,6 +372,8 @@ fn icon(kind: &str) -> &'static str {
         VOLUME => "volume-2",
         MICROPHONE => "mic",
         OUTPUT => "speaker",
+        PLAY_SOUND => "music",
+        STOP_SOUND => "circle-stop",
         PAGE => "arrow-right",
         PROFILE => "layers",
         TOGGLE => "toggle-left",
@@ -389,7 +414,7 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
         HOTKEY | TEXT | MOUSE | MAC_FUNCTION => (SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
-        MICROPHONE | OUTPUT => (MEDIA_GROUP, None),
+        MICROPHONE | OUTPUT | PLAY_SOUND | STOP_SOUND => (MEDIA_GROUP, None),
         PAGE | PROFILE => (NAVIGATION, None),
         TOGGLE | SEQUENCE => (LOGIC, None),
         APPLICATION | QUIT | URL | SHELL => (SYSTEM, None),

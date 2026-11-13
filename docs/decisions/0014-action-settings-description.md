@@ -120,6 +120,14 @@ order. A saved unavailable value stays in the menu, with “not available”,
 so the user can remove it deliberately. There is no limit on the number of
 choices in the settings. The engine still reads none of them.
 
+Note (2026-11-13): issue
+[#279](https://github.com/shantanugoel/OpenCraft/issues/279) gave a
+meaning to the empty text of a run-time choice: the default of the handler,
+for example "Default output". The handler can give an option with the empty
+value and its label. The shell shows that label. Before the reply, or if no
+option has the empty value, the shell shows "Select…". An empty value never
+shows "not available".
+
 The form of a hotkey text: modifiers and an optional key name, all in
 small letters with `+` between them. Modifier order is `ctrl`, `rightctrl`,
 `alt`, `rightalt`, `shift`, `rightshift`, `cmd`, `rightcmd`, `fn`. At least

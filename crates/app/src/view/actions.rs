@@ -1237,7 +1237,9 @@ impl DeviceView {
                     // deliberately, never as a side effect of a device loss.
                     let mut options = options.clone();
                     for value in &selected {
-                        if !options.iter().any(|o| o.value == *value) {
+                        // The empty value is the default of the handler, for
+                        // example "Default output"; it is never missing.
+                        if !value.is_empty() && !options.iter().any(|o| o.value == *value) {
                             options.push(ChoiceOption {
                                 value: value.clone(),
                                 label: format!("{value} (not available)"),
@@ -1549,20 +1551,22 @@ fn choice_values(value: Option<&Value>, multiple: bool) -> Vec<String> {
 }
 
 fn choice_text(selected: &[String], options: &[ChoiceOption]) -> String {
-    if selected.is_empty() {
-        return "Select…".into();
-    }
-    selected
+    let labels: Vec<_> = selected
         .iter()
-        .map(|value| {
-            options
-                .iter()
-                .find(|o| &o.value == value)
-                .map(|o| o.label.clone())
-                .unwrap_or_else(|| format!("{value} (not available)"))
+        .filter_map(|value| {
+            match options.iter().find(|o| &o.value == value) {
+                Some(option) => Some(option.label.clone()),
+                // An empty value has a label only when the handler gives one.
+                None if value.is_empty() => None,
+                None => Some(format!("{value} (not available)")),
+            }
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect();
+    if labels.is_empty() {
+        "Select…".into()
+    } else {
+        labels.join(", ")
+    }
 }
 
 fn value_text(value: Option<&Value>) -> String {
@@ -1571,5 +1575,32 @@ fn value_text(value: Option<&Value>) -> String {
         Some(Value::Integer(number)) => number.to_string(),
         Some(Value::Boolean(value)) => value.to_string(),
         _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod choice_text_tests {
+    use super::*;
+
+    #[test]
+    fn an_empty_value_shows_its_label_or_select_and_never_not_available() {
+        let option = |value: &str, label: &str| ChoiceOption {
+            value: value.into(),
+            label: label.into(),
+        };
+        let empty = vec![String::new()];
+        assert_eq!(choice_text(&empty, &[]), "Select…");
+        assert_eq!(
+            choice_text(&empty, &[option("", "Default output")]),
+            "Default output"
+        );
+        assert_eq!(choice_text(&["gone".into()], &[]), "gone (not available)");
+        assert_eq!(
+            choice_text(
+                &["b".into(), "a".into()],
+                &[option("a", "A"), option("b", "B")]
+            ),
+            "B, A"
+        );
     }
 }

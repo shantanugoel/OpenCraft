@@ -20,6 +20,9 @@ pub enum Call {
     Muted(bool),
     MicrophoneMuted(bool),
     Output(String),
+    /// A sound: the file, the volume in percent, and the output.
+    PlaySound(String, u8, Option<String>),
+    StopSounds,
     Application(String, Vec<String>),
     File(String),
     Quit(String, bool),
@@ -255,6 +258,19 @@ impl System for Fake {
     ) -> Result<Box<dyn opencraft_actions::system::AudioWatch>> {
         self.output_notifications.lock().unwrap().push(changed);
         Ok(Box::new(FakeWatch))
+    }
+    fn play_sound(&self, file: &std::path::Path, volume: u8, device: Option<&str>) -> Result<()> {
+        self.record(
+            Call::PlaySound(
+                file.to_string_lossy().into_owned(),
+                volume,
+                device.map(Into::into),
+            ),
+            "play-sound",
+        )
+    }
+    fn stop_sounds(&self) -> Result<()> {
+        self.record(Call::StopSounds, "stop-sounds")
     }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()> {
         self.record(
