@@ -1375,8 +1375,19 @@ Note (2026-11-13), from the work of #196. The code does this:
   of each starter profile. A surface with no content is a tile in
   `bg-tile` (a bar panel: `#1A1F2A`). The key tiles of the device picture
   are square (34 × 34), because they show the square image of a key face;
-  the bar panel tiles are 28 high. The cells of a card are 14 high, and show
-  the middle of each key image.
+  the bar panel tiles are 28 high. The cells of a card follow the rule
+  below.
+- **The cells of a card (#251).** A cell of a card shows the fill colour of
+  its key and nothing else: no image, no icon, and no title. The cell is
+  14 high with radius 3, as the wireframe showed. The cause is that a key
+  image of the engine is square and has an icon and a title (#239). A band of
+  14 high from the middle of that image cuts the icon. The colour comes from
+  the profile through the engine: the window reads the `color` of the key
+  face on the first page of the starter profile, and converts it with
+  `theme::colour`. The window has no second list of colours. A key with no
+  fill, or with no content, shows `bg-tile`, the colour of the cells of the
+  card "Empty". The device picture at the left stays as it is: it shows the
+  full key images of the engine for the selected card.
 - The box about the permission shows only when the permission is not given.
 - "Start" with a starter profile that has an action that needs the
   permission (for example "Media and sound") opens the main window with the

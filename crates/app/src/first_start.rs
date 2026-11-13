@@ -11,9 +11,11 @@
 //! - **The right column.** The title, the four starter profile cards, a
 //!   box about the Accessibility permission, and "Start".
 //!
-//! The pictures of the key faces and the bar panels are the images of the
-//! engine (`opencraft_engine::page_preview`, rule 11): the window draws no
-//! copy of a face. A surface with no content shows as an empty tile.
+//! The pictures of the key faces and the bar panels of the device picture are
+//! the images of the engine (`opencraft_engine::page_preview`, rule 11): the
+//! window draws no copy of a face. A surface with no content shows as an
+//! empty tile. A card shows no image: each of its cells has the fill colour
+//! of a key, which comes from the profile (decision 0029, section 18).
 //!
 //! "Start", Return, and a double-click on a card send the selected starter
 //! profile to the shell (`Shell::start_with`). The shell sends it to the
@@ -42,7 +44,7 @@ use gpui_kit::{
     WindowOptions,
 };
 use opencraft_engine::{
-    page_preview, ControlKind, ControlLayout, DeviceLayout, DeviceSettings, SurfaceId,
+    page_preview, Color, ControlKind, ControlLayout, DeviceLayout, DeviceSettings, SurfaceId,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -167,6 +169,9 @@ struct Previews {
     /// One map for each starter profile, in the order of [`STARTERS`]. A
     /// surface with no content is not in the map.
     images: Vec<BTreeMap<SurfaceId, Arc<RenderImage>>>,
+    /// The fill colour of each key face that has one, for each starter
+    /// profile, in the same order. The cells of a card show these.
+    fills: Vec<BTreeMap<SurfaceId, Color>>,
 }
 
 impl Previews {
@@ -187,7 +192,29 @@ impl Previews {
                     .collect()
             })
             .collect();
-        Self { layout, images }
+        let fills = STARTERS
+            .iter()
+            .map(|starter| {
+                let Ok(profile) = starter.profile() else {
+                    return BTreeMap::new();
+                };
+                let Some(page) = profile.page(profile.first_page()) else {
+                    return BTreeMap::new();
+                };
+                layout
+                    .controls
+                    .iter()
+                    .filter(|c| c.id.kind == ControlKind::Key)
+                    .filter_map(|c| c.surface)
+                    .filter_map(|id| Some((id, page.content(id).color?)))
+                    .collect()
+            })
+            .collect();
+        Self {
+            layout,
+            images,
+            fills,
+        }
     }
 
     fn drop_images(self, window: &mut Window) {
@@ -272,6 +299,11 @@ impl FirstStartView {
     /// The images of the starter profile `index`.
     fn images(&self, index: usize) -> Option<&BTreeMap<SurfaceId, Arc<RenderImage>>> {
         self.previews.as_ref()?.images.get(index)
+    }
+
+    /// The fill colours of the key faces of the starter profile `index`.
+    fn fills(&self, index: usize) -> Option<&BTreeMap<SurfaceId, Color>> {
+        self.previews.as_ref()?.fills.get(index)
     }
 
     fn select(&mut self, index: usize, cx: &mut Context<Self>) {
@@ -597,7 +629,7 @@ impl FirstStartView {
         let selected = index == self.selected;
         let id: SharedString = format!("starter-{index}").into();
         let selector = id.clone();
-        let images = self.images(index);
+        let fills = self.fills(index);
         let keys: Vec<Option<SurfaceId>> = self
             .snapshot
             .layout
@@ -625,21 +657,20 @@ impl FirstStartView {
             })
             .unwrap_or(1)
             .max(1);
-        let cell = |surface: &Option<SurfaceId>| {
-            let image = surface.and_then(|id| images.and_then(|m| m.get(&id)).cloned());
+        // A cell shows the fill colour of its key and nothing else. A key
+        // with no fill, or with no content, has the colour of an empty tile.
+        let cell = |(number, surface): (usize, &Option<SurfaceId>)| {
+            let selector = format!("{id}-cell-{number}");
+            let fill = surface
+                .and_then(|id| fills.and_then(|m| m.get(&id)))
+                .map_or(theme::BG_TILE, |c| theme::colour(*c));
             div()
+                .debug_selector(move || selector.clone())
                 .flex_1()
                 .min_w_0()
                 .h(theme::STARTER_CELL)
                 .rounded(theme::RADIUS_STARTER_CELL)
-                .overflow_hidden()
-                .bg(theme::BG_TILE)
-                .children(image.map(|image| {
-                    img(image)
-                        .size_full()
-                        .object_fit(ObjectFit::Cover)
-                        .rounded(theme::RADIUS_STARTER_CELL)
-                }))
+                .bg(fill)
         };
         // Tab reaches the selected card only (see `cards`).
         let focus = self.cards[index].clone().tab_stop(selected);
@@ -666,18 +697,15 @@ impl FirstStartView {
                     .border_color(theme::BORDER_FIELD)
                     .hover(|d| d.border_color(theme::BORDER_CONTROL).bg(theme::BG_FIELD))
             })
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(theme::SPACE_3)
-                    .children(keys.chunks(columns).map(|row| {
-                        div()
-                            .flex()
-                            .gap(theme::SPACE_3)
-                            .children(row.iter().map(cell))
-                    })),
-            )
+            .child(div().flex().flex_col().gap(theme::SPACE_3).children(
+                keys.chunks(columns).enumerate().map(|(row, keys)| {
+                    div().flex().gap(theme::SPACE_3).children(
+                        keys.iter()
+                            .enumerate()
+                            .map(|(column, key)| cell((row * columns + column, key))),
+                    )
+                }),
+            ))
             .child(div().font_weight(FontWeight::SEMIBOLD).child(starter.name))
             .child(
                 div()
