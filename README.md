@@ -5,13 +5,24 @@ controllers. It replaces **VSD Craft**, the vendor software of VSD and
 Mirabox. It is written in Rust. It has no Electron and no embedded web
 browser.
 
-> **Status: version 0.1.0 is the first public release.** OpenCraft operates the
-> VSD StreamDock N4 Pro on macOS: keys, knobs, the touch bar,
-> pages, profiles, and device settings. It has no plug-ins yet. The
-> [roadmap](docs/ROADMAP.md#status) gives the state of each phase.
+> **Status: version 0.2.0.** OpenCraft operates the VSD StreamDock N4 Pro
+> on macOS: keys, knobs, the touch bar, pages, profiles, and device
+> settings. It has no plug-ins yet. The
+> [roadmap](docs/ROADMAP.md#status) gives the state of each phase. The
+> [changelog](CHANGELOG.md) lists the changes in this version.
 
 This is an independent project. It is not affiliated with VSDinside or
 Mirabox.
+
+## The window
+
+The pictures show the window with no device connected.
+
+![The first start window, with Everyday Mac selected](docs/images/welcome.png)
+
+![The main window. Page Apps of Everyday Mac is open, and Key 1 is selected.](docs/images/main-window.png)
+
+![The library of actions](docs/images/library.png)
 
 ## Supported device and platform
 
