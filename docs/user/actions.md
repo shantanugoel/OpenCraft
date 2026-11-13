@@ -190,7 +190,9 @@ macOS opens the URL in the default application for that type of URL.
    "Press a key…".
 2. Push the key combination on the keyboard of the computer, for example
    Shift-Command-4.
-3. The field shows the hotkey as text, for example `shift+cmd+4`.
+3. The field shows the hotkey with symbols, in the order of macOS, for
+   example "⇧ ⌘ 4". The order is Control (⌃), Option (⌥), Shift (⇧), and
+   Command (⌘), and then the key.
 
 To cancel the record, push Esc. To remove the hotkey, click **Clear**.
 

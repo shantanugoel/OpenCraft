@@ -234,6 +234,7 @@ mod canvas;
 mod clipboard;
 mod device;
 mod history;
+mod hotkey;
 mod knob;
 mod label_options;
 mod library;

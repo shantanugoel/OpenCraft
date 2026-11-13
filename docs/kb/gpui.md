@@ -836,6 +836,19 @@ it is the shared modal layer of `crates/app/src/view/modal.rs` with a Kit
 | A command from the palette goes to the window with `window.dispatch_action` after the close and `focus_workspace`. "Undo", "Hide Sidebar", and "Settings…" operated in the real window. | Measured | Real window pictures |
 | ⌘K with the focus in the field "Title" of the inspector opened the palette, and the typed letters went to the palette and not to the field. | Measured | Real window picture; `cmd_k_opens_the_palette_also_from_a_text_field` |
 
+## Hotkey symbols in the recorder (2026-11-13)
+
+**Measured.** Window tests of
+[issue 232](https://github.com/shantanugoel/OpenCraft/issues/232) in
+`crates/app/src/view/tests/hotkey.rs`, on the no-display test platform. The
+real window check used the debug build of `opencraft` with a scratch copy of
+a profile, on the computer of [Release measurements](#release-measurements).
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A window test can read the text that a part of the window shows. `TestTextExt::test_text(text)` (`gpui_kit::base::TestTextExt`) on an element records the text at each paint, and `gpui_kit::base::test_support::texts(window)` returns the texts of the last frame. Without the feature `test-support`, `test_text` returns the element, thus the application has no cost. The Root of the window starts each frame. | Source; Measured | `gpui-base` 0.9.1 `src/observe.rs`, `src/test_support.rs`; `the_recorder_shows_the_symbols_in_the_order_of_macos` |
+| `debug_bounds` gives only the place of an element, and the a11y tree of the test platform is not built. The text of a window part needs `test_text`. | Source | `gpui-pre` 0.3.12 `src/window/a11y.rs` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

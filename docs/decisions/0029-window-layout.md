@@ -747,7 +747,7 @@ order, with the field labels:
 | `Integer` | A text field 56 wide that takes digits only, in the range |
 | `Choice` | A popup button with the option labels, height 28 |
 | `Toggle` | A switch 30 × 18 |
-| `Hotkey` | The current hotkey recorder |
+| `Hotkey` | The current hotkey recorder. It shows the hotkey with the symbols of the short value of section 10.5, for example "⇧ ⌘ A". The profile keeps the text of decision 0014. |
 | `Path` | A text field and a button "Choose…" |
 | `Action` | A nested card (section 10.5) |
 | `ActionList` | A step list (section 10.5) |
@@ -907,7 +907,8 @@ description to "From Off to On" (field `on`) and "From On to Off" (field
 - Below the step list, the field "Delay between two actions, in
   milliseconds" stays, as a normal row.
 - The short value of a step: the value of its first field, as text. For a
-  hotkey, the keys with symbols, for example "⌘ ⇧ A". For a choice, the
+  hotkey, the keys with symbols, for example "⇧ ⌘ A" (the order of macOS: ⌃ ⌥ ⇧ ⌘, and then the
+  key). For a choice, the
   option label. For a nested toggle or sequence: "2 steps" or "Toggle".
 
 A "Wait" step is a LATER place: one more kind in the kind menu (section 22,
