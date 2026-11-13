@@ -13,6 +13,7 @@ use super::*;
 use crate::state::gestures;
 use gpui_kit::{
     assets::IconName,
+    base::TestTextExt,
     component::{
         input::{AnyInputState, TextareaState},
         Icon,
@@ -1141,12 +1142,15 @@ impl DeviceView {
                 let recording = self.form.recording.as_ref() == Some(&field_path);
                 let record = field_path.clone();
                 let text = value_text(value);
+                // The recorder shows the symbols of the hotkey, as the short
+                // value of a nested card and of a step does. The profile
+                // keeps the text of decision 0014.
                 let (text, colour) = if recording {
                     ("Press a key…".to_string(), theme::TEXT_SECONDARY)
                 } else if text.is_empty() {
                     ("Record hotkey…".to_string(), theme::TEXT_TERTIARY)
                 } else {
-                    (text, theme::TEXT_PRIMARY)
+                    (super::hotkey::symbols(&text), theme::TEXT_PRIMARY)
                 };
                 row(div()
                     .flex_1()
@@ -1178,7 +1182,7 @@ impl DeviceView {
                             .text_size(theme::TEXT_BODY)
                             .text_color(colour)
                             .cursor_pointer()
-                            .child(div().truncate().child(text))
+                            .child(div().truncate().child(text.clone()).test_text(text))
                             .on_click(cx.listener(move |view, _, window, cx| {
                                 view.form.recording = Some(record.clone());
                                 view.focus_workspace(window, cx);
