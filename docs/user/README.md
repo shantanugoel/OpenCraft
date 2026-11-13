@@ -14,6 +14,9 @@ you need them.
 | 4. [Knobs, touch bar, pages, and profiles](controls.md) | The other controls, more pages, the background of a page, more profiles, the profile settings, export and import, and the device settings |
 | 5. [Operation in the background](background.md) | The menu bar item, the Settings window, the Dock icon, the start at login, and the files of OpenCraft |
 | 6. [Faults and corrections](faults.md) | What to do when something does not operate, and the limits of OpenCraft |
+| 7. [Privacy](privacy.md) | No network, no telemetry, and no account. OpenCraft stores your files on this Mac. |
+
+OpenCraft itself does not use the network. See [Privacy](privacy.md).
 
 ## Words in this guide
 
