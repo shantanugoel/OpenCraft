@@ -246,6 +246,7 @@ mod page_inspector;
 mod pages;
 mod palette;
 mod panes;
+mod permission_sheet;
 mod profile_sheet;
 mod sidebar;
 mod test_model;

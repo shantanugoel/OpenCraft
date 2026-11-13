@@ -1364,6 +1364,32 @@ and the permission is not given, a sheet opens on the main window:
 - The buttons "Not now" and the main button "Open System Settings".
 - The sheet shows one time in each run of the application.
 
+Note (2026-11-13), from the work of #196. The code does this:
+
+- The pictures of the keys and the bar panels are the images of the engine
+  (rule 11), made with `opencraft_engine::page_preview` from the first page
+  of each starter profile. A surface with no content is a tile in
+  `bg-tile` (a bar panel: `#1A1F2A`). The key tiles of the device picture
+  are square (34 × 34), because they show the square image of a key face;
+  the bar panel tiles are 28 high. The cells of a card are 14 high, and show
+  the middle of each key image.
+- The box about the permission shows only when the permission is not given.
+- "Start" with a starter profile that has an action that needs the
+  permission (for example "Media and sound") opens the main window with the
+  Accessibility request, if the permission is not given. The first start
+  window does not ask.
+- The request also opens for an action in a toggle or in a sequence. It
+  opens when the engine sends back a binding that the window sent, thus the
+  bindings of a page change do not open it. The sheet has a shield icon at
+  the start of the title.
+- The card "Empty" makes the profile "Default" with one empty page.
+- The arrow keys move the selection of the cards, and a double-click on a
+  card starts. If the user closes the window with no "Start", the next
+  "Open OpenCraft" shows it again.
+- The starter profiles are in the executable (decision 0025). The video
+  call keys send the key commands of Zoom, Google Meet, and Microsoft Teams,
+  one page for each.
+
 ### 19. The menu bar item (#194)
 
 The native menu of [decision 0020](0020-menu-bar-item-and-dock-icon.md)

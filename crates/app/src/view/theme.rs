@@ -761,6 +761,79 @@ pub const ICON_TILE_ICON: Pixels = px(18.);
 pub const ICON_KIND_LIBRARY: Pixels = px(14.);
 pub const ICON_KIND_DRAG: Pixels = px(13.);
 
+// MARK: The first start window and the Accessibility request (section 18)
+
+/// The title of the first start window.
+pub const TEXT_DISPLAY: Pixels = px(22.);
+/// The text "*model name* found" and "Connect your device".
+pub const TEXT_DEVICE_STATE: Pixels = px(14.);
+/// The size of the first start window. The user cannot change it.
+pub const FIRST_START_SIZE: (f32, f32) = (800., 560.);
+/// The title bar of the first start window, with the window buttons only.
+pub const FIRST_START_TITLE_HEIGHT: Pixels = px(40.);
+/// The point of the close button, from the top-left corner. The centre of
+/// the window buttons is then in the middle of the title bar.
+pub const FIRST_START_WINDOW_BUTTONS: (Pixels, Pixels) = (px(16.), px(13.));
+/// The left column with the device picture.
+pub const FIRST_START_LEFT: Pixels = px(300.);
+/// The widest text below the device picture.
+pub const FIRST_START_LEFT_TEXT: Pixels = px(240.);
+/// The padding of the right column: top, sides, bottom.
+pub const FIRST_START_RIGHT_TOP: Pixels = SPACE_28;
+pub const FIRST_START_RIGHT_SIDE: Pixels = SPACE_32;
+pub const FIRST_START_RIGHT_BOTTOM: Pixels = px(22.);
+/// The line height of the text below the title.
+pub const FIRST_START_LINE_HEIGHT: f32 = 1.5;
+/// The small device picture: its size, corner radius, and padding.
+pub const PICTURE_SIZE: (Pixels, Pixels) = (px(220.), px(170.));
+pub const RADIUS_PICTURE: Pixels = px(16.);
+pub const PICTURE_PADDING: Pixels = SPACE_12;
+/// A key tile of the device picture. The tile is square, because it shows
+/// the image of the key face (rule 11). The record gives 28 high in a column
+/// of 34; the square of the column fits in the picture.
+pub const PICTURE_KEY: Pixels = px(34.);
+pub const RADIUS_PICTURE_KEY: Pixels = px(5.);
+/// A bar panel tile of the device picture: the height for the proportion
+/// of the bar panel image in its column.
+pub const PICTURE_PANEL_HEIGHT: Pixels = px(28.);
+pub const RADIUS_PICTURE_PANEL: Pixels = px(4.);
+/// A bar panel tile with no content.
+pub const PICTURE_PANEL_EMPTY: Rgba = hex(0x1a1f2a);
+/// A knob ring of the device picture: the diameter and the ring width.
+pub const PICTURE_KNOB: Pixels = px(22.);
+pub const PICTURE_KNOB_RING: Pixels = px(3.);
+/// The device picture with no device.
+pub const PICTURE_NO_DEVICE_OPACITY: f32 = 0.5;
+/// The check badge of the device picture: the diameter, its border, the
+/// check icon, and the space out of the picture.
+pub const BADGE_CHECK: Pixels = px(28.);
+pub const BADGE_CHECK_BORDER: Pixels = px(3.);
+pub const ICON_BADGE_CHECK: Pixels = px(14.);
+pub const BADGE_CHECK_OUTSIDE: Pixels = px(-10.);
+/// The check badge of the first start.
+pub const SUCCESS_FILL: Rgba = hex(0x1e7a46);
+/// A starter profile card: its corner radius, and the background of the
+/// selected card (the accent at 16 %).
+pub const RADIUS_STARTER_CARD: Pixels = px(10.);
+pub const ACCENT_TINT_START: Rgba = hex_alpha(0x1a6fd8, 0.16);
+/// A cell of the key picture of a starter profile card, and its radius.
+pub const STARTER_CELL: Pixels = px(14.);
+pub const RADIUS_STARTER_CELL: Pixels = px(3.);
+/// The line height of the description of a card.
+pub const STARTER_LINE_HEIGHT: f32 = 1.4;
+/// The box about the Accessibility permission: its corner radius, and the
+/// shield icon.
+pub const RADIUS_NOTE_BOX: Pixels = px(9.);
+pub const ICON_NOTE: Pixels = px(16.);
+/// The line height of the text of the box, and of the Accessibility
+/// request.
+pub const NOTE_TEXT_LINE_HEIGHT: f32 = 1.45;
+/// The width of the Accessibility request sheet.
+pub const PERMISSION_SHEET_WIDTH: Pixels = px(480.);
+/// The shield icon of the Accessibility request, and its tile.
+pub const ICON_PERMISSION: Pixels = px(20.);
+pub const PERMISSION_TILE: Pixels = px(36.);
+
 // MARK: Icons (section 3.6)
 
 // The window embeds only the icons in this list. A new icon in the window
@@ -794,6 +867,7 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     Redo2,
     Search,
     Settings,
+    Shield,
     ShieldAlert,
     ShieldCheck,
     Square,

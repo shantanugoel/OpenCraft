@@ -55,5 +55,7 @@ pub use profile::{
     SurfaceContent, SurfaceIcon, LABEL_SIZES,
 };
 pub use profiles::{ProfileEntry, ProfilesDir};
-pub use render::{icon_color, label_color};
-pub use store::{default_profiles_dir, Backup, BackupReason, Loaded, ProfileStore};
+pub use render::{icon_color, label_color, page_preview};
+pub use store::{
+    default_profiles_dir, profile_from_text, Backup, BackupReason, Loaded, ProfileStore,
+};

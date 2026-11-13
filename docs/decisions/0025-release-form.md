@@ -56,6 +56,15 @@ again in Phase 6.
   the script copies it to `Contents/Resources/`. Issue
   [#146](https://github.com/shantanugoel/OpenCraft/issues/146) makes that
   file.
+- Note (2026-11-13), from the work of
+  [#196](https://github.com/shantanugoel/OpenCraft/issues/196): the starter
+  profiles of the first start
+  ([decision 0029](0029-window-layout.md#18-the-first-start-196)) are
+  profile files in `crates/app/assets/starters`. The executable contains
+  them (`include_str!`), as it contains the icon of the "About" pane. Thus
+  the script copies no more files into `Contents/Resources`, and `cargo
+  run`, the development bundle, and the release have the same starter
+  profiles.
 - The development bundle keeps the identifier `opencraft-dev`. Thus a
   development build and a release do not share permissions, and a change in
   a development build cannot remove a permission of the release.

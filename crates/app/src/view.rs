@@ -29,6 +29,7 @@
 //! | `profile_sheet` | The profile settings sheet, with the export and the import of a profile |
 //! | `modal` | The modal layer of a sheet or the command palette, and the parts of a sheet |
 //! | `palette` | The command palette, the search field of the toolbar, and the commands that only the palette shows |
+//! | `permission_sheet` | The Accessibility request of the first action that needs it |
 //! | `controls` | Controls that more than one part uses |
 //! | `theme` | The visual constants |
 
@@ -57,7 +58,7 @@ use opencraft_engine::{
 use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Instant};
 
 mod actions;
-mod canvas;
+pub(crate) mod canvas;
 mod clipboard;
 pub(crate) mod controls;
 mod device;
@@ -77,6 +78,7 @@ mod page_inspector;
 mod pages;
 mod palette;
 mod panes;
+mod permission_sheet;
 mod profile_sheet;
 mod right_panel;
 mod sidebar;
@@ -152,6 +154,8 @@ pub struct DeviceView {
     sheet: profile_sheet::ProfileSheet,
     /// The command palette (decision 0029, section 15).
     palette: palette::Palette,
+    /// The Accessibility request (decision 0029, section 18).
+    permission: permission_sheet::PermissionSheet,
     faces: states::StateFaces,
     /// The scroll position of the inspector. It shows a scrollbar when its
     /// content is taller than the window.
@@ -194,6 +198,13 @@ impl DeviceView {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let library = library::LibraryState::new(state.kinds.len(), window, cx);
+        let permission = permission_sheet::PermissionSheet::new(cx);
+        // The window notes each binding that it sends, for the Accessibility
+        // request (`permission_sheet`).
+        let send = permission_sheet::noting_send(send, permission.sent.clone());
+        if state.permission_request.is_some() {
+            window.focus(&permission.focus, cx);
+        }
         Self {
             state,
             shell: shell.clone(),
@@ -220,6 +231,7 @@ impl DeviceView {
             library,
             sheet: profile_sheet::ProfileSheet::new(window, cx),
             palette: palette::Palette::new(window, cx),
+            permission,
             faces: states::StateFaces::new(window, cx),
             inspector_scroll: ScrollHandle::new(),
         }
@@ -228,6 +240,7 @@ impl DeviceView {
     fn receive(&mut self, event: Event, window: &mut Window, cx: &mut Context<Self>) {
         if let Event::Binding(binding) = &event {
             self.acknowledge(binding);
+            self.permission_event(binding, window, cx);
         }
         if matches!(event, Event::Pages { .. } | Event::Profiles { .. }) {
             self.forget_pending();
@@ -390,12 +403,14 @@ impl Render for DeviceView {
         // it is open (`modal`).
         let sheet = self.profile_sheet(window, cx);
         let palette = self.command_palette(window, cx);
+        let permission = self.permission_sheet(window, cx);
         div()
             .relative()
             .size_full()
             .child(self.workspace(window, cx))
             .children(sheet)
             .children(palette)
+            .children(permission)
     }
 }
 

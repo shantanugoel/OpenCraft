@@ -57,8 +57,36 @@ VSD Craft, or in System Settings > General > Login Items.
 1. Connect the device to the Mac.
 2. Open OpenCraft from the Applications folder.
 
-OpenCraft opens its window. If you have no profile, OpenCraft makes the
-profile "Default" with one empty page. The key faces and the bar panels are
+If you have no profile, OpenCraft opens the window "Welcome to OpenCraft".
+It shows the device at the left, and four starter profiles at the right.
+
+![The first start window with the device found and the starter profile "Everyday Mac" selected](images/starter-profiles.png)
+
+3. Click a starter profile. The device picture at the left shows its keys.
+4. Click **Start**. You can also push Return, or double-click the starter
+   profile.
+
+| Starter profile | What it contains |
+|---|---|
+| **Everyday Mac** | Two pages. The page "Apps" opens Finder, Safari, Mail, Calendar, Notes, Messages, Music, Photos, and Screenshot. The page "Web and system" opens web pages and applications, and has the key **Sleep**, which puts the Mac to sleep. Knob 1 changes the sound volume. The bar panels **Apps** and **Web** select a page. |
+| **Media and sound** | Play or pause, the previous and the next track, the sound volume, and the applications Music, Podcasts, TV, and Books. Knob 1 changes the sound volume. Knob 2 selects the previous or the next track, and a push plays or pauses. |
+| **Video calls** | One page for each of Zoom, Google Meet, and Microsoft Teams: mute, camera, share or chat, raise the hand, and leave the call. **Mute** and **Camera** show their state. The bar panels select the page. Knob 1 changes the sound volume. |
+| **Empty** | The profile "Default" with one empty page |
+
+OpenCraft makes the profile and opens its main window. You can change each
+key later. Each starter profile uses only applications and system actions
+of macOS. The video call keys send the key commands of the call
+application: they operate when that application is in front.
+
+If no device is connected, the window shows "Connect your device", and the
+device picture is dim. You can select a starter profile and click
+**Start**. OpenCraft finds the device when you connect it.
+
+OpenCraft shows this window only when you have no profile. The next start
+opens the main window. If you close the window with no **Start**, OpenCraft
+continues in the menu bar, and **Open OpenCraft** shows the window again.
+
+With the starter profile **Empty**, the key faces and the bar panels are
 black. Each key face shows a plus (+), because the key has no action. The key
 at the top left is selected: it has a blue outline, and the inspector at the
 right shows its settings. The knob lights on the device show colours that
@@ -123,7 +151,8 @@ for the device each second. You do not have to start OpenCraft again.
 ## Give the Accessibility permission
 
 This step is not necessary to install OpenCraft. Do it only when you first
-use "Send a hotkey", "Type text", or "Media key".
+use "Send a hotkey", "Type text", or "Media key". The first start does not
+ask for the permission.
 
 Three action kinds need the Accessibility permission of macOS: "Send a
 hotkey", "Type text", and "Media key". These actions send keys to other
@@ -137,7 +166,21 @@ device, the window shows the message "OpenCraft did not send the keys,
 because it does not have the Accessibility permission." above the status
 bar.
 
-To give the permission:
+When you add the first action of these kinds to a control, and OpenCraft
+does not have the permission, the window asks for it. It also asks after
+**Start** with a starter profile that has such an action, for example
+**Media and sound**. The window asks one time each time that OpenCraft
+starts.
+
+![The request "OpenCraft needs the Accessibility permission"](images/accessibility-request.png)
+
+- Click **Open System Settings**. System Settings opens at Privacy &
+  Security > Accessibility. Turn on OpenCraft. If OpenCraft is not in the
+  list, click **+**, and select OpenCraft in the Applications folder.
+- Or click **Not now**. The action stays on the control. It operates after
+  you give the permission.
+
+You can also give the permission later:
 
 1. Select a control that has one of these actions. See
    [Configure a key](first-key.md).

@@ -600,6 +600,84 @@ fn a_copy_of_a_profile_has_its_pages_and_its_image_files() {
     assert_color(&last_state(&events, KEY_3).image, 56, 56, GREEN);
 }
 
+// --- The starter profiles of the first start ---------------------------------
+
+fn add_starter(rig: &mut Rig, profile: Profile) {
+    command(rig, Command::AddStarterProfile { profile });
+}
+
+#[test]
+fn a_starter_profile_takes_the_place_of_the_profile_that_the_engine_made() {
+    let mut rig = Rig::new();
+    rig.take_events();
+    add_starter(&mut rig, profile(MODEL, " Everyday Mac ", RED));
+    assert_eq!(rig.engine.active_profile(), "everyday-mac");
+    let events = rig.take_events();
+    assert!(problems(&events).is_empty(), "{events:?}");
+    // The made profile "Default" is not in the list and not in a file.
+    assert!(events.contains(&profiles_event(
+        &[("everyday-mac", "Everyday Mac")],
+        "everyday-mac"
+    )));
+    assert_eq!(last_state(&events, KEY_3).content.color, Some(RED));
+    assert_color(&last_state(&events, KEY_3).image, 56, 56, RED);
+    assert_eq!(names_in(rig.dir.path()), ["everyday-mac", STATE_FILE]);
+    assert!(file_of(&rig, "everyday-mac")
+        .unwrap()
+        .contains("name = \"Everyday Mac\""));
+    assert!(state_text(&rig).unwrap().contains("\"everyday-mac\""));
+    // The binding of the starter profile is on the active page.
+    assert_eq!(rig.engine.profile().pages()[0].bindings().count(), 1);
+}
+
+#[test]
+fn a_starter_profile_after_a_change_is_a_new_profile_and_the_old_profile_stays() {
+    let mut rig = Rig::new();
+    rig.set_color(KEY_3, BLUE);
+    rig.take_events();
+    add_starter(&mut rig, profile(MODEL, "Default", RED));
+    assert_eq!(rig.engine.active_profile(), "default-2");
+    let events = rig.take_events();
+    assert!(events.contains(&profiles_event(
+        &[("default", "Default"), ("default-2", "Default 2")],
+        "default-2"
+    )));
+    assert!(file_of(&rig, "default").unwrap().contains("#1428DC"));
+    assert!(file_of(&rig, "default-2").is_some());
+
+    // With profiles in files, a starter profile is one more profile.
+    let (mut rig, _requests) = two_profiles();
+    add_starter(&mut rig, profile(MODEL, "Work", RED));
+    assert_eq!(rig.engine.active_profile(), "work-2");
+    assert!(rig.take_events().contains(&profiles_event(
+        &[
+            ("default", "Default"),
+            ("work", "Work"),
+            ("work-2", "Work 2")
+        ],
+        "work-2"
+    )));
+}
+
+#[test]
+fn a_starter_profile_of_a_different_model_or_with_an_image_changes_nothing() {
+    let mut rig = Rig::new();
+    rig.take_events();
+    let mut with_image = profile(MODEL, "Pictures", RED);
+    with_image.page_mut(0).unwrap().update(KEY_3, |c| {
+        c.image = Some("images/0123456789abcdef.png".into());
+    });
+    add_starter(&mut rig, profile("test-other", "Other", RED));
+    add_starter(&mut rig, with_image);
+    let events = rig.take_events();
+    let problems = problems(&events);
+    assert_eq!(problems.len(), 2, "{events:?}");
+    assert!(problems[0].contains("different device model"));
+    assert!(problems[1].contains("image files"));
+    assert_eq!(rig.engine.active_profile(), "default");
+    assert!(names_in(rig.dir.path()).is_empty());
+}
+
 #[test]
 fn a_rename_changes_the_name_and_not_the_identity() {
     let (mut rig, requests) = two_profiles();

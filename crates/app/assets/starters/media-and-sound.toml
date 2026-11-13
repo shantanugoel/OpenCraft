@@ -1,0 +1,186 @@
+# Media and sound: play, the next track, and the sound volume on the knobs.
+# A starter profile of the first start (decision 0029, section 18).
+# It uses only standard macOS applications and system actions, and no
+# image file. The test `each_starter_profile_loads_and_is_valid` checks it.
+schema_version = 4
+name = "Media and sound"
+model = "n4-pro"
+color = "#A855F7"
+
+[[pages]]
+name = "Media"
+
+[pages.surfaces.key-face-1]
+label = "Previous"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Play"
+color = "#3D875A"
+label_size = 20
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Next"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Vol −"
+color = "#596273"
+label_size = 22
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-5]
+label = "Vol +"
+color = "#596273"
+label_size = 22
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Music"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "Podcasts"
+color = "#9357A3"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "TV"
+color = "#20242B"
+label_size = 20
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Books"
+color = "#CC7135"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "Mute"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Volume"
+color = "#596273"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Track"
+color = "#6454AC"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Radio"
+color = "#B65C86"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Sound output"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.bindings.key-1.press]
+kind = "opencraft.media-key"
+[pages.bindings.key-1.press.settings]
+key = "previous"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.media-key"
+[pages.bindings.key-2.press.settings]
+key = "play-pause"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.media-key"
+[pages.bindings.key-3.press.settings]
+key = "next"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.volume"
+[pages.bindings.key-4.press.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.key-5.press]
+kind = "opencraft.volume"
+[pages.bindings.key-5.press.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.key-6.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-6.press.settings]
+application = "Music"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-7.press.settings]
+application = "Podcasts"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-8.press.settings]
+application = "TV"
+
+[pages.bindings.key-9.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-9.press.settings]
+application = "Books"
+
+[pages.bindings.key-10.press]
+kind = "opencraft.volume"
+[pages.bindings.key-10.press.settings]
+operation = "mute"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.push.settings]
+operation = "mute"
+
+[pages.bindings.knob-2.turn-left]
+kind = "opencraft.media-key"
+[pages.bindings.knob-2.turn-left.settings]
+key = "previous"
+
+[pages.bindings.knob-2.turn-right]
+kind = "opencraft.media-key"
+[pages.bindings.knob-2.turn-right.settings]
+key = "next"
+
+[pages.bindings.knob-2.push]
+kind = "opencraft.media-key"
+[pages.bindings.knob-2.push.settings]
+key = "play-pause"
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.open-url"
+[pages.bindings.bar-panel-3.tap.settings]
+url = "https://music.apple.com/radio"
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.open-url"
+[pages.bindings.bar-panel-4.tap.settings]
+url = "x-apple.systempreferences:com.apple.Sound-Settings.extension"

@@ -10,7 +10,7 @@ use crate::action::{Handler, HandlerPort, Message};
 use crate::engine::{Command, Engine, Event};
 use crate::profiles::ProfilesDir;
 use opencraft_core::device::DESCRIPTORS;
-use opencraft_core::{Clock, Connector, HidConnector, Link};
+use opencraft_core::{Clock, Connector, Device, HidConnector, HidTransport, Link};
 use std::io;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
@@ -33,6 +33,29 @@ pub struct Config {
     /// [`crate::store::default_profiles_dir`]. A test or an example gives a
     /// temporary directory.
     pub profiles_dir: PathBuf,
+    /// True: the engine does not look for a device, and the shell shows
+    /// "not connected". This is for a check of the shell with no device
+    /// while a device is connected: the engine does not open that device,
+    /// so a different process can operate it.
+    pub no_device: bool,
+}
+
+/// The connector of [`spawn`]: the real connector, or no device for
+/// [`Config::no_device`].
+struct DeviceConnector {
+    no_device: bool,
+}
+
+impl Connector for DeviceConnector {
+    type Transport = HidTransport;
+
+    fn connect(&mut self) -> opencraft_core::Result<Option<Device<HidTransport>>> {
+        if self.no_device {
+            Ok(None)
+        } else {
+            HidConnector.connect()
+        }
+    }
 }
 
 /// The longest time that [`EngineHandle::stop`] waits for the engine thread.
@@ -118,7 +141,9 @@ pub fn spawn(
     let (ports, messages) = start_handlers(handlers)?;
     start_thread(STOP_TIMEOUT, move |commands| {
         let mut engine = Engine::with_handlers(
-            Link::new(HidConnector),
+            Link::new(DeviceConnector {
+                no_device: config.no_device,
+            }),
             ProfilesDir::new(config.profiles_dir),
             // The layout until a device connects. With more than one model,
             // this is not always the model of the device (issue #156).

@@ -1,0 +1,361 @@
+# Everyday Mac: applications, web pages, sleep, and a page change.
+# A starter profile of the first start (decision 0029, section 18).
+# It uses only standard macOS applications and system actions, and no
+# image file. The test `each_starter_profile_loads_and_is_valid` checks it.
+schema_version = 4
+name = "Everyday Mac"
+model = "n4-pro"
+color = "#3B82F6"
+
+[[pages]]
+name = "Apps"
+
+[pages.surfaces.key-face-1]
+label = "Finder"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Safari"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Mail"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Calendar"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-5]
+label = "Notes"
+color = "#C4A53E"
+label_size = 18
+
+[pages.surfaces.key-face-6]
+label = "Messages"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "Music"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Photos"
+color = "#CC7135"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Screenshot"
+color = "#596273"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "More ›"
+color = "#20242B"
+label_size = 18
+label_color = "#4DA3FF"
+
+[pages.surfaces.bar-panel-1]
+label = "Volume"
+color = "#596273"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Apps"
+color = "#356AB6"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Web"
+color = "#20242B"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Mission Control"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.bindings.key-1.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-1.press.settings]
+application = "Finder"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-2.press.settings]
+application = "Safari"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-3.press.settings]
+application = "Mail"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-4.press.settings]
+application = "Calendar"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-5.press.settings]
+application = "Notes"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-6.press.settings]
+application = "Messages"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-7.press.settings]
+application = "Music"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-8.press.settings]
+application = "Photos"
+
+[pages.bindings.key-9.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-9.press.settings]
+application = "Screenshot"
+
+[pages.bindings.key-10.press]
+kind = "opencraft.page"
+[pages.bindings.key-10.press.settings]
+target = "next"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.push.settings]
+operation = "mute"
+
+[pages.bindings.touch-bar-1.swipe-left]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-left.settings]
+target = "next"
+
+[pages.bindings.touch-bar-1.swipe-right]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-right.settings]
+target = "previous"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-2.tap.settings]
+target = "number"
+page = 1
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-3.tap.settings]
+target = "number"
+page = 2
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.open-application"
+[pages.bindings.bar-panel-4.tap.settings]
+application = "Mission Control"
+
+[[pages]]
+name = "Web and system"
+
+[pages.surfaces.key-face-1]
+label = "Wikipedia"
+color = "#D7DEE8"
+label_size = 16
+
+[pages.surfaces.key-face-2]
+label = "Maps"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Weather"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Reminders"
+color = "#CC7135"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-5]
+label = "Guide"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Settings"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "Calculator"
+color = "#C4A53E"
+label_size = 16
+
+[pages.surfaces.key-face-8]
+label = "Activity"
+color = "#20242B"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Sleep"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "‹ Apps"
+color = "#20242B"
+label_size = 18
+label_color = "#4DA3FF"
+
+[pages.surfaces.bar-panel-1]
+label = "Volume"
+color = "#596273"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Apps"
+color = "#20242B"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Web"
+color = "#356AB6"
+label_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Mission Control"
+color = "#20242B"
+label_size = 16
+label_color = "#FFFFFF"
+
+[pages.bindings.key-1.press]
+kind = "opencraft.open-url"
+[pages.bindings.key-1.press.settings]
+url = "https://www.wikipedia.org"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.open-url"
+[pages.bindings.key-2.press.settings]
+url = "https://maps.apple.com"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-3.press.settings]
+application = "Weather"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-4.press.settings]
+application = "Reminders"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.open-url"
+[pages.bindings.key-5.press.settings]
+url = "https://github.com/shantanugoel/OpenCraft/blob/main/docs/user/README.md"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-6.press.settings]
+application = "System Settings"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-7.press.settings]
+application = "Calculator"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.open-application"
+[pages.bindings.key-8.press.settings]
+application = "Activity Monitor"
+
+[pages.bindings.key-9.press]
+kind = "opencraft.shell-command"
+[pages.bindings.key-9.press.settings]
+command = "pmset sleepnow"
+
+[pages.bindings.key-10.press]
+kind = "opencraft.page"
+[pages.bindings.key-10.press.settings]
+target = "previous"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.push.settings]
+operation = "mute"
+
+[pages.bindings.touch-bar-1.swipe-left]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-left.settings]
+target = "next"
+
+[pages.bindings.touch-bar-1.swipe-right]
+kind = "opencraft.page"
+[pages.bindings.touch-bar-1.swipe-right.settings]
+target = "previous"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-2.tap.settings]
+target = "number"
+page = 1
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.page"
+[pages.bindings.bar-panel-3.tap.settings]
+target = "number"
+page = 2
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.open-application"
+[pages.bindings.bar-panel-4.tap.settings]
+application = "Mission Control"

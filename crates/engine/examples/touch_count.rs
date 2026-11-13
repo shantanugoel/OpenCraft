@@ -143,6 +143,7 @@ fn main() {
     let engine = spawn(
         Config {
             profiles_dir: profiles_dir.clone(),
+            no_device: false,
         },
         vec![Box::new(handler)],
         sink,

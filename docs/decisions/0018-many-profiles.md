@@ -54,6 +54,7 @@ makes one.
 | Add a profile | A new profile, empty or a copy of a given profile. It becomes the active profile. |
 | Rename a profile | The name for the user changes |
 | Remove a profile | The engine moves the directory into the directory `removed` in the profiles directory. One profile for the model stays at the minimum. |
+| Add a starter profile | Added on 2026-11-13 for the first start ([decision 0029](0029-window-layout.md#18-the-first-start-196)). The shell gives a profile. It becomes the active profile. If the active profile is not in a file and has no change, for example the profile that the engine made because the model had no profile, the new profile takes its place, and the engine does not write the old profile. |
 
 **Events to the shell.** The engine sends the list of the profiles of the
 model, each with its identity and its name, and the identity of the active

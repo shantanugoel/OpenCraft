@@ -9,12 +9,18 @@
 //! the licence notices of the bundle (decision 0026), and opens the Settings
 //! window (decision 0029, section 17). The window code is in the module
 //! `settings_window`.
+//!
+//! With no profile file at the start, the shell opens the first start window
+//! in place of the main window (decision 0029, section 18, module
+//! `first_start`), until the user starts with a starter profile.
 
 use crate::{
     app_menu::{EditMenu, OpenAbout, OpenSettings},
+    first_start::FirstStartView,
     menu::{Brightness, MenuState},
     settings::{self, Panes, Settings, SettingsPane},
-    settings_window::{SettingsView, Snapshot},
+    settings_window::{kind_waiting_for_permission, SettingsView, Snapshot},
+    starters::{self, STARTERS},
     state::ViewState,
     view::{theme, DeviceView},
 };
@@ -169,6 +175,14 @@ pub struct Shell {
     /// shows it below its pane, because the user cannot see the messages of
     /// the main window there.
     settings_notice: Option<String>,
+    /// True while the window is the first start window: the profiles
+    /// directory had no profile file at the start, and the user did not
+    /// start with a starter profile yet (decision 0029, section 18).
+    first_start: bool,
+    /// The first start window, with the condition of `main_window`.
+    first_start_window: Option<WindowHandle<gpui_kit::base::Root>>,
+    /// True after the Accessibility request showed in this run (section 18).
+    permission_asked: bool,
     /// Holds the interval between two brightness commands.
     brightness_throttle: Option<Task<()>>,
     /// The last brightness of the menu that waits for the end of the interval.
@@ -213,6 +227,9 @@ impl Shell {
             main_window: None,
             settings_window: None,
             settings_notice: None,
+            first_start: false,
+            first_start_window: None,
+            permission_asked: false,
             brightness_throttle: None,
             brightness_pending: None,
             #[cfg(target_os = "macos")]
@@ -611,9 +628,103 @@ impl Shell {
         }
     }
 
+    /// Show the first start window in place of the main window, until the
+    /// user starts with a starter profile. `main` sets this at the start if
+    /// the profiles directory has no profile file.
+    pub fn set_first_start(&mut self, first_start: bool) {
+        self.first_start = first_start;
+    }
+
+    /// True while the window is the first start window.
+    #[cfg(test)]
+    pub fn first_start(&self) -> bool {
+        self.first_start
+    }
+
+    /// Open the first start window, or bring it to the front.
+    fn open_first_start(&mut self, cx: &mut Context<Self>) {
+        let open = self
+            .first_start_window
+            .filter(|w| cx.windows().contains(&AnyWindowHandle::from(*w)));
+        if let Some(window) = open {
+            let _ = window.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+            return;
+        }
+        let shell = cx.entity();
+        let snapshot = crate::first_start::Snapshot::of(&self.state);
+        let options = crate::first_start::window_options(cx);
+        let opened = cx.open_window(options, move |window, cx| {
+            let view = cx.new(|cx| FirstStartView::new(&shell, snapshot, window, cx));
+            cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
+        });
+        match opened {
+            Ok(window) => self.first_start_window = Some(window),
+            Err(error) => {
+                eprintln!("OpenCraft cannot open the first start window: {error}");
+                return;
+            }
+        }
+        cx.activate(true);
+    }
+
+    /// Start with the starter profile `index` of [`STARTERS`]: the engine
+    /// adds it and makes it the active profile, and the main window opens.
+    /// The first start window closes itself. If the starter profile has an
+    /// action that needs the Accessibility permission, and the permission
+    /// is not given, the main window shows the request (section 18).
+    pub fn start_with(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some(starter) = STARTERS.get(index) else {
+            return;
+        };
+        let profile = match starter.profile() {
+            Ok(profile) => profile,
+            Err(error) => {
+                self.problem(
+                    format!(
+                        "OpenCraft cannot read the starter profile “{}”: {error}.",
+                        starter.name
+                    ),
+                    cx,
+                );
+                return;
+            }
+        };
+        let actions = starters::actions(&profile);
+        if let Some(kind) = kind_waiting_for_permission(&actions, &self.state) {
+            self.request_permission(kind);
+        }
+        (self.send)(Command::AddStarterProfile { profile });
+        self.first_start = false;
+        self.open_window(cx);
+    }
+
+    /// Show the Accessibility request for the kind with the name `kind` in
+    /// the main window, if it did not show in this run. True if it shows
+    /// now. The caller checked that the permission is not given.
+    pub fn request_permission(&mut self, kind: String) -> bool {
+        if self.permission_asked {
+            return false;
+        }
+        self.permission_asked = true;
+        self.state.permission_request = Some(kind);
+        true
+    }
+
+    /// The user closed the Accessibility request. A new window does not
+    /// show it.
+    pub fn close_permission_request(&mut self) {
+        self.state.permission_request = None;
+    }
+
     /// Open the window. If the window is open, bring it and the application
-    /// to the front. The Settings window is not this window.
+    /// to the front. The Settings window is not this window. At the first
+    /// start, this is the first start window.
     pub fn open_window(&mut self, cx: &mut Context<Self>) {
+        if self.first_start {
+            self.open_first_start(cx);
+            return;
+        }
         if let Some(window) = self.main_window.filter(|w| cx.windows().contains(w)) {
             let _ = window.update(cx, |_, window, _| window.activate_window());
             cx.activate(true);
