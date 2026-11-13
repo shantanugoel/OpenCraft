@@ -15,13 +15,12 @@ page, and it shows the page number. The profile has no personal data.
 1. Start OpenCraft with the release bundle. Connect the N4 Pro.
 2. Give the Accessibility permission to OpenCraft. See
    [Give the Accessibility permission](../user/install.md#give-the-accessibility-permission).
-3. In the sidebar, click the name of the active profile with the right mouse
-   button. Click **Profile Settings…**.
-4. Click **Import…**. Select `phase-7-8-checks.opencraft`, and click
-   **Import**. See
+3. In the sidebar, click **+** at the right of **PROFILES**, then
+   **Import a Profile…**.
+4. Select `phase-7-8-checks.opencraft`, and click **Import**. See
    [Export and import a profile](../user/controls.md#export-and-import-a-profile).
-5. Click **Done**. The profile "Phase 7 and 8 checks" is now the active
-   profile. The device shows page 1.
+5. The profile "Phase 7 and 8 checks" is now the active profile. The device
+   shows page 1. No settings sheet opens.
 6. Open a text editor with an empty document. Keep it ready for the keys
    that type text.
 7. Open a Finder window that shows some files. Open a media player, and start

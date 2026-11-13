@@ -314,6 +314,38 @@ impl DeviceView {
         cx.notify();
     }
 
+    /// Ask for a profile file, and send the import.
+    pub(super) fn import_profile(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.end_text_edit(cx);
+        let paths = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some("Import".into()),
+        });
+        cx.spawn_in(window, async move |view, cx| {
+            let result = paths.await;
+            let _ = view.update_in(cx, |view, window, cx| {
+                match result {
+                    Ok(Ok(Some(paths))) => {
+                        if let Some(path) = paths.into_iter().next() {
+                            // The engine reads and checks the file.
+                            (view.send)(Command::ImportProfile { path });
+                        }
+                    }
+                    Ok(Ok(None)) => {}
+                    _ => view
+                        .state
+                        .problems
+                        .push("OpenCraft could not open the file dialog.".into()),
+                }
+                view.focus_workspace(window, cx);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     /// Ask the user to confirm the removal of `row`. The question names the
     /// profile or the page. The removal occurs only if the row is the same
     /// row when the user answers.

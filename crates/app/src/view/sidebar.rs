@@ -322,7 +322,7 @@ impl DeviceView {
             .map_or_else(|| "Device".to_string(), |l| l.name.clone())
     }
 
-    /// "PROFILES", and the button that adds a profile.
+    /// "PROFILES", and the menu that adds or imports a profile.
     fn profiles_header(&self, cx: &mut Context<Self>) -> AnyElement {
         div()
             .flex_shrink_0()
@@ -352,9 +352,19 @@ impl DeviceView {
                     .tooltip(|window, cx| Tooltip::new(ADD_A_PROFILE).build(window, cx))
                     .child(Icon::new(IconName::Plus).size(theme::ICON_BUTTON))
                     .map(|d| keyboard_focus(d, Ring::Inside))
-                    .on_click(
-                        cx.listener(|view, _, window, cx| view.start_new_profile(window, cx)),
-                    ),
+                    .on_click(cx.listener(|view, event: &ClickEvent, window, cx| {
+                        view.focus_workspace(window, cx);
+                        let mut menu = NativeMenu::new();
+                        for command in crate::app_menu::commands(
+                            &view.panes,
+                            &crate::app_menu::EditMenu::default(),
+                        ) {
+                            if let Some(title) = command.profile_add_menu {
+                                menu = menu.menu(title, command.action);
+                            }
+                        }
+                        menu.show(event.position(), window, cx);
+                    })),
             )
             .into_any_element()
     }

@@ -306,14 +306,17 @@ fn export_and_import_send_the_file_and_an_import_shows_the_new_profile(cx: &mut 
     });
     assert!(is_open(cx), "the sheet stays open");
 
-    click(cx, "profile-import");
+    assert!(cx.debug_bounds("profile-import").is_none());
+    click(cx, "profile-done");
+    cx.dispatch_action(crate::app_menu::ImportProfile);
+    cx.run_until_parked();
     assert!(cx.did_prompt_for_paths());
     let chosen = file.clone();
     cx.simulate_path_prompt_response(move |_| Some(vec![chosen]));
     cx.run_until_parked();
     assert_eq!(last(&sent), Some(Command::ImportProfile { path: file }));
-    // The engine adds the profile and makes it active. The sheet then shows
-    // the new profile.
+    // The engine adds the profile and makes it active. No settings sheet
+    // opens: the import adds a profile, not a setting of the old profile.
     send(
         cx,
         &tx,
@@ -336,8 +339,10 @@ fn export_and_import_send_the_file_and_an_import_shows_the_new_profile(cx: &mut 
     );
     cx.update(|_, cx| {
         let view = view.read(cx);
-        assert_eq!(view.sheet.profile.as_deref(), Some("work-2"));
-        assert_eq!(view.sheet.name.read(cx).value().as_ref(), "Work 2");
+        assert!(view.sheet.profile.is_none());
+        assert_eq!(view.state.profile.as_deref(), Some("work-2"));
+        assert_eq!(view.state.pages, ["Mail", "Calls"]);
+        assert_eq!(view.state.page, 1);
         assert_eq!(
             view.status_message.as_deref(),
             Some("The profile “Work 2” is imported, and it is on the device")
@@ -345,7 +350,8 @@ fn export_and_import_send_the_file_and_an_import_shows_the_new_profile(cx: &mut 
     });
     // A cancelled dialog sends nothing.
     let count = sent.borrow().len();
-    click(cx, "profile-import");
+    cx.dispatch_action(crate::app_menu::ImportProfile);
+    cx.run_until_parked();
     cx.simulate_path_prompt_response(|_| None);
     cx.run_until_parked();
     assert_eq!(sent.borrow().len(), count);

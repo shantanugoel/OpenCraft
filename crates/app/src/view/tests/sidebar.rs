@@ -7,6 +7,7 @@
 
 use super::pages::{pages, profiles, send};
 use super::*;
+use crate::app_menu::{AddProfile, ImportProfile};
 use crate::view::pages::{MenuItem, Row};
 use crate::view::sidebar::{
     DuplicateRow, MoveRowDown, MoveRowUp, RemoveRow, RenameRow, SelectDevice,
@@ -310,8 +311,11 @@ fn the_profile_menu_and_the_add_button_send_the_profile_commands(cx: &mut TestAp
     let (view, cx, tx, sent) = sidebar_window(cx);
     cx.update(|window, _| window.activate_window());
 
-    // "+" adds a row with a name field. Return adds the profile.
+    // "+" opens the native command menu. New Profile starts the name.
     click(cx, "profile-add");
+    assert!(cx.debug_bounds("profile-new").is_none());
+    cx.dispatch_action(AddProfile);
+    cx.run_until_parked();
     assert!(cx.debug_bounds("profile-new").is_some());
     assert_eq!(name_text(&view, cx), "New profile");
     cx.simulate_input("Streaming");
@@ -328,12 +332,16 @@ fn the_profile_menu_and_the_add_button_send_the_profile_commands(cx: &mut TestAp
     // Escape removes the new row, and sends nothing.
     let count = sent.borrow().len();
     click(cx, "profile-add");
+    cx.dispatch_action(AddProfile);
+    cx.run_until_parked();
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
     assert!(cx.debug_bounds("profile-new").is_none());
     assert_eq!(sent.borrow().len(), count);
     // A click outside with an empty name removes the row also.
     click(cx, "profile-add");
+    cx.dispatch_action(AddProfile);
+    cx.run_until_parked();
     cx.simulate_keystrokes("backspace enter");
     cx.run_until_parked();
     assert!(cx.debug_bounds("profile-new").is_some());
@@ -418,6 +426,22 @@ fn the_profile_menu_and_the_add_button_send_the_profile_commands(cx: &mut TestAp
     menu(cx, "profile-default", RemoveRow);
     assert!(!cx.has_pending_prompt());
     assert_eq!(sent.borrow().len(), count);
+}
+
+#[gpui_kit::test]
+fn the_profile_add_menu_imports_without_a_settings_sheet(cx: &mut TestAppContext) {
+    let (view, cx, _tx, sent) = sidebar_window(cx);
+    click(cx, "profile-add");
+    cx.dispatch_action(ImportProfile);
+    cx.run_until_parked();
+    assert!(cx.did_prompt_for_paths());
+    assert!(cx.debug_bounds("profile-sheet").is_none());
+    let file = std::path::PathBuf::from("/imports/Checks.opencraft");
+    let chosen = file.clone();
+    cx.simulate_path_prompt_response(move |_| Some(vec![chosen]));
+    cx.run_until_parked();
+    assert_eq!(last(&sent), Some(Command::ImportProfile { path: file }));
+    cx.update(|window, cx| assert!(view.read(cx).focus.is_focused(window)));
 }
 
 #[gpui_kit::test]

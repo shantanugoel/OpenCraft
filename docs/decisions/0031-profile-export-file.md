@@ -8,8 +8,10 @@
 Issue [#195](https://github.com/shantanugoel/OpenCraft/issues/195) adds the
 profile settings sheet of
 [decision 0029](0029-window-layout.md#16-the-profile-settings-sheet-195). Its
-"Share" section has "Export as a file…" and "Import…". The issue asks for
-one file for the profile, with its images.
+"Share" section has "Export as a file…". The issue asks for one file for
+the profile, with its images. The import command is in the sidebar and in
+the command palette; its placement is in decision 0029, section 7.3
+(amended for issue #322).
 
 A profile is a directory with `profile.toml` and the directory `images`
 ([decision 0009](0009-profile-file-format.md),

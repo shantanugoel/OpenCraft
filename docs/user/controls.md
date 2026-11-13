@@ -252,7 +252,8 @@ the mark **ON DEVICE**, and its pages are below it.
 | To do this | Do this in the sidebar |
 |---|---|
 | Select a different profile | Click the name of the profile |
-| Add an empty profile | Click **+** at the right of **PROFILES**. Type a name in the new row, and push Return. |
+| Add an empty profile | Click **+** at the right of **PROFILES**, then **New Profile**. Type a name in the new row, and push Return. |
+| Add a profile from a file | Click **+** at the right of **PROFILES**, then **Import a Profile…**. Select the file, and click **Import**. |
 | Copy a profile | Right-click the profile, and select **Duplicate**. The copy has the name "*name* copy". |
 | Give a profile a different name | Double-click the profile. Or right-click the profile, and select **Rename**. Type the name, and push Return. |
 | Remove a profile | Right-click the profile, and select **Remove…**. Then click **Remove**. You cannot remove the last profile. |
@@ -265,6 +266,8 @@ the mark **ON DEVICE**, and its pages are below it.
   [The files of OpenCraft](background.md#the-files-of-opencraft).
 - To change the profile from the device, set the action "Select a profile"
   on a control. See [Select a profile](actions.md#select-a-profile).
+
+![The menu of the plus button, with New Profile and Import a Profile…](images/profile-add-menu.png)
 
 ### Profile settings
 
@@ -295,14 +298,14 @@ the profile to a different person. The file has the extension `.opencraft`.
 It contains the pages with their icons, the images, the colour, and the
 first page of the profile.
 
-| To do this | Do this in the profile settings |
+| To do this | Do this |
 |---|---|
-| Put a profile in a file | Click **Export as a file…**. Select a folder and a name, and click **Save**. The status bar shows the name of the file. |
-| Add a profile from a file | Click **Import…**. Select the file, and click **Import**. |
+| Put a profile in a file | Open its **Profile Settings…**, and click **Export as a file…**. Select a folder and a name, and click **Save**. The status bar shows the name of the file. |
+| Add a profile from a file | In the sidebar, click **+** at the right of **PROFILES**, then **Import a Profile…**. Select the file, and click **Import**. Or push ⌘K, type "Import a profile", and push Return. |
 
 - An import adds a new profile and makes it the active profile. The device
-  then shows its first page. The sheet shows the settings of the new
-  profile.
+  then shows its first page. You do not need to open the settings of a
+  different profile.
 - If a profile has the same name, the new profile gets a number after its
   name, for example "Work 2".
 - The file contains the settings of each action as they are, for example the

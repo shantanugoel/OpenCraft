@@ -1,6 +1,6 @@
 //! The profile settings sheet (decision 0029, section 16): the name, the
-//! colour, and the first page of one profile, the export and the import of
-//! a profile file, and the removal of the profile.
+//! colour, and the first page of one profile, the export of a profile file,
+//! and the removal of the profile.
 //!
 //! "Profile Settings…" in the right-click menu of a profile row opens the
 //! sheet, also for a profile that is not active. Each change goes to the
@@ -166,8 +166,8 @@ impl DeviceView {
     }
 
     /// Apply the part of an engine event that the sheet uses: the sheet
-    /// closes when its profile goes, an import shows the new profile, and
-    /// an export or an import shows a message in the status bar.
+    /// closes when its profile goes, and an export or an import shows a
+    /// message in the status bar.
     pub(super) fn profile_sheet_event(
         &mut self,
         event: &Event,
@@ -201,9 +201,6 @@ impl DeviceView {
                     window,
                     cx,
                 );
-                if self.sheet.profile.is_some() {
-                    self.open_profile_sheet(profile.clone(), window, cx);
-                }
             }
             _ => {}
         }
@@ -229,40 +226,6 @@ impl DeviceView {
                         .push("OpenCraft could not open the file dialog.".into()),
                 }
                 // The focus comes back to the sheet after the dialog.
-                if view.sheet.profile.is_some() {
-                    window.focus(&view.sheet.focus, cx);
-                }
-                cx.notify();
-            });
-        })
-        .detach();
-    }
-
-    /// Ask for a profile file, and send the import.
-    fn import_profile(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.save_sheet_name(cx);
-        let paths = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some("Import".into()),
-        });
-        cx.spawn_in(window, async move |view, cx| {
-            let result = paths.await;
-            let _ = view.update_in(cx, |view, window, cx| {
-                match result {
-                    Ok(Ok(Some(paths))) => {
-                        if let Some(path) = paths.into_iter().next() {
-                            // The engine reads and checks the file.
-                            (view.send)(Command::ImportProfile { path });
-                        }
-                    }
-                    Ok(Ok(None)) => {}
-                    _ => view
-                        .state
-                        .problems
-                        .push("OpenCraft could not open the file dialog.".into()),
-                }
                 if view.sheet.profile.is_some() {
                     window.focus(&view.sheet.focus, cx);
                 }
@@ -351,18 +314,11 @@ impl DeviceView {
             .child(sheet_section_header("Share"))
             .child(
                 // "Import from VSD Craft" is a LATER place in this row.
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(theme::SPACE_8)
-                    .child(
-                        controls::button("profile-export", "Export as a file…").on_click(
-                            cx.listener(|view, _, window, cx| view.export_profile(window, cx)),
-                        ),
-                    )
-                    .child(controls::button("profile-import", "Import…").on_click(
-                        cx.listener(|view, _, window, cx| view.import_profile(window, cx)),
-                    )),
+                div().flex().items_center().gap(theme::SPACE_8).child(
+                    controls::button("profile-export", "Export as a file…").on_click(
+                        cx.listener(|view, _, window, cx| view.export_profile(window, cx)),
+                    ),
+                ),
             );
         let can_remove = self.state.profiles.len() > 1;
         let remove =

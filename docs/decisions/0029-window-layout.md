@@ -451,8 +451,11 @@ shows the device settings (section 10.7). Accessible label:
 - **Header.** Padding 12 at the top, 12 at the trailing side, 6 at the
   bottom, 18 at the leading side. The text "PROFILES" (`section`,
   `text-tertiary`), and at the end a "+" icon button 24 × 22, radius 5,
-  icon 14, accessible label "Add a profile". A click adds a profile and
-  starts an edit of its name in the new row (section 7.5).
+  icon 14, accessible label "Add a profile". A click opens a native command
+  menu: "New Profile" starts an edit of the name in a new row (section 7.5);
+  "Import a Profile…" opens the file dialog. Both commands come from
+  `app_menu::commands` and are also in the command palette. The application
+  has no File menu or profile commands in the menu bar.
 - **Rows.** A group with padding 0 10, gap 1. Two levels at the maximum:
   profiles, and the pages of the active profile.
 
@@ -1204,6 +1207,7 @@ closes the palette.
 - **Commands** in the group: "Add a page", "Page settings", "Device
   settings", "Add a profile", "Settings…", "Hide Sidebar" or "Show Sidebar",
   "Hide Inspector" or "Show Inspector". A later task adds its commands here.
+  Issue #322 adds "Import a profile…" (section 7.3).
 - **Keys.** Up and Down move the selected row, across the groups. Return does
   the main operation: assign the action to the open gesture card of the
   selected control (section 11), select the control, select the page, select
@@ -1234,8 +1238,10 @@ the main window.
 | "First page" | A popup button 200 × 30 with the page names. The device shows this page when the profile becomes active. |
 
 - **"Share" section.** 16 below the form, padding 0 24, gap 8. Header
-  "SHARE" (`section`). A row of buttons, gap 8: "Export as a file…" and
-  "Import…" (height 28, padding 0 12).
+  "SHARE" (`section`). "Export as a file…" (height 28, padding 0 12).
+  Import is in the sidebar's profile add menu (section 7.3), not in this
+  sheet: it adds a new profile and changes no setting of this profile
+  (decision 0031). This placement amends the original sheet for issue #322.
 - **Footer.** After a flexible space: padding 14 24, line `line-pane` at the
   top, background `bg-sidebar`. At the start "Remove the profile…" (height
   30, padding 0 12, radius 7, transparent, border `border-control`,
@@ -1243,9 +1249,9 @@ the main window.
   0 18).
 - Each change applies at once, as in the inspector. "Done", Return, and
   Escape close the sheet. "Remove the profile…" asks for a confirmation.
-- "Switch to this profile automatically" and "Import from VSD Craft" are
-  LATER places: the first between the form and "Share", the second in the
-  "Share" row.
+- "Switch to this profile automatically" is a LATER place between the form
+  and "Share". "Import from VSD Craft" is a LATER place in the sidebar's
+  profile add menu, because it also adds a profile.
 - The profile colour and the first page are new data in the profile. #195
   adds them (decision 0009 is the base).
 
@@ -1543,7 +1549,8 @@ screen.
 | Status bar | Faults of a plug-in | A message of section 6.1 |
 | Icon picker | "Packs", "GIF" | Tab chips (section 14) |
 | Settings window | "Plug-ins", "Updates"; "Change the profile when the front app changes" | Tabs; a group box of "General" (section 17) |
-| Profile sheet | "Switch to this profile automatically", with a list of applications and "Go back to the last profile when the app is not in front"; "Import from VSD Craft" | Section 16 |
+| Profile sheet | "Switch to this profile automatically", with a list of applications and "Go back to the last profile when the app is not in front" | Section 16 |
+| Sidebar profile add menu | "Import from VSD Craft" | Section 7.3 |
 | Menu bar item | "Release the device" | Section 19 |
 | Window | The light appearance | A second set of values for the colour tokens of section 3.2. The layout does not change. |
 
