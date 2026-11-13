@@ -91,7 +91,8 @@ actions!(
     [
         /// A click on a control gives the focus to the owner of the control:
         /// the root element of its window, or the card of a sheet. The owner
-        /// handles this action.
+        /// handles this action. In a popover, the focus stays where it is
+        /// ([`popover_focus`]).
         FocusOwner
     ]
 );
@@ -1211,6 +1212,8 @@ pub(super) fn colour_circle(
     let id: SharedString = id.into();
     let label: SharedString = label.into();
     let outside = theme::SAMPLE_OUTLINE + theme::SAMPLE_OUTLINE_GAP;
+    // The ring is inside: a ring of a shadow outside keeps the corner radius
+    // of the circle, and looks square (`docs/kb/gpui.md`).
     keyboard_focus(div().id(id.clone()), Ring::Inside)
         .debug_selector(move || id.to_string())
         .relative()
