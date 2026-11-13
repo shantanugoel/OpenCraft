@@ -68,6 +68,12 @@ pub fn set_output(_: &str) -> Result<()> {
 pub fn watch_output(_: std::sync::mpsc::Sender<()>) -> Result<Box<dyn super::AudioWatch>> {
     Err(Error::NotSupported)
 }
+pub fn play_sound(_: &std::path::Path, _: u8, _: Option<&str>) -> Result<()> {
+    Err(Error::NotSupported)
+}
+pub fn stop_sounds() -> Result<()> {
+    Err(Error::NotSupported)
+}
 
 pub fn open_application(_: &str, _: &[String]) -> Result<()> {
     Err(Error::NotSupported)

@@ -41,6 +41,7 @@ pub mod hotkey;
 pub mod mac_function;
 pub mod mouse;
 mod open;
+mod sound;
 pub mod system;
 
 use opencraft_engine::Handler;

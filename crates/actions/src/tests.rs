@@ -18,6 +18,7 @@ mod flow;
 mod mac_function;
 mod mouse;
 mod open;
+mod sound;
 
 struct Rig {
     system: Arc<Fake>,
@@ -770,9 +771,9 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 19);
+    assert_eq!(real.len(), 21);
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 19);
+    assert_eq!(kinds.len(), 21);
     for (kind, name, key, input) in [
         (
             "open-application",

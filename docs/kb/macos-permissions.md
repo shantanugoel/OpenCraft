@@ -52,6 +52,13 @@ listener, with no gesture. The build used a scratch profile and the device
 lock, with the real controller connected. No microphone prompt appeared.
 Confidence: **Measured**. The action opens no audio input stream.
 
+## Sound files (2026-11-13)
+
+A signed development build played a WAV file through `AVAudioPlayer` with
+"Test the action", on the default output and on a different output. No
+permission prompt appeared. See [macos-sound-files.md](macos-sound-files.md).
+Confidence: **Measured**.
+
 ## Code signature of a development build
 
 Date: 2026-11-12. Tool: `codesign -d -r-`, on the program `opencraft`.
