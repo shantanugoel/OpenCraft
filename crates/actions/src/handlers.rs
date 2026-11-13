@@ -155,10 +155,18 @@ impl OpenHandler {
     fn invoke(&self, action: Action) -> Result<()> {
         match action.kind.as_str() {
             APPLICATION => self.open_target(&action),
-            URL => self
-                .system
-                .open_url(nonblank(&action, "url")?)
-                .map_err(|e| format!("Cannot open the URL: {e}.")),
+            URL => {
+                let url = nonblank(&action, "url")?;
+                // No setting, and an empty setting, are the default browser.
+                let browser = match action.settings.get("application") {
+                    None => None,
+                    Some(Value::Text(text)) => Some(text.trim()).filter(|t| !t.is_empty()),
+                    Some(_) => return Err(setting_problem(&action.kind, "application")),
+                };
+                self.system
+                    .open_url(url, browser)
+                    .map_err(|e| format!("Cannot open the URL: {e}."))
+            }
             SHELL => {
                 let command = nonblank(&action, "command")?.to_string();
                 // Make the waiter first. If its thread cannot start, no child

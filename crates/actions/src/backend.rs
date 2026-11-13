@@ -66,7 +66,7 @@ pub trait System: Send + Sync + 'static {
     }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()>;
     fn open_file(&self, path: &str) -> Result<()>;
-    fn open_url(&self, url: &str) -> Result<()>;
+    fn open_url(&self, url: &str, application: Option<&str>) -> Result<()>;
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>>;
     /// Wait for `duration`. A sequence waits between two actions with this
     /// function, so that a test can control the wait.
@@ -142,8 +142,8 @@ impl System for RealSystem {
     fn open_file(&self, path: &str) -> Result<()> {
         system::open_file(path)
     }
-    fn open_url(&self, url: &str) -> Result<()> {
-        system::open_url(url)
+    fn open_url(&self, url: &str, application: Option<&str>) -> Result<()> {
+        system::open_url(url, application)
     }
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>> {
         Ok(Box::new(system::start_shell_command(command)?))

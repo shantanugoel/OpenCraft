@@ -827,11 +827,17 @@ fn check_exists(path: &str) -> Result<()> {
     }
 }
 
-pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
+/// The application of the call `open -a`: a name, or an existing path.
+fn application_name(application: &str) -> Result<String> {
     let application = expand_home(application);
     if application.contains('/') {
         check_exists(&application)?;
     }
+    Ok(application)
+}
+
+pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
+    let application = application_name(application)?;
     let mut command = vec!["-a", application.as_str()];
     if !arguments.is_empty() {
         command.push("--args");
@@ -846,8 +852,11 @@ pub fn open_file(path: &str) -> Result<()> {
     open(&["--", &path])
 }
 
-pub fn open_url(url: &str) -> Result<()> {
-    open(&["--", url])
+pub fn open_url(url: &str, application: Option<&str>) -> Result<()> {
+    match application {
+        Some(application) => open(&["-a", &application_name(application)?, "--", url]),
+        None => open(&["--", url]),
+    }
 }
 
 #[cfg(test)]

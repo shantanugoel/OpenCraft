@@ -22,7 +22,7 @@ pub enum Call {
     Output(String),
     Application(String, Vec<String>),
     File(String),
-    Url(String),
+    Url(String, Option<String>),
     Shell(String),
     /// A wait of a sequence, in milliseconds.
     Sleep(u64),
@@ -264,8 +264,11 @@ impl System for Fake {
     fn open_file(&self, path: &str) -> Result<()> {
         self.record(Call::File(path.into()), "file")
     }
-    fn open_url(&self, url: &str) -> Result<()> {
-        self.record(Call::Url(url.into()), "url")
+    fn open_url(&self, url: &str, application: Option<&str>) -> Result<()> {
+        self.record(
+            Call::Url(url.into(), application.map(str::to_string)),
+            "url",
+        )
     }
     fn sleep(&self, duration: Duration) {
         self.calls

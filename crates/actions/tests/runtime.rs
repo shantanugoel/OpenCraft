@@ -50,7 +50,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             "open-url",
             "url",
             "https://example.test",
-            Call::Url("https://example.test".into()),
+            Call::Url("https://example.test".into(), None),
         ),
         ("hotkey", "hotkey", "cmd+a", Call::Hotkey("cmd+a".into())),
         (

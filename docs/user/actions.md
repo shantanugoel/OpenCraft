@@ -190,8 +190,16 @@ OpenCraft saves each change immediately, as in
 | Setting | What to give |
 |---|---|
 | URL | A full URL, for example `https://example.com` |
+| Browser | Optional. The name of an application, for example `Firefox`, or the path of an application |
 
-macOS opens the URL in the default application for that type of URL.
+1. Type the URL.
+2. To use a browser that is not the default browser, type its name in the
+   field **Browser**. Or click **Choose…** and select the application.
+
+If the field **Browser** is empty, macOS opens the URL in the default
+application for that type of URL. If you name an application, macOS opens
+the URL in that application, and brings it to the front. Old profiles have
+no browser, so they use the default application.
 
 ## Run a shell command
 

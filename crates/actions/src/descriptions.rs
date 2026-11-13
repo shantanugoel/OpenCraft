@@ -100,7 +100,20 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         }
         SCREEN_OFF => ("Screen off", vec![]),
         DEVICE_SLEEP => ("Device sleep", vec![]),
-        URL => ("Open a URL", vec![field("url", "URL", InputType::Text)]),
+        URL => (
+            "Open a URL",
+            vec![
+                field("url", "URL", InputType::Text),
+                // Optional. No browser is the default browser.
+                field(
+                    "application",
+                    "Browser",
+                    InputType::Path {
+                        kind: PathKind::File,
+                    },
+                ),
+            ],
+        ),
         HOTKEY => (
             "Send a hotkey",
             vec![field("hotkey", "Hotkey", InputType::Hotkey)],

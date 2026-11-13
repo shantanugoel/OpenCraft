@@ -174,9 +174,10 @@ pub fn open_file(path: &str) -> Result<()> {
     platform::open_file(path)
 }
 
-/// Open a URL in the default application for it.
-pub fn open_url(url: &str) -> Result<()> {
-    platform::open_url(url)
+/// Open a URL in `application` (a name, or the path of an application). With
+/// no application, the system uses the default application for the URL.
+pub fn open_url(url: &str, application: Option<&str>) -> Result<()> {
+    platform::open_url(url, application)
 }
 
 /// Start a shell command with `/bin/sh -c`. The call does not wait for the

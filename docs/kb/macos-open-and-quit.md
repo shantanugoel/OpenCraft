@@ -16,6 +16,7 @@ calls. None of them needs a new permission prompt.
 | A second `open -a <app> --args <other words>` for a running application does not start it again, and does not change its arguments. | Measured | The same run; the process list did not change |
 | `open -a` with a path that does not exist, or a name that no application has, ends with exit code 1. The text of the error goes to the standard error output. | Measured | One run each |
 | The program `open` does not expand `~`. OpenCraft replaces a leading `~/` with the home folder before the call. | Measured | Source of the code: `expand_home` |
+| `open -a <app> -- <url>` opens the URL in that application. With no `-a`, the system uses the default application for the URL. | Source | `open(1)` |
 | `open` sends no Apple event, so macOS asks for no Automation permission. | Inference | [macos-permissions.md](macos-permissions.md); no prompt in the runs above |
 
 ## Not known

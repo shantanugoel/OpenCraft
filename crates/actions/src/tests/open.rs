@@ -143,3 +143,82 @@ fn the_open_form_has_a_path_field_and_an_optional_arguments_field() {
     assert_eq!(description.fields[1].input, InputType::Text);
     assert_eq!(description.fields[1].default, None);
 }
+
+fn url_action(url: &str, browser: Option<Value>) -> opencraft_engine::Action {
+    let mut fields = vec![("url", Value::Text(url.into()))];
+    if let Some(browser) = browser {
+        fields.push(("application", browser));
+    }
+    action("open-url", &fields)
+}
+
+#[test]
+fn a_url_opens_in_the_default_browser_when_the_browser_is_missing_or_empty() {
+    // An old profile has no "application" setting.
+    let mut rig = Rig::new("open-url", true);
+    rig.invoke(url_action("https://example.test", None));
+    rig.invoke(url_action(
+        "https://example.test",
+        Some(Value::Text(String::new())),
+    ));
+    rig.invoke(url_action(
+        "https://example.test",
+        Some(Value::Text("  ".into())),
+    ));
+    assert_eq!(
+        rig.system.calls(),
+        vec![Call::Url("https://example.test".into(), None); 3]
+    );
+    assert!(rig.messages.try_recv().is_err());
+}
+
+#[test]
+fn a_url_opens_in_the_browser_that_the_action_names() {
+    let mut rig = Rig::new("open-url", true);
+    rig.invoke(url_action(
+        "https://example.test",
+        Some(Value::Text("Safari".into())),
+    ));
+    rig.invoke(url_action(
+        "https://example.test/a b",
+        Some(Value::Text(" /Applications/Test.app ".into())),
+    ));
+    assert_eq!(
+        rig.system.calls(),
+        [
+            Call::Url("https://example.test".into(), Some("Safari".into())),
+            Call::Url(
+                "https://example.test/a b".into(),
+                Some("/Applications/Test.app".into())
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_wrong_browser_setting_or_a_system_error_is_a_problem() {
+    let mut rig = Rig::new("open-url", true);
+    rig.invoke(url_action("https://example.test", Some(Value::Integer(1))));
+    rig.problem("Open a URL: type a value in the field \"Browser\".");
+    assert!(rig.system.calls().is_empty());
+    rig.system.fail(Some("url"));
+    rig.invoke(url_action(
+        "https://example.test",
+        Some(Value::Text("Safari".into())),
+    ));
+    rig.problem("Cannot open the URL");
+}
+
+#[test]
+fn the_url_form_has_an_optional_browser_field() {
+    let description = crate::descriptions::description(crate::descriptions::URL);
+    assert_eq!(description.group, "System");
+    let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
+    assert_eq!(keys, ["url", "application"]);
+    assert_eq!(description.fields[1].label, "Browser");
+    assert!(matches!(
+        description.fields[1].input,
+        InputType::Path { .. }
+    ));
+    assert_eq!(description.fields[1].default, None);
+}

@@ -152,7 +152,7 @@ fn each_text_kind_does_its_work() {
             "open-url",
             "url",
             "https://example.test",
-            Call::Url("https://example.test".into()),
+            Call::Url("https://example.test".into(), None),
         ),
         (
             "hotkey",
@@ -713,7 +713,7 @@ fn shell_wait_does_not_delay_the_next_request_and_nonzero_exit_is_a_problem() {
         rig.system.calls(),
         [
             Call::Shell("wait in the fake".into()),
-            Call::Url("https://example.test".into())
+            Call::Url("https://example.test".into(), None)
         ]
     );
     assert!(rig.messages.try_recv().is_err());
@@ -801,7 +801,7 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
             description.fields.len(),
             match kind {
                 "type-text" => 3,
-                "open-application" => 2,
+                "open-application" | "open-url" => 2,
                 _ => 1,
             }
         );
