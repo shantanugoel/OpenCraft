@@ -50,6 +50,8 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0032](0032-page-background.md) | Each page has a background, and a surface with no fill shows it | Accepted |
 | [0033](0033-surface-icons.md) | The engine draws a Lucide icon on a surface from a name in the profile | Accepted |
 
+| [0034](0034-device-dark-state.md) | The engine holds the dark state and the computer can always wake it | Accepted |
+
 ## Template
 
 ```markdown
