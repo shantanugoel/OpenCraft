@@ -7,12 +7,13 @@
 
 use super::{controls::square_button, *};
 use crate::settings::RightPanelTab;
-use gpui_kit::{assets::IconName, component::Icon, FontWeight, Rgba};
+use gpui_kit::{assets::IconName, component::Icon, FontWeight, MouseButton, MouseDownEvent, Rgba};
 use opencraft_engine::{DeviceLayout, DeviceSettings, KnobLightMode, SurfaceLayout};
 
-/// The help line when no knob is selected (section 8.4). The parts for a
-/// drag (#185) and for the right-click menu (#187) come with those tasks.
-pub(super) const HELP_NORMAL: &str = "Click a control to change it";
+/// The help line when no knob is selected (section 8.4). The part for a
+/// drag (#185) comes with that task.
+pub(super) const HELP_NORMAL: &str =
+    "Click a control to change it · Right-click for Copy, Paste and Clear";
 
 /// The parts of the body below the display: in pixels of the display (they
 /// change with the scale), and in points (they do not change).
@@ -502,6 +503,21 @@ impl DeviceView {
                 cx.stop_propagation();
                 view.select(id, window, cx)
             }))
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |view, event: &MouseDownEvent, window, cx| {
+                    cx.stop_propagation();
+                    let control = view.state.layout.as_ref().and_then(|l| {
+                        l.controls
+                            .iter()
+                            .find(|c| c.surface == Some(id))
+                            .map(|c| c.id)
+                    });
+                    if let Some(control) = control {
+                        view.right_click_control(control, event.position, window, cx);
+                    }
+                }),
+            )
             .into_any_element()
     }
 
@@ -718,7 +734,14 @@ impl DeviceView {
                     .on_click(cx.listener(move |view, _, window, cx| {
                         cx.stop_propagation();
                         view.select_control(id, window, cx)
-                    })),
+                    }))
+                    .on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(move |view, event: &MouseDownEvent, window, cx| {
+                            cx.stop_propagation();
+                            view.right_click_control(id, event.position, window, cx);
+                        }),
+                    ),
             )
             .child(
                 div()

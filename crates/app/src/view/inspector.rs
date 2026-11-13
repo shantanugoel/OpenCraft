@@ -253,9 +253,8 @@ impl DeviceView {
                 self.header_picture(&control, layout),
                 name.clone(),
                 position_text(&control, layout),
-                (control.id.kind != ControlKind::TouchBar).then(|| {
-                    form::more_button(format!("More for {name}"), false).into_any_element()
-                }),
+                (control.id.kind != ControlKind::TouchBar)
+                    .then(|| self.control_more_button(control.id, cx)),
             ))
             .children(
                 self.state

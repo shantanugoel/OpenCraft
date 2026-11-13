@@ -85,7 +85,7 @@ pub(super) struct ActionForm {
     pub(super) inputs: BTreeMap<FieldPath, FieldInput>,
     // These are edits in flight, not confirmed bindings. Only events change ViewState.
     pending: BTreeMap<BindingId, Vec<Action>>,
-    recording: Option<FieldPath>,
+    pub(super) recording: Option<FieldPath>,
     menu: Option<Menu>,
 }
 

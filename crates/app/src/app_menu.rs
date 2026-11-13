@@ -4,7 +4,8 @@
 //! The quit path is the one of decision 0020. The application menu also has
 //! "About OpenCraft" and "Settings…", which open the Settings window. The
 //! Edit menu has Undo and Redo with the name of the step (decision 0030).
-//! The View menu shows and hides the two side panes of the window. The title
+//! The Edit menu also has Copy, Paste, and Clear for the selected control
+//! (#187). The View menu shows and hides the two side panes of the window. The title
 //! of each Edit and View command agrees with the state, thus the shell sets
 //! the menus again after each change.
 
@@ -21,7 +22,12 @@ actions!(
         OpenAbout,
         CloseWindow,
         Undo,
-        Redo
+        Redo,
+        Copy,
+        Paste,
+        Clear,
+        CopyToAllPages,
+        PasteNotPossible
     ]
 );
 
@@ -79,6 +85,9 @@ pub fn shortcuts() -> Vec<(&'static str, Box<dyn Action>)> {
     vec![
         ("Undo", Box::new(Undo)),
         ("Redo", Box::new(Redo)),
+        ("Copy the control", Box::new(Copy)),
+        ("Paste on the control", Box::new(Paste)),
+        ("Clear the control", Box::new(Clear)),
         ("Hide or show the sidebar", Box::new(ToggleSidebar)),
         ("Hide or show the inspector", Box::new(ToggleInspector)),
         ("Settings", Box::new(OpenSettings)),
@@ -102,6 +111,15 @@ pub fn install(cx: &mut App, panes: &Panes) {
         // deeper key context: it keeps them (`docs/kb/gpui.md`).
         KeyBinding::new("cmd-z", Undo, Some(WORKSPACE)),
         KeyBinding::new("cmd-shift-z", Redo, Some(WORKSPACE)),
+        KeyBinding::new("cmd-c", Copy, Some(WORKSPACE)),
+        // The window has a handler for Paste only when a paste is possible
+        // (the Edit menu item is then enabled). Else the key goes on to the
+        // binding before it, which tells the user why (`docs/kb/gpui.md`).
+        KeyBinding::new("cmd-v", PasteNotPossible, Some(WORKSPACE)),
+        KeyBinding::new("cmd-v", Paste, Some(WORKSPACE)),
+        // The Delete key of a Mac keyboard. The Edit menu shows the first
+        // binding of an action, thus Clear has only this one.
+        KeyBinding::new("backspace", Clear, Some(WORKSPACE)),
     ]);
     set_menus(cx, panes, &EditMenu::default());
 }
@@ -122,6 +140,10 @@ pub fn set_menus(cx: &mut App, panes: &Panes, edit: &EditMenu) {
         Menu::new("Edit").items([
             MenuItem::action(undo_title(edit.undo.as_deref()), Undo),
             MenuItem::action(redo_title(edit.redo.as_deref()), Redo),
+            MenuItem::separator(),
+            MenuItem::action("Copy", Copy),
+            MenuItem::action("Paste", Paste),
+            MenuItem::action("Clear", Clear),
         ]),
         Menu::new("View").items([
             MenuItem::action(sidebar_title(panes.sidebar_visible), ToggleSidebar),

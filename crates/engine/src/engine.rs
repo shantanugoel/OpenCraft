@@ -30,6 +30,9 @@
 //! [`Engine::undo`]. The reasons are in
 //! `docs/decisions/0030-undo-and-redo-in-the-engine.md`.
 //!
+//! The engine keeps the clipboard of the window: the content of one
+//! control. See [`Engine::paste_control`] and [`crate::clipboard`].
+//!
 //! The logic has no thread of its own. A caller calls [`Engine::command`]
 //! and [`Engine::poll`] in a loop: see [`crate::runtime`]. A test calls them
 //! directly, with a fake transport and a fake clock (rule 7). The reasons
@@ -39,6 +42,7 @@ use crate::action::{
     Action, BindingId, BindingState, EngineRequest, Feedback, GestureKind, HandlerPort,
     KindDescription, Message, Request, Status,
 };
+use crate::clipboard::{ControlContent, Parts};
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::history::{History, Target};
 use crate::layout::DeviceLayout;
@@ -49,8 +53,8 @@ use crate::store::ProfileStore;
 use image::RgbImage;
 use opencraft_core::image::{encode_for, jpeg_quality_for};
 use opencraft_core::{
-    decode, Clock, Connector, Decoded, Descriptor, Error as DeviceError, InputEvent, Link,
-    LinkEvent, Surface, SurfaceId, SystemClock,
+    decode, Clock, Connector, ControlId, ControlKind, Decoded, Descriptor, Error as DeviceError,
+    InputEvent, Link, LinkEvent, Surface, SurfaceId, SystemClock,
 };
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -193,6 +197,21 @@ pub enum Command {
         name: String,
         commands: Vec<Command>,
     },
+    /// Copy the content of `control` on the active page to the clipboard of
+    /// the engine: its appearance and its bindings (see
+    /// [`crate::clipboard`]). The engine sends [`Event::Clipboard`]. The
+    /// pages do not change.
+    CopyControl { control: ControlId },
+    /// Put the content of the clipboard on `control` on the active page.
+    /// The kind of `control` must be the kind of the copy. Else the engine
+    /// changes nothing and gives a problem.
+    PasteControl { control: ControlId },
+    /// Remove the appearance and the bindings of `control` on the active
+    /// page.
+    ClearControl { control: ControlId },
+    /// Put the content of `control` on the active page on the same control
+    /// on each other page of the profile. This is one step of the history.
+    CopyToAllPages { control: ControlId },
     /// Set the device settings of the model of the device. The command has
     /// all settings. The engine puts each value into its range, and then
     /// does the steps of [`Engine::set_device_settings`].
@@ -260,6 +279,9 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         Command::MovePage { .. } => step("Move Page", None),
         Command::RemovePage { .. } => step("Remove Page", None),
         Command::Group { name, commands } => step(name, group_target(commands, active)),
+        Command::PasteControl { .. } => step("Paste", None),
+        Command::ClearControl { .. } => step("Clear", None),
+        Command::CopyToAllPages { .. } => step("Copy to All Pages", None),
         // These commands change no page. A change of the active profile
         // empties the history. A test of an action runs a binding and
         // changes nothing in the profile (#188).
@@ -269,6 +291,7 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         | Command::RenameProfile { .. }
         | Command::RemoveProfile { .. }
         | Command::SetDeviceSettings(_)
+        | Command::CopyControl { .. }
         | Command::Undo
         | Command::Redo
         | Command::StartTextEdit
@@ -378,6 +401,11 @@ pub enum Event {
         undo: Option<String>,
         redo: Option<String>,
     },
+    /// The clipboard of the engine has the content of a control of this
+    /// kind, after [`Command::CopyControl`]. A paste is possible only on a
+    /// control of this kind. Before the first copy, the clipboard is empty
+    /// and the engine sends no event.
+    Clipboard(ControlKind),
     /// The latest status that a handler sends for a kind.
     Status { kind: String, status: Status },
     /// The response to `Command::ReadCounters`.
@@ -456,6 +484,9 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     settings_save_failed: bool,
     /// The undo and redo history of the active profile (decision 0030).
     history: History,
+    /// The content of the last copied control, and the directory of the
+    /// profile of the copy: its image paths are relative to it.
+    clipboard: Option<(ControlContent, PathBuf)>,
     ports: Vec<HandlerPort>,
     feedback: BTreeMap<BindingId, (u64, Feedback)>,
     feedback_order: u64,
@@ -509,6 +540,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             settings_changed_at: None,
             settings_save_failed: false,
             history: History::default(),
+            clipboard: None,
             ports,
             feedback: BTreeMap::new(),
             feedback_order: 0,
@@ -1539,6 +1571,14 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 }
                 return go_on;
             }
+            Command::CopyControl { control } => self.copy_control(control),
+            Command::PasteControl { control } => self.paste_control(control),
+            Command::ClearControl { control } => {
+                if self.parts(control).is_some() {
+                    self.put_control(control, &ControlContent::empty(control.kind));
+                }
+            }
+            Command::CopyToAllPages { control } => self.copy_to_all_pages(control),
             Command::SetDeviceSettings(settings) => self.set_device_settings(settings),
             Command::Resolve { kind } => {
                 self.request(&kind, Request::Resolve { kind: kind.clone() });
@@ -1548,6 +1588,108 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Command::Stop => return false,
         }
         true
+    }
+
+    /// The parts of `control` in the descriptor. If the device has no such
+    /// control, tell the shell.
+    fn parts(&mut self, control: ControlId) -> Option<Parts> {
+        let parts = Parts::of(self.descriptor, control);
+        if parts.is_none() {
+            self.problem(format!("This device has no {control}."));
+        }
+        parts
+    }
+
+    /// Copy the content of `control` on the active page to the clipboard.
+    /// This is [`Command::CopyControl`].
+    fn copy_control(&mut self, control: ControlId) {
+        let Some(parts) = self.parts(control) else {
+            return;
+        };
+        let content = ControlContent::read(self.page(), control, parts);
+        self.clipboard = Some((content, self.store.dir().to_path_buf()));
+        (self.sink)(Event::Clipboard(control.kind));
+    }
+
+    /// Put the content of the clipboard on `control` on the active page.
+    /// This is [`Command::PasteControl`]. A copy from a different profile
+    /// has its image in the directory of that profile: the engine copies
+    /// the image into the active profile first.
+    fn paste_control(&mut self, control: ControlId) {
+        let Some((mut content, source)) = self.clipboard.clone() else {
+            return;
+        };
+        if content.kind != control.kind {
+            self.problem(format!(
+                "OpenCraft did not paste: the copy is of a {}, and a paste is possible only \
+                 on a {}.",
+                content.kind.name(),
+                content.kind.name()
+            ));
+            return;
+        }
+        if self.parts(control).is_none() {
+            return;
+        }
+        if source != self.store.dir() {
+            if let Some(image) = content.image() {
+                match self.store.import_image(&source.join(image)) {
+                    Ok(copy) => {
+                        if let Some(surface) = content.surface.as_mut() {
+                            surface.image = Some(copy);
+                        }
+                    }
+                    Err(e) => {
+                        self.problem(format!("OpenCraft could not use the image: {e}"));
+                        return;
+                    }
+                }
+            }
+        }
+        self.put_control(control, &content);
+    }
+
+    /// Put `content` on `control` on the active page, with the steps of a
+    /// change of a surface and of a binding: thus the device, the shell,
+    /// and the handlers get each change.
+    fn put_control(&mut self, control: ControlId, content: &ControlContent) {
+        let Some(parts) = Parts::of(self.descriptor, control) else {
+            return;
+        };
+        let (surface, bindings) = content.changes(self.page(), control, parts);
+        // The surface first: a shell then gets the new content before the
+        // bindings, for example for the text field of the label.
+        if let Some((id, new)) = surface {
+            self.change(id, |c| *c = new);
+        }
+        for (control, gesture, action) in bindings {
+            let binding = BindingId {
+                page: self.active,
+                control,
+                gesture,
+            };
+            self.set_binding(binding, action);
+        }
+    }
+
+    /// Put the content of `control` on the active page on the same control
+    /// on each other page. This is [`Command::CopyToAllPages`]. The device
+    /// shows the active page, which does not change, thus no handler and no
+    /// image changes.
+    fn copy_to_all_pages(&mut self, control: ControlId) {
+        let Some(parts) = self.parts(control) else {
+            return;
+        };
+        let content = ControlContent::read(self.page(), control, parts);
+        let mut changed = false;
+        for number in (0..self.profile.pages().len()).filter(|n| *n != self.active) {
+            if let Some(page) = self.profile.page_mut(number) {
+                changed |= content.write(page, control, parts);
+            }
+        }
+        if changed {
+            self.changed_at = Some(self.now());
+        }
     }
 
     /// Change the content of the surface `id`. If the content is different

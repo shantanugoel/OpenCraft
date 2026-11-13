@@ -147,11 +147,42 @@ You can undo each change to the pages of the profile, and then do it again.
   typing in that field only. The toolbar button undoes the last change of
   the profile.
 - The undo covers the label and its position, size, colour, and weight, the
-  colour, the image, the actions, and the
-  add, rename, move, duplicate, and removal of a page.
+  colour, the image, the actions, the
+  add, rename, move, duplicate, and removal of a page, and **Paste**,
+  **Clear**, and **Copy to All Pages**.
 - The undo does not cover the profiles and the device settings. When you
   select a different profile, or when you quit OpenCraft, the list of changes
   becomes empty.
+
+## Copy a key to a different key
+
+You can copy all of a key to a different key: the title, the look of the
+title, the fill, the image, and the actions of all its gestures. You can do
+the same with a bar panel and a knob.
+
+![The menu of the "⋯" button of the inspector, with Copy, Paste, Clear, and Copy to All Pages](images/copy-paste.png)
+
+| To do this | Do one of these |
+|---|---|
+| Copy the selected control | Select **Edit > Copy**. Or push Command-C. Or right-click the control, and select **Copy**. Or click **⋯** at the top of the inspector, and select **Copy**. |
+| Put the copy on the selected control | Select **Edit > Paste**. Or push Command-V. Or right-click the control, and select **Paste**. Or use the **⋯** menu. |
+| Remove all of the selected control | Select **Edit > Clear**. Or push Delete. Or right-click the control, and select **Clear**. Or use the **⋯** menu. |
+| Put the selected control on each page | Click **⋯** at the top of the inspector, and select **Copy to All Pages**. The same control on each page of the profile gets the title, the fill, the image, and the actions. |
+
+- **Paste** replaces all of the control. The control that you paste on
+  keeps nothing of its old title, fill, image, and actions.
+- You can paste a key only on a key, a bar panel only on a bar panel, and a
+  knob only on a knob. If the copy is of a different kind, **Paste** is dim,
+  and the status bar tells you why when you push Command-V.
+- A knob takes its bar panel with it: the bar panel that shows the feedback
+  of the knob, with its title, fill, image, and its **Tap** action.
+- You can paste on a different page, and in a different profile. The copy
+  stays until you copy a different control or quit OpenCraft.
+- When a text field has the cursor, Command-C, Command-V, Delete, and the
+  menu items **Edit > Copy**, **Paste**, and **Clear** are for the text in
+  that field only.
+- Each **Paste**, **Clear**, and **Copy to All Pages** is one change. You can
+  undo it. See [Undo a change](#undo-a-change).
 
 ## If the key does nothing
 
