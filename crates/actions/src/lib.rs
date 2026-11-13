@@ -34,6 +34,7 @@ mod device;
 mod flow;
 mod handlers;
 pub mod hotkey;
+pub mod mouse;
 pub mod system;
 
 use opencraft_engine::Handler;

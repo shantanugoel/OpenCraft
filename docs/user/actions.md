@@ -13,6 +13,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | System | [Open a URL](#open-a-url) | No |
 | System | [Run a shell command](#run-a-shell-command) | No |
 | System | [Send a hotkey](#send-a-hotkey) | Yes |
+| System | [Mouse event](#mouse-event) | Yes |
 | System | [Type text](#type-text) | Yes |
 | Media | [Media key](#media-key) | Yes |
 | Media | [Sound volume](#sound-volume) | No |
@@ -220,6 +221,36 @@ release, not a hold. Old profiles keep their behaviour. Some applications
 do not accept a synthetic Fn event.
 
 ![The hotkey form with right Control and Fn.](images/hotkey.png)
+
+## Mouse event
+
+| Setting | What to give |
+|---|---|
+| Operation | Click, double click, move to position, move by offset, scroll in one of four directions or drag to position |
+| Button | Left, right or middle; for click, double click and drag only |
+| X, Y | Position or offset in screen points; for move and drag only |
+| Scroll step | 1 to 1000 lines for each input; for scroll only. The default is 3. |
+
+Click and double click operate at the pointer. Drag starts at the pointer,
+moves to X, Y and releases the button. An absolute position uses the top
+left of the main screen as 0, 0. X increases to the right; Y increases down.
+Other screens can have negative positions. A relative move adds X, Y to
+the current pointer position.
+
+For a knob, the joined **Turn** card scrolls down for a right turn and up
+for a left turn. **Scroll step** sets the number of lines for each turn.
+To choose another operation for each direction, click **Set left and right
+apart**. To scroll horizontally, set the two directions apart and select
+**Scroll left** and **Scroll right**.
+
+Mouse events operate in the application under the pointer. Put the pointer
+at the target before you operate the device. **Test the action** uses the
+pointer position at that button, not a target in another application. A
+test click cannot invoke its own test command again.
+
+This action uses only the Accessibility permission.
+
+![The mouse form with a scroll step.](images/mouse.png)
 
 ## Type text
 

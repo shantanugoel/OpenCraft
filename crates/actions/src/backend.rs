@@ -22,6 +22,10 @@ pub trait System: Send + Sync + 'static {
     fn can_send_keys(&self) -> bool;
     fn ask_to_send_keys(&self);
     fn send_hotkey(&self, hotkey: &Hotkey) -> Result<()>;
+    fn mouse_event(&self, event: crate::mouse::MouseEvent) -> Result<()> {
+        let _ = event;
+        Err(crate::system::Error::NotSupported)
+    }
     fn type_text(&self, text: &str) -> Result<()>;
     fn media_key(&self, key: MediaKey) -> Result<()>;
     fn volume(&self) -> Result<Volume>;
@@ -49,6 +53,9 @@ impl System for RealSystem {
     }
     fn type_text(&self, text: &str) -> Result<()> {
         system::type_text(text)
+    }
+    fn mouse_event(&self, event: crate::mouse::MouseEvent) -> Result<()> {
+        system::mouse_event(event)
     }
     fn media_key(&self, key: MediaKey) -> Result<()> {
         system::media_key(key)

@@ -78,7 +78,7 @@ fn note(command: &Command, sent: &mut BTreeSet<BindingId>) {
 /// The text of the sheet for the kind `kind`.
 pub(super) fn request_text(kind: &str) -> String {
     format!(
-        "“{kind}” sends keys to other apps. macOS lets OpenCraft do this only with the \
+        "“{kind}” sends input to other apps. macOS lets OpenCraft do this only with the \
          Accessibility permission. The binding stays in the profile. The action operates after \
          you give the permission."
     )

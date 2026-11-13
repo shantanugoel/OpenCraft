@@ -191,7 +191,7 @@ fn key_status(sender: &Option<MessageSender>, ready: bool) {
                     Status::Ready
                 } else {
                     Status::NeedsUser {
-                        text: "OpenCraft needs the Accessibility permission to send keys.".into(),
+                        text: "OpenCraft needs the Accessibility permission to send keys and mouse events.".into(),
                         button: PERMISSION_BUTTON.into(),
                     }
                 },
@@ -204,14 +204,15 @@ enum KeyWork<'a> {
     Hotkey(Hotkey),
     Text(&'a str),
     Media(MediaKey),
+    Mouse(crate::mouse::MouseEvent),
 }
 
 /// The problem of a key action when OpenCraft does not have the permission
-/// to send keys. The three key kinds send the same text, so that the window
+/// to send input. The input kinds send the same text, so that the window
 /// shows it one time.
 pub(crate) fn no_permission() -> String {
     format!(
-        "OpenCraft did not send the keys, because it does not have the Accessibility \
+        "OpenCraft did not send the keys or mouse events, because it does not have the Accessibility \
          permission. Select the control, and click \"{PERMISSION_BUTTON}\" below the action."
     )
 }
@@ -223,6 +224,7 @@ fn key_work(action: &Action) -> Result<KeyWork<'_>> {
                 .parse()
                 .map_err(|_| setting_problem(HOTKEY, "hotkey"))?,
         ),
+        MOUSE => KeyWork::Mouse(crate::mouse::work(action)?),
         TEXT => KeyWork::Text(text(action, "text")?),
         MEDIA => KeyWork::Media(match text(action, "key")? {
             "play-pause" => MediaKey::PlayPause,
@@ -313,8 +315,9 @@ impl KeyHandler {
             KeyWork::Hotkey(hotkey) => self.system.send_hotkey(&hotkey),
             KeyWork::Text(text) => self.system.type_text(text),
             KeyWork::Media(key) => self.system.media_key(key),
+            KeyWork::Mouse(event) => self.system.mouse_event(event),
         };
-        result.map_err(|e| format!("Cannot send keys: {e}."))
+        result.map_err(|e| format!("Cannot send keys or mouse events: {e}."))
     }
 }
 

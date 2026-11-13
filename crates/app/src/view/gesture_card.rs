@@ -719,7 +719,11 @@ impl RenderOnce for GestureCard {
                         IconName::Play,
                         "Test the action",
                     )
-                    .on_click(move |event, window, cx| on_test(event, window, cx)),
+                    .on_click(move |event, window, cx| {
+                        if !super::synthetic_input::from_this_process() {
+                            on_test(event, window, cx);
+                        }
+                    }),
                 )
                 .into_any_element(),
             );

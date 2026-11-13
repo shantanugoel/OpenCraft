@@ -12,9 +12,15 @@ use support::*;
 fn all_built_in_actions_use_only_the_handler_ports() {
     let system = Arc::new(Fake::default());
     system.finish_shell(Exit::Code(9));
-    let (ports, messages) = start_handlers(handlers_with_system(system.clone())).unwrap();
+    let handlers = handlers_with_system(system.clone());
+    let input_kinds = handlers
+        .iter()
+        .flat_map(|h| h.kinds())
+        .filter(|k| k.needs_accessibility)
+        .count();
+    let (ports, messages) = start_handlers(handlers).unwrap();
     let receive = || messages.recv_timeout(Duration::from_millis(500)).unwrap();
-    for _ in 0..3 {
+    for _ in 0..input_kinds {
         assert!(matches!(
             receive(),
             Message::Status {
@@ -47,6 +53,12 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             Call::Url("https://example.test".into()),
         ),
         ("hotkey", "hotkey", "cmd+a", Call::Hotkey("cmd+a".into())),
+        (
+            "mouse",
+            "operation",
+            "scroll-up",
+            Call::Mouse(opencraft_actions::mouse::MouseEvent::Scroll { x: 0, y: 3 }),
+        ),
         ("type-text", "text", "Test", Call::Text("Test".into())),
         (
             "media-key",
@@ -105,7 +117,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
         .permission
         .store(false, std::sync::atomic::Ordering::SeqCst);
     send("hotkey", invoke(text_action("hotkey", "hotkey", "cmd+a")));
-    for _ in 0..3 {
+    for _ in 0..input_kinds {
         assert!(matches!(
             receive(),
             Message::Status {
@@ -126,7 +138,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             kind: "opencraft.hotkey".into(),
         },
     );
-    for _ in 0..3 {
+    for _ in 0..input_kinds {
         assert!(matches!(
             receive(),
             Message::Status {

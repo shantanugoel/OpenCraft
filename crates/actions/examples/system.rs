@@ -39,6 +39,25 @@ fn main() {
         })
         .map(|()| wait()),
         ["hotkey", text] => system::send_hotkey(&text.parse().expect("a hotkey")).map(|()| wait()),
+        ["mouse-click", button] => {
+            system::mouse_event(opencraft_actions::mouse::MouseEvent::Click {
+                button: match *button {
+                    "left" => opencraft_actions::mouse::Button::Left,
+                    "right" => opencraft_actions::mouse::Button::Right,
+                    "middle" => opencraft_actions::mouse::Button::Middle,
+                    _ => panic!("unknown mouse button"),
+                },
+                count: 1,
+            })
+            .map(|()| wait())
+        }
+        ["mouse-scroll", x, y] => {
+            system::mouse_event(opencraft_actions::mouse::MouseEvent::Scroll {
+                x: x.parse().expect("a number"),
+                y: y.parse().expect("a number"),
+            })
+            .map(|()| wait())
+        }
         ["type", text] => system::type_text(text).map(|()| wait()),
         ["app", name] => system::open_application(name),
         ["url", url] => system::open_url(url),
@@ -49,7 +68,7 @@ fn main() {
             eprintln!(
                 "usage: system can-send-keys | ask | volume | set-volume N | mute on|off | \
                  media play|next|previous|up|down|mute | hotkey TEXT | type TEXT | app NAME | \
-                 url URL | shell COMMAND"
+                 url URL | shell COMMAND | mouse-click left|right|middle | mouse-scroll X Y"
             );
             std::process::exit(2);
         }

@@ -350,6 +350,7 @@ an element with no role are not in the accessibility tree
 | Error | A problem of the engine is a message row above the status bar, with "Close" (`DESTRUCTIVE_TINT`, a warning icon). The Settings window shows its problems below its pane. Do not use a modal alert for an error. | `view/status_bar.rs`, `settings_window.rs` |
 | Status bar | The last input at the start, "All changes saved" at the end. A short result of an operation is a message for `MESSAGE_TIME` (4 s) with `show_message`. Do not add a second bar. | `view/status_bar.rs` |
 | Drag and drop | The drag picture is `KindLabel::drag_chip` at `DRAG_PICTURE_OFFSET`. Only the control under the pointer shows the drop target. A drop and a click use one path (`assign_to`). | `view/library.rs`, `view/canvas.rs` |
+| Test command | “Test the action” ignores an input event that this process sent. A synthetic click on the test button must not invoke the command again. All action kinds use the same guard; no kind check. | `view/synthetic_input.rs`, `view/gesture_card.rs` |
 | One code path | The mouse, the menu, the keys, and the palette call the same function for the same operation. A command of the window is one row of `app_menu::commands`: the menus, the "Shortcuts" pane, and the palette read that table. An action kind goes to a control through `assign_kind`. | `app_menu.rs`, `view/library.rs` |
 | Tooltip and label | Each icon button has a tooltip. The tooltip text is also the accessible label; the shared controls set both. Each clickable element has a role and a label (section 3.4). | `controls.rs` |
 
