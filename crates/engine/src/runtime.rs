@@ -269,6 +269,24 @@ mod tests {
     use std::time::Instant;
 
     #[test]
+    fn sending_a_remove_command_does_not_wait_for_the_engine() {
+        let (release, blocked) = mpsc::channel();
+        let handle = start_thread(Duration::from_secs(10), move |commands| {
+            blocked.recv().unwrap();
+            assert!(matches!(commands.recv(), Ok(Command::RemoveProfile { .. })));
+            assert!(matches!(commands.recv(), Ok(Command::Stop)));
+        })
+        .unwrap();
+        let start = Instant::now();
+        handle.send(Command::RemoveProfile {
+            profile: "checks".into(),
+        });
+        assert!(start.elapsed() < Duration::from_secs(1));
+        release.send(()).unwrap();
+        handle.stop();
+    }
+
+    #[test]
     fn stop_waits_for_the_engine_thread() {
         let (done, finished) = mpsc::channel();
         let handle = start_thread(Duration::from_secs(10), move |commands| {

@@ -795,6 +795,57 @@ fn a_removal_moves_the_directory_into_removed_and_one_profile_stays() {
     assert_eq!(names_in(&removed), ["default", "work", "work-2"]);
 }
 
+#[test]
+fn removing_an_active_three_page_profile_sends_the_same_new_state_as_a_selection() {
+    let make = || {
+        let mut large = profile(MODEL, "Checks", BLUE);
+        large.add_page(Page::new("Apps"));
+        large.add_page(Page::new("System"));
+        let (mut rig, requests) = rig_with(&[
+            ("default", profile(MODEL, "Default", RED)),
+            ("checks", large),
+        ]);
+        select(&mut rig, "checks");
+        rig.engine.select_page(2);
+        rig.take_events();
+        requests.try_iter().count();
+        (rig, requests)
+    };
+    let (mut selected, _) = make();
+    select(&mut selected, "default");
+    let expected = selected.take_events();
+    let (mut removed, requests) = make();
+    command(
+        &mut removed,
+        Command::RemoveProfile {
+            profile: "checks".into(),
+        },
+    );
+    let events = removed.take_events();
+    let without_profiles = |events: Vec<Event>| {
+        events
+            .into_iter()
+            .filter(|e| !matches!(e, Event::Profiles { .. }))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(without_profiles(events.clone()), without_profiles(expected));
+    let profiles = events
+        .iter()
+        .position(|e| matches!(e, Event::Profiles { active, .. } if active == "default"))
+        .unwrap();
+    let pages = events
+        .iter()
+        .position(|e| matches!(e, Event::Pages { active: 0, names, .. } if names.len() == 1))
+        .unwrap();
+    assert!(profiles < pages);
+    assert_eq!(removed.engine.active_profile(), "default");
+    assert_eq!(removed.engine.active_page(), 0);
+    assert!(requests
+        .try_iter()
+        .any(|r| matches!(r, Request::Appear { binding, .. } if binding.page == 0)));
+    assert!(problems(&events).is_empty());
+}
+
 // --- The request of a handler ------------------------------------------------------
 
 fn select_by_name(rig: &mut Rig, name: &str) {

@@ -131,6 +131,22 @@ fn events_update_the_view_and_keep_early_problems(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn a_problem_closes_by_mouse_and_stays_closed_in_the_shell(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    tx.try_send(Event::Problem("The profile has no page 1.".into()))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "dismiss-0");
+    cx.update(|_, cx| {
+        let view = view.read(cx);
+        assert!(view.state.problems.is_empty());
+        assert!(view.shell.read(cx).state.problems.is_empty());
+    });
+    assert!(cx.debug_bounds("problems").is_none());
+    assert!(sent.borrow().is_empty());
+}
+
+#[gpui_kit::test]
 fn clicks_select_surfaces_and_send_colour_commands(cx: &mut TestAppContext) {
     let (view, cx, _tx, sent) = window(cx);
     click(cx, "surface-key face 2");
