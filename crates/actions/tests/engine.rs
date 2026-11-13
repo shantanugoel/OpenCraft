@@ -353,6 +353,7 @@ fn key_3(page: usize) -> BindingId {
         page,
         control: ControlId::new(ControlKind::Key, 3),
         gesture: GestureKind::Press,
+        folder: None,
     }
 }
 
@@ -426,6 +427,8 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Stop all sound", "Media", None, false),
             ("Change the page", "Navigation", None, false),
             ("Select a profile", "Navigation", None, false),
+            ("Open a folder", "Navigation", None, false),
+            ("Back", "Navigation", None, false),
             ("Toggle", "Logic", None, false),
             ("Sequence of actions", "Logic", None, false),
         ]
@@ -472,6 +475,8 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Stop all sound", "circle-stop"),
             ("Change the page", "arrow-right"),
             ("Select a profile", "layers"),
+            ("Open a folder", "folder"),
+            ("Back", "corner-up-left"),
             ("Toggle", "toggle-left"),
             ("Sequence of actions", "list"),
         ]

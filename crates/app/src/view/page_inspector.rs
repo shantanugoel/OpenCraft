@@ -14,16 +14,23 @@ use super::*;
 use gpui_kit::{
     assets::IconName, component::input::AnyInputState, component::Icon, relative, KeyDownEvent,
 };
-use opencraft_engine::{Background, BackgroundFit, NewBackground};
+use opencraft_engine::{Background, BackgroundFit, FolderId, NewBackground};
+
+/// The name that the name field of the inspector edits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NameTarget {
+    Page(usize),
+    Folder(FolderId),
+}
 use std::cell::Cell;
 
 /// The state of the page inspector that is not in the engine.
 pub(super) struct PageInspector {
     /// The name field of the "Page" section.
     pub(super) name: Entity<InputState>,
-    /// The page of the edit of the name, from the moment that the field got
-    /// the focus. `None` when no edit is open.
-    editing: Option<usize>,
+    /// The page or the folder of the edit of the name, from the moment that
+    /// the field got the focus. `None` when no edit is open.
+    editing: Option<NameTarget>,
     /// True when the next frame must scroll the inspector to the "Touch bar
     /// gestures" section. A cell, because the inspector draws with `&self`.
     scroll_to_swipes: Cell<bool>,
@@ -71,7 +78,7 @@ impl PageInspector {
         let subscription =
             cx.subscribe_in(&name, window, |view, _, event, window, cx| match event {
                 TextEvent::Focus => {
-                    view.page_inspector.editing = Some(view.state.page);
+                    view.page_inspector.editing = Some(view.inspector_name_target());
                 }
                 TextEvent::Blur => view.save_page_name(window, cx),
                 _ => {}
@@ -106,8 +113,17 @@ impl DeviceView {
         cx: &mut Context<Self>,
     ) {
         let changed = match event {
-            Event::Pages { names, active, .. } => {
-                *names != self.state.pages || *active != self.state.page
+            Event::Pages {
+                names,
+                active,
+                folders,
+                open,
+                ..
+            } => {
+                *names != self.state.pages
+                    || *active != self.state.page
+                    || folders != &self.state.folders
+                    || open != &self.state.open
             }
             Event::Profiles { active, .. } => self.state.profile.as_ref() != Some(active),
             _ => false,
@@ -123,17 +139,33 @@ impl DeviceView {
         }
     }
 
-    /// Show the name of the active page in the name field, when no edit is
-    /// open.
+    /// The name the inspector field shows: the open folder, or the page.
+    fn inspector_name(&self) -> String {
+        if let Some(id) = self.state.open.last().copied() {
+            return self.folder_name(id).unwrap_or("").to_string();
+        }
+        if self.state.pages.is_empty() {
+            String::new()
+        } else {
+            page_title(&self.state.pages, self.state.page)
+        }
+    }
+
+    /// The page or the folder that a focus of the name field edits.
+    fn inspector_name_target(&self) -> NameTarget {
+        match self.state.open.last().copied() {
+            Some(id) => NameTarget::Folder(id),
+            None => NameTarget::Page(self.state.page),
+        }
+    }
+
+    /// Show the name of the active page, or of the open folder, in the name
+    /// field, when no edit is open.
     pub(super) fn sync_page_name(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.page_inspector.editing.is_some() {
             return;
         }
-        let title = if self.state.pages.is_empty() {
-            String::new()
-        } else {
-            page_title(&self.state.pages, self.state.page)
-        };
+        let title = self.inspector_name();
         let name = self.page_inspector.name.clone();
         if name.read(cx).value().as_ref() != title {
             name.update(cx, |input, cx| input.set_value(title, window, cx));
@@ -143,17 +175,26 @@ impl DeviceView {
     /// End the edit of the name. A new name that is not empty renames the
     /// page; else the field shows the name again.
     fn save_page_name(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(page) = self.page_inspector.editing.take() else {
+        let Some(target) = self.page_inspector.editing.take() else {
             return;
         };
         let name = self.page_inspector.name.read(cx).value().trim().to_string();
         // The page of the edit is the active page, and a page with no name
         // shows its number: that text is no new name.
-        if page == self.state.page
-            && !name.is_empty()
-            && name != page_title(&self.state.pages, page)
-        {
-            (self.send)(Command::RenamePage { page, name });
+        match target {
+            NameTarget::Page(page)
+                if page == self.state.page
+                    && !name.is_empty()
+                    && name != page_title(&self.state.pages, page) =>
+            {
+                (self.send)(Command::RenamePage { page, name });
+            }
+            NameTarget::Folder(id)
+                if self.folder_name(id) != Some(name.as_str()) && !name.is_empty() =>
+            {
+                (self.send)(Command::RenameFolder { folder: id, name });
+            }
+            _ => {}
         }
         self.sync_page_name(window, cx);
         cx.notify();
@@ -201,6 +242,9 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
+        if self.state.open.last().is_some() {
+            return self.folder_inspector(editor, window, cx);
+        }
         let names = &self.state.pages;
         let page = self.state.page;
         let title = page_title(names, page);
@@ -293,6 +337,200 @@ impl DeviceView {
                 )
             }))
             .into_any_element()
+    }
+
+    /// The inspector of the last open folder (decision 0036). The knobs, the
+    /// touch bar, and the background stay those of the page under the folder,
+    /// so this inspector has no section for them.
+    fn folder_inspector(
+        &self,
+        editor: Stateful<Div>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        let Some(id) = self.state.open.last().copied() else {
+            return editor;
+        };
+        let name = self.folder_name(id).unwrap_or("").to_string();
+        let profile = self
+            .state
+            .profile
+            .as_ref()
+            .and_then(|profile| self.profile(profile))
+            .map(|profile| profile.name.clone())
+            .unwrap_or_default();
+        let page_name = page_title(&self.state.pages, self.state.page);
+        let mut help =
+            format!("The knobs, the touch bar and the background are those of page “{page_name}”.");
+        if !self.location_has_back() {
+            help.push_str(
+                " This folder has no Back key. On the device, “Next page” or a different profile \
+                 closes it.",
+            );
+        }
+        editor.children([
+            form::header(
+                None,
+                format!("Folder “{name}”"),
+                format!("Folder · Profile “{profile}”"),
+                None,
+            )
+            .into_any_element(),
+            self.folder_section(window, cx),
+            form::help(help).into_any_element(),
+        ])
+    }
+
+    /// True if a binding of the location is the kind Back.
+    fn location_has_back(&self) -> bool {
+        self.state.bindings.values().any(|state| {
+            state
+                .action
+                .as_ref()
+                .is_some_and(|action| self.kind(&action.kind).is_some_and(|kind| kind.folder_back))
+        })
+    }
+
+    /// The "Folder" section: the name, the order, "Duplicate", and "Remove…".
+    fn folder_section(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let id = self.state.open.last().copied();
+        let index = id.and_then(|id| self.folder_index(id));
+        let count = self.state.folders.len();
+        let up = index.is_some_and(|index| index > 0);
+        let down = index.is_some_and(|index| index + 1 < count);
+        let row = |label: &str, value: AnyElement| {
+            form::row(
+                label.to_string(),
+                theme::FORM_LABEL_WIDE,
+                theme::FORM_GAP,
+                value,
+            )
+        };
+        let order = |id_text: &'static str, icon, label, enabled: bool, step: isize| {
+            square_button(id_text, icon, label, enabled, theme::HEIGHT_CONTROL).when(enabled, |d| {
+                d.on_click(cx.listener(move |view, _, window, cx| {
+                    view.folder_command(
+                        move |view, folder, _, _| {
+                            let Some(index) = view.folder_index(folder) else {
+                                return;
+                            };
+                            let to = index.saturating_add_signed(step);
+                            (view.send)(Command::MoveFolder { folder, to });
+                        },
+                        window,
+                        cx,
+                    )
+                }))
+            })
+        };
+        form::section("folder", "Folder", None)
+            .child(
+                form::form(theme::FORM_GAP)
+                    .child(row(
+                        "Name",
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .capture_key_down(cx.listener(|view, event, window, cx| {
+                                view.page_name_key(event, window, cx)
+                            }))
+                            .child(
+                                controls::text_field(
+                                    &AnyInputState::Input(self.page_inspector.name.clone()),
+                                    "Name",
+                                    theme::BG_FIELD,
+                                    window,
+                                    cx,
+                                )
+                                .id("folder-name")
+                                .debug_selector(|| "folder-name".into()),
+                            )
+                            .into_any_element(),
+                    ))
+                    .child(row(
+                        "Order",
+                        div()
+                            .flex()
+                            .gap(theme::GAP_ITEMS)
+                            .child(order(
+                                "folder-move-up",
+                                IconName::ChevronUp,
+                                "Move the folder up",
+                                up,
+                                -1,
+                            ))
+                            .child(order(
+                                "folder-move-down",
+                                IconName::ChevronDown,
+                                "Move the folder down",
+                                down,
+                                1,
+                            ))
+                            .into_any_element(),
+                    ))
+                    .child(row(
+                        "",
+                        div()
+                            .flex()
+                            .gap(theme::GAP_ITEMS)
+                            .child(
+                                button("folder-duplicate", "Duplicate")
+                                    .px(theme::SPACE_10)
+                                    .on_click(cx.listener(|view, _, window, cx| {
+                                        view.folder_command(
+                                            |view, folder, _, _| {
+                                                (view.send)(Command::AddFolder {
+                                                    id: FolderId::random(),
+                                                    name: None,
+                                                    copy_of: Some(folder),
+                                                })
+                                            },
+                                            window,
+                                            cx,
+                                        )
+                                    })),
+                            )
+                            .child(
+                                button("folder-remove", "Remove…")
+                                    .px(theme::SPACE_10)
+                                    .text_color(theme::DESTRUCTIVE_TEXT)
+                                    .on_click(cx.listener(|view, _, window, cx| {
+                                        view.folder_command(
+                                            |view, folder, window, cx| {
+                                                let shown = view.state.profile.clone();
+                                                view.confirm_remove(
+                                                    Row::Folder(folder),
+                                                    shown,
+                                                    window,
+                                                    cx,
+                                                )
+                                            },
+                                            window,
+                                            cx,
+                                        )
+                                    })),
+                            )
+                            .into_any_element(),
+                    )),
+            )
+            .into_any_element()
+    }
+
+    /// Do a folder command for the last open folder. An open edit of the
+    /// name ends first.
+    fn folder_command(
+        &mut self,
+        command: impl FnOnce(&mut Self, FolderId, &mut Window, &mut Context<Self>),
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.save_page_name(window, cx);
+        self.focus_workspace(window, cx);
+        let Some(id) = self.state.open.last().copied() else {
+            return;
+        };
+        command(self, id, window, cx);
+        cx.notify();
     }
 
     /// The "Page" section: the name, the order, "Duplicate", and "Remove…".

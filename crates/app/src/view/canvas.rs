@@ -250,17 +250,7 @@ impl DeviceView {
         // The profile of this frame: a click acts on what the user saw.
         let shown = self.state.profile.clone();
         header
-            .child(
-                div()
-                    .id("page-header-name")
-                    .debug_selector(|| "page-header-name".into())
-                    .readable_text(pages::page_title(names, page))
-                    .min_w_0()
-                    .truncate()
-                    .text_size(theme::TEXT_HEADING)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(pages::page_title(names, page)),
-            )
+            .child(self.page_header_name(page, cx))
             .child(
                 div()
                     .id("page-header-count")
@@ -318,6 +308,98 @@ impl DeviceView {
                     })),
             )
             .into_any_element()
+    }
+
+    /// The page name, or the path of the open folders (decision 0036).
+    /// The page name is a button that closes the folders. A folder that is
+    /// not the last one is a button that opens that folder.
+    fn page_header_name(&self, page: usize, cx: &mut Context<Self>) -> AnyElement {
+        let title = pages::page_title(&self.state.pages, page);
+        let open: Vec<_> = self
+            .state
+            .open
+            .iter()
+            .filter_map(|id| self.folder_name(*id).map(|name| (*id, name.to_string())))
+            .collect();
+        let base = div()
+            .id("page-header-name")
+            .debug_selector(|| "page-header-name".into())
+            .min_w_0()
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_6)
+            .text_size(theme::TEXT_HEADING)
+            .font_weight(FontWeight::SEMIBOLD);
+        if open.is_empty() {
+            return base
+                .readable_text(title.clone())
+                .truncate()
+                .child(title)
+                .into_any_element();
+        }
+        let shown = self.state.profile.clone();
+        let mut path = base.child(Self::path_button(
+            "page-header-page",
+            title,
+            cx.listener(move |view, _, _, _| {
+                (view.send)(in_profile(shown.clone(), Command::SelectPage { page }));
+            }),
+        ));
+        for (index, (id, name)) in open.iter().enumerate() {
+            path = path.child(
+                div()
+                    .flex_shrink_0()
+                    .text_color(theme::TEXT_TERTIARY)
+                    .child("›"),
+            );
+            let last = index + 1 == open.len();
+            if last {
+                path = path.child(
+                    div()
+                        .id("page-header-folder")
+                        .debug_selector(|| "page-header-folder".into())
+                        .readable_text(name.clone())
+                        .min_w_0()
+                        .truncate()
+                        .child(name.clone()),
+                );
+            } else {
+                let id = *id;
+                let shown = self.state.profile.clone();
+                path = path.child(Self::path_button(
+                    format!("page-header-folder-{id}"),
+                    name.clone(),
+                    cx.listener(move |view, _, _, _| {
+                        (view.send)(in_profile(
+                            shown.clone(),
+                            Command::OpenFolder { folder: id },
+                        ));
+                    }),
+                ));
+            }
+        }
+        path.into_any_element()
+    }
+
+    /// A name in the page path. It is a button: Space and Return operate it.
+    fn path_button(
+        id: impl Into<SharedString>,
+        label: String,
+        on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> AnyElement {
+        let id: SharedString = id.into();
+        let selector = id.clone();
+        controls::keyboard_focus(
+            div().id(id).debug_selector(move || selector.to_string()),
+            controls::Ring::Inside,
+        )
+        .accessible(Role::Button, label.clone())
+        .cursor_pointer()
+        .min_w_0()
+        .truncate()
+        .child(label)
+        .on_click(on_click)
+        .into_any_element()
     }
 
     /// The line of help below the device (section 8.4).
@@ -414,6 +496,7 @@ impl DeviceView {
         if self.state.select_page() {
             self.close_kinds();
             self.sync_inspector_fields(window, cx);
+            self.sync_page_name(window, cx);
             cx.notify();
         }
         self.focus_workspace(window, cx);

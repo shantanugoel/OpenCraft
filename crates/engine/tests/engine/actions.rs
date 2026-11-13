@@ -234,6 +234,7 @@ fn five_hundred_knob_reports_keep_every_input_and_invoke_in_order() {
                 page: 0,
                 control: event.control,
                 gesture: GestureKind::from_gesture(event.gesture).unwrap(),
+                folder: None,
             }),
             _ => None,
         })

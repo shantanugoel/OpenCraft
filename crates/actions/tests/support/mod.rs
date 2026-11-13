@@ -334,6 +334,7 @@ pub fn binding(index: u8) -> BindingId {
             number: index,
         },
         gesture: GestureKind::TurnRight,
+        folder: None,
     }
 }
 

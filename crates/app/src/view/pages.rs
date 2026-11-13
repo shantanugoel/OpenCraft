@@ -8,15 +8,18 @@
 
 use super::*;
 use gpui_kit::{PromptButton, PromptLevel};
-use opencraft_engine::ProfileEntry;
+use opencraft_engine::{
+    Action, BindingId, FolderId, GestureKind, ProfileEntry, Settings, SurfaceIcon,
+};
 
 /// A row of the sidebar that has a name. A profile row has the identity of
-/// the profile, and a page row has the number of the page in the active
-/// profile, from 0.
+/// the profile, a page row has the number of the page in the active
+/// profile, from 0, and a folder row has the identity of the folder.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Row {
     Profile(String),
     Page(usize),
+    Folder(FolderId),
 }
 
 /// The edit of a name in a row of the sidebar.
@@ -127,6 +130,10 @@ impl DeviceView {
             (Row::Page(_), Event::Profiles { active, .. }) => {
                 state.profile.as_ref() != Some(active)
             }
+            (Row::Folder(_), Event::Pages { folders, .. }) => folders != &state.folders,
+            (Row::Folder(_), Event::Profiles { active, .. }) => {
+                state.profile.as_ref() != Some(active)
+            }
             (Row::Profile(id), Event::Profiles { profiles, .. }) => {
                 !profiles.iter().any(|p| &p.id == id)
             }
@@ -173,7 +180,31 @@ impl DeviceView {
                     (MenuItem::Remove, count > 1),
                 ]
             }
+            Row::Folder(id) => {
+                let index = self.folder_index(*id);
+                let count = self.state.folders.len();
+                vec![
+                    (MenuItem::Rename, index.is_some()),
+                    (MenuItem::Duplicate, index.is_some()),
+                    (MenuItem::MoveUp, index.is_some_and(|i| i > 0)),
+                    (MenuItem::MoveDown, index.is_some_and(|i| i + 1 < count)),
+                    (MenuItem::Separator, true),
+                    (MenuItem::Remove, index.is_some()),
+                ]
+            }
         }
+    }
+
+    pub(super) fn folder_index(&self, id: FolderId) -> Option<usize> {
+        self.state.folders.iter().position(|folder| folder.id == id)
+    }
+
+    pub(super) fn folder_name(&self, id: FolderId) -> Option<&str> {
+        self.state
+            .folders
+            .iter()
+            .find(|folder| folder.id == id)
+            .map(|folder| folder.name.as_str())
     }
 
     /// Do the work of a menu item on the row of the right-click menu. An
@@ -201,6 +232,16 @@ impl DeviceView {
                     },
                 ));
             }
+            (MenuItem::Duplicate, Row::Folder(id)) => {
+                (self.send)(in_profile(
+                    shown,
+                    Command::AddFolder {
+                        id: FolderId::random(),
+                        name: None,
+                        copy_of: Some(*id),
+                    },
+                ));
+            }
             (MenuItem::Duplicate, Row::Profile(id)) => self.duplicate_profile(id),
             (MenuItem::MoveUp, Row::Page(page)) => (self.send)(in_profile(
                 shown,
@@ -216,6 +257,28 @@ impl DeviceView {
                     to: page + 1,
                 },
             )),
+            (MenuItem::MoveUp, Row::Folder(id)) => {
+                if let Some(index) = self.folder_index(*id) {
+                    (self.send)(in_profile(
+                        shown,
+                        Command::MoveFolder {
+                            folder: *id,
+                            to: index - 1,
+                        },
+                    ));
+                }
+            }
+            (MenuItem::MoveDown, Row::Folder(id)) => {
+                if let Some(index) = self.folder_index(*id) {
+                    (self.send)(in_profile(
+                        shown,
+                        Command::MoveFolder {
+                            folder: *id,
+                            to: index + 1,
+                        },
+                    ));
+                }
+            }
             (MenuItem::ProfileSettings, Row::Profile(id)) => {
                 self.open_profile_sheet(id.clone(), window, cx)
             }
@@ -248,6 +311,7 @@ impl DeviceView {
             Row::Page(page) => {
                 (*page < self.state.pages.len()).then(|| page_title(&self.state.pages, *page))
             }
+            Row::Folder(id) => self.folder_name(*id).map(str::to_string),
         }
     }
 
@@ -303,6 +367,11 @@ impl DeviceView {
                 if self.state.pages.get(page).is_some_and(|p| *p != name) =>
             {
                 (self.send)(Command::RenamePage { page, name });
+            }
+            Some(NameEdit::Rename(Row::Folder(id)))
+                if self.folder_name(id) != Some(name.as_str()) =>
+            {
+                (self.send)(Command::RenameFolder { folder: id, name });
             }
             _ => {}
         }
@@ -384,6 +453,10 @@ impl DeviceView {
                 format!("Remove the page “{name}”?"),
                 "The page, its key faces, and its bindings go away.",
             ),
+            Row::Folder(_) => (
+                format!("Remove the folder “{name}”?"),
+                "Keys that open it do nothing after this. You can undo it.",
+            ),
         };
         let pages = self.state.pages.clone();
         let answer = window.prompt(
@@ -410,9 +483,72 @@ impl DeviceView {
                         (view.send)(in_profile(shown, Command::RemovePage { page }));
                     }
                 }
+                Row::Folder(id) => {
+                    if view.folder_name(id).is_some() {
+                        (view.send)(in_profile(shown, Command::RemoveFolder { folder: id }));
+                    }
+                }
             });
         })
         .detach();
+    }
+}
+
+impl DeviceView {
+    /// One step "New Folder": add the folder `id`, open it, and put the Back
+    /// key on key 1 when the layout has that key and a kind has
+    /// `folder_back` (decision 0036). The engine makes no kind binding.
+    pub(super) fn new_folder(&self, id: FolderId) -> Command {
+        Command::Group {
+            name: "New Folder".into(),
+            commands: self.new_folder_commands(id),
+        }
+    }
+
+    /// The commands of [`Self::new_folder`], without the group. A form that
+    /// creates a folder puts its own binding first, then these commands.
+    pub(super) fn new_folder_commands(&self, id: FolderId) -> Vec<Command> {
+        let mut commands = vec![Command::AddFolder {
+            id,
+            name: None,
+            copy_of: None,
+        }];
+        let Some(kind) = self.state.kinds.iter().find(|kind| kind.folder_back) else {
+            return commands;
+        };
+        let has_key = self.state.layout.as_ref().is_some_and(|layout| {
+            layout
+                .controls
+                .iter()
+                .any(|control| control.id.kind == ControlKind::Key && control.id.number == 1)
+        });
+        if !has_key {
+            return commands;
+        }
+        let surface = SurfaceId::new(SurfaceKind::KeyFace, 1);
+        commands.push(Command::SetBinding {
+            binding: BindingId {
+                page: self.state.page,
+                control: ControlId::new(ControlKind::Key, 1),
+                gesture: GestureKind::Press,
+                folder: Some(id),
+            },
+            action: Some(Action {
+                kind: kind.kind.clone(),
+                settings: Settings::new(),
+            }),
+        });
+        commands.push(Command::SetLabel {
+            surface,
+            label: Some("Back".into()),
+        });
+        if let Some(icon) = kind.icon.clone() {
+            commands.push(Command::SetIcon {
+                surface,
+                icon: Some(SurfaceIcon::new(icon)),
+            });
+        }
+        commands
     }
 }
 

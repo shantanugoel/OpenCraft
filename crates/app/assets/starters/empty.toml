@@ -2,7 +2,7 @@
 # A starter profile of the first start (decision 0029, section 18).
 # It uses only standard macOS applications and system actions, and no
 # image file. The test `each_starter_profile_loads_and_is_valid` checks it.
-schema_version = 4
+schema_version = 5
 name = "Default"
 model = "n4-pro"
 

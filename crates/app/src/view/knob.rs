@@ -108,6 +108,7 @@ impl DeviceView {
             page: self.state.page,
             control,
             gesture,
+            folder: self.state.folder_of(control),
         }
     }
 

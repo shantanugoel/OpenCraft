@@ -108,6 +108,7 @@ fn main() {
                     page: 0,
                     control: ControlId::new(ControlKind::Knob, number),
                     gesture,
+                    folder: None,
                 },
                 action: Some(Action {
                     kind: KIND.into(),

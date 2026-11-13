@@ -1081,6 +1081,9 @@ The built-in kinds, as the engine must send them:
 The LATER places "Open a folder" (Navigation), "Wait" (Logic), and a group
 for each plug-in come as data (section 22, rules 1 and 4).
 
+Note (2026-11-14): decision [0036](0036-folders.md) uses the place "Open a
+folder". The Navigation group also has "Back". "Wait" stays a later place.
+
 **Search.** The text filters the kinds of all groups: a kind shows if its
 name contains the text, with no difference between capital and small
 letters. A group with no kind does not show. With no result: "No action
@@ -1543,7 +1546,7 @@ screen.
 | Sidebar | "Plug-ins"; a store | A row in the bottom group, above "Settings" |
 | Sidebar | Drag a page row to change the order | The page rows |
 | Toolbar | "Share a profile"; "Update available" | Between the live state pill and the search field |
-| Canvas | The folder path, for example "Main › OBS" | The page header, after the page name |
+| Canvas | The folder path, for example "Main › OBS" | The page header, after the page name. Decision [0036](0036-folders.md) uses this place: the path replaces the page name while a folder is open. |
 | Canvas | Animated faces (GIF, video); one image across the touch bar; other device models | The device drawing, from the layout and the engine images |
 | Canvas | Select many controls | The selection of section 8.3 |
 | Inspector | "Double press" and "Hold" on a key; "Push and turn" on a knob | Gesture cards (section 10.3) |
@@ -1555,7 +1558,7 @@ screen.
 | Inspector | "Release the device to other software" | The device inspector |
 | Inspector | A "Wait" step | The kind menu of a step list |
 | Library | Filters "Icons", "Backgrounds", "Starter pages"; icon packs; video backgrounds | The chip row (section 11) |
-| Library | "Open a folder", "Wait"; a group for each plug-in, with "Browse plug-ins…" | Rows and groups (section 11) |
+| Library | "Open a folder", "Wait"; a group for each plug-in, with "Browse plug-ins…" | Rows and groups (section 11). Decision [0036](0036-folders.md) uses "Open a folder" and adds "Back". "Wait" and the plug-in group stay later places. |
 | Status bar | Faults of a plug-in | A message of section 6.1 |
 | Icon picker | "Packs", "GIF" | Tab chips (section 14) |
 | Settings window | "Plug-ins", "Updates"; "Change the profile when the front app changes" | Tabs; a group box of "General" (section 17) |
@@ -1628,7 +1631,7 @@ web view in the main window.
 | Keep the current single screen, and add buttons at the top | Each feature adds a button. The window has no place for plug-ins, folders, more gestures, or more devices. |
 | The library as a fourth column | The device gets smaller. At 1440 × 900 the canvas would be about 600 wide. The library is a tab of the right panel, as in Loupedeck and Stream Deck the action list is on one side ([kb/ui-research.md](../kb/ui-research.md)). |
 | A top-level screen for each feature (for example a "Device" screen, a "Plug-ins" screen) | The user loses the device from view. The HIG puts the settings of the selected thing in the inspector, and the general settings in the Settings window. |
-| A third sidebar level for folders | The HIG says two levels at the maximum. A folder goes into the page header as a path (section 21). |
+| A third sidebar level for folders | The HIG says two levels at the maximum. A folder goes into the page header as a path (section 21). Decision [0036](0036-folders.md) keeps two levels: a folder row is at the same level as a page row, and the path is in the page header. |
 | One card for each binding, as a list of bindings | A gesture with no action has no place, so the user does not see what is possible. One card for each gesture shows the empty gestures as "Add an action". |
 | Device settings in a separate window | The device is a thing that the user selects, as a key. Its settings belong in the inspector. The Settings window holds the options of the application. |
 | Draw the LATER places as disabled controls | A user sees controls that do nothing and asks when they come. The code keeps the places; the window does not show them. |

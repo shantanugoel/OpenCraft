@@ -28,6 +28,7 @@ fn mac_functions_use_the_shared_choice_form(cx: &mut TestAppContext) {
             page: 0,
             control: ControlId::new(ControlKind::Key, 2),
             gesture: GestureKind::Press,
+            folder: None,
         },
         action: Some(action),
         available: true,

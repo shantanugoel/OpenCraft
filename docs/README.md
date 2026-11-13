@@ -11,7 +11,7 @@ Each document has one job. Each fact is in one place only.
 | [ADDING-A-DEVICE-MODEL.md](ADDING-A-DEVICE-MODEL.md) | The procedure to add a new device model as data | The descriptor, the probe, or a limit of the procedure changes |
 | [decisions/](decisions/README.md) | One record for each design decision | You make a decision |
 | [kb/](kb/README.md) | Knowledge base: facts from research and from measurement | You learn a fact |
-| [checks/](checks/phase-7-8-checks.md) | Procedures and import files for checks that only the owner can do on the device | A phase needs a new owner check |
+| [checks/](checks/phase-7-8-checks.md) | Procedures and import files for checks that only the owner can do on the device. Phase 9 is in [phase-9-checks.md](checks/phase-9-checks.md). | A phase needs a new owner check |
 | [user/](user/README.md) | The user guide: install, configure, operate, and correct faults | The application changes in a way that a user can see |
 
 ## Where the status is

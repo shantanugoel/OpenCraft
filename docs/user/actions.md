@@ -552,6 +552,34 @@ The action selects a profile. The device then shows that profile.
 Profiles are in
 [Knobs, touch bar, pages, and profiles](controls.md#profiles).
 
+## Open a folder
+
+| Setting | What to give |
+|---|---|
+| Folder | A folder of the active profile. **New Folder** adds a folder and selects it. |
+
+![The form of Open a folder. The folder is Folder 1.](images/open-a-folder.png)
+
+- The device shows the keys of that folder. The knobs, the touch bar, and
+  the background stay those of the page.
+- If the folder does not exist, the window shows a message, and the device
+  does not change.
+- **Next page** and **Previous page** do not open a folder. They close every
+  open folder and change the page.
+
+Folders are in
+[Knobs, touch bar, pages, and profiles](controls.md#folders).
+
+## Back
+
+**Back** has no settings. It closes the last open folder. The device shows
+the keys of the folder under it, or the keys of the page when no folder
+stays open. With no open folder, **Back** changes nothing.
+
+A new folder gets a **Back** key on key 1. You can move that key or remove
+it. If a folder has no **Back** key, **Next page** or a different profile
+closes it.
+
 ## Toggle
 
 A toggle has two states, on and off. Each operation of the control changes

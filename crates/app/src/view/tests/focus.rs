@@ -75,7 +75,7 @@ fn workspace_has_focus(view: &Entity<DeviceView>, cx: &mut VisualTestContext) ->
 
 /// The start of the order: the sidebar, the toolbar, the page header, and
 /// the tabs of the right panel.
-const START: [&str; 16] = [
+const START: [&str; 17] = [
     "hide-sidebar",
     "device-card",
     "profile-add",
@@ -84,6 +84,7 @@ const START: [&str; 16] = [
     "page-0",
     "page-1",
     "page-add",
+    "folder-add",
     "profile-work",
     "sidebar-settings",
     "toolbar-search",

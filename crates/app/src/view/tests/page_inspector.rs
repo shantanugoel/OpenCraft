@@ -242,6 +242,7 @@ fn the_swipe_cards_of_the_page_set_the_touch_bar_bindings(cx: &mut TestAppContex
         page: 1,
         control: ControlId::new(ControlKind::TouchBar, 2),
         gesture,
+        folder: None,
     };
     // The swipe cards have the wide name column.
     let card = bounds(cx, "gesture-SwipeLeft");

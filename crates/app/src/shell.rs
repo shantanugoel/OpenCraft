@@ -1191,6 +1191,8 @@ mod tests {
                 names: vec!["Main".into(), "Mail".into()],
                 active: 1,
                 first: 0,
+                folders: Vec::new(),
+                open: Vec::new(),
             })
             .unwrap();
         f.events
@@ -1251,6 +1253,8 @@ mod tests {
                 names: vec!["Main".into(), "Mail".into()],
                 active: 0,
                 first: 0,
+                folders: Vec::new(),
+                open: Vec::new(),
             })
             .unwrap();
         cx.run_until_parked();

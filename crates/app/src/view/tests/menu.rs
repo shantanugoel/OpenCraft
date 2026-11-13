@@ -57,6 +57,7 @@ fn binding(gesture: GestureKind) -> BindingId {
         page: 0,
         control: ControlId::new(ControlKind::Key, 2),
         gesture,
+        folder: None,
     }
 }
 

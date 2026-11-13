@@ -23,6 +23,7 @@ fn binding() -> BindingId {
         page: 0,
         control: ControlId::new(ControlKind::Key, 2),
         gesture: GestureKind::Press,
+        folder: None,
     }
 }
 
@@ -161,6 +162,8 @@ fn a_restored_selection_fills_the_fields_and_lets_the_recorder_save(cx: &mut Tes
             names: vec!["Main".into()],
             active: 0,
             first: 0,
+            folders: Vec::new(),
+            open: Vec::new(),
         },
         now,
     );

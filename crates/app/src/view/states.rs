@@ -59,6 +59,7 @@ impl DeviceView {
             page: self.state.page,
             control,
             gesture,
+            folder: self.state.folder_of(control),
         };
         let state = self.state.bindings.get(&binding).filter(|b| b.available)?;
         let kind = self.kind(&state.action.as_ref()?.kind)?;
