@@ -310,7 +310,6 @@ fn tab_stays_in_a_sheet_and_return_does_the_main_action(cx: &mut TestAppContext)
         "profile-colour-5",
         "first-page",
         "profile-export",
-        "profile-import",
         "profile-remove",
         "profile-done",
     ];
@@ -325,7 +324,7 @@ fn tab_stays_in_a_sheet_and_return_does_the_main_action(cx: &mut TestAppContext)
     // Space operates the control with the focus; Return does "Done".
     tab_to(cx, "profile-colour-2");
     push(cx, "space");
-    tab_to(cx, "profile-import");
+    tab_to(cx, "profile-export");
     push(cx, "enter");
     cx.update(|_, cx| assert!(view.read(cx).sheet.profile.is_none()));
     assert!(workspace_has_focus(&view, cx));

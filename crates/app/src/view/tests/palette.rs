@@ -426,6 +426,23 @@ fn the_commands_are_the_commands_that_the_window_can_do_now(cx: &mut TestAppCont
 }
 
 #[gpui_kit::test]
+fn the_palette_import_command_uses_the_profile_file_dialog(cx: &mut TestAppContext) {
+    let (view, cx, _tx, sent) = palette_window(cx);
+    search(&view, cx, "import a profile");
+    let names: Vec<_> = rows(&view, cx).into_iter().map(|(_, n, _)| n).collect();
+    assert_eq!(names, ["Import a profile…"]);
+    keys(cx, "enter");
+    assert!(!is_open(&view, cx));
+    assert!(cx.did_prompt_for_paths());
+    let path = std::path::PathBuf::from("/imports/Checks.opencraft");
+    let chosen = path.clone();
+    cx.simulate_path_prompt_response(move |_| Some(vec![chosen]));
+    cx.run_until_parked();
+    assert_eq!(sent.borrow().last(), Some(&Command::ImportProfile { path }));
+    assert!(workspace_has_focus(&view, cx));
+}
+
+#[gpui_kit::test]
 fn the_arrow_keys_move_the_selection_and_keep_it_visible(cx: &mut TestAppContext) {
     let (view, cx, _, _) = palette_window(cx);
     search(&view, cx, "");

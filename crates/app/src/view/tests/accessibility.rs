@@ -206,6 +206,16 @@ fn the_profile_sheet_is_a_dialog_with_labels(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn the_import_command_in_the_palette_has_a_role_and_label(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = named_window(cx);
+    cx.dispatch_action(crate::app_menu::Search);
+    cx.run_until_parked();
+    cx.simulate_input("import a profile");
+    cx.run_until_parked();
+    assert_has(&frame(cx), Role::Button, "Import a profile…");
+}
+
+#[gpui_kit::test]
 fn each_control_with_a_role_has_a_label(cx: &mut TestAppContext) {
     let (_view, cx, _tx, _sent) = named_window(cx);
     click(cx, "surface-key face 2");

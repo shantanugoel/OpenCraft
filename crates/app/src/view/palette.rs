@@ -38,8 +38,8 @@ use super::{
 };
 use crate::{
     app_menu::{
-        self, AddPage, AddProfile, DeviceSettings, EditMenu, OpenInInspector, PageSettings, Search,
-        SelectNext, SelectPrevious, PALETTE,
+        self, AddPage, AddProfile, DeviceSettings, EditMenu, ImportProfile, OpenInInspector,
+        PageSettings, Search, SelectNext, SelectPrevious, PALETTE,
     },
     state::gestures,
 };
@@ -211,6 +211,9 @@ impl DeviceView {
                     view.toggle_sidebar(cx);
                 }
                 view.start_new_profile(window, cx);
+            }))
+            .on_action(cx.listener(|view, _: &ImportProfile, window, cx| {
+                view.import_profile(window, cx);
             }))
     }
 
