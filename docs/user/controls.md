@@ -356,8 +356,8 @@ computer. At the chosen time, the device goes dark as with the **Screen off**
 action. The saved brightness stays. Select **Never** to stop the timer.
 Changing the timer does not wake a device that is already dark. To wake it,
 select **Wake Device** in the menu bar item or open the OpenCraft window.
-For the first device gesture and its firmware limit, see
-[Screen off and Device sleep](actions.md#screen-off-and-device-sleep).
+A device key also wakes it. The first press starts no action. See
+[Screen off](actions.md#screen-off).
 
 ![The screen-off timer](images/screen-off-timer.png)
 

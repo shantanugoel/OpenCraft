@@ -18,7 +18,10 @@ pub enum PowerNotice {
 pub enum DisplayState {
     #[default]
     Awake,
+    /// `HAN`, with the keep-alive. A device input report wakes this state.
     ScreenOff,
+    /// `DC`, then `HAN`. The device sends no input report, so only the
+    /// computer can wake this state.
     DeviceSleep,
 }
 

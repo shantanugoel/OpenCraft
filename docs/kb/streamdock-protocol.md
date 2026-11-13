@@ -411,7 +411,9 @@ A camera recorded these facts on 2026-11-11.
 
 Thus the commands to wake the device are the brightness command and `DIS`.
 
-In the dark state after `DC` and `HAN`, a key press and a knob turn changed nothing on the device: the displays and the knob lights stayed off. (Measured: owner, 2026-11-12)
+On 2026-11-12, a knob turn after `DC` and `HAN` changed nothing: the displays
+and the knob lights stayed off. (Measured: owner.) The key-press result is in
+[Input after the dark states (2026-11-14)](#input-after-the-dark-states-2026-11-14).
 
 ### Dark-state check (2026-11-13)
 
@@ -434,12 +436,25 @@ dark displays and knob lights after each action. An open-window request
 restored the green page and lights after each action. (Measured: one run for
 each action.) This checks computer-side wake, not physical input.
 
-Whether the device sends user input after `HAN`, with or without `DC`, is
-not known. The earlier owner check saw no light change after `DC` and `HAN`;
-it did not establish whether reports arrived. The owner procedure is in
-[#255](https://github.com/shantanugoel/OpenCraft/issues/255). The policy that
-does not require those reports is in
-[decision 0034](../decisions/0034-device-dark-state.md).
+### Input after the dark states (2026-11-14)
+
+A test program that is not in the repository drew a test pattern, sent
+commands, and read the vendor interface. A camera recorded the device. For
+Screen off, the owner check is page 1, step 2 of issue
+[#255](https://github.com/shantanugoel/OpenCraft/issues/255). For the stop
+state, the owner pressed one key. The program read the interface for 240
+seconds and sent no keep-alive after `DC` and `HAN`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| After `HAN` with the keep-alive (Screen off), a key press sends an input report. The first gesture wakes the device and starts no action. | Measured | Owner check, 2026-11-14 |
+| After `DC` and then `HAN`, a key press sends no input report. The press sends none, and the release sends none. | Measured | Test program, camera, and one key press, 2026-11-14 |
+| After that key press, the device shows the firmware logo. The logo was lit in less than 2 seconds. It stayed lit for the next 50 seconds. The device was dark for 80 seconds before the press. | Measured | Same run |
+| A key cannot wake the stop state into the profile. Only the computer can wake that state, because the engine cannot see a press that sends no report. | Inference | The two rows above |
+
+The policy is in
+[decision 0034](../decisions/0034-device-dark-state.md). This question is not
+in the [Not known](#not-known) list: the measurement gives the answer.
 
 ## Device configuration
 

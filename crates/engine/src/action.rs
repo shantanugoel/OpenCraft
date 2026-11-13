@@ -217,6 +217,8 @@ pub enum EngineRequest {
     /// Make a different page the active page.
     SelectPage(PageTarget),
     /// Change the device light state. The engine applies decision 0034.
+    /// After the stop state (`DisplayState::DeviceSleep`: `DC`, then `HAN`)
+    /// the device sends no input report, so only the computer can wake it.
     DeviceDisplay(crate::DisplayState),
     /// Change and save device brightness through the usual settings path.
     DeviceBrightness(BrightnessChange),

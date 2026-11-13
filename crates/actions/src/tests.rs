@@ -771,9 +771,9 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 21);
+    assert_eq!(real.len(), 20);
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 21);
+    assert_eq!(kinds.len(), 20);
     for (kind, name, key, input) in [
         (
             "open-application",

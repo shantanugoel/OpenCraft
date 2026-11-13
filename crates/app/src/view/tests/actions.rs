@@ -873,3 +873,36 @@ fn the_button_test_the_action_sends_the_command_for_the_gesture_of_its_card(
     assert!(cx.debug_bounds("unavailable").is_some());
     assert!(cx.debug_bounds("gesture-Release-test").is_none());
 }
+
+/// A profile can still contain `opencraft.device-sleep`. The kind has no
+/// handler, so the card shows "Not available" and has no test button.
+#[gpui_kit::test]
+fn a_saved_device_sleep_binding_shows_as_not_available(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    let kinds: Vec<_> = opencraft_actions::handlers()
+        .iter()
+        .flat_map(|handler| handler.kinds())
+        .collect();
+    assert!(kinds
+        .iter()
+        .all(|kind| kind.kind != "opencraft.device-sleep"));
+    tx.try_send(Event::Kinds(kinds)).unwrap();
+    let action = Action {
+        kind: "opencraft.device-sleep".into(),
+        settings: Settings::new(),
+    };
+    tx.try_send(event(binding(GestureKind::Press), action, false))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    assert!(cx.debug_bounds("unavailable").is_some());
+    assert!(cx.debug_bounds("gesture-Press-test").is_none());
+    cx.update(|_, cx| {
+        let state = &view.read(cx).state.bindings[&binding(GestureKind::Press)];
+        assert_eq!(
+            state.action.as_ref().map(|item| item.kind.as_str()),
+            Some("opencraft.device-sleep")
+        );
+        assert!(!state.available);
+    });
+}

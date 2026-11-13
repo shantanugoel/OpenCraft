@@ -432,7 +432,7 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 **Scope.**
 
 - Recovery after computer sleep, a screen lock, and a start at login.
-- Keys for screen off, device sleep, and device brightness.
+- Keys for screen off and device brightness.
 - Media keys for fast forward and rewind. macOS has no public key for
   stop: see [kb/macos-media-keys.md](kb/macos-media-keys.md).
 - A timer that makes the device dark.

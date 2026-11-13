@@ -24,11 +24,6 @@ kind = "opencraft.page"
 show_number = true
 target = "next"
 
-[profile.pages.bindings.key-2.press]
-kind = "opencraft.device-sleep"
-
-[profile.pages.bindings.key-2.press.settings]
-
 [profile.pages.bindings.key-3.press]
 kind = "opencraft.device-brightness"
 
@@ -132,14 +127,6 @@ label_size = 16
 color = "#20242B"
 icon = "arrow-right"
 icon_color = "#FFFFFF"
-
-[profile.pages.surfaces.key-face-2]
-color = "#B83F4C"
-icon = "moon"
-icon_color = "#FFFFFF"
-label = "Device sleep"
-label_color = "#FFFFFF"
-label_size = 16
 
 [profile.pages.surfaces.key-face-3]
 color = "#B83F4C"

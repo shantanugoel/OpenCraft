@@ -150,6 +150,9 @@ fn never_cancels_the_deadline_and_reconnection_does_not_cancel_dark() {
     assert!(has(&writes, protocol::sleep()));
 }
 
+/// The firmware sends no input report in the stop state. The fake
+/// transport can still inject one. The engine wakes, and the report
+/// starts no action.
 #[test]
 fn a_release_report_with_no_prior_press_can_wake_a_dark_device() {
     use opencraft_engine::{EngineRequest, Message};

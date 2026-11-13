@@ -38,35 +38,29 @@ page, and it shows the page number. The profile has no personal data.
    yes/no
    - If the answer is no, this is not a fault. Select **Wake Device** in the
      menu bar item. Did the device show the profile again? yes/no
-3. Press **Device sleep**. Did the displays and the knob lights go dark?
-   yes/no
-4. Press any key of the dark device. Did the device show the profile again?
-   yes/no
-   - If the answer is no, select **Wake Device** in the menu bar item. Did
-     the device show the profile again? yes/no
-5. Press **Brightness up**. Did the displays get brighter? yes/no
-6. Press **Brightness down**. Did the displays get less bright? yes/no
-7. Turn knob 1 to the right. Did the displays get brighter? yes/no
-8. Turn knob 1 to the left. Did the displays get less bright? yes/no
-9. Press **Fast forward**. Did the media player go forward or skip to the next
+3. Press **Brightness up**. Did the displays get brighter? yes/no
+4. Press **Brightness down**. Did the displays get less bright? yes/no
+5. Turn knob 1 to the right. Did the displays get brighter? yes/no
+6. Turn knob 1 to the left. Did the displays get less bright? yes/no
+7. Press **Fast forward**. Did the media player go forward or skip to the next
    track? yes/no
-10. Press **Rewind**. Did the media player go back or skip to the previous
-    track? yes/no
-11. Press **Mic mute**. Did the key show "Microphone muted"? yes/no
-12. Press **Mic mute** again. Did the key show "Microphone on"? yes/no
-13. Press **Next output**. The key shows the name of the sound output. Did the
+8. Press **Rewind**. Did the media player go back or skip to the previous
+   track? yes/no
+9. Press **Mic mute**. Did the key show "Microphone muted"? yes/no
+10. Press **Mic mute** again. Did the key show "Microphone on"? yes/no
+11. Press **Next output**. The key shows the name of the sound output. Did the
     name change to a different output? yes/no
-14. Does the sound of the Mac come from that output? yes/no
-15. Press **Next output** again, until the first name shows. Did the first name
+12. Does the sound of the Mac come from that output? yes/no
+13. Press **Next output** again, until the first name shows. Did the first name
     come back? yes/no
-16. Put the pointer on a file in the Finder window. Press **Mouse click**. Did
+14. Put the pointer on a file in the Finder window. Press **Mouse click**. Did
     Finder select the file? yes/no
-17. Put the pointer on a long list, for example in Finder. Turn knob 2 to the
+15. Put the pointer on a long list, for example in Finder. Turn knob 2 to the
     right. Did the list scroll down? yes/no
-18. Turn knob 2 to the left. Did the list scroll up? yes/no
-19. Press the key with the arrow and the number 1. Did the device show page 2?
+16. Turn knob 2 to the left. Did the list scroll up? yes/no
+17. Press the key with the arrow and the number 1. Did the device show page 2?
     yes/no
-20. Does the key show the number 2 on page 2? yes/no
+18. Does the key show the number 2 on page 2? yes/no
 
 ## Page 2: Apps and input
 
