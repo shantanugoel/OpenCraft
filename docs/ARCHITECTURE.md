@@ -40,7 +40,9 @@ for the same thing.
 | Action | A unit of work, given as data: a kind and its settings. |
 | Binding | The link from one gesture on one control to one action. |
 | Page | One full set of bindings and surface content for a device. |
-| Profile | A named set of pages for one device model. |
+| Folder | A set of key faces and key bindings in a profile, outside the cycle of the pages. A key opens it, and "Back" closes it. The knobs and the touch bar stay those of the page under it. See [decision 0036](decisions/0036-folders.md). |
+| Profile | A named set of pages and folders for one device model. It can be linked to applications. |
+| Front application | The application that macOS shows as active. The shell reports it, and the engine selects the profile that is linked to it, or the default profile. See [decision 0035](decisions/0035-front-application-selects-the-profile.md). |
 | Engine | The component that owns the device, the profile, and the actions. |
 | Shell | A user interface that is a client of the engine. The GUI application is a shell. |
 

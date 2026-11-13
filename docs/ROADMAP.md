@@ -26,6 +26,7 @@ application that other persons can adopt.
 | — | UI overhaul, after Phase 6 | Complete, with owner checks open |
 | 7 | A reliable daily driver | Complete, with owner checks open |
 | 8 | Everyday actions | Complete |
+| 9 | Profiles that follow the work | In work |
 
 ## Checks for each phase
 
@@ -550,6 +551,66 @@ list of the tasks.
 **Decisions that this phase forces.** No new record. New field types are
 amendments of
 [decision 0014](decisions/0014-action-settings-description.md).
+
+## Phase 9: Profiles that follow the work (in work)
+
+**Goal.** The device shows the linked profile when its application comes to
+the front, and a key opens a folder of keys and goes back. The phase issue
+is [#201](https://github.com/shantanugoel/OpenCraft/issues/201). The umbrella
+issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198). The
+proposed release is 0.4.0.
+
+**Scope.**
+
+- A "Select a profile" key selects a profile by its identity, not by its
+  name. It can also select the next or the previous profile, and open the
+  profile at a page (ACT-26).
+- A list of the installed applications. The links of a profile and "Open an
+  application" use it (ACT-09).
+- The user links one or more applications to a profile in the profile
+  settings sheet. The device shows the linked profile when its application
+  comes to the front, and the default profile when no link matches
+  (AUTO-01).
+- Folders of keys, the actions "Open a folder" and "Back", and the folders
+  in the sidebar (PAGE-05).
+- Ready profiles for some Mac applications, linked to their applications,
+  with macOS keys (PLUG-31).
+- A measurement of the time from a change of the front application to the
+  new profile on the device, and of the idle processor use with the
+  observer of the front application (P9-M1).
+
+**Exit criteria.**
+
+- [ ] The device shows the linked profile when its application comes to the
+  front, and the default profile when no link matches. The owner did this
+  check with three applications.
+- [ ] The observer of the front application does not poll. The idle
+  processor use stays below 0.5 % of one core.
+- [ ] A link and a "Select a profile" key stay correct after a rename of the
+  profile and after a move of the application.
+- [ ] A folder key opens the folder, and Back returns to the page before it.
+  "Next page" does not go into a folder.
+- [ ] Profiles of schema 3 and 4 load and change to the new schema 5. An
+  engine test covers it.
+- [ ] The ready per-application profiles install from the first-start
+  window or from the profile settings sheet.
+
+**Decisions that this phase forces.** The front application and the
+selection of a profile: see
+[decision 0035](decisions/0035-front-application-selects-the-profile.md).
+The folder model: see [decision 0036](decisions/0036-folders.md). The two
+records make one new profile schema version: 5. Release 0.2.0 writes
+version 4, thus the phase cannot add keys to version 4.
+
+**Task issues.** [#334](https://github.com/shantanugoel/OpenCraft/issues/334)
+and [#335](https://github.com/shantanugoel/OpenCraft/issues/335) (the two
+decisions), [#337](https://github.com/shantanugoel/OpenCraft/issues/337)
+(ACT-26), [#336](https://github.com/shantanugoel/OpenCraft/issues/336)
+(ACT-09), [#338](https://github.com/shantanugoel/OpenCraft/issues/338)
+(AUTO-01), [#339](https://github.com/shantanugoel/OpenCraft/issues/339)
+(PAGE-05), [#340](https://github.com/shantanugoel/OpenCraft/issues/340)
+(PLUG-31), and [#341](https://github.com/shantanugoel/OpenCraft/issues/341)
+(P9-M1).
 
 ## Not in a phase
 

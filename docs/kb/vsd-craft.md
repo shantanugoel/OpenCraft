@@ -92,7 +92,30 @@ did not operate VSD Craft for these facts.
 | The settings of VSD Craft include "Activate vibration", and a "Lighting control" with the choices "Light" and "Follow the software" | Source | The English text resources in the application binary |
 | The function names `addQUCMDCommand` and `sendQUCMDCommand` are in a library of VSD Craft | Source | The symbol names in `libSDLibrary` |
 
+## Scenes, folders, and the switch by application (2026-11-14)
+
+These facts come from the analysis of VSD Craft 3.10.201 in issue #198,
+sections 8 and 9. The analysis read a copy of the data folder and operated
+the window. The labels are those of the analysis.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A scene links up to three applications ("App 1" to "App 3"). The user picks each one from a list of the running applications, or with "Other..." (a file panel for any `.app`). | Measured | #198, §9 |
+| The scene manifest keeps the full path of each linked application bundle in `AppIdentifier0` to `AppIdentifier2`, not the bundle identifier. | Measured, Source | #198, §8 and §9 |
+| One scene is the default scene. The manifest marks it with `AppIdentifier` `"*"`. The device shows it when the front application has no linked scene. | Measured | #198, §9 |
+| The switch occurs when the front application changes, also when the window of VSD Craft is open behind a different application. A close of the window alone causes no switch. The text in Settings says that the switch occurs only when the window is closed; that text is not correct for 3.10.201. | Measured | #198, §9 |
+| The device shows the new scene 0.47 s to 1.10 s after the change. The time includes the activation of the application by macOS. The editor window also shows the new scene. | Measured | #198, §9 |
+| If two scenes link the same application, the first scene loses the link, and the application shows a warning. | Source, Review | #198, §9 |
+| The action "Create Folder" turns a key into a folder. In the folder, key 1 is a fixed "Go back" key, and the other keys are free. The page buttons stay visible. | Measured, Source | #198, §8 |
+| A folder in a folder works. A folder is a child page in the directory `profiles/` of the scene, linked by a `ProfileUUID`. | Measured, Source | #198, §8 |
+| In the analysed data folder, 4 of 16 folder actions pointed to a child page that did not exist. | Measured | #198, §8 |
+| A drop of an action on a folder key replaced the folder with no question, and the child pages of the folder were deleted from the disk. | Measured | #198, §17 |
+| The action "Scene Shift" selects the previous scene, the next scene, or a named scene, and can open the scene at a page. | Measured (UI), Source | #198, §6 and §8 |
+
 ## Not known
+
+- The maximum depth of folders in folders, and whether one folder can hold
+  more than one page. Public texts give both answers.
 
 - The processor use of VSD Craft with a scene that has no video background.
 - The time until the device responds to a key after the start of VSD Craft.
