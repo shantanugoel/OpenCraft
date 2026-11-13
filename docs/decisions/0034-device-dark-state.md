@@ -1,7 +1,7 @@
 # 0034: The engine holds the dark state and the computer can always wake it
 
 - Status: Accepted
-- Date: 2026-11-15
+- Date: 2026-11-13
 
 ## Context
 
@@ -13,7 +13,7 @@ in 0023 to use only the clocks. The shell observes system notices; the
 engine still owns all device state.
 
 The camera checks are in
-[the protocol entry](../kb/streamdock-protocol.md#dark-state-check-2026-11-15).
+[the protocol entry](../kb/streamdock-protocol.md#dark-state-check-2026-11-13).
 Brightness 0 is not screen off. Thus the proposed brightness-0 dark state
 cannot meet the requirement. Whether input reports arrive after `HAN` is
 not known. No wake path may depend only on such a report.

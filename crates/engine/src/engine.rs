@@ -43,10 +43,13 @@ use crate::action::{
     HandlerPort, KindDescription, Message, Request, Status,
 };
 use crate::clipboard::{ControlContent, Parts};
+mod power;
+
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::history::{History, Target};
 use crate::icons;
 use crate::layout::DeviceLayout;
+use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
     Background, BackgroundFit, Color, LabelChange, Page, Profile, SurfaceContent, SurfaceIcon,
     DEFAULT_PROFILE_NAME,
@@ -277,6 +280,10 @@ pub enum Command {
     /// all settings. The engine puts each value into its range, and then
     /// does the steps of [`Engine::set_device_settings`].
     SetDeviceSettings(DeviceSettings),
+    /// A system power notice observed by the shell.
+    PowerNotice(PowerNotice),
+    /// Wake from the computer side, unless the system is locked or asleep.
+    WakeDevice,
     /// Ask the handler to correct the status of this kind.
     Resolve { kind: String },
     /// Ask the handler for the current choices of a field. The opaque id
@@ -379,6 +386,8 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         | Command::ImportProfile { .. }
         | Command::AddStarterProfile { .. }
         | Command::SetDeviceSettings(_)
+        | Command::PowerNotice(_)
+        | Command::WakeDevice
         | Command::CopyControl { .. }
         | Command::Undo
         | Command::Redo
@@ -664,6 +673,7 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     link_problem: Option<String>,
     /// The device settings of the model of the device.
     settings: DeviceSettings,
+    power: Power,
     /// False if the settings file has an error or a newer schema version.
     /// Then the engine does not write the file until the user changes a
     /// setting.
@@ -729,6 +739,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             save_failed: false,
             link_problem: None,
             settings: DeviceSettings::defaults(default_model.settings),
+            power: Power::default(),
             settings_can_save: true,
             settings_changed_at: None,
             settings_save_failed: false,
@@ -809,7 +820,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.settings_changed_at = Some(self.now());
         self.send_settings();
         let changes: Vec<Vec<u8>> = before.changes(&after).into_iter().cloned().collect();
-        if changes.is_empty() || !self.link.is_connected() || self.needs_draw {
+        if changes.is_empty()
+            || !self.link.is_connected()
+            || self.needs_draw
+            || self.power.state != DisplayState::Awake
+        {
             return;
         }
         let result = self.link.with_device(|device| {
@@ -2137,6 +2152,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     });
                 }
             }
+            Command::PowerNotice(notice) => self.power_notice(notice),
+            Command::WakeDevice => self.wake_device(),
             Command::Resolve { kind } => {
                 self.request(&kind, Request::Resolve { kind: kind.clone() });
             }
@@ -2298,16 +2315,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     "wake detected: the computer slept {:.1} s",
                     slept.as_secs_f64()
                 ));
-                if self.link.is_connected() {
-                    // The engine does not know what the device kept during
-                    // the sleep. It does the same as after a new connection
-                    // (rule 10, decision 0023). The shell gets Disconnected
-                    // first, so that it drops its input marks: a release
-                    // during the sleep is lost.
-                    (self.sink)(Event::Disconnected);
-                    self.draw_all();
-                    self.announce_connected();
-                }
+                self.power_notice(PowerNotice::DidWake);
             }
             Ok(LinkEvent::Disconnected) => {
                 log("disconnected");
@@ -2318,8 +2326,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.counters.reports_received += 1;
                 if let Decoded::Input(event) = decode(self.descriptor, &report) {
                     self.counters.input_events += 1;
-                    (self.sink)(Event::Input(event));
-                    self.invoke(event);
+                    if !self.consume_dark_input(event) {
+                        (self.sink)(Event::Input(event));
+                        self.invoke(event);
+                    }
                 }
             }
             Ok(LinkEvent::Timeout) => {}
@@ -2391,6 +2401,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// knob light colours after `DC` (measured), so each full draw sends all
     /// settings.
     fn draw_all(&mut self) {
+        if self.power.state != DisplayState::Awake {
+            self.apply_dark();
+            return;
+        }
+        if self.power.ready_after.is_some_and(|at| self.now() < at) {
+            self.needs_draw = true;
+            return;
+        }
+        self.power.ready_after = None;
         let mut encoded = Vec::with_capacity(self.images.len());
         for surface in self.descriptor.slot_surfaces() {
             if let Some(data) = self.encode(surface) {
@@ -2437,6 +2456,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// image, or the command that removes it. With nothing to send, send
     /// nothing.
     fn draw(&mut self, background: bool, surfaces: &[&Surface]) {
+        if self.power.state != DisplayState::Awake {
+            return;
+        }
         let background = if background {
             self.encode_background()
         } else {

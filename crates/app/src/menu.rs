@@ -73,6 +73,8 @@ pub enum Row {
     Brightness(Brightness),
     /// Opens the window.
     Open,
+    /// Wake the controller without opening the window.
+    WakeDevice,
     /// Opens the Settings window.
     Settings,
     /// Opens the Settings window at the pane "About".
@@ -88,6 +90,7 @@ impl Row {
         match self {
             Row::Profile { id, .. } => Some(ShellCommand::SelectProfile(id.clone())),
             Row::Open => Some(ShellCommand::Open),
+            Row::WakeDevice => Some(ShellCommand::WakeDevice),
             Row::Settings => Some(ShellCommand::OpenSettings(None)),
             Row::About => Some(ShellCommand::OpenSettings(Some(SettingsPane::About))),
             Row::Quit => Some(ShellCommand::Quit),
@@ -107,6 +110,7 @@ impl Row {
             | Row::Profile { title, .. }
             | Row::Pages { title, .. } => Some(title),
             Row::Open => Some("Open OpenCraft"),
+            Row::WakeDevice => Some("Wake Device"),
             Row::Settings => Some("Settings…"),
             Row::About => Some("About and licence notices"),
             Row::Quit => Some("Quit OpenCraft"),
@@ -203,6 +207,7 @@ impl MenuState {
         }
         rows.extend([
             Row::Open,
+            Row::WakeDevice,
             Row::Settings,
             Row::Separator,
             Row::About,
@@ -268,6 +273,7 @@ mod tests {
                 "-",
                 "-",
                 "Open OpenCraft",
+                "Wake Device",
                 "Settings…",
                 "-",
                 "About and licence notices",
@@ -369,9 +375,10 @@ mod tests {
         let rows = state().rows();
         let n = rows.len();
         assert_eq!(
-            rows[n - 6..],
+            rows[n - 7..],
             [
                 Row::Open,
+                Row::WakeDevice,
                 Row::Settings,
                 Row::Separator,
                 Row::About,
@@ -380,9 +387,9 @@ mod tests {
             ]
         );
         // The brightness row is between two separators, before "Open".
-        assert!(matches!(rows[n - 8], Row::Brightness(_)));
-        assert_eq!(rows[n - 9], Row::Separator);
-        assert_eq!(rows[n - 7], Row::Separator);
+        assert!(matches!(rows[n - 9], Row::Brightness(_)));
+        assert_eq!(rows[n - 10], Row::Separator);
+        assert_eq!(rows[n - 8], Row::Separator);
     }
 
     #[test]
@@ -411,6 +418,7 @@ mod tests {
                 "Device · not connected",
                 "-",
                 "Open OpenCraft",
+                "Wake Device",
                 "Settings…",
                 "-",
                 "About and licence notices",

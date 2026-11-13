@@ -28,7 +28,8 @@ displays with the menu. The window does not have to be open.
 | Profile, and the list of your profiles | Click a profile to make it the active profile. The device shows it. The check mark is at the active profile. |
 | Page: *name* | Opens a list of the pages of the active profile. Click a page to show it on the device. The check mark is at the active page. |
 | Brightness | The slider sets the brightness of the displays of the device. Drag the knob of the slider. The number at the right shows the value. OpenCraft saves the value and uses it again when it starts. The same value shows in **Device settings** in the window. |
-| Open OpenCraft (⌘O) | Opens the window, or brings it to the front |
+| Open OpenCraft (⌘O) | Opens the window, or brings it to the front; wakes the device |
+| Wake Device | Wakes the device without opening the window |
 | Settings… (⌘,) | Opens the Settings window. See below. |
 | About and licence notices | Opens the Settings window at the tab **About** |
 | Quit OpenCraft (⌘Q) | Quits OpenCraft. The device becomes dark. |
@@ -38,6 +39,18 @@ is open, it shows each change at once. For example, it shows the new active
 profile in the sidebar.
 
 When the Dock icon shows, a click on the Dock icon also opens the window.
+
+## Sleep and screen lock
+
+When the computer locks its screen or turns off its displays, OpenCraft makes
+the device dark. While the screen is locked, device input does not run an
+action. An unlock or a display wake restores the profile and the stored
+brightness. A display wake does not override a screen lock.
+
+Before computer sleep, OpenCraft saves pending changes and stops the device.
+At wake it draws the full profile again. If the device stays dark, select
+**Wake Device** in the menu bar item or open the OpenCraft window. These steps
+do not override a screen lock or computer sleep.
 
 ## The Settings window
 

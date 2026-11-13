@@ -31,6 +31,7 @@ pub mod history;
 pub mod icons;
 pub mod label;
 pub mod layout;
+pub mod power;
 pub mod profile;
 pub mod profiles;
 pub mod render;
@@ -46,6 +47,7 @@ pub use image::RgbImage;
 pub use layout::{ControlLayout, DeviceLayout, SurfaceLayout};
 /// The types of the device layer that are in the messages.
 pub use opencraft_core::{ControlId, ControlKind, Gesture, InputEvent, SurfaceId, SurfaceKind};
+pub use power::{DisplayState, PowerNotice};
 pub use runtime::{spawn, Config, EngineHandle};
 
 pub use error::{Error, Result};

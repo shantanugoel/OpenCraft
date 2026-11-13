@@ -324,7 +324,7 @@ impl MenuBar {
                     }
                     entry
                 }
-                Row::Open | Row::Settings | Row::About | Row::Quit => {
+                Row::Open | Row::WakeDevice | Row::Settings | Row::About | Row::Quit => {
                     let entry = menu_item(mtm, row.title().unwrap_or_default(), row.key());
                     self.make_selectable(&entry, row.command(), &mut table);
                     entry

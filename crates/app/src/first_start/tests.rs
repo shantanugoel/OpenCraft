@@ -125,6 +125,10 @@ fn window_of<V: 'static>(cx: &mut TestAppContext) -> Option<(AnyWindowHandle, En
 /// start window.
 fn open(f: &Fixture, cx: &mut TestAppContext) -> (Entity<FirstStartView>, VisualTestContext) {
     f.shell.update(cx, |shell, cx| shell.open_window(cx));
+    assert!(matches!(
+        f.sent.borrow_mut().pop(),
+        Some(Command::WakeDevice)
+    ));
     cx.run_until_parked();
     let (window, view) = window_of::<FirstStartView>(cx).expect("The first start window opens.");
     let visual = VisualTestContext::from_window(window, cx);
