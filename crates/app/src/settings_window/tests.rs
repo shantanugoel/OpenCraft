@@ -992,3 +992,70 @@ fn each_part_of_the_settings_window_has_a_role_and_a_label(cx: &mut TestAppConte
     assert!(has(Role::Label, "OpenCraft"), "{nodes:#?}");
     assert!(has(Role::Button, "Licence notices"), "{nodes:#?}");
 }
+
+/// Push the key `key`: the key goes down and up. GPUI operates a control
+/// with the focus at the key up of Space and Return.
+fn push(cx: &mut VisualTestContext, key: &'static str) {
+    cx.simulate_keystrokes(key);
+    cx.simulate_event(gpui_kit::KeyUpEvent {
+        keystroke: gpui_kit::Keystroke::parse(key).unwrap(),
+    });
+    cx.run_until_parked();
+}
+
+/// The IDs of the controls that `count` presses of `key` give the focus to.
+fn focus_order(cx: &mut VisualTestContext, key: &str, count: usize) -> Vec<String> {
+    (0..count)
+        .map(|_| {
+            cx.simulate_keystrokes(key);
+            cx.run_until_parked();
+            crate::view::controls::tests::focused(cx).unwrap_or_else(|| "-".into())
+        })
+        .collect()
+}
+
+#[gpui_kit::test]
+fn tab_reaches_the_tabs_and_each_control_and_space_operates_them(cx: &mut TestAppContext) {
+    let (f, cx) = window(cx);
+    let general = [
+        "settings-tab-general",
+        "settings-tab-shortcuts",
+        "settings-tab-about",
+        "switch-start-at-login",
+        "switch-dock-icon",
+        "switch-window-at-start",
+        "open-system-settings",
+        "show-profiles",
+        "show-log-file",
+    ];
+    assert_eq!(
+        focus_order(cx, "tab", general.len() + 1),
+        [&general[..], &general[..1]].concat()
+    );
+    let mut back = general.to_vec();
+    back.reverse();
+    assert_eq!(focus_order(cx, "shift-tab", general.len()), back);
+    // Space operates a switch, and the switch keeps the focus.
+    while crate::view::controls::tests::focused(cx).as_deref() != Some("switch-dock-icon") {
+        cx.simulate_keystrokes("tab");
+    }
+    let dock = is_on(cx, "switch-dock-icon");
+    push(cx, "space");
+    assert_ne!(is_on(cx, "switch-dock-icon"), dock);
+    assert_eq!(
+        crate::view::controls::tests::focused(cx).as_deref(),
+        Some("switch-dock-icon")
+    );
+    // Return on a tab shows its pane, and the tab keeps the focus.
+    assert_eq!(focus_order(cx, "shift-tab", 2)[1], "settings-tab-about");
+    push(cx, "enter");
+    assert_eq!(f.settings_on_disk().settings_pane, SettingsPane::About);
+    assert_eq!(
+        crate::view::controls::tests::focused(cx).as_deref(),
+        Some("settings-tab-about")
+    );
+    // A click does not give the focus to a control: ⌘W needs the root.
+    click(cx, "settings-tab-general");
+    assert_eq!(crate::view::controls::tests::focused(cx), None);
+    cx.update(|window, cx| assert!(f.view.read(cx).focus.is_focused(window)));
+}

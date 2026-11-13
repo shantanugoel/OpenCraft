@@ -206,7 +206,14 @@ pub struct FirstStartView {
     focus: FocusHandle,
     /// The number of the selected card in [`STARTERS`].
     pub(crate) selected: usize,
+    /// The focus of each card. The cards are one group: Tab reaches the
+    /// selected card only, and the arrow keys move the selection and the
+    /// focus, as in a group of radio buttons of macOS.
+    cards: Vec<FocusHandle>,
     previews: Option<Previews>,
+    /// Gives the focus back to the root element when the element with the
+    /// focus is not drawn any more.
+    _focus_lost: Subscription,
 }
 
 impl FirstStartView {
@@ -228,13 +235,16 @@ impl FirstStartView {
         });
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
+        let focus_lost = cx.on_focus_lost(window, |view, window, cx| window.focus(&view.focus, cx));
         let mut view = Self {
             shell: shell.clone(),
             snapshot,
             _shell_subscription: subscription,
             focus,
             selected: 0,
+            cards: STARTERS.iter().map(|_| cx.focus_handle()).collect(),
             previews: None,
+            _focus_lost: focus_lost,
         };
         view.sync_previews(window);
         view
@@ -301,7 +311,12 @@ impl FirstStartView {
             _ => return,
         };
         cx.stop_propagation();
+        // The focus goes with the selection, if a card has the focus.
+        let card_focused = self.cards[selected].is_focused(window);
         self.select(next, cx);
+        if card_focused {
+            window.focus(&self.cards[self.selected], cx);
+        }
     }
 
     /// The left column: the device picture and the state of the device.
@@ -626,8 +641,9 @@ impl FirstStartView {
                         .rounded(theme::RADIUS_STARTER_CELL)
                 }))
         };
-        div()
-            .id(id.clone())
+        // Tab reaches the selected card only (see `cards`).
+        let focus = self.cards[index].clone().tab_stop(selected);
+        controls::keyboard_focus_tracked(div().id(id.clone()), &focus, controls::Ring::Inside)
             .debug_selector(move || selector.to_string())
             .accessible(Role::RadioButton, starter.name)
             .aria_description(starter.description)
@@ -688,6 +704,9 @@ impl Render for FirstStartView {
             .key_context(FIRST_START)
             .track_focus(&self.focus)
             .on_action(cx.listener(|_, _: &CloseWindow, window, _| window.remove_window()))
+            .on_action(cx.listener(|view, _: &controls::FocusOwner, window, cx| {
+                window.focus(&view.focus, cx)
+            }))
             .on_key_down(cx.listener(|view, event, window, cx| view.key_down(event, window, cx)))
             .size_full()
             .flex()

@@ -228,6 +228,7 @@ impl DeviceView {
                     ),
             )
             .child(text)
+            .map(|d| controls::keyboard_focus(d, controls::Ring::Inside))
             .on_click(cx.listener(move |view, _, window, cx| {
                 view.faces.on = if on { control } else { None };
                 view.close_kinds();

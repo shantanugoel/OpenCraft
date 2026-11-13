@@ -280,6 +280,7 @@ impl DeviceView {
                             .text_color(theme::TEXT_TERTIARY)
                             .child(hex),
                     )
+                    .map(|d| controls::keyboard_focus(d, controls::Ring::Outside))
                     .on_click(cx.listener(move |view, _, window, cx| {
                         view.toggle_knob_colour(index, window, cx)
                     })),

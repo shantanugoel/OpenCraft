@@ -9,7 +9,7 @@ you need them.
 | Chapter | Contents |
 |---|---|
 | 1. [Install and first start](install.md) | Install OpenCraft, start it for the first time, give the Accessibility permission (only for three action kinds), remove OpenCraft |
-| 2. [Configure a key](first-key.md) | The main procedure: select a key, set its label, colour, icon, and action, and push the key. Also undo, copy and paste, and the search with Command-K. |
+| 2. [Configure a key](first-key.md) | The main procedure: select a key, set its label, colour, icon, and action, and push the key. Also undo, copy and paste, the search with Command-K, and the keyboard. |
 | 3. [Actions](actions.md) | Each action kind and its settings, the toggle, and the sequence |
 | 4. [Knobs, touch bar, pages, and profiles](controls.md) | The other controls, more pages, more profiles, and the device settings |
 | 5. [Operation in the background](background.md) | The menu bar item, the Settings window, the Dock icon, the start at login, and the files of OpenCraft |

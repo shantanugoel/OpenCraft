@@ -955,6 +955,34 @@ kept outside the repository. The window tests are in
 | The order of the nodes is the order of the elements, not the order on the screen: the display lists the bar panels before the keys, because the layout of the engine lists them first. | Measured | Script output |
 | The icon picker had 71 radio buttons: the grid shows only the cells near the visible rows. | Measured | Script output |
 
+## Keyboard focus in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+keyboard focus of
+[issue 242](https://github.com/shantanugoel/OpenCraft/issues/242), on the
+computer of [Release measurements](#release-measurements), with a scratch
+copy of the profiles and the device connected. A helper program sent real
+Tab, Space, Return, and arrow key events with Quartz, and took pictures of
+the windows only. The pictures are kept outside the repository. The window
+tests are in `crates/app/src/view/tests/focus.rs`,
+`crates/app/src/settings_window/tests.rs`, and
+`crates/app/src/first_start/tests.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `tab_index(0)` on an element with an ID makes it focusable. GPUI keeps a focus handle for it in the state of the element, while the frames draw an element with that ID. A new ID is a new handle: a control that takes the focus needs a stable ID. | Source; Measured | `gpui-pre` 0.3.12 `src/elements/div.rs`, `request_layout`; `crates/app/src/view/controls.rs`, `toolbar_button` |
+| The Tab order is the order of the paint when all stops have the index 0. A `deferred` element paints after the other elements, thus its stops are at the end of the order. | Source; Measured | `src/tab_stop.rs`; `tab_and_shift_tab_move_the_focus_in_the_order_of_the_window` |
+| The Kit `Root` binds Tab and Shift-Tab in its key context `"Root"` to `focus_next` and `focus_prev`. A one-line Kit `Input` binds Tab in `"Input"`, but propagates it, thus Tab also leaves a text field. | Source; Measured | `gpui-base` 0.9.1 `src/root.rs`, `src/input/editor/indent.rs`, `apply_indent`; window tests |
+| `FocusTrapElement::focus_trap(id, &handle)` (`gpui_kit::base`) makes a focus trap: Tab and Shift-Tab of the `Root` stay in the element while the focus is in it. The modal card and each drawn menu use it. | Source; Measured | `gpui-base` 0.9.1 `src/focus_trap.rs`; `tab_stays_in_a_sheet_and_return_does_the_main_action` |
+| A focused element with a click handler gets a keyboard click (`ClickEvent::Keyboard`, `click_count` 1) at the key up of Space or Return with no modifier, if the focus did not move between the key down and the key up. `simulate_keystrokes` of the test platform sends only the key down: a test must also send a `KeyUpEvent`. | Source; Measured | `src/elements/div.rs`, `paint_mouse_listeners`; `src/window.rs`, `dispatch_keystroke`; `push` in the window tests |
+| GPUI gives the focus to a focusable element at the mouse down, in the bubble phase, unless a listener called `window.prevent_default()`. The mouse-down listeners of the element run before that listener, thus `prevent_default` in a listener of the element keeps the focus where it is, also for each parent. The pressed style (`.active`) still applies: its listener runs first. | Source; Measured | `src/elements/div.rs`, `paint_mouse_listeners`; `src/window.rs`, `dispatch_mouse_event`; `a_click_does_not_give_the_focus_to_a_control` |
+| `focus_visible` applies only while the last input was a key: each mouse move removes it. `focus` applies while the element has the focus. | Source | `src/elements/div.rs`, `compute_style_internal`; `src/window.rs`, `dispatch_event` |
+| While the last input was a key, `Hitbox::is_hovered` is false: no hover style shows during the keyboard use. | Source | `src/window.rs`, `HitboxId::is_hovered` |
+| When the element with the focus is not drawn any more, the focus path is empty and no key binding of `"Workspace"` operates. `Context::on_focus_lost` and `Window::focus_lost_restore_target` give the focus back. | Source; Measured | `src/window.rs`, `draw`; `the_focus_comes_back_to_the_window_when_its_control_goes_away` |
+| A drop shadow with no blur and a spread of 2 paints a ring outside the element, but it also paints below the element: an element with no fill shows the full shadow. Its corners keep the radius of the element: around a colour circle of 20, the ring of 24 looked like a square with round corners, thus a circle has the ring inside. Around a switch and a button, the ring looked correct. An inset shadow paints only inside the element, after the background and before the border and the children. | Source; Measured | `src/style.rs`, `paint`; `src/window.rs`, `paint_drop_shadows`, `paint_inset_shadows`; `gpui-pre-apple` 0.3.12 `src/shaders.metal`; window pictures |
+| In the real window, Tab and Shift-Tab from Quartz key events moved the focus in the order of the window tests, in the main window, a sheet, the palette, a colour popover, the Settings window, and the first start window. Space opened a popup menu, and Down and Space chose an item. Left on a slider with the focus moved the brightness from 80 % to 78 %. Delete with the focus on the button "B" cleared the selected key, and ⌘Z restored it. | Measured | Window pictures |
+| The test support of the Kit cannot tell if an element with a focus handle of GPUI has the focus: it needs `track_focus` with a handle of the view. The window tests send a test action, and the control with the focus answers with its ID (`controls::tests::focused`). | Source; Measured | `gpui-base` 0.9.1 `src/test_support.rs`, `ElementSnapshot::focused`; window tests |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

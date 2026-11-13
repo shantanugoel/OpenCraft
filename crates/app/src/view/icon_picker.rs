@@ -65,6 +65,8 @@ pub(super) struct IconPicker {
     /// The bounds of the button "Choose icon…" in the last frame, in window
     /// coordinates. The popover and its arrow go next to it.
     button: Rc<Cell<Option<Bounds<Pixels>>>>,
+    /// The focus of the focus trap of the popover (`controls::popover_focus`).
+    focus: FocusHandle,
 }
 
 impl IconPicker {
@@ -86,6 +88,7 @@ impl IconPicker {
             list: ListState::new(0, ListAlignment::Top, theme::ICON_CELL_HEIGHT * 4.),
             colour: None,
             button: Rc::new(Cell::new(None)),
+            focus: cx.focus_handle(),
         }
     }
 }
@@ -491,7 +494,14 @@ impl DeviceView {
                                     .child(self.icon_grid(id, content, cx))
                                     .child(self.icon_picker_footer(id, content, cx)),
                             )
-                            .child(arrows),
+                            .child(arrows)
+                            .map(|popover| {
+                                controls::popover_focus(
+                                    popover,
+                                    "icon-picker-trap".into(),
+                                    &self.inspector.icon_picker.focus,
+                                )
+                            }),
                     ),
                 )
                 .with_priority(2),

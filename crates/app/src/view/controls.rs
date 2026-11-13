@@ -5,14 +5,19 @@
 //! Read `docs/DESIGN.md` before you change the window. Its section 3 says
 //! when to use each control. Use a control of this module before you make a
 //! new one, and put a new shared control here, not a copy at a call site.
+//!
+//! Each control that the user can operate calls [`keyboard_focus`]: Tab
+//! reaches it, Space and Return operate it, and it shows the focus ring. A
+//! new control gets the same with one call.
 
 use super::{
     menu::{MenuKeys, MenuRow},
     theme,
 };
 use gpui_kit::{
-    anchored,
+    actions, anchored,
     assets::IconName,
+    base::FocusTrapElement,
     component::{
         input::{AnyInputState, Input, InputState, Textarea},
         slider::{Slider, SliderState},
@@ -21,8 +26,8 @@ use gpui_kit::{
     },
     deferred, div, point,
     prelude::*,
-    px, Anchor, AnyElement, App, Div, Entity, MouseButton, MouseDownEvent, Pixels, Rgba, Role,
-    SharedString, Stateful, Toggled, Window,
+    px, Anchor, AnyElement, App, Div, Entity, FocusHandle, MouseButton, MouseDownEvent, Pixels,
+    Rgba, Role, SharedString, Stateful, Toggled, Window,
 };
 
 /// The accessible role and label of an element (`docs/DESIGN.md`, section
@@ -81,6 +86,92 @@ pub(crate) mod accessibility_log {
     }
 }
 
+actions!(
+    controls,
+    [
+        /// A click on a control gives the focus to the owner of the control:
+        /// the root element of its window, or the card of a sheet. The owner
+        /// handles this action. In a popover, the focus stays where it is
+        /// ([`popover_focus`]).
+        FocusOwner
+    ]
+);
+
+/// Where the focus ring of a control shows (see [`keyboard_focus`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Ring {
+    /// Outside the edge: a control with a fill, for example a button.
+    Outside,
+    /// Inside the edge: a control with no fill, for example an icon button,
+    /// a row, or a card.
+    Inside,
+}
+
+/// Make `control` a control that the keyboard operates (`docs/DESIGN.md`,
+/// section 5):
+///
+/// - Tab and Shift-Tab move the focus to it, in the order of the window.
+/// - Space and Return operate it: GPUI sends a keyboard click to its click
+///   handler. In a sheet, Return does the main action (`modal`).
+/// - A click does not give it the focus. The focus goes to the owner of the
+///   control ([`FocusOwner`]), as before the control had a focus: the key
+///   commands of the window and the hotkey recorder keep the focus that
+///   they need. A control does not take the focus after a click, as on
+///   macOS.
+/// - It shows the focus ring ([`theme::FOCUS_RING`] in `accent-line`) while
+///   it has the focus. Only the keyboard gives a control the focus, thus
+///   the ring shows only for the keyboard focus. It stays when the pointer
+///   moves (GPUI `focus_visible` would remove it at each move of the
+///   pointer).
+///
+/// Call it only for an enabled control: a disabled control is not in the
+/// order. The element must have a stable ID, because GPUI keeps the focus
+/// handle in the state of the element.
+pub(crate) fn keyboard_focus(control: Stateful<Div>, ring: Ring) -> Stateful<Div> {
+    focus_look(control.tab_index(0), ring)
+}
+
+/// A [`keyboard_focus`] with a focus handle of the owner, for a group in
+/// which the owner moves the focus, for example the cards of the first
+/// start window: the arrow keys move the selection and the focus. Set
+/// `tab_stop` on the handle for the one item of the group that Tab reaches.
+pub(crate) fn keyboard_focus_tracked(
+    control: Stateful<Div>,
+    focus: &FocusHandle,
+    ring: Ring,
+) -> Stateful<Div> {
+    focus_look(control.track_focus(focus), ring)
+}
+
+/// The focus ring and the click of [`keyboard_focus`].
+fn focus_look(control: Stateful<Div>, ring: Ring) -> Stateful<Div> {
+    #[cfg(test)]
+    let control = {
+        let mut control = control;
+        let id = control.interactivity().element_id.clone();
+        control.on_action(move |_: &tests::WhoHasFocus, _, _| {
+            tests::FOCUSED.with(|focused| *focused.borrow_mut() = id.clone());
+        })
+    };
+    control
+        .focus(move |style| match ring {
+            Ring::Outside => style.shadow(theme::focus_ring_outside()),
+            Ring::Inside => style
+                .shadow(theme::focus_ring_inside())
+                .border_color(theme::ACCENT_LINE),
+        })
+        // This listener runs before the listener that GPUI adds for the
+        // focus of the element, and stops it and the one of each parent.
+        .on_mouse_down(MouseButton::Left, |_, window, cx| {
+            // A control or a field in this control had the click first.
+            if window.default_prevented() {
+                return;
+            }
+            window.prevent_default();
+            window.dispatch_action(Box::new(FocusOwner), cx);
+        })
+}
+
 /// A button with a small padding. A button that is not enabled shows dim
 /// text; the caller adds no click handler to it.
 pub(crate) fn small_button(
@@ -128,7 +219,8 @@ fn small_button_frame(id: impl Into<SharedString>, enabled: bool) -> Stateful<Di
         .text_size(theme::TEXT_LABEL)
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .when(enabled, |d| {
-            d.cursor_pointer()
+            keyboard_focus(d, Ring::Outside)
+                .cursor_pointer()
                 .hover(|d| d.bg(theme::HOVER_CONTROL))
                 .active(|d| d.bg(theme::PRESSED))
         })
@@ -164,7 +256,8 @@ pub(crate) fn button_if(
         .text_size(theme::TEXT_LABEL)
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .when(enabled, |d| {
-            d.cursor_pointer()
+            keyboard_focus(d, Ring::Outside)
+                .cursor_pointer()
                 .hover(|d| d.bg(theme::HOVER_CONTROL))
                 .active(|d| d.bg(theme::PRESSED))
         })
@@ -187,8 +280,7 @@ pub(super) fn icon_button(
     label: impl Into<SharedString>,
 ) -> Stateful<Div> {
     let label: SharedString = label.into();
-    div()
-        .id(id)
+    keyboard_focus(div().id(id), Ring::Inside)
         .debug_selector(move || id.to_string())
         .flex_shrink_0()
         .w(theme::WIDTH_ICON_BUTTON)
@@ -209,9 +301,10 @@ pub(super) fn icon_button(
 /// A transparent toolbar button with one icon: 30 × 28, icon 16, for
 /// example Undo (decision 0029, section 5). `label` is the tooltip. A button
 /// that is not enabled shows a dim icon, with no hover and no pointer; the
-/// caller adds no click handler to it. The element ID contains the label:
-/// a tooltip that shows does not change its text, thus a new label must
-/// make a new element.
+/// caller adds no click handler to it. The element of the tooltip has an ID
+/// that contains the label: a tooltip that shows does not change its text,
+/// thus a new label must make a new element. The button itself keeps its
+/// ID, so that it keeps the keyboard focus when the label changes.
 pub(super) fn toolbar_button(
     id: &'static str,
     icon: IconName,
@@ -220,14 +313,12 @@ pub(super) fn toolbar_button(
 ) -> Stateful<Div> {
     let label: SharedString = label.into();
     div()
-        .id(SharedString::from(format!("{id}:{label}")))
+        .id(id)
         .debug_selector(move || id.to_string())
+        .when(enabled, |d| keyboard_focus(d, Ring::Inside))
         .flex_shrink_0()
         .w(theme::WIDTH_ICON_BUTTON)
         .h(theme::HEIGHT_CONTROL)
-        .flex()
-        .items_center()
-        .justify_center()
         .rounded(theme::RADIUS_CONTROL)
         .text_color(if enabled {
             theme::TEXT_SECONDARY
@@ -240,8 +331,16 @@ pub(super) fn toolbar_button(
                 .active(|d| d.bg(theme::PRESSED))
         })
         .accessible(Role::Button, label.clone())
-        .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
-        .child(Icon::new(icon).size(theme::ICON_TOOLBAR))
+        .child(
+            div()
+                .id(SharedString::from(format!("{id}:{label}")))
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
+                .child(Icon::new(icon).size(theme::ICON_TOOLBAR)),
+        )
 }
 
 /// A dot of 6 for a state, for example the connection.
@@ -299,7 +398,8 @@ pub(super) fn square_icon_button(
             theme::TEXT_DISABLED
         })
         .when(enabled, |d| {
-            d.cursor_pointer()
+            keyboard_focus(d, Ring::Outside)
+                .cursor_pointer()
                 .hover(|d| d.bg(theme::HOVER_CONTROL))
                 .active(|d| d.bg(theme::PRESSED))
         })
@@ -322,8 +422,7 @@ pub(super) fn popup_button(
     content: impl IntoElement,
 ) -> Stateful<Div> {
     let id: SharedString = id.into();
-    div()
-        .id(id.clone())
+    keyboard_focus(div().id(id.clone()), Ring::Outside)
         .debug_selector(move || id.to_string())
         .flex_1()
         .min_w_0()
@@ -377,8 +476,7 @@ pub(crate) fn switch(
 ) -> Stateful<Div> {
     let id: SharedString = id.into();
     let inset = (size.height - size.knob) / 2.;
-    div()
-        .id(id.clone())
+    keyboard_focus(div().id(id.clone()), Ring::Outside)
         .debug_selector({
             let id = id.clone();
             move || id.to_string()
@@ -468,6 +566,7 @@ pub(crate) fn segment_if(
         .when(selected, |d| {
             d.bg(theme::BG_SEGMENT_ON).text_color(theme::TEXT_ON_ACCENT)
         })
+        .when(enabled, |d| keyboard_focus(d, Ring::Inside))
         .when(!selected && enabled, |d| {
             d.text_color(theme::TEXT_SECONDARY)
                 .cursor_pointer()
@@ -483,9 +582,15 @@ pub(crate) fn segment_if(
 
 /// A slider (section 10.7): the filled part of the track is `accent`, and
 /// the thumb is white. A disabled slider has no thumb, and the filled part
-/// is `bg-segment-on`. `label` is the accessible label.
-pub(super) fn slider(state: &Entity<SliderState>, label: &'static str, disabled: bool) -> Slider {
-    Slider::new(state)
+/// is `bg-segment-on`. `label` is the accessible label. An enabled slider
+/// takes the keyboard focus ([`keyboard_focus`]): Left and Down move the
+/// thumb one step down, Right and Up one step up.
+pub(super) fn slider(
+    state: &Entity<SliderState>,
+    label: &'static str,
+    disabled: bool,
+) -> Stateful<Div> {
+    let slider = Slider::new(state)
         .accessibility_label(label)
         .disabled(disabled)
         .bg(if disabled {
@@ -493,7 +598,38 @@ pub(super) fn slider(state: &Entity<SliderState>, label: &'static str, disabled:
         } else {
             theme::ACCENT
         })
-        .text_color(theme::SWITCH_KNOB_COLOUR)
+        .text_color(theme::SWITCH_KNOB_COLOUR);
+    let keys = state.clone();
+    div()
+        .id(("slider-keys", state.entity_id()))
+        // The ring needs space around the track and the thumb. The negative
+        // margin keeps the slider at its place.
+        .px(theme::SLIDER_FOCUS_PADDING_X)
+        .mx(-theme::SLIDER_FOCUS_PADDING_X)
+        .py(theme::SLIDER_FOCUS_PADDING_Y)
+        .my(-theme::SLIDER_FOCUS_PADDING_Y)
+        .rounded(theme::RADIUS_CONTROL)
+        .when(!disabled, |d| {
+            keyboard_focus(d, Ring::Inside).on_key_down(move |event, window, cx| {
+                let keystroke = &event.keystroke;
+                // macOS marks an arrow key with the function modifier.
+                let modifiers = keystroke.modifiers;
+                if modifiers.control || modifiers.alt || modifiers.shift || modifiers.platform {
+                    return;
+                }
+                let direction = match keystroke.key.as_str() {
+                    "left" | "down" => -1.,
+                    "right" | "up" => 1.,
+                    _ => return,
+                };
+                cx.stop_propagation();
+                keys.update(cx, |state, cx| {
+                    let step = state.accessibility_step();
+                    state.step_thumb(false, direction * step, window, cx);
+                });
+            })
+        })
+        .child(slider)
 }
 
 /// A text field (section 10.2): height 28, radius 6, `body` text, the
@@ -612,8 +748,7 @@ pub(super) fn colour_sample(
     let id: SharedString = id.into();
     let label: SharedString = label.into();
     let outside = theme::SAMPLE_OUTLINE + theme::SAMPLE_OUTLINE_GAP;
-    div()
-        .id(id.clone())
+    keyboard_focus(div().id(id.clone()), Ring::Outside)
         .debug_selector(move || id.to_string())
         .relative()
         .flex_shrink_0()
@@ -739,12 +874,12 @@ pub(super) fn popup_menu(
                     .offset(point(px(0.), button_height))
                     .child(MenuKeys::new(
                         SharedString::from(format!("{keys_id}-keys")),
-                        move |scroll| {
+                        move |scroll, focus| {
                             div()
                                 .py(theme::MENU_OFFSET)
                                 .child(
                                     div()
-                                        .id(id)
+                                        .id(id.clone())
                                         .debug_selector(move || menu_id.to_string())
                                         .role(Role::Menu)
                                         .occlude()
@@ -769,7 +904,14 @@ pub(super) fn popup_menu(
                                         .text_size(theme::TEXT_CONTROL)
                                         .font_weight(gpui_kit::FontWeight::NORMAL)
                                         .text_color(theme::TEXT_PRIMARY)
-                                        .children(rows),
+                                        .children(rows)
+                                        .map(|menu| {
+                                            popover_focus(
+                                                menu,
+                                                SharedString::from(format!("{id}-trap")),
+                                                focus,
+                                            )
+                                        }),
                                 )
                                 .into_any_element()
                         },
@@ -778,6 +920,25 @@ pub(super) fn popup_menu(
             .with_priority(2),
         )
         .into_any_element()
+}
+
+/// The focus of a popover: a drawn menu, a colour popover, or the icon
+/// picker.
+///
+/// - The popover is a focus trap: with the focus in it, Tab and Shift-Tab
+///   move the focus between its controls only.
+/// - A click in the popover does not move the focus: the field of a
+///   popover keeps it while the user clicks a sample, and the popover does
+///   not take it.
+pub(super) fn popover_focus(
+    popover: Stateful<Div>,
+    id: SharedString,
+    focus: &FocusHandle,
+) -> impl IntoElement + use<> {
+    popover
+        .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
+        .on_action(|_: &FocusOwner, _, _| {})
+        .focus_trap(id, focus)
 }
 
 /// A row of a menu: height 28, radius 6. The menu paints the highlight
@@ -888,8 +1049,7 @@ pub(super) fn toggle_button(
 ) -> Stateful<Div> {
     let id: SharedString = id.into();
     let tooltip: SharedString = tooltip.into();
-    div()
-        .id(id.clone())
+    keyboard_focus(div().id(id.clone()), Ring::Outside)
         .debug_selector(move || id.to_string())
         .flex_shrink_0()
         .size(theme::WIDTH_SQUARE_BUTTON)
@@ -929,8 +1089,7 @@ pub(super) fn colour_button(
 ) -> Stateful<Div> {
     let id: SharedString = id.into();
     let tooltip: SharedString = tooltip.into();
-    div()
-        .id(id.clone())
+    keyboard_focus(div().id(id.clone()), Ring::Outside)
         .debug_selector(move || id.to_string())
         .flex_shrink_0()
         .size(theme::WIDTH_SQUARE_BUTTON)
@@ -962,8 +1121,7 @@ pub(super) fn chip(
 ) -> Stateful<Div> {
     let id: SharedString = id.into();
     let text: SharedString = text.into();
-    div()
-        .id(id.clone())
+    keyboard_focus(div().id(id.clone()), Ring::Inside)
         .debug_selector(move || id.to_string())
         .flex_shrink_0()
         .h(theme::HEIGHT_CHIP)
@@ -1023,10 +1181,16 @@ pub(super) fn key_hint(keys: impl Into<SharedString>) -> Div {
 pub(super) fn link(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
     let id: SharedString = id.into();
     let text: SharedString = text.into();
-    div()
-        .id(id.clone())
+    keyboard_focus(div().id(id.clone()), Ring::Inside)
         .debug_selector(move || id.to_string())
         .flex_shrink_0()
+        // The ring needs space around the text. The negative margin keeps
+        // the text at its place.
+        .px(theme::LINK_FOCUS_PADDING)
+        .mx(-theme::LINK_FOCUS_PADDING)
+        .py(theme::LINK_FOCUS_PADDING)
+        .my(-theme::LINK_FOCUS_PADDING)
+        .rounded(theme::RADIUS_BADGE)
         .text_size(theme::TEXT_LABEL)
         .text_color(theme::ACCENT_TEXT)
         .cursor_pointer()
@@ -1048,8 +1212,9 @@ pub(super) fn colour_circle(
     let id: SharedString = id.into();
     let label: SharedString = label.into();
     let outside = theme::SAMPLE_OUTLINE + theme::SAMPLE_OUTLINE_GAP;
-    div()
-        .id(id.clone())
+    // The ring is inside: a ring of a shadow outside keeps the corner radius
+    // of the circle, and looks square (`docs/kb/gpui.md`).
+    keyboard_focus(div().id(id.clone()), Ring::Inside)
         .debug_selector(move || id.to_string())
         .relative()
         .flex_shrink_0()
@@ -1088,8 +1253,7 @@ pub(crate) fn main_button(
 ) -> Stateful<Div> {
     let id: SharedString = id.into();
     let text: SharedString = text.into();
-    div()
-        .id(id.clone())
+    keyboard_focus(div().id(id.clone()), Ring::Outside)
         .debug_selector(move || id.to_string())
         .flex_shrink_0()
         .h(theme::HEIGHT_SHEET_CONTROL)
@@ -1139,10 +1303,38 @@ pub(crate) fn sheet_button(
             (true, false) => theme::TEXT_PRIMARY,
         })
         .when(enabled, |d| {
-            d.cursor_pointer()
+            keyboard_focus(d, Ring::Inside)
+                .cursor_pointer()
                 .hover(|d| d.bg(theme::HOVER_ICON))
                 .active(|d| d.bg(theme::PRESSED))
         })
         .accessible(Role::Button, text.clone())
         .child(label(text))
+}
+
+/// A window test asks which control has the keyboard focus: GPUI does not
+/// show the focus handle that it keeps for an element.
+#[cfg(test)]
+pub(crate) mod tests {
+    use gpui_kit::{actions, ElementId, VisualTestContext};
+    use std::cell::RefCell;
+
+    actions!(controls_test, [WhoHasFocus]);
+
+    thread_local! {
+        /// The ID of the control that answered [`WhoHasFocus`] last.
+        pub(super) static FOCUSED: RefCell<Option<ElementId>> = const { RefCell::new(None) };
+    }
+
+    /// The ID of the control with the keyboard focus, or `None` when no
+    /// control of [`super::keyboard_focus`] has it (for example the root
+    /// element or a text field).
+    pub(crate) fn focused(cx: &mut VisualTestContext) -> Option<String> {
+        FOCUSED.with(|focused| focused.borrow_mut().take());
+        cx.dispatch_action(WhoHasFocus);
+        cx.run_until_parked();
+        FOCUSED
+            .with(|focused| focused.borrow_mut().take())
+            .map(|id| id.to_string())
+    }
 }

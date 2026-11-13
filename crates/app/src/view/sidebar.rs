@@ -8,7 +8,7 @@
 //! a right click opens a native menu. The work of each row is in `pages`.
 
 use super::{
-    controls::{dot, icon_button},
+    controls::{dot, icon_button, keyboard_focus, Ring},
     pages::{page_title, MenuItem, NameEdit, Row},
     *,
 };
@@ -231,6 +231,7 @@ impl DeviceView {
                         .hover(|d| d.bg(theme::BG_CONTROL))
                 }
             })
+            .map(|d| keyboard_focus(d, Ring::Outside))
             .on_click(cx.listener(|view, _, window, cx| view.select_device(window, cx)))
             // A narrow sidebar shows only the start of a long model name.
             .tooltip({
@@ -350,6 +351,7 @@ impl DeviceView {
                     .accessible(Role::Button, ADD_A_PROFILE)
                     .tooltip(|window, cx| Tooltip::new(ADD_A_PROFILE).build(window, cx))
                     .child(Icon::new(IconName::Plus).size(theme::ICON_BUTTON))
+                    .map(|d| keyboard_focus(d, Ring::Inside))
                     .on_click(
                         cx.listener(|view, _, window, cx| view.start_new_profile(window, cx)),
                     ),
@@ -446,7 +448,8 @@ impl DeviceView {
         // On a different profile, a click selects that profile, as a click
         // on the row does.
         let triangle = if active {
-            triangle
+            keyboard_focus(triangle, Ring::Inside)
+                .rounded(theme::RADIUS_BADGE)
                 .accessible(
                     Role::Button,
                     if open {
@@ -499,6 +502,7 @@ impl DeviceView {
                 })
         };
         element
+            .when(!editing, |d| keyboard_focus(d, Ring::Inside))
             .when(!editing, |d| {
                 let id = id.clone();
                 d.on_click(cx.listener(move |view, event: &ClickEvent, window, cx| {
@@ -560,6 +564,7 @@ impl DeviceView {
                     })
                     .child((page + 1).to_string()),
             )
+            .when(!editing, |d| keyboard_focus(d, Ring::Inside))
             .when(!editing, |d| {
                 d.on_click(cx.listener(move |view, event: &ClickEvent, window, cx| {
                     if event.click_count() < 2 {
@@ -606,6 +611,7 @@ impl DeviceView {
             .cursor_pointer()
             .child(Icon::new(IconName::Plus).size(theme::ICON_SMALL))
             .child(ADD_A_PAGE)
+            .map(|d| keyboard_focus(d, Ring::Inside))
             .on_click(cx.listener(|view, _, _, _| (view.send)(Command::AddPage { copy_of: None })))
             .into_any_element()
     }
@@ -666,6 +672,7 @@ impl DeviceView {
                     .gap(theme::SPACE_8)
                     .text_color(theme::TEXT_SECONDARY)
                     .cursor_pointer()
+                    .map(|d| keyboard_focus(d, Ring::Inside))
                     .on_click(cx.listener(|view, _, _, cx| {
                         view.shell.update(cx, |shell, cx| {
                             shell.command(ShellCommand::OpenSettings(None), cx)

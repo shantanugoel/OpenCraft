@@ -70,7 +70,7 @@ a value.
 | `TEXT_DISABLED` | A disabled control, a dot of "Not connected" |
 | `TEXT_ON_ACCENT` | Text on `ACCENT` or on `BG_SEGMENT_ON` |
 | `ACCENT` | The selected row, the main button, a switch that is on, a slider fill |
-| `ACCENT_LINE` | The selection outline, the focus border of a field, the border of a control with an open menu or popover |
+| `ACCENT_LINE` | The selection outline, the focus border of a field, the focus ring, the border of a control with an open menu or popover |
 | `ACCENT_TEXT`, `ACCENT_TEXT_HOVER` | A link; the label of a selected knob; the dot of the last input |
 | `ACCENT_TINT`, `ACCENT_TINT_START`, `ACCENT_TINT_CHIP`, `ACCENT_TINT_DRAG`, `ACCENT_TINT_DROP` | The accent at 14 % (selected card), 16 % (selected starter card), 25 % (selected chip), 18 % (library row in a drag), 28 % (drop target) |
 | `SUCCESS`, `SUCCESS_TEXT`, `SUCCESS_TINT`, `SUCCESS_FILL` | Connected; the live state pill; the check badge of the first start |
@@ -95,6 +95,7 @@ a value.
 | `ACCENT_LINE_HOVER` | The outline of a canvas control under the pointer |
 | `MAIN_HOVER_OPACITY`, `MAIN_PRESSED_OPACITY` | The main button under the pointer, and pressed |
 | `MODAL_DIM` | The layer behind a sheet or the palette |
+| `focus_ring_outside()`, `focus_ring_inside()`, `FOCUS_RING` | The focus ring of a control with the keyboard focus: 2 in `ACCENT_LINE`, outside the edge of a control with a fill, inside the edge of a control with no fill (section 5) |
 
 ### 2.3 Text
 
@@ -167,6 +168,7 @@ The font is the system font. The window has no font file.
 | `WIDTH_ICON_BUTTON` | 30 | A transparent icon button (toolbar, sidebar top) |
 | `WIDTH_SQUARE_BUTTON`, `SAMPLE`, `COLOUR_CIRCLE` | 28, 22, 20 | A square button; a fill sample; a colour circle |
 | `BORDER`, `OUTLINE_WIDTH`, `HOVER_OUTLINE_WIDTH` | 1, 2, 1 | A border; the selection outline; the hover outline |
+| `LINK_FOCUS_PADDING`, `SLIDER_FOCUS_PADDING_X`, `_Y` | 2; 8, 4 | The space between a link or a slider and its focus ring |
 
 ### 2.7 Icons
 
@@ -203,6 +205,10 @@ inspector part). Do not copy a component and change it at the call site.
 
 ### 3.1 Controls (`crates/app/src/view/controls.rs`)
 
+Each control in this table that the user operates takes the keyboard focus
+when it is enabled (`keyboard_focus`, section 5). The "States" column does
+not repeat "focus" for them. A text field shows its focus with its border.
+
 | Function | Use it for | Do not use it for | States |
 |---|---|---|---|
 | `button`, `button_if` | A normal command button, 28 high: "Duplicate", "Open System Settings", "Export as a file…" | A button in a sheet button row (`sheet_button`), a small button in a row (`small_button`) | hover, pressed, disabled (`button_if`) |
@@ -215,7 +221,7 @@ inspector part). Do not copy a component and change it at the call site.
 | `popup_button` + `popup_menu` + `menu_row` + `menu_separator` | A choice from a list: the action popup, a choice field, the label size, the fit, "First page" | A command menu at the pointer (use a native menu) | hover, pressed, open (`ACCENT_LINE` border); the menu has the keys of `view/menu.rs` |
 | `segmented` + `segment`, `segment_if` | Two to five choices that all show: the tabs of the right panel, "Position", "Background", "Knob lights", the direction of a turn | More than five choices (use a popup button), a command | selected, hover, disabled |
 | `switch` | An on/off setting that applies at once | A choice between two named values (use a segmented control) | on, off |
-| `slider` | A number in a range: brightness | A number that the user types | disabled (no thumb) |
+| `slider` | A number in a range: brightness | A number that the user types | disabled (no thumb); Left, Right, Up, and Down move it one step |
 | `text_field`, `text_field_sized` (`FieldSize::sheet`) | Each text field: the inspector, a card (`BG_BAR`), a popover, a sheet | The name field in a sidebar row (it has the size of the row) | focus (`ACCENT_LINE` border) |
 | `search_field` | The search field of a panel: the library, the icon picker | The toolbar search (a button that opens the palette) | focus |
 | `colour_sample` | A fill sample of 22, "No fill" with `None` | A profile colour or an icon colour (use `colour_circle`) | selected (outline 2, 2 outside) |
@@ -229,6 +235,9 @@ inspector part). Do not copy a component and change it at the call site.
 | `key_hint` | A key command in a box: "⌘K" | A key command in a row (plain text) | none |
 | `dot` | A state dot of 6 | Decoration | none |
 | `HEX_HELP` | The help text below a field for `#RRGGBB` | — | — |
+| `keyboard_focus`, `Ring` | Each new control, row, or card with a click handler: Tab reaches it, Space and Return operate it, and it has the focus ring | A disabled control, a menu row (the menu has its own keys), a control of the device drawing | focus ring |
+| `keyboard_focus_tracked` | A group in which the arrow keys move the selection and the focus: the cards of the first start window | Other controls | focus ring |
+| `popover_focus` | Each drawn menu and popover (`popup_menu` adds it, the icon picker calls it): a focus trap, and a click in it keeps the focus | A sheet (`Modal` has its own trap) | — |
 
 ### 3.2 Inspector parts (`crates/app/src/view/form.rs`)
 
@@ -324,8 +333,8 @@ an element with no role are not in the accessibility tree
 | Hover | Each clickable element has a hover look and the pointer hand. A disabled element has neither. | `controls.rs` |
 | Pressed | Each button has `.active(PRESSED)`. A main button changes its opacity. | `controls.rs` |
 | Disabled | `TEXT_DISABLED`, no hover, no pointer, no click handler. Show a disabled control, do not hide it, when the user expects it at that place (for example "Move Up" on the first page). | `controls.rs` |
-| Focus | A text field with the focus has the `ACCENT_LINE` border. After a click that ends an edit, call `focus_workspace`, not `window.blur`: the key commands need the focus in the root element. | `view.rs` |
-| Keyboard | The key commands are in the key context `Workspace`. A focused text field keeps ⌘Z, ⇧⌘Z, ⌘C, ⌘V, and Delete. A drawn menu has Up, Down, Home, End, Return, and letters. Escape closes the menu, the popover, or the sheet. Return does the main action of a sheet. | `app_menu.rs`, `view/menu.rs`, `view/modal.rs` |
+| Focus | A text field with the focus has the `ACCENT_LINE` border. Each other control that the user operates takes the keyboard focus through `controls::keyboard_focus`: a shared control does this when it is enabled, and a row or a card with a click handler calls it. The control with the focus shows the focus ring (2, `ACCENT_LINE`) only when the focus came from the keyboard, as macOS does: GPUI `focus_visible` applies when the last input was a key. Outside the edge for a control with a fill (`Ring::Outside`: a button, a popup button, a switch, a sample), inside the edge for a control with no fill and for a colour circle (`Ring::Inside`: an icon button, a segment, a chip, a link, a row, a card). A click does not give a control the focus: the focus goes to the owner (`controls::FocusOwner`): the root element, the card of a sheet, or, in a popover, it stays where it is. After a click that ends an edit, call `focus_workspace`, not `window.blur`: the key commands need the focus in the root element. `focus_workspace` keeps the focus on a control that has it. When the element with the focus goes away, the focus goes to the root element (`on_focus_lost`). | `view/controls.rs`, `view.rs` |
+| Keyboard | Tab and Shift-Tab move the focus in the order of the window: the sidebar, the toolbar, the page header, the tabs of the right panel, the inspector, the status bar. A sheet, the palette, and a popover are focus traps. The cards of the first start window are one stop: the arrow keys move the selection and the focus. The controls of the device drawing and the rows of the library are not in the order: ⌘K selects a control and sets an action. Space and Return operate the control with the focus. In a sheet, Return does the main action also when a button has the focus, and Space operates that button, as in a sheet of macOS. The key commands are in the key context `Workspace`. They operate also when a control has the focus. A focused text field keeps ⌘Z, ⇧⌘Z, ⌘C, ⌘V, and Delete. With the focus on a button, Delete clears the selected control, as **Edit > Clear** does (decision 0029, "Focus rule"); undo restores it. A drawn menu has Up, Down, Home, End, Return, Space, and letters; Tab does nothing while it is open. Escape closes the menu, the popover, or the sheet. | `app_menu.rs`, `view/controls.rs`, `view/menu.rs`, `view/modal.rs` |
 | Command menu | A menu of commands at the pointer is a native menu: right-click, "⋯", the device switcher. Native menu items use title case. | `view/sidebar.rs`, `view/clipboard.rs` |
 | Choice menu | A choice from a popup button is a drawn menu (`popup_menu`). It shows below the button, else above, else covers the button. The first row is highlighted. A click outside closes it and does nothing else. | `controls.rs` |
 | Popover | A colour popover uses `popup_menu` with one row of content. A click on a sample applies at once, and the popover stays open. Escape, Return, a click outside, or a second click on its button closes it. A control with an open popover has no tooltip. | `view/inspector.rs`, `view/device_inspector.rs` |
@@ -435,6 +444,8 @@ corrections.
 | Show text on an image with no backing | Use `BADGE_ON_IMAGE` behind it |
 | Make a menu item that the palette also needs in two places | Add one row to `app_menu::commands` |
 | Use a different button size for the disabled state | `button_if(…, false)` keeps the size |
+| Make a row or a card with a click handler that the keyboard cannot reach | Call `controls::keyboard_focus` with the `Ring` of its look |
+| Put a changing text in the ID of an element that takes the focus | Keep the ID stable: the focus handle lives in the state of the element (`toolbar_button` puts the tooltip in a child) |
 
 ## 9. Checklist for a pull request that changes the window
 
@@ -464,7 +475,7 @@ These parts do not obey this document yet. Each one has an issue.
 
 | Difference | Issue |
 |---|---|
-| A control other than a text field does not take the keyboard focus, and has no focus ring. Tab does not move the focus. | [#242](https://github.com/shantanugoel/OpenCraft/issues/242) |
+| When a popover closes, the focus goes to the root element of the window, not back to the button that opened the popover. | [#248](https://github.com/shantanugoel/OpenCraft/issues/248) |
 | Nobody listened to the window with VoiceOver. The accessibility tree was read with the Accessibility API only. The procedure for the owner is in the issue. | [#243](https://github.com/shantanugoel/OpenCraft/issues/243) |
 | A disabled control has no disabled state in the accessibility tree: GPUI 0.3.12 has no setter for it. It has no click action. | Accepted until GPUI has the setter |
 | The knob name below a knob is a second click target of the knob. It has no role, so that VoiceOver reads the knob one time. | Accepted |

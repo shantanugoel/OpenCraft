@@ -235,6 +235,7 @@ mod backgrounds;
 mod canvas;
 mod clipboard;
 mod device;
+mod focus;
 mod history;
 mod hotkey;
 mod icons;

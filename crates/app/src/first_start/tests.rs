@@ -430,3 +430,43 @@ fn each_part_of_the_first_start_window_has_a_role_and_a_label(cx: &mut TestAppCo
     }
     assert!(has(Role::Button, "Start"), "{nodes:#?}");
 }
+
+/// The ID of the control with the keyboard focus after `key`.
+fn focus_after(visual: &mut VisualTestContext, key: &str) -> Option<String> {
+    visual.simulate_keystrokes(key);
+    visual.run_until_parked();
+    crate::view::controls::tests::focused(visual)
+}
+
+#[gpui_kit::test]
+fn tab_reaches_the_selected_card_and_start_and_the_arrows_move_the_focus(cx: &mut TestAppContext) {
+    let f = shell(cx);
+    let (view, mut visual) = open(&f, cx);
+    // The cards are one group: Tab reaches the selected card only.
+    assert_eq!(
+        focus_after(&mut visual, "tab").as_deref(),
+        Some("starter-0")
+    );
+    assert_eq!(
+        focus_after(&mut visual, "tab").as_deref(),
+        Some("first-start-start")
+    );
+    assert_eq!(
+        focus_after(&mut visual, "tab").as_deref(),
+        Some("starter-0")
+    );
+    // An arrow key moves the selection, and the focus goes with it.
+    assert_eq!(
+        focus_after(&mut visual, "right").as_deref(),
+        Some("starter-1")
+    );
+    assert_eq!(visual.update(|_, cx| view.read(cx).selected), 1);
+    assert_eq!(
+        focus_after(&mut visual, "shift-tab").as_deref(),
+        Some("first-start-start")
+    );
+    assert_eq!(
+        focus_after(&mut visual, "shift-tab").as_deref(),
+        Some("starter-1")
+    );
+}

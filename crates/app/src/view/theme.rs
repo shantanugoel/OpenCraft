@@ -237,6 +237,43 @@ pub fn popover_shadow() -> Vec<BoxShadow> {
     }]
 }
 
+/// The width of the focus ring of a control that has the keyboard focus
+/// (decision 0029, section 3.7: "outline 2 `accent-line`").
+pub const FOCUS_RING: Pixels = px(2.);
+/// The space between the text of a link and its focus ring.
+pub const LINK_FOCUS_PADDING: Pixels = SPACE_2;
+/// The space between a slider and its focus ring: at the sides, the space
+/// for the thumb at the ends of the track.
+pub const SLIDER_FOCUS_PADDING_X: Pixels = SPACE_8;
+pub const SLIDER_FOCUS_PADDING_Y: Pixels = SPACE_4;
+
+/// The focus ring outside the edge of a control with a fill, for example a
+/// button or a switch (`controls::Ring::Outside`). GPUI has no outline:
+/// a shadow with no blur draws the ring. The fill of the control covers the
+/// part of the shadow below it.
+pub fn focus_ring_outside() -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: ACCENT_LINE.into(),
+        offset: point(px(0.), px(0.)),
+        blur_radius: px(0.),
+        spread_radius: FOCUS_RING,
+        inset: false,
+    }]
+}
+
+/// The focus ring inside the edge of a control with no fill, for example
+/// an icon button or a row (`controls::Ring::Inside`). A shadow outside the
+/// edge would fill all of a transparent control.
+pub fn focus_ring_inside() -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: ACCENT_LINE.into(),
+        offset: point(px(0.), px(0.)),
+        blur_radius: px(0.),
+        spread_radius: FOCUS_RING,
+        inset: true,
+    }]
+}
+
 // MARK: Colour samples that are data
 //
 // The profile keeps the colour that the user selects. Do not change a stored

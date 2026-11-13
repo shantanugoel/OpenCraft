@@ -840,6 +840,7 @@ impl DeviceView {
                     .child("Search"),
             )
             .children(crate::settings_window::shortcuts::keys(&Search, cx).map(controls::key_hint))
+            .map(|d| controls::keyboard_focus(d, controls::Ring::Outside))
             .on_click(cx.listener(|view, _, window, cx| view.open_palette(window, cx)))
             .into_any_element()
     }

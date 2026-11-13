@@ -157,6 +157,9 @@ pub struct DeviceView {
     /// The scroll position of the inspector. It shows a scrollbar when its
     /// content is taller than the window.
     inspector_scroll: ScrollHandle,
+    /// Gives the focus back when the element with the focus is not drawn
+    /// any more, for example a button that a Space removed.
+    _focus_lost: Subscription,
 }
 
 impl DeviceView {
@@ -194,6 +197,12 @@ impl DeviceView {
         let background_image = state.background.image.as_deref().map(images::from_rgb);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
+        let focus_lost = cx.on_focus_lost(window, |view, window, cx| {
+            match window.focus_lost_restore_target(cx) {
+                Some(target) => window.focus(&target, cx),
+                None => view.focus_workspace(window, cx),
+            }
+        });
         let library = library::LibraryState::new(state.kinds.len(), window, cx);
         let permission = permission_sheet::PermissionSheet::new(cx);
         // The window notes each binding that it sends, for the Accessibility
@@ -231,6 +240,7 @@ impl DeviceView {
             permission,
             faces: states::StateFaces::new(window, cx),
             inspector_scroll: ScrollHandle::new(),
+            _focus_lost: focus_lost,
         }
     }
 
@@ -314,10 +324,18 @@ impl DeviceView {
     }
 
     /// Give the focus back to the root element, for example after a click
-    /// that ends an edit in a text field.
+    /// that ends an edit in a text field. A control in the root element
+    /// that has the keyboard focus keeps it: the key commands operate there
+    /// too, and the next Tab starts from that control (`controls`,
+    /// `keyboard_focus`).
     fn focus_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.end_text_edit(cx);
-        window.focus(&self.focus, cx);
+        let control = self.focus.contains_focused(window, cx)
+            && !self.focus.is_focused(window)
+            && gpui_kit::component::WindowExt::focused_input(window, cx).is_none();
+        if !control {
+            window.focus(&self.focus, cx);
+        }
     }
 
     /// Close a problem in this window and in the state of the shell.
@@ -422,6 +440,12 @@ impl DeviceView {
             .capture_key_down(
                 cx.listener(|view, event, window, cx| view.record_key(event, window, cx)),
             )
+            // A click on a control gives the focus to this element, also
+            // from a control with the keyboard focus: the ring goes away.
+            .on_action(cx.listener(|view, _: &controls::FocusOwner, window, cx| {
+                view.end_text_edit(cx);
+                window.focus(&view.focus, cx);
+            }))
             .on_action(cx.listener(|view, _: &ToggleSidebar, _, cx| view.toggle_sidebar(cx)))
             .on_action(cx.listener(|view, _: &ToggleInspector, window, cx| {
                 view.toggle_inspector(window, cx)

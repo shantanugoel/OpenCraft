@@ -16,7 +16,12 @@
 //!   card when the layer opens, and gives the focus back to the window when
 //!   it closes.
 //! - **Escape and Return.** The card gets the two keys before a text field
-//!   in it does, and calls the key function of the owner.
+//!   or a control in it does, and calls the key function of the owner. Thus
+//!   Return does the main action also when a button has the focus, as in a
+//!   sheet of macOS; Space operates the button with the focus.
+//! - **Tab.** The card is a focus trap: Tab and Shift-Tab move the focus
+//!   between the controls of the card only. A click on a control gives the
+//!   focus to the card (`controls::FocusOwner`).
 //! - **The button row.** [`button_row`] is the footer of a sheet: a button
 //!   at the start, for example "Remove the profile…", and the buttons at the
 //!   end, with the main button last.
@@ -26,10 +31,13 @@
 //! element of the window, outside the element of the key context
 //! `"Workspace"`.
 
-use super::{controls::Accessible, theme};
+use super::{
+    controls::{Accessible, FocusOwner},
+    theme,
+};
 use gpui_kit::{
-    div, prelude::*, AnyElement, App, Div, FocusHandle, KeyDownEvent, MouseButton, Pixels, Rgba,
-    Role, SharedString, Window,
+    base::FocusTrapElement, div, prelude::*, AnyElement, App, Div, FocusHandle, KeyDownEvent,
+    MouseButton, Pixels, Rgba, Role, SharedString, Window,
 };
 use std::rc::Rc;
 
@@ -126,6 +134,8 @@ impl Modal {
         let max_height = window.viewport_size().height - self.top - theme::SHEET_BOTTOM;
         let on_key = self.on_key.clone();
         let on_click_out = self.on_click_out.clone();
+        let focus = self.focus.clone();
+        let trap_id = SharedString::from(format!("{}-trap", self.id));
         div()
             .id(layer_id)
             .debug_selector(move || layer_selector.to_string())
@@ -151,6 +161,7 @@ impl Modal {
                     .accessible(Role::Dialog, self.label)
                     .key_context(MODAL)
                     .track_focus(&self.focus)
+                    .on_action(move |_: &FocusOwner, window, cx| window.focus(&focus, cx))
                     .capture_key_down(move |event: &KeyDownEvent, window, cx| {
                         let key = match event.keystroke.key.as_str() {
                             "escape" => ModalKey::Escape,
@@ -181,7 +192,8 @@ impl Modal {
                     .text_size(theme::TEXT_BODY)
                     .text_color(theme::TEXT_PRIMARY)
                     .cursor_default()
-                    .child(content),
+                    .child(content)
+                    .focus_trap(trap_id, &self.focus),
             )
             .into_any_element()
     }
