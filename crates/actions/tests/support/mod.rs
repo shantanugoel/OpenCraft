@@ -22,6 +22,7 @@ pub enum Call {
     Output(String),
     Application(String, Vec<String>),
     File(String),
+    Quit(String, bool),
     Url(String, Option<String>),
     Shell(String),
     /// A wait of a sequence, in milliseconds.
@@ -263,6 +264,9 @@ impl System for Fake {
     }
     fn open_file(&self, path: &str) -> Result<()> {
         self.record(Call::File(path.into()), "file")
+    }
+    fn quit_application(&self, application: &str, force: bool) -> Result<()> {
+        self.record(Call::Quit(application.into(), force), "quit")
     }
     fn open_url(&self, url: &str, application: Option<&str>) -> Result<()> {
         self.record(

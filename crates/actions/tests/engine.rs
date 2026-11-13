@@ -352,6 +352,7 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
         library,
         [
             ("Open an application", "System", None, false),
+            ("Quit an application", "System", None, false),
             ("Open a URL", "System", None, false),
             ("Run a shell command", "System", None, false),
             ("Send a hotkey", "System", accessibility, true),
@@ -396,6 +397,7 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
         icons,
         [
             ("Open an application", "app-window"),
+            ("Quit an application", "circle-x"),
             ("Open a URL", "globe"),
             ("Run a shell command", "terminal"),
             ("Send a hotkey", "keyboard"),

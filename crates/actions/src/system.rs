@@ -18,6 +18,8 @@ mod macos_functions;
 #[cfg(target_os = "macos")]
 mod macos_mouse;
 #[cfg(target_os = "macos")]
+mod macos_quit;
+#[cfg(target_os = "macos")]
 use macos as platform;
 
 #[cfg(not(target_os = "macos"))]
@@ -34,6 +36,8 @@ pub enum Error {
     NoVolume,
     #[error("the default sound input has no writable master mute")]
     NoInputMute,
+    #[error("the application does not run")]
+    NotRunning,
     #[error("the system refused the operation (code {0})")]
     System(i32),
     #[error("{0}")]
@@ -172,6 +176,13 @@ pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
 /// home folder.
 pub fn open_file(path: &str) -> Result<()> {
     platform::open_file(path)
+}
+
+/// Ask the running application that `application` names to quit. `force`
+/// stops it at once. `application` is a name, a bundle identifier, or the path
+/// of an application. The call does not wait for the end of the application.
+pub fn quit_application(application: &str, force: bool) -> Result<()> {
+    platform::quit_application(application, force)
 }
 
 /// Open a URL in `application` (a name, or the path of an application). With

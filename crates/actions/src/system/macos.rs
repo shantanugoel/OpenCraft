@@ -852,6 +852,10 @@ pub fn open_file(path: &str) -> Result<()> {
     open(&["--", &path])
 }
 
+pub fn quit_application(application: &str, force: bool) -> Result<()> {
+    super::macos_quit::quit(application, force)
+}
+
 pub fn open_url(url: &str, application: Option<&str>) -> Result<()> {
     match application {
         Some(application) => open(&["-a", &application_name(application)?, "--", url]),
