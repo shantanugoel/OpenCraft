@@ -56,6 +56,19 @@ pub fn watch_microphone(_: std::sync::mpsc::Sender<()>) -> Result<Box<dyn super:
     Err(Error::NotSupported)
 }
 
+pub fn output_devices() -> Result<Vec<super::OutputDevice>> {
+    Err(Error::NotSupported)
+}
+pub fn default_output() -> Result<super::OutputDevice> {
+    Err(Error::NotSupported)
+}
+pub fn set_output(_: &str) -> Result<()> {
+    Err(Error::NotSupported)
+}
+pub fn watch_output(_: std::sync::mpsc::Sender<()>) -> Result<Box<dyn super::AudioWatch>> {
+    Err(Error::NotSupported)
+}
+
 pub fn open_application(_: &str) -> Result<()> {
     Err(Error::NotSupported)
 }

@@ -303,7 +303,7 @@ impl DeviceView {
         };
         for field in &kind.fields {
             match field.input {
-                InputType::RuntimeChoice => out.push((
+                InputType::RuntimeChoice | InputType::RuntimeChoiceList => out.push((
                     FieldPath {
                         action: path.to_vec(),
                         key: field.key.clone(),
@@ -355,6 +355,7 @@ impl DeviceView {
             match field.input {
                 InputType::Choice { .. }
                 | InputType::RuntimeChoice
+                | InputType::RuntimeChoiceList
                 | InputType::Toggle
                 | InputType::Hotkey => {}
                 InputType::Action => {
@@ -1210,7 +1211,7 @@ impl DeviceView {
             )
         };
         let content = match &field.input {
-            InputType::Choice { .. } | InputType::RuntimeChoice => {
+            InputType::Choice { .. } | InputType::RuntimeChoice | InputType::RuntimeChoiceList => {
                 let dynamic;
                 let options = match &field.input {
                     InputType::Choice { options } => options,
@@ -1224,50 +1225,64 @@ impl DeviceView {
                         &dynamic
                     }
                 };
+                let multiple = field.input == InputType::RuntimeChoiceList;
+                let selected = choice_values(value, multiple);
                 let menu = Menu::Choice(field_path.clone());
                 let open = self.form.menu.as_ref() == Some(&menu);
-                let current = options
-                    .iter()
-                    .find(|o| value == Some(&Value::Text(o.value.clone())))
-                    .map(|o| o.label.clone())
-                    .unwrap_or_else(|| match value {
-                        Some(Value::Text(value)) if !value.is_empty() => {
-                            format!("{value} (not available)")
-                        }
-                        _ => "Select…".into(),
-                    });
+                let current = choice_text(&selected, options);
                 let toggle = menu.clone();
                 let menu_element = open.then(|| {
-                    let rows = options
-                        .iter()
-                        .enumerate()
-                        .map(|(option, item)| {
-                            let field_path = field_path.clone();
-                            let chosen = value == Some(&Value::Text(item.value.clone()));
-                            let v = item.value.clone();
-                            controls::menu_row(format!("{id}choice-{index}-{option}"))
-                                .child(
-                                    div()
-                                        .flex_shrink_0()
-                                        .w(theme::ICON_SMALL)
-                                        .when(chosen, |d| {
+                    // Include unavailable saved values so they can be removed
+                    // deliberately, never as a side effect of a device loss.
+                    let mut options = options.clone();
+                    for value in &selected {
+                        if !options.iter().any(|o| o.value == *value) {
+                            options.push(ChoiceOption {
+                                value: value.clone(),
+                                label: format!("{value} (not available)"),
+                            });
+                        }
+                    }
+                    let rows =
+                        options
+                            .iter()
+                            .enumerate()
+                            .map(|(option, item)| {
+                                let field_path = field_path.clone();
+                                let chosen = selected.contains(&item.value);
+                                let v = item.value.clone();
+                                let mut next = selected.clone();
+                                if chosen {
+                                    next.retain(|value| value != &v);
+                                } else {
+                                    next.push(v.clone());
+                                }
+                                let next = if multiple {
+                                    Value::List(next.into_iter().map(Value::Text).collect())
+                                } else {
+                                    Value::Text(v.clone())
+                                };
+                                controls::menu_row(format!("{id}choice-{index}-{option}"))
+                                    .child(div().flex_shrink_0().w(theme::ICON_SMALL).when(
+                                        chosen,
+                                        |d| {
                                             d.child(
                                                 Icon::new(IconName::Check).size(theme::ICON_SMALL),
                                             )
-                                        }),
-                                )
-                                .child(item.label.clone())
-                                .on_click(cx.listener(move |view, _, window, cx| {
-                                    view.form.menu = None;
-                                    if let Some(binding) = view.form_binding() {
-                                        view.set_field(binding, &field_path, Value::Text(v.clone()))
-                                    }
-                                    view.focus_workspace(window, cx);
-                                    cx.notify();
-                                }))
-                                .into_any_element()
-                        })
-                        .collect();
+                                        },
+                                    ))
+                                    .child(item.label.clone())
+                                    .on_click(cx.listener(move |view, _, window, cx| {
+                                        view.form.menu = None;
+                                        if let Some(binding) = view.form_binding() {
+                                            view.set_field(binding, &field_path, next.clone())
+                                        }
+                                        view.focus_workspace(window, cx);
+                                        cx.notify();
+                                    }))
+                                    .into_any_element()
+                            })
+                            .collect();
                     controls::popup_menu(
                         format!("{id}choice-{index}-menu"),
                         controls::MenuPlace::below(theme::HEIGHT_CONTROL),
@@ -1516,6 +1531,37 @@ pub(super) fn unreadable() -> Div {
         .text_size(theme::TEXT_LABEL)
         .text_color(theme::TEXT_TERTIARY)
         .child("OpenCraft cannot read the saved value. A change replaces it.")
+}
+
+fn choice_values(value: Option<&Value>, multiple: bool) -> Vec<String> {
+    match value {
+        Some(Value::Text(value)) if !multiple => vec![value.clone()],
+        Some(Value::List(values)) if multiple => values
+            .iter()
+            .filter_map(|value| match value {
+                Value::Text(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn choice_text(selected: &[String], options: &[ChoiceOption]) -> String {
+    if selected.is_empty() {
+        return "Select…".into();
+    }
+    selected
+        .iter()
+        .map(|value| {
+            options
+                .iter()
+                .find(|o| &o.value == value)
+                .map(|o| o.label.clone())
+                .unwrap_or_else(|| format!("{value} (not available)"))
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn value_text(value: Option<&Value>) -> String {

@@ -11,6 +11,7 @@ pub(crate) const TEXT: &str = "opencraft.type-text";
 pub(crate) const MEDIA: &str = "opencraft.media-key";
 pub(crate) const VOLUME: &str = "opencraft.volume";
 pub(crate) const MICROPHONE: &str = "opencraft.microphone-mute";
+pub(crate) const OUTPUT: &str = "opencraft.sound-output";
 pub(crate) const SHELL: &str = "opencraft.shell-command";
 pub(crate) const MOUSE: &str = "opencraft.mouse";
 pub(crate) const MAC_FUNCTION: &str = "opencraft.mac-function";
@@ -192,6 +193,24 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             )],
         ),
         MICROPHONE => ("Microphone mute", vec![]),
+        OUTPUT => {
+            let mut operation = field(
+                "operation",
+                "Operation",
+                choice(&[("set", "Set device"), ("next", "Next device")]),
+            );
+            operation.default = Some(Value::Text("set".into()));
+            let mut devices = field("devices", "Cycle list", InputType::RuntimeChoiceList);
+            devices.default = Some(Value::List(Vec::new()));
+            (
+                "Sound output",
+                vec![
+                    operation,
+                    field("device", "Device", InputType::RuntimeChoice),
+                    devices,
+                ],
+            )
+        }
         VOLUME => {
             let mut operation = field(
                 "operation",
@@ -297,6 +316,7 @@ fn icon(kind: &str) -> &'static str {
         MEDIA => "play",
         VOLUME => "volume-2",
         MICROPHONE => "mic",
+        OUTPUT => "speaker",
         PAGE => "arrow-right",
         PROFILE => "layers",
         TOGGLE => "toggle-left",
@@ -337,7 +357,7 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
         HOTKEY | TEXT | MOUSE | MAC_FUNCTION => (SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
-        MICROPHONE => (MEDIA_GROUP, None),
+        MICROPHONE | OUTPUT => (MEDIA_GROUP, None),
         PAGE | PROFILE => (NAVIGATION, None),
         TOGGLE | SEQUENCE => (LOGIC, None),
         APPLICATION | URL | SHELL => (SYSTEM, None),
@@ -360,7 +380,11 @@ pub(crate) fn setting_problem(kind: &str, key: &str) -> String {
         Some(InputType::Integer { min, max }) => {
             format!("set the field \"{label}\" to a number from {min} to {max}")
         }
-        Some(InputType::Choice { .. }) => format!("select a value in the field \"{label}\""),
+        Some(
+            InputType::Choice { .. } | InputType::RuntimeChoice | InputType::RuntimeChoiceList,
+        ) => {
+            format!("select a value in the field \"{label}\"")
+        }
         Some(InputType::Toggle) => format!("set the field \"{label}\" to On or Off"),
         Some(InputType::Hotkey) => format!("record a hotkey in the field \"{label}\""),
         Some(InputType::Action | InputType::ActionList | InputType::TimedActionList) => {

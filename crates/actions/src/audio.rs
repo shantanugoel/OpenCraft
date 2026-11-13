@@ -80,12 +80,37 @@ impl InputState {
     }
 }
 
-struct InputWorker {
+pub(crate) struct AudioWorker {
     wake: mpsc::Sender<()>,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
-impl Drop for InputWorker {
+impl AudioWorker {
+    pub(crate) fn spawn(
+        name: &str,
+        wake: mpsc::Sender<()>,
+        changed: mpsc::Receiver<()>,
+        mut watch: Box<dyn crate::system::AudioWatch>,
+        mut refresh: impl FnMut(crate::system::Result<()>) + Send + 'static,
+    ) -> std::io::Result<Self> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let cancelled = stop.clone();
+        let thread = std::thread::Builder::new()
+            .name(name.into())
+            .spawn(move || {
+                while changed.recv().is_ok() && !cancelled.load(Ordering::Acquire) {
+                    refresh(watch.refresh());
+                }
+            })?;
+        Ok(Self {
+            wake,
+            stop,
+            thread: Some(thread),
+        })
+    }
+}
+
+impl Drop for AudioWorker {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
         let _ = self.wake.send(());
@@ -101,7 +126,7 @@ pub(crate) struct MicrophoneHandler {
     system: Arc<dyn System>,
     sender: Option<MessageSender>,
     state: Arc<Mutex<InputState>>,
-    worker: Option<InputWorker>,
+    worker: Option<AudioWorker>,
 }
 impl MicrophoneHandler {
     pub(crate) fn new(system: Arc<dyn System>) -> Self {
@@ -154,7 +179,7 @@ impl MicrophoneHandler {
                 }
             }) {
             Ok(thread) => {
-                self.worker = Some(InputWorker {
+                self.worker = Some(AudioWorker {
                     wake,
                     stop,
                     thread: Some(thread),

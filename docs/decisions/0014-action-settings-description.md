@@ -87,6 +87,7 @@ action.
 | Integer, with a minimum and a maximum | A number | Integer |
 | Choice, with a list of options | One option. An option has a value and a label. | Text: the value of the option |
 | Run-time choice | One option from the handler | Text: a stable identifier |
+| Run-time choice list | An ordered set of options from the handler | List of text: stable identifiers |
 | Colour | An RGB colour | Text: `#RRGGBB`, with no alpha channel |
 | Toggle | On or off | Boolean |
 | Hotkey | A key with modifier keys | Text, for example `shift+cmd+4` |
@@ -109,6 +110,15 @@ stays in the settings. The popup shows that value with “not available”.
 The handler checks availability when it runs the action. An empty list
 does not clear a setting. Colour fields use the shared fill samples and a
 hex field. Only a complete RGB colour changes the settings.
+
+Note (2026-11-13): issue
+[#278](https://github.com/shantanugoel/OpenCraft/issues/278) added the list
+form of a run-time choice, for an ordered cycle. It uses the same request
+and reply. The menu shows a check for each selected value. A click adds a
+value at the end or removes it. The popup shows the selected labels in
+order. A saved unavailable value stays in the menu, with “not available”,
+so the user can remove it deliberately. There is no limit on the number of
+choices in the settings. The engine still reads none of them.
 
 The form of a hotkey text: modifiers and an optional key name, all in
 small letters with `+` between them. Modifier order is `ctrl`, `rightctrl`,
