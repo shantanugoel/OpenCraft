@@ -37,7 +37,9 @@ fn setting_problem(kind: &KindDescription, key: &str, value: &Value) -> Option<S
         // An application by its name: `open -a` finds it on each Mac.
         (InputType::Path { .. }, Value::Text(t)) => !t.contains('/') && !t.trim().is_empty(),
         (InputType::Action, value) => Action::from_value(value).is_some(),
-        (InputType::ActionList, value) => Action::list_from_value(value).is_some(),
+        (InputType::ActionList | InputType::TimedActionList, value) => {
+            Action::list_from_value(value).is_some()
+        }
         _ => false,
     };
     // No path of one computer: no home folder, and no absolute path.

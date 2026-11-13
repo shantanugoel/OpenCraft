@@ -421,7 +421,7 @@ window code, except as test data.
 |---|---|
 | The shell has no list of action kinds (rule 8). The library, the kind menu, the palette, and the permission texts read `Event::Kinds`. | `library::groups` |
 | The shell does not compare a kind identifier with a built-in identifier. A property of a kind is a field of `KindDescription`. | `direction`, `states`, `needs_accessibility` |
-| The settings form of an action comes from its description (decision 0014). | `view/actions.rs` |
+| The settings form of an action comes from its description (decision 0014). A timed action list adds the shared integer field of decision 0017 to each open step. | `view/actions.rs` |
 | The device drawing comes from `Event::Layout`. No check for a model (rule 4). | `view/canvas.rs` |
 | The commands of the menus, the "Shortcuts" pane, and the palette come from one table. | `app_menu::commands` |
 | The key text of a command comes from its key binding. | `settings_window::shortcuts::keys` |

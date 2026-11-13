@@ -317,7 +317,7 @@ impl DeviceView {
                         self.choice_fields(&inner, &child(path, &field.key, None), out);
                     }
                 }
-                InputType::ActionList => {
+                InputType::ActionList | InputType::TimedActionList => {
                     for (item, inner) in list(action, &field.key).iter().enumerate() {
                         self.choice_fields(inner, &child(path, &field.key, Some(item)), out);
                     }
@@ -339,6 +339,17 @@ impl DeviceView {
         let Some(kind) = self.kind(&action.kind) else {
             return;
         };
+        if let Some(field) = self.step_delay_field(path) {
+            out.push((
+                FieldPath {
+                    action: path.to_vec(),
+                    key: field.key.clone(),
+                },
+                action.kind.clone(),
+                false,
+                value_text(action.settings.get(&field.key).or(field.default.as_ref())),
+            ));
+        }
         for field in &kind.fields {
             let value = action.settings.get(&field.key);
             match field.input {
@@ -351,7 +362,7 @@ impl DeviceView {
                         self.text_fields(&inner, &child(path, &field.key, None), out);
                     }
                 }
-                InputType::ActionList => {
+                InputType::ActionList | InputType::TimedActionList => {
                     for (item, inner) in list(action, &field.key).iter().enumerate() {
                         self.text_fields(inner, &child(path, &field.key, Some(item)), out);
                     }
@@ -367,6 +378,31 @@ impl DeviceView {
                 )),
             }
         }
+    }
+
+    /// Timing is a property of the parent list, not of the child's kind.
+    pub(super) fn step_delay_field(&self, path: &[Slot]) -> Option<Field> {
+        let (slot, parent_path) = path.split_last()?;
+        let item = slot.item?;
+        let root = self.edit_action(self.form_binding()?)?;
+        let parent = contained(&root, parent_path)?;
+        let field = self
+            .kind(&parent.kind)?
+            .fields
+            .iter()
+            .find(|f| f.key == slot.key)?;
+        if field.input != InputType::TimedActionList {
+            return None;
+        }
+        let default = if item == 0 {
+            0
+        } else {
+            match parent.settings.get("delay_ms") {
+                Some(Value::Integer(ms)) => *ms,
+                _ => 100,
+            }
+        };
+        Some(Field::step_delay(default))
     }
 
     fn text_input(
@@ -447,11 +483,13 @@ impl DeviceView {
             return None;
         }
         let action = contained(&self.edit_action(owner.1)?, &path.action)?;
-        let field = self
-            .kind(&action.kind)?
-            .fields
-            .iter()
-            .find(|f| f.key == path.key)?;
+        let timing = self.step_delay_field(&path.action);
+        let field = timing.as_ref().filter(|f| f.key == path.key).or_else(|| {
+            self.kind(&action.kind)?
+                .fields
+                .iter()
+                .find(|f| f.key == path.key)
+        })?;
         let value = match field.input {
             InputType::Colour => {
                 let colour = super::inspector::parse_colour(&text)?;
@@ -616,10 +654,23 @@ impl DeviceView {
                 };
                 let current = self.edit_action(binding).and_then(|a| contained(&a, &path));
                 // Selecting the same kind must not reset its settings to defaults.
-                if current.is_some_and(|a| Some(&a.kind) == kind.as_ref()) {
+                if current
+                    .as_ref()
+                    .is_some_and(|a| Some(&a.kind) == kind.as_ref())
+                {
                     return;
                 }
-                let new = kind.and_then(|kind| self.default_action(&kind));
+                let mut new = kind.and_then(|kind| self.default_action(&kind));
+                if let (Some(field), Some(new)) = (self.step_delay_field(&path), new.as_mut()) {
+                    if let Some(value) = current
+                        .as_ref()
+                        .and_then(|a| a.settings.get(&field.key))
+                        .cloned()
+                        .or(field.default)
+                    {
+                        new.settings.insert(field.key, value);
+                    }
+                }
                 let Some((slot, parent)) = path.split_last() else {
                     return;
                 };
@@ -654,7 +705,7 @@ impl DeviceView {
                 let Some(binding) = self.form_binding() else {
                     return;
                 };
-                let Some(new) = kind.and_then(|kind| self.default_action(&kind)) else {
+                let Some(mut new) = kind.and_then(|kind| self.default_action(&kind)) else {
                     return;
                 };
                 let Some(count) = self
@@ -664,6 +715,11 @@ impl DeviceView {
                 else {
                     return;
                 };
+                if let Some(field) = self.step_delay_field(&child(&path, &key, Some(count))) {
+                    if let Some(value) = field.default {
+                        new.settings.insert(field.key, value);
+                    }
+                }
                 // The new step opens (section 10.3).
                 self.open_nested(&child(&path, &key, Some(count)));
                 self.edit_as(binding, Some("Add Step"), |root| {
@@ -1046,6 +1102,16 @@ impl DeviceView {
     ) -> Vec<AnyElement> {
         let id = prefix(path);
         let mut rows = Vec::new();
+        if let Some(field) = self.step_delay_field(path) {
+            rows.push(self.field_row(
+                path,
+                usize::MAX,
+                &field,
+                action.settings.get(&field.key).or(field.default.as_ref()),
+                window,
+                cx,
+            ));
+        }
         if !available {
             rows.push(
                 div()
@@ -1069,7 +1135,7 @@ impl DeviceView {
         } else if let Some(kind) = self.kind(&action.kind) {
             let on_label = self.on_label_in_faces(path);
             for (index, field) in kind.fields.iter().enumerate() {
-                if field.input == InputType::ActionList || on_label.as_ref() == Some(&field.key) {
+                if field.input.is_action_list() || on_label.as_ref() == Some(&field.key) {
                     continue;
                 }
                 if replace.as_ref().is_some_and(|(key, _)| *key == field.key) {
@@ -1398,7 +1464,7 @@ impl DeviceView {
                 )
             }
             // A step list is above the form: see `action_rows`.
-            InputType::ActionList => div(),
+            InputType::ActionList | InputType::TimedActionList => div(),
             input => {
                 let integer = matches!(input, InputType::Integer { .. });
                 let text = self.form.inputs.get(&field_path).map(|input| {

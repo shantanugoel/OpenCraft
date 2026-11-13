@@ -98,6 +98,27 @@ of actions, and a delay between two actions in milliseconds.
   only tool for an action that needs time, for example the start of an
   application.
 
+## Amendment: a delay before each step (#282)
+
+The input type `TimedActionList` adds timing to an action list. The
+sequence uses this type. Each step keeps the optional integer
+`delay_before_ms` in its settings. The range is 0 to 10000 milliseconds.
+This key is metadata of the containing list, not a field of the child's
+kind. The sequence removes it before it asks the engine to do the child.
+
+- The delay is **before** the step. This also permits a wait before the
+  first step. There is no wait after the last step.
+- A missing value is zero for the first step. For each later step, it is
+  the sequence's existing `delay_ms`, with its existing default of 100.
+  Thus an old profile has exactly the same timing, with no migration.
+- The window reads the list type from the description, not the kind
+  identifier. It adds a shared integer field to the open step's form.
+- A new step gets an explicit delay. Before a move or removal, the window
+  makes inherited delays explicit. A replacement kind keeps the delay.
+  Copy and paste keep the settings, and undo keeps the whole action.
+- No profile schema change is necessary: settings already keep arbitrary
+  integer values. The table form of an action does not change.
+
 ## Results
 
 - The toggle and the sequence are handlers in `opencraft-actions`. The

@@ -477,7 +477,8 @@ step.
 | Setting | What to give |
 |---|---|
 | The steps | The list of actions, in their order |
-| Delay between two actions, in milliseconds | From 0 to 10000. The default is 100. |
+| Delay before, in milliseconds (in each open step) | From 0 to 10000. The wait before this step starts. |
+| Delay between two actions, in milliseconds | The default for a step with no delay of its own. The default is 100. |
 
 ![A sequence of four steps. Step 1 is open.](images/sequence.png)
 
@@ -485,7 +486,7 @@ The card of the sequence shows one row for each step: a handle, the number,
 the action kind, and a short value.
 
 1. Click **Add a step**. Select an action kind. The new step opens.
-2. Set the settings of that step on its card.
+2. Set **Delay before, in milliseconds** and the action settings on its card.
 3. Do steps 1 and 2 again for each action.
 
 - Click a step to open it. Click the top row of the open step to close it.
@@ -493,6 +494,18 @@ the action kind, and a short value.
   also right-click the step, and click **Move Up** or **Move Down**.
 - To remove a step, right-click it and click **Remove**. An open step also
   has the button **⋯** with the same menu.
+- The delay of a step is **before** the step. There is no wait after the
+  last step.
+- A new step gets the value of **Delay between two actions** as its delay.
+  A new first step gets 0.
+- Each step keeps its delay when you move it or change its action kind.
+  Copy and paste of the control, and undo, keep all step delays.
+- A sequence from an older version of OpenCraft keeps its timing: the first
+  step starts at once, and each later step waits for **Delay between two
+  actions**. You can change the delay of each step.
+
+![A sequence of three steps. Step 2 is open and waits 1500 milliseconds before it starts.](images/sequence-step-delay.png)
+
 - Each change is one step of the undo history, for example "Undo Move Step".
   Push Command-Z to undo it.
 
@@ -500,7 +513,7 @@ Notes:
 
 - The sequence does not wait until an action is complete. The delay is the
   only wait. For an action that needs time, for example the start of an
-  application, set a longer delay.
+  application, set a longer delay before the next step.
 - A sequence and a toggle can contain each action kind, also a different
   toggle or sequence. For example, the action "From Off to On" of a toggle
   can be a sequence.

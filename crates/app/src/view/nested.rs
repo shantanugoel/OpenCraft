@@ -34,8 +34,24 @@ use gpui_kit::{
     component::{native_menu::NativeMenu, tooltip::Tooltip, Icon},
     FontWeight, MouseButton, MouseDownEvent, Pixels, Point,
 };
-use opencraft_engine::{Action, BindingId, InputType, Value};
+use opencraft_engine::{Action, BindingId, Field, InputType, Value};
 use std::collections::BTreeSet;
+
+/// Make inherited timing explicit before a change of list positions.
+fn keep_step_delays(items: &mut [Action], timing: Option<&Field>) {
+    if let Some(field) = timing {
+        for (index, item) in items.iter_mut().enumerate() {
+            let default = if index == 0 {
+                Some(Value::Integer(0))
+            } else {
+                field.default.clone()
+            };
+            if let Some(value) = default {
+                item.settings.entry(field.key.clone()).or_insert(value);
+            }
+        }
+    }
+}
 
 // The items of the menu of a step. A native menu item sends its action to
 // the focused element, thus the root element of the window handles them
@@ -193,7 +209,9 @@ impl DeviceView {
                 _ => String::new(),
             },
             InputType::Action => kind.name.clone(),
-            InputType::ActionList => steps_text(list(action, &field.key).len()),
+            InputType::ActionList | InputType::TimedActionList => {
+                steps_text(list(action, &field.key).len())
+            }
             InputType::Path { .. } => std::path::Path::new(&text)
                 .file_name()
                 .map_or(text.clone(), |name| name.to_string_lossy().into_owned()),
@@ -206,11 +224,7 @@ impl DeviceView {
     /// card shows the fields.
     fn summary(&self, action: &Action) -> String {
         self.kind(&action.kind)
-            .and_then(|kind| {
-                kind.fields
-                    .iter()
-                    .find(|f| f.input == InputType::ActionList)
-            })
+            .and_then(|kind| kind.fields.iter().find(|f| f.input.is_action_list()))
             .map(|field| steps_text(list(action, &field.key).len()))
             .unwrap_or_default()
     }
@@ -275,6 +289,7 @@ impl DeviceView {
             return;
         };
         let key = list.key.clone();
+        let timing = self.step_delay_field(&list.step(1));
         let mut done = false;
         self.edit_as(binding, Some("Move Step"), |root| {
             super::actions::change(root, &list.path, |action| {
@@ -282,6 +297,7 @@ impl DeviceView {
                 if from == to || from >= items.len() || to >= items.len() {
                     return;
                 }
+                keep_step_delays(&mut items, timing.as_ref());
                 let item = items.remove(from);
                 items.insert(to, item);
                 action.settings.insert(key, Action::list_to_value(&items));
@@ -309,12 +325,14 @@ impl DeviceView {
         };
         let key = list.key.clone();
         let mut done = false;
+        let timing = self.step_delay_field(&list.step(1));
         self.edit_as(binding, Some("Remove Step"), |root| {
             super::actions::change(root, &list.path, |action| {
                 let mut items = super::actions::list(action, &key);
                 if item >= items.len() {
                     return;
                 }
+                keep_step_delays(&mut items, timing.as_ref());
                 items.remove(item);
                 action.settings.insert(key, Action::list_to_value(&items));
                 done = true;
@@ -432,7 +450,7 @@ impl DeviceView {
         let lists: Vec<AnyElement> = kind
             .fields
             .iter()
-            .filter(|f| f.input == InputType::ActionList)
+            .filter(|f| f.input.is_action_list())
             .map(|field| {
                 self.step_list(
                     StepList {

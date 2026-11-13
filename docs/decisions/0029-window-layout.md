@@ -897,7 +897,11 @@ description to "From Off to On" (field `on`) and "From On to Off" (field
 - An empty nested card is a dashed card "Add an action" (section 10.3), of
   height 32.
 
-**Step list** (input type `ActionList`).
+**Step list** (input type `ActionList` or `TimedActionList`).
+
+For `TimedActionList` (#282), the open step starts with the shared integer
+field "Delay before, in milliseconds". The rules for its data and defaults
+are in the [amendment of decision 0017](0017-toggle-and-sequence-actions.md#amendment-a-delay-before-each-step-282).
 
 - One row for each step: height 34, padding 0 8, gap 8, a line
   `line-section` at the bottom. A drag handle (six dots, 12 × 14,
@@ -912,7 +916,8 @@ description to "From Off to On" (field `on`) and "From On to Off" (field
   radius 6, dashed border `border-overlay`, a plus icon 11, `label`
   weight 500, `text-secondary`. A click opens the kind menu.
 - Below the step list, the field "Delay between two actions, in
-  milliseconds" stays, as a normal row.
+  milliseconds" stays, as a normal row. It is the default for inherited
+  delays in an old sequence.
 - The short value of a step: the value of its first field, as text. For a
   hotkey, the keys with symbols, for example "⇧⌘A" (the order of macOS: ⌃ ⌥ ⇧ ⌘, and then the
   key). For a choice, the

@@ -253,7 +253,10 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             delay.default = Some(Value::Integer(DEFAULT_DELAY));
             (
                 "Sequence of actions",
-                vec![field("actions", "Actions", InputType::ActionList), delay],
+                vec![
+                    field("actions", "Actions", InputType::TimedActionList),
+                    delay,
+                ],
             )
         }
         _ => {
@@ -360,7 +363,7 @@ pub(crate) fn setting_problem(kind: &str, key: &str) -> String {
         Some(InputType::Choice { .. }) => format!("select a value in the field \"{label}\""),
         Some(InputType::Toggle) => format!("set the field \"{label}\" to On or Off"),
         Some(InputType::Hotkey) => format!("record a hotkey in the field \"{label}\""),
-        Some(InputType::Action | InputType::ActionList) => {
+        Some(InputType::Action | InputType::ActionList | InputType::TimedActionList) => {
             format!("select the action in the field \"{label}\" again")
         }
         Some(_) => format!("type a value in the field \"{label}\""),

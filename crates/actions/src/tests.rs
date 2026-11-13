@@ -900,7 +900,7 @@ fn the_kinds_that_ask_the_engine_have_the_fields_of_their_decisions() {
     assert_eq!(
         fields("sequence"),
         [
-            ("actions", InputType::ActionList, None),
+            ("actions", InputType::TimedActionList, None),
             (
                 "delay_ms",
                 InputType::Integer {
