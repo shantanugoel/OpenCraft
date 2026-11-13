@@ -522,6 +522,9 @@ fn the_page_kind_changes_the_page_through_the_engine() {
     assert_eq!(world.engine.active_page(), 1);
 }
 
+// The test compares key faces with and with no label. Only macOS draws the
+// text of a label (decision 0010).
+#[cfg(target_os = "macos")]
 #[test]
 fn a_page_key_shows_its_page_number_only_when_the_setting_is_on() {
     let mut world = World::new();
