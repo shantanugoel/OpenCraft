@@ -1,12 +1,12 @@
 # VSD Craft, the vendor software
 
-Last update: 2026-11-12
+Last update: 2026-11-13
 
 VSD Craft is the vendor software that OpenCraft replaces.
 
 ## Footprint when it runs
 
-The agent measured VSD Craft 3.10.201.0605 on the computer of the owner on
+The agent measured the installed VSD Craft on the computer of the owner on
 2026-11-11, with the script
 [measure-footprint.sh](../../scripts/README.md#measure-footprintsh). The device
 was connected, and nobody touched it. The active scene had a video background
@@ -43,6 +43,7 @@ The processes, with the window open:
 | The device shows the first page 4.2 seconds after the start of the application (`open -a`) | Measured: 1 time | Camera, 10 pictures each second |
 | 11.8 seconds after the start, the set of processes and its total footprint were stable, at 738.2 MiB | Measured: 1 time | Script, option `--startup` |
 | When VSD Craft quits, the displays and the knob lights of the device go off | Measured: 1 time | Camera. See [streamdock-protocol.md](streamdock-protocol.md#keep-alive-and-stop). |
+| `Info.plist` says version 3.10.201.0605. The running code and the Settings page say version 3.10.201.0625. | Source, Measured | `Info.plist` (Source). The running application and the Settings page (Measured). Analysis, 2026-11-12. |
 
 The time to the first page is not the full "time to a ready device" of the
 product targets: no person pressed a key to see if the device responded.
@@ -50,30 +51,33 @@ product targets: no person pressed a key to see if the device responded.
 ## Size on disk
 
 The size on disk was measured on the computer of the owner, on or before
-2026-11-10. The version of VSD Craft was not recorded.
+2026-11-10. The version of VSD Craft was not recorded. The analysis of
+2026-11-12 corrected the rows for `motionGraphLib/` and for the plug-ins.
 
 | Fact | Confidence |
 |---|---|
 | `/Applications/VSD Craft.app` is 1.3 GB | Measured |
 | `defaultData/` is 338 MB: default profiles and plug-ins | Measured |
 | `videoBackground/` is 43 MB: MP4 and GIF backgrounds | Measured |
-| `motionGraphLib/` is 9.4 MB: an animation runtime | Measured |
-| `plugins/` is 15 MB: 29 `.sdPlugin` plug-ins | Measured |
+| `motionGraphLib/` is 9.4 MB: 24 GIF files for key-press effects. It is not an animation runtime. | Measured, Source |
+| `Resources/plugins/` holds 28 native plug-ins. The plug-ins have no code. | Measured, Source |
 | The application contains Qt 6 with QtQuick and QtMultimedia | Measured |
 | The application contains QCefView, which is an embedded Chromium | Measured |
-| The plug-ins run in Node.js processes that connect through a WebSocket. 3 Node.js processes ran for 29 plug-ins. | Inference (the WebSocket), Measured (the 3 processes) |
+| The application has 41 plug-ins. 3 of them use Node.js. The footprint measurement counted 3 Node.js processes. | Measured, Source |
 | Most of the memory is in the Chromium processes. The sum of their medians is 460.2 MiB. The median of the total footprint is 698.8 MiB. | Measured |
 
 ## Behaviour
 
 | Fact | Confidence | Source |
 |---|---|---|
-| The software has a "Touch Bar mode", which the user selects for each scene | Source | Mirabox tutorial |
-| "Touch Bar mode does not follow pages." Each scene has one touch bar. | Source | Mirabox tutorial |
+| Touch Bar mode is a setting of the device. It is not a setting of a scene. | Measured | The window of VSD Craft 3.10.201. Analysis, 2026-11-12. |
+| The pills of Touch Bar mode are the small key actions on the touch bar. They belong to the scene. | Measured | The same window. |
+| A Node.js plug-in opens a WebSocket on the local computer. | Source | The plug-in launch arguments. Analysis, 2026-11-12. |
 | "When Touchbar Mode is enabled, knob icons will not be displayed on the device interface." | Source | Mirabox tutorial |
 | The screen can show a dynamic background behind dynamic icons | Source | VSDinside product text |
 | The plug-in namespace of the vendor is `com.hotspot.streamdock.*` | Inference | First plan. Not examined. |
-| The profiles are folders for each device model, with `.sdPlugin` JSON files | Inference | First plan. Not examined. |
+| A scene is a folder. The folder name ends with `.sdProfile`. The folder holds `manifest.json`. | Measured, Source | The profile folders. Analysis, 2026-11-12. |
+| An export of a scene is a ZIP archive of that folder. | Measured, Source | An export file. Analysis, 2026-11-12. |
 
 ## Device settings (2026-11-12)
 
@@ -82,9 +86,9 @@ did not operate VSD Craft for these facts.
 
 | Fact | Confidence | Source |
 |---|---|---|
-| VSD Craft keeps the display brightness and the knob light brightness for each device in its application configuration file, `StreamDockConfig.plist`, in the sections `DeviceBrightness` and `DeviceLightBrightness`. The key of each value names the device model and the serial number of the device. | Measured | The configuration file |
+| The file `StreamDockConfig.plist` is INI text, not a property list. It keeps the display brightness and the knob light brightness for each device, in the sections `DeviceBrightness` and `DeviceLightBrightness`. The key of each value names the device model and the serial number of the device. | Measured, Source | The configuration file. Analysis, 2026-11-12. |
 | The same file has a screen-off time for each device (`ScreenOffTime`) | Measured | The configuration file |
-| We found no brightness value in the profile files of VSD Craft | Measured | A text search of its profile files |
+| A text search of the profile files found no brightness value | Measured | The profile files |
 | The settings of VSD Craft include "Activate vibration", and a "Lighting control" with the choices "Light" and "Follow the software" | Source | The English text resources in the application binary |
 | The function names `addQUCMDCommand` and `sendQUCMDCommand` are in a library of VSD Craft | Source | The symbol names in `libSDLibrary` |
 
@@ -92,8 +96,6 @@ did not operate VSD Craft for these facts.
 
 - The processor use of VSD Craft with a scene that has no video background.
 - The time until the device responds to a key after the start of VSD Craft.
-- The profile format. This is necessary only for an import function, which is
-  not in a phase.
 - How "Touch Bar mode" draws on the touch bar. Two methods can draw one
   image across the touch bar: an image that is larger than its surface, and
   the background. See
