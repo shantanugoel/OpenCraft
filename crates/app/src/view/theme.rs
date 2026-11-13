@@ -910,7 +910,8 @@ pub const SUCCESS_FILL: Rgba = hex(0x1e7a46);
 /// selected card (the accent at 16 %).
 pub const RADIUS_STARTER_CARD: Pixels = px(10.);
 pub const ACCENT_TINT_START: Rgba = hex_alpha(0x1a6fd8, 0.16);
-/// A cell of the key picture of a starter profile card, and its radius.
+/// A cell of the key picture of a starter profile card, and its radius. A
+/// cell shows the fill colour of its key only (decision 0029, section 18).
 pub const STARTER_CELL: Pixels = px(14.);
 pub const RADIUS_STARTER_CELL: Pixels = px(3.);
 /// The box about the Accessibility permission: its corner radius, and the

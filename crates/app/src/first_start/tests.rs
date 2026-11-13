@@ -201,6 +201,42 @@ fn with_a_device_the_window_shows_the_model_the_badge_and_the_four_cards(cx: &mu
 }
 
 #[gpui_kit::test]
+fn a_cell_of_a_card_shows_the_fill_colour_of_its_key_and_no_image(cx: &mut TestAppContext) {
+    let f = shell(cx);
+    f.events.try_send(Event::Connected).unwrap();
+    cx.run_until_parked();
+    let (view, mut visual) = open(&f, cx);
+    let key = crate::state::tests::key();
+    let ids = [
+        ("starter-0", "starter-0-cell-0"),
+        ("starter-1", "starter-1-cell-0"),
+        ("starter-2", "starter-2-cell-0"),
+        ("starter-3", "starter-3-cell-0"),
+    ];
+    for (index, starter) in STARTERS.iter().enumerate() {
+        let (card, cell) = ids[index];
+        let cell = visual
+            .debug_bounds(cell)
+            .unwrap_or_else(|| panic!("No cell in the card {}", starter.name));
+        let card = visual.debug_bounds(card).unwrap();
+        // The cell keeps its height, and it is in the card.
+        assert_eq!(cell.size.height, theme::STARTER_CELL, "{}", starter.name);
+        assert!(card.contains(&cell.origin) && card.contains(&cell.bottom_right()));
+        // The colour is the fill of the key in the profile, from the engine.
+        let profile = starter.profile().unwrap();
+        let page = profile.page(profile.first_page()).unwrap();
+        let expected = page.content(key).color;
+        let shown = visual.update(|_, cx| {
+            view.read(cx)
+                .fills(index)
+                .and_then(|m| m.get(&key).copied())
+        });
+        assert_eq!(shown, expected, "{}", starter.name);
+        assert_eq!(shown.is_some(), starter.name != "Empty");
+    }
+}
+
+#[gpui_kit::test]
 fn with_no_device_the_window_says_connect_your_device_and_the_user_can_continue(
     cx: &mut TestAppContext,
 ) {
