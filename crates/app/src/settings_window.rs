@@ -15,9 +15,10 @@
 //! | `parts` | The group box and its rows |
 //!
 //! The window has no state of its own for the options: the [`Shell`] keeps
-//! them, and the window shows them again when the shell changes. The window
-//! is not resizable. Its height follows its pane, so the window changes its
-//! height when the user selects a different tab.
+//! them, and the window shows them again when the shell changes. The user
+//! cannot change the size of the window. Its height follows the content of
+//! its pane (see [`Fit`]): the window measures its content and asks the
+//! platform for that height, so a new row needs no new number.
 
 use crate::{
     app_menu::{CloseWindow, SETTINGS},
@@ -28,11 +29,15 @@ use crate::{
 };
 use gpui_kit::{
     assets::IconName, component::Icon, div, point, prelude::*, px, relative, size, AnyElement, App,
-    Bounds, ClickEvent, Context, Div, Entity, FocusHandle, FontWeight, Render, SharedString,
-    Stateful, Subscription, TitlebarOptions, Window, WindowBounds, WindowOptions,
+    Bounds, ClickEvent, Context, Div, Entity, EntityId, FocusHandle, FontWeight, Pixels, Render,
+    SharedString, Stateful, Subscription, TitlebarOptions, Window, WindowBounds, WindowOptions,
 };
 use opencraft_engine::{Action, Status};
-use std::path::{Path, PathBuf};
+use std::{
+    cell::{Cell, RefCell},
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 mod about;
 mod general;
@@ -41,26 +46,50 @@ pub(crate) mod shortcuts;
 #[cfg(test)]
 mod tests;
 
-/// The height of the window for a pane, in points (see
-/// [`theme::SETTINGS_HEIGHT_GENERAL`]). The pane "Shortcuts" has `rows` rows,
-/// and the pane "About" has more text without the notices file.
-fn pane_height(pane: SettingsPane, rows: usize, notices: bool) -> f32 {
-    match pane {
-        SettingsPane::General => theme::SETTINGS_HEIGHT_GENERAL,
-        SettingsPane::Shortcuts => {
-            theme::SETTINGS_HEIGHT_SHORTCUTS + rows as f32 * theme::SETTINGS_SHORTCUT_ROW
-        }
-        SettingsPane::About if notices => theme::SETTINGS_HEIGHT_ABOUT,
-        SettingsPane::About => theme::SETTINGS_HEIGHT_ABOUT_NO_NOTICES,
-    }
+/// The height of the content of the pane of `snapshot`, in a window that the
+/// user never sees. The window opens hidden, draws one frame (the content
+/// reports its height in that frame), and goes away at once. `None` if the
+/// platform cannot open the window.
+///
+/// This is how the Settings window gets its first height: a window that
+/// opens at a wrong height and then changes it shows a frame with the old
+/// picture stretched to the new height (`docs/kb/gpui.md`).
+fn measure_height(shell: &Entity<Shell>, snapshot: &Snapshot, cx: &mut App) -> Option<Pixels> {
+    let probe = Rc::new(Cell::new(None));
+    let options = WindowOptions {
+        window_bounds: Some(WindowBounds::Windowed(Bounds::new(
+            point(px(0.), px(0.)),
+            size(px(theme::SETTINGS_WIDTH), theme::settings_header_height()),
+        ))),
+        show: false,
+        focus: false,
+        is_resizable: false,
+        is_minimizable: false,
+        ..Default::default()
+    };
+    let handle = cx
+        .open_window(options, {
+            let shell = shell.clone();
+            let snapshot = snapshot.clone();
+            let probe = probe.clone();
+            move |window, cx| {
+                let view = cx.new(|cx| SettingsView::probe(&shell, snapshot, probe, window, cx));
+                cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
+            }
+        })
+        .ok()?;
+    let _ = handle.update(cx, |_, window, _| window.remove_window());
+    probe.get()
 }
 
 /// The options of the Settings window. It opens in the middle of the main
-/// screen, at the height that its pane needs.
-pub fn window_options(snapshot: &Snapshot, cx: &App) -> WindowOptions {
+/// screen, at the height of the content of its pane (see
+/// [`measure_height`]). Thus the user never sees a wrong height, and the
+/// window does not need a number for the height of a pane.
+pub fn window_options(shell: &Entity<Shell>, snapshot: &Snapshot, cx: &mut App) -> WindowOptions {
     let pane = snapshot.settings.settings_pane;
-    let height = pane_height(pane, shortcuts::rows(cx).len(), snapshot.has_notices);
-    let window_size = size(px(theme::SETTINGS_WIDTH), px(height));
+    let height = measure_height(shell, snapshot, cx).unwrap_or(theme::settings_header_height());
+    let window_size = size(px(theme::SETTINGS_WIDTH), height);
     let bounds = match cx.primary_display() {
         Some(display) => Bounds::centered_at(display.visible_bounds().center(), window_size),
         None => Bounds::centered(None, window_size, cx),
@@ -176,6 +205,170 @@ pub struct Snapshot {
     pub notice: Option<String>,
 }
 
+/// What the window shows, and what decides the height of the window: the
+/// pane, the message below it, and the permission text of the pane
+/// "General" (a list of kinds can make it longer). The window shows a new
+/// `Shown` only after the platform gave the window the height of the new
+/// content (see [`Fit`]). All other values of the [`Snapshot`], for example
+/// a switch, show at once.
+#[derive(Debug, Clone, PartialEq)]
+struct Shown {
+    pane: SettingsPane,
+    notice: Option<String>,
+    permission: Permission,
+}
+
+impl Shown {
+    fn of(snapshot: &Snapshot) -> Self {
+        Self {
+            pane: snapshot.settings.settings_pane,
+            notice: snapshot.notice.clone(),
+            permission: snapshot.permission.clone(),
+        }
+    }
+}
+
+/// Two heights are equal for the window (see
+/// [`theme::SETTINGS_HEIGHT_TOLERANCE`]).
+fn same_height(a: Pixels, b: Pixels) -> bool {
+    (a - b).abs() <= theme::SETTINGS_HEIGHT_TOLERANCE
+}
+
+/// The height of the children of a column, from the top of the first child
+/// to the bottom of the last, in whole points.
+fn extent(children: &[Bounds<Pixels>]) -> Pixels {
+    let top = children.first().map_or(px(0.), |first| first.origin.y);
+    let bottom = children.last().map_or(px(0.), |last| last.bottom());
+    px(f32::from(bottom - top).ceil())
+}
+
+/// The height of the window follows the content of the pane. The window has
+/// no number for the height of a pane; it measures.
+///
+/// - **At the start.** A window that the user never sees measures the
+///   content first ([`measure_height`]): the column of the content reports
+///   its height in the first frame (`Div::on_children_prepainted`). The
+///   window that the user sees opens at that height, so it needs no change
+///   of its height.
+/// - **A new pane or message.** The window keeps the old content on the
+///   screen, and lays out the new content in a hidden copy (it is not
+///   painted). [`Fit::measure`] reads the height of the copy and asks for
+///   it. The platform changes the height of the window and draws a frame at
+///   the new height. The view reads the new height in `render`, and only
+///   then does it show the new content ([`SettingsView::commit`]). Thus no
+///   frame shows the old content at the new height, or the new content at
+///   the old height.
+/// - **A change in place.** For a change that is not part of [`Shown`]
+///   (for example a longer row), [`Fit::show`] asks for the height after the
+///   frame.
+///
+/// The prepaint functions of GPUI have no access to the view. Thus this
+/// state is shared (`Rc`) between the view and those functions.
+struct Fit {
+    view: EntityId,
+    /// The `Shown` that the hidden copy was measured for, and its height.
+    measured: RefCell<Option<(Shown, Pixels)>>,
+    /// The platform did not give the height in `SETTINGS_RESIZE_TIMEOUT`:
+    /// show the new content now.
+    forced: Cell<bool>,
+    /// The number of the last measurement or change of the shown content. A
+    /// timer of an older number does nothing.
+    token: Cell<u32>,
+    /// A window that the user never sees reads the height of the content
+    /// here (see [`measure_height`]).
+    probe: Option<Rc<Cell<Option<Pixels>>>>,
+}
+
+impl Fit {
+    fn new(view: EntityId, probe: Option<Rc<Cell<Option<Pixels>>>>) -> Rc<Self> {
+        Rc::new(Self {
+            view,
+            measured: RefCell::new(None),
+            forced: Cell::new(false),
+            token: Cell::new(0),
+            probe,
+        })
+    }
+
+    /// Ask the platform for `height`, if the window has a different height.
+    /// The platform tells the window when it has the new height, and then
+    /// GPUI draws a frame. This function is safe to call in each frame.
+    fn resize(window: &mut Window, height: Pixels) -> bool {
+        let needed = !same_height(window.viewport_size().height, height);
+        if needed {
+            window.resize(size(px(theme::SETTINGS_WIDTH), height));
+        }
+        needed
+    }
+
+    /// The content on the screen has `height`: the window takes it.
+    fn show(&self, height: Pixels, window: &mut Window) {
+        match &self.probe {
+            Some(probe) => probe.set(Some(height)),
+            None => {
+                Self::resize(window, height);
+            }
+        }
+    }
+
+    /// The hidden copy of `target` has `height`: ask the platform for it.
+    fn measure(self: &Rc<Self>, target: &Shown, height: Pixels, window: &mut Window, cx: &mut App) {
+        let changed = !self
+            .measured
+            .borrow()
+            .as_ref()
+            .is_some_and(|(shown, measured)| shown == target && *measured == height);
+        if changed {
+            *self.measured.borrow_mut() = Some((target.clone(), height));
+            self.forced.set(false);
+            self.token.set(self.token.get().wrapping_add(1));
+        }
+        if !Self::resize(window, height) {
+            if changed {
+                // The window has this height: the platform sends nothing.
+                // Draw again to show the content.
+                cx.notify(self.view);
+            }
+            return;
+        }
+        if changed {
+            let fit = self.clone();
+            let token = self.token.get();
+            cx.spawn(async move |cx| {
+                cx.background_executor()
+                    .timer(theme::SETTINGS_RESIZE_TIMEOUT)
+                    .await;
+                cx.update(|cx| {
+                    if fit.token.get() == token {
+                        fit.forced.set(true);
+                        cx.notify(fit.view);
+                    }
+                });
+            })
+            .detach();
+        }
+    }
+
+    /// True if the window has the height that was measured for `target` (or
+    /// the platform did not give it in time).
+    fn ready(&self, target: &Shown, window: &Window) -> bool {
+        match &*self.measured.borrow() {
+            Some((shown, height)) if shown == target => {
+                self.forced.get() || same_height(window.viewport_size().height, *height)
+            }
+            _ => false,
+        }
+    }
+
+    /// The content on the screen is the content that the view wants: no
+    /// measurement is open.
+    fn settled(&self) {
+        *self.measured.borrow_mut() = None;
+        self.forced.set(false);
+        self.token.set(self.token.get().wrapping_add(1));
+    }
+}
+
 pub struct SettingsView {
     shell: Entity<Shell>,
     snapshot: Snapshot,
@@ -183,9 +376,11 @@ pub struct SettingsView {
     /// The focus of the root element. The key command ⌘W needs the focus in
     /// this element.
     focus: FocusHandle,
-    /// The pane and the message that the window height and the title agree
-    /// with.
-    shown: Option<(SettingsPane, bool)>,
+    /// The content on the screen. It agrees with the height of the window.
+    /// It becomes the `Shown` of the snapshot after the window got the
+    /// height of that content.
+    shown: Shown,
+    fit: Rc<Fit>,
     /// The picture of the application icon, for the pane "About".
     icon: std::sync::Arc<gpui_kit::Image>,
 }
@@ -198,13 +393,34 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let subscription = cx.observe_in(shell, window, |view, shell, window, cx| {
+        Self::build(shell, snapshot, None, window, cx)
+    }
+
+    /// A view for a window that the user never sees: it reports the height
+    /// of its content to `probe`.
+    fn probe(
+        shell: &Entity<Shell>,
+        snapshot: Snapshot,
+        probe: Rc<Cell<Option<Pixels>>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::build(shell, snapshot, Some(probe), window, cx)
+    }
+
+    fn build(
+        shell: &Entity<Shell>,
+        snapshot: Snapshot,
+        probe: Option<Rc<Cell<Option<Pixels>>>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let subscription = cx.observe(shell, |view, shell, cx| {
             // The shell notifies for each engine event, also for the input of
             // the device. Draw again only for a change that the window shows.
             let snapshot = shell.read(cx).settings_snapshot();
             if snapshot != view.snapshot {
                 view.snapshot = snapshot;
-                view.sync(window, cx);
                 cx.notify();
             }
         });
@@ -214,9 +430,9 @@ impl SettingsView {
             shell: shell.clone(),
             _shell_subscription: subscription,
             focus,
-            // The options of the window have the title and the height of
-            // the pane. The message starts closed.
-            shown: Some((snapshot.settings.settings_pane, false)),
+            // The options of the window have the title of the pane.
+            shown: Shown::of(&snapshot),
+            fit: Fit::new(cx.entity_id(), probe),
             snapshot,
             icon: std::sync::Arc::new(gpui_kit::Image::from_bytes(
                 gpui_kit::ImageFormat::Png,
@@ -225,30 +441,47 @@ impl SettingsView {
         }
     }
 
-    /// The pane that the window shows now.
-    fn pane(&self) -> SettingsPane {
-        self.snapshot.settings.settings_pane
-    }
-
-    /// Make the title and the height of the window agree with the pane and
-    /// with the message.
-    fn sync(&mut self, window: &mut Window, cx: &App) {
-        let pane = self.pane();
-        let message = self.snapshot.notice.is_some();
-        if self.shown == Some((pane, message)) {
+    /// Show the content of the snapshot if the window has its height now.
+    fn commit(&mut self, window: &mut Window) {
+        let target = Shown::of(&self.snapshot);
+        if self.shown == target {
+            // A measurement that was open is old now (the user selected the
+            // pane that the window shows).
+            self.fit.settled();
             return;
         }
-        if self.shown.is_none_or(|(shown, _)| shown != pane) {
-            window.set_window_title(pane.name());
+        if !self.fit.ready(&target, window) {
+            return;
         }
-        let extra = if message {
-            theme::SETTINGS_MESSAGE_HEIGHT
-        } else {
-            0.
+        if self.shown.pane != target.pane {
+            window.set_window_title(target.pane.name());
+        }
+        self.shown = target;
+        self.fit.settled();
+    }
+
+    /// The title area, the content of `shown.pane`, and the message. The row
+    /// of tabs marks `tab`.
+    fn column(&self, shown: &Shown, tab: SettingsPane, cx: &mut Context<Self>) -> Div {
+        let content = match shown.pane {
+            SettingsPane::General => self.general(&shown.permission),
+            SettingsPane::Shortcuts => self.shortcuts(cx),
+            SettingsPane::About => self.about(),
         };
-        let height = pane_height(pane, shortcuts::rows(cx).len(), self.snapshot.has_notices);
-        window.resize(size(px(theme::SETTINGS_WIDTH), px(height + extra)));
-        self.shown = Some((pane, message));
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .child(self.header(tab, cx))
+            .child(
+                div()
+                    .id("settings-content")
+                    .debug_selector(|| "settings-content".into())
+                    .px(theme::SETTINGS_CONTENT_X)
+                    .py(theme::SETTINGS_CONTENT_Y)
+                    .child(content),
+            )
+            .children(self.message(shown.notice.as_deref(), cx))
     }
 
     /// A click handler that sends `command` to the shell.
@@ -330,15 +563,14 @@ impl SettingsView {
 
     /// The message below the pane: the last problem of a command of this
     /// window, and a button that closes it.
-    fn message(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let text = self.snapshot.notice.clone()?;
+    fn message(&self, text: Option<&str>, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let text = text?.to_string();
         Some(
             div()
                 .id("settings-message")
                 .debug_selector(|| "settings-message".into())
-                .flex_shrink_0()
-                .h(px(theme::SETTINGS_MESSAGE_HEIGHT))
                 .px(theme::SPACE_16)
+                .py(theme::SETTINGS_MESSAGE_PADDING)
                 .flex()
                 .items_center()
                 .gap(theme::SPACE_10)
@@ -372,36 +604,44 @@ impl SettingsView {
 }
 
 impl Render for SettingsView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let pane = self.pane();
-        let content = match pane {
-            SettingsPane::General => self.general(),
-            SettingsPane::Shortcuts => self.shortcuts(cx),
-            SettingsPane::About => self.about(),
-        };
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.commit(window);
+        let target = Shown::of(&self.snapshot);
+        // The hidden copy is below the content on the screen, so that the
+        // content on the screen gets the mouse.
+        let measure = (self.shown != target).then(|| {
+            // Keep the frames coming until the platform gave the height
+            // (or `SETTINGS_RESIZE_TIMEOUT` passed): the view shows the new
+            // content in the frame that comes after the new height.
+            window.request_animation_frame();
+            let fit = self.fit.clone();
+            let measured = target.clone();
+            self.column(&target, target.pane, cx)
+                .on_children_prepainted(move |children, window, cx| {
+                    fit.measure(&measured, extent(&children), window, cx)
+                })
+                .id("settings-measure")
+                .absolute()
+                .top_0()
+                .left_0()
+                .invisible()
+        });
+        let fit = self.fit.clone();
+        let visible = self
+            .column(&self.shown, target.pane, cx)
+            .on_children_prepainted(move |children, window, _| fit.show(extent(&children), window));
         div()
             .id("settings")
             .key_context(SETTINGS)
             .track_focus(&self.focus)
             .on_action(cx.listener(|_, _: &CloseWindow, window, _| window.remove_window()))
             .size_full()
-            .flex()
-            .flex_col()
+            .relative()
             .bg(theme::BG_BAR)
             .text_color(theme::TEXT_PRIMARY)
             .text_size(theme::TEXT_BODY)
             .line_height(relative(theme::SETTINGS_LINE_HEIGHT))
-            .child(self.header(pane, cx))
-            .child(
-                div()
-                    .id("settings-content")
-                    .debug_selector(|| "settings-content".into())
-                    .flex_1()
-                    .min_h_0()
-                    .px(theme::SETTINGS_CONTENT_X)
-                    .py(theme::SETTINGS_CONTENT_Y)
-                    .child(content),
-            )
-            .children(self.message(cx))
+            .children(measure)
+            .child(visible)
     }
 }

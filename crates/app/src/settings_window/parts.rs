@@ -24,7 +24,7 @@ pub(super) fn group(rows: impl IntoIterator<Item = Div>) -> Div {
 
 /// A row with the name and a description at the leading side, and a control
 /// at the end. The name and the description have one line each, so that the
-/// pane keeps its height (`pane_height`): a long text, for example a long
+/// rows of a pane have the same height: a long text, for example a long
 /// folder path, ends with "…".
 pub(super) fn row(
     name: impl Into<SharedString>,

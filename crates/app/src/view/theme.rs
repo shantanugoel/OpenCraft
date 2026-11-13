@@ -644,7 +644,8 @@ pub const DRAG_PICTURE_OFFSET: (Pixels, Pixels) = (px(4.), px(14.));
 pub const TEXT_SHEET_TITLE: Pixels = px(17.);
 /// A group box of the Settings window.
 pub const RADIUS_GROUP: Pixels = px(10.);
-/// The width of the Settings window. Its height follows its pane.
+/// The width of the Settings window. Its height follows the content of its
+/// pane.
 pub const SETTINGS_WIDTH: f32 = 640.;
 /// The height of the title bar of the Settings window, with the window
 /// buttons and the name of the pane.
@@ -655,6 +656,13 @@ pub const SETTINGS_TITLE_HEIGHT: Pixels = px(34.);
 pub const SETTINGS_WINDOW_BUTTONS: (Pixels, Pixels) = (px(13.), px(10.));
 /// A tab of the Settings window.
 pub const SETTINGS_TAB: (Pixels, Pixels) = (px(78.), px(50.));
+/// The height of the title area of the Settings window: the title bar, the
+/// row of tabs with its padding, and the line below. The window of the
+/// measurement has this height, and a window that cannot measure its content
+/// opens with it.
+pub fn settings_header_height() -> Pixels {
+    SETTINGS_TITLE_HEIGHT + SETTINGS_TAB.1 + SPACE_8 + BORDER
+}
 /// The icon of a tab of the Settings window.
 pub const ICON_TAB: Pixels = px(20.);
 /// The padding of the content of a pane: top and bottom, and the sides.
@@ -662,21 +670,19 @@ pub const SETTINGS_CONTENT_Y: Pixels = SPACE_18;
 pub const SETTINGS_CONTENT_X: Pixels = px(40.);
 /// The application icon in the pane "About".
 pub const APP_ICON: Pixels = px(64.);
-/// The height of the Settings window for each pane, in points: the title
-/// bar, the row of tabs, and the content of the pane with its padding. The
-/// content of a pane has fixed rows, thus the heights are constants. The
-/// pane "Shortcuts" adds one row height for each key command.
-pub const SETTINGS_HEIGHT_GENERAL: f32 = 480.;
-pub const SETTINGS_HEIGHT_SHORTCUTS: f32 = 132.;
-pub const SETTINGS_SHORTCUT_ROW: f32 = 37.;
-/// The pane "About" with the notices file, and with the text that tells
-/// where the notices are.
-pub const SETTINGS_HEIGHT_ABOUT: f32 = 300.;
-pub const SETTINGS_HEIGHT_ABOUT_NO_NOTICES: f32 = 332.;
-/// The height that a message adds below the content of the pane, and the
-/// highest text of the message (two lines).
-pub const SETTINGS_MESSAGE_HEIGHT: f32 = 52.;
+/// The padding above and below the text of the message below a pane. The
+/// height of the message follows its text (at most two lines, see
+/// [`SETTINGS_MESSAGE_TEXT_MAX`]).
+pub const SETTINGS_MESSAGE_PADDING: Pixels = SPACE_10;
+/// The highest text of the message below a pane (two lines).
 pub const SETTINGS_MESSAGE_TEXT_MAX: Pixels = px(32.);
+/// The longest time that the Settings window waits for the platform to
+/// change its height before it shows the new pane. The platform does this in
+/// a few milliseconds. This time covers a platform that refuses the height.
+pub const SETTINGS_RESIZE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(300);
+/// The largest difference between the height of the content of the Settings
+/// window and the height of the window that counts as equal, in points.
+pub const SETTINGS_HEIGHT_TOLERANCE: Pixels = px(0.5);
 /// The line height of the Settings window, as a multiple of the text size.
 /// Each row has one or two lines, so the window does not use a taller
 /// line height.
