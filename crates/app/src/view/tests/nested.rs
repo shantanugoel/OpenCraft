@@ -119,7 +119,50 @@ fn toggle() -> KindDescription {
 }
 
 fn kinds() -> Event {
-    Event::Kinds(vec![leaf(), two(), many(), toggle()])
+    let mut timed = many();
+    timed.kind = "test.timed".into();
+    timed.fields[0].input = InputType::TimedActionList;
+    timed.fields[1].key = "delay_ms".into();
+    Event::Kinds(vec![leaf(), two(), many(), toggle(), timed])
+}
+
+#[gpui_kit::test]
+fn a_timed_step_edits_and_moves_its_delay_with_the_action(cx: &mut TestAppContext) {
+    let root = act(
+        "test.timed",
+        vec![
+            ("delay_ms", Value::Integer(250)),
+            (
+                "items",
+                Action::list_to_value(&[leaf_action("a"), leaf_action("b")]),
+            ),
+        ],
+    );
+    let (view, cx, _, sent) = open(cx, root);
+    click(cx, "items.1/step");
+    let path = at(&[("items", Some(1))], "delay_before_ms");
+    cx.update(|_, cx| {
+        assert_eq!(
+            view.read(cx).form.inputs[&path].state.value(cx).as_ref(),
+            "250"
+        );
+    });
+    type_at(&view, cx, &path, "725");
+    let edited = sent_action(&sent);
+    let steps = super::super::actions::list(&edited, "items");
+    assert_eq!(steps[1].settings["delay_before_ms"], Value::Integer(725));
+    // The same shared field supplies the accessible name.
+    let labels = super::super::controls::accessibility_log::take();
+    assert!(labels
+        .iter()
+        .any(|(_, label)| label == "Delay before, in milliseconds"));
+    // Use the normal step-menu path, also used by drag and drop.
+    click(cx, "items.1/more");
+    choose(&view, cx, super::super::nested::MoveStepUp);
+    let moved = sent_action(&sent);
+    let steps = super::super::actions::list(&moved, "items");
+    assert_eq!(steps[0].settings["delay_before_ms"], Value::Integer(725));
+    assert_eq!(steps[1].settings["delay_before_ms"], Value::Integer(0));
 }
 
 fn press() -> BindingId {

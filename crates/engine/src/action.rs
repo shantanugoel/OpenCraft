@@ -36,8 +36,9 @@ const SETTINGS_KEY: &str = "settings";
 impl Action {
     /// Read an action from a value in the settings of a different action:
     /// a table with the text `kind` and an optional table `settings`. This
-    /// is the form of the input types [`InputType::Action`] and
-    /// [`InputType::ActionList`] (decision 0017). A handler and a shell use
+    /// is the form of the input types [`InputType::Action`],
+    /// [`InputType::ActionList`] and [`InputType::TimedActionList`] (decision
+    /// 0017). A handler and a shell use
     /// this function and [`Action::to_value`], so that they use one form.
     ///
     /// `None` if the value does not have this form: for example a different
@@ -368,6 +369,33 @@ pub enum InputType {
     /// A list of actions, in an order. The value is a list of such tables:
     /// see [`Action::list_from_value`].
     ActionList,
+    /// An action list with a delay before each step. The step settings use
+    /// `delay_before_ms`; a missing value is zero for the first step, and
+    /// the parent's `delay_ms` (default 100) for each later step.
+    TimedActionList,
+}
+
+impl InputType {
+    /// `true` for each list of actions: [`InputType::ActionList`] and
+    /// [`InputType::TimedActionList`].
+    pub fn is_action_list(&self) -> bool {
+        matches!(self, Self::ActionList | Self::TimedActionList)
+    }
+}
+
+impl Field {
+    /// The shared form field for the timing metadata of a contained step.
+    pub fn step_delay(default: i64) -> Self {
+        Self {
+            key: "delay_before_ms".into(),
+            label: "Delay before, in milliseconds".into(),
+            input: InputType::Integer {
+                min: 0,
+                max: 10_000,
+            },
+            default: Some(Value::Integer(default)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

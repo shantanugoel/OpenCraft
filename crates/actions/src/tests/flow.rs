@@ -355,6 +355,101 @@ fn a_sequence_asks_for_each_action_in_order_with_the_delay_between_two_actions()
 }
 
 #[test]
+fn each_step_waits_before_its_request_and_timing_is_not_sent_to_the_child() {
+    let mut rig = Rig::new("sequence", true);
+    rig.system.hold_sleeps();
+    let steps: Vec<_> = [30, 0, 90]
+        .into_iter()
+        .enumerate()
+        .map(|(i, ms)| {
+            let mut action = nested(i as i64 + 1);
+            action
+                .settings
+                .insert("delay_before_ms".into(), Value::Integer(ms));
+            action
+        })
+        .collect();
+    rig.invoke(sequence(&steps, Some(250)));
+    wait_until(|| rig.system.sleeps_started.load(Ordering::SeqCst) == 1);
+    rig.none();
+    rig.system.release_sleep();
+    assert_eq!(rig.recv(), invoke_nested(binding(1), 1));
+    assert_eq!(rig.recv(), invoke_nested(binding(1), 2));
+    wait_until(|| rig.system.sleeps_started.load(Ordering::SeqCst) == 2);
+    rig.none();
+    rig.system.release_sleep();
+    assert_eq!(rig.recv(), invoke_nested(binding(1), 3));
+    assert_eq!(rig.system.calls(), [Call::Sleep(30), Call::Sleep(90)]);
+}
+
+#[test]
+fn an_old_profile_loads_and_runs_with_exactly_the_old_timing() {
+    use opencraft_core::{ControlId, ControlKind};
+    use opencraft_engine::store::ProfileStore;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("profile.toml"),
+        r#"
+schema_version = 4
+name = "Timing"
+model = "n4-pro"
+[[pages]]
+name = "Main"
+[pages.bindings.key-1.press]
+kind = "opencraft.sequence"
+[pages.bindings.key-1.press.settings]
+delay_ms = 250
+actions = [
+    {kind = "test.nested", settings = {number = 1}},
+    {kind = "test.nested", settings = {number = 2}},
+    {kind = "test.nested", settings = {number = 3}},
+]
+"#,
+    )
+    .unwrap();
+    let loaded = ProfileStore::new(dir.path()).load().unwrap();
+    assert!(loaded.backup.is_none());
+    let action = loaded
+        .profile
+        .page(0)
+        .unwrap()
+        .binding(
+            ControlId::new(ControlKind::Key, 1),
+            opencraft_engine::GestureKind::Press,
+        )
+        .unwrap()
+        .clone();
+    let mut rig = Rig::new("sequence", true);
+    rig.system.hold_sleeps();
+    rig.invoke(action);
+    assert_eq!(rig.recv(), invoke_nested(binding(1), 1));
+    for number in [2, 3] {
+        wait_until(|| rig.system.sleeps_started.load(Ordering::SeqCst) == number - 1);
+        rig.none();
+        rig.system.release_sleep();
+        assert_eq!(rig.recv(), invoke_nested(binding(1), number as i64));
+    }
+    assert_eq!(rig.system.calls(), [Call::Sleep(250), Call::Sleep(250)]);
+}
+
+#[test]
+fn a_bad_step_delay_rejects_the_whole_sequence_before_it_starts() {
+    let mut rig = Rig::new("sequence", true);
+    for value in [
+        Value::Integer(-1),
+        Value::Integer(10_001),
+        Value::Text("100".into()),
+    ] {
+        let mut bad = nested(2);
+        bad.settings.insert("delay_before_ms".into(), value);
+        rig.invoke(sequence(&[nested(1), bad], None));
+        rig.problem("\"Delay before, in milliseconds\" of step 2");
+        rig.none();
+    }
+    assert!(rig.system.calls().is_empty());
+}
+
+#[test]
 fn a_sequence_waits_for_the_default_delay_and_not_for_no_delay() {
     let mut rig = Rig::new("sequence", true);
     rig.invoke(sequence(&[nested(1), nested(2)], None));

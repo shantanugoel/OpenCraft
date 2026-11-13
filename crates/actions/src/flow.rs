@@ -12,8 +12,8 @@ use crate::backend::System;
 use crate::descriptions::*;
 use crate::handlers::{nonblank, problem, send, Result};
 use opencraft_engine::{
-    Action, BindingId, EngineRequest, Feedback, FeedbackState, Handler, KindDescription, Message,
-    MessageSender, PageTarget, Request, Settings, Value,
+    Action, BindingId, EngineRequest, Feedback, FeedbackState, Field, Handler, KindDescription,
+    Message, MessageSender, PageTarget, Request, Settings, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -229,10 +229,13 @@ impl Handler for ToggleHandler {
 
 // --- Sequence ---------------------------------------------------------------------
 
-/// Read the settings of a sequence: the actions in their order, and the
-/// delay between two actions. A missing field has its default value: no
-/// action, and [`DEFAULT_DELAY`].
-fn sequence_settings(settings: &Settings) -> Result<(Vec<Action>, Duration)> {
+/// Read the settings of a sequence: each action in its order, with the
+/// delay before it (decision 0017 and its amendment for #282). A missing
+/// list is no action. A step with no `delay_before_ms` waits for 0 if it is
+/// the first step, else for `delay_ms` (default [`DEFAULT_DELAY`]). Thus an
+/// old profile keeps its timing. The step delay is not a setting of the
+/// step's kind, so it is removed before the engine gets the action.
+fn sequence_settings(settings: &Settings) -> Result<Vec<(Action, Duration)>> {
     let actions = match settings.get("actions") {
         None => Vec::new(),
         Some(value) => {
@@ -244,13 +247,32 @@ fn sequence_settings(settings: &Settings) -> Result<(Vec<Action>, Duration)> {
         Some(Value::Integer(ms)) if (0..=DELAY_LIMIT).contains(ms) => *ms,
         Some(_) => return Err(setting_problem(SEQUENCE, "delay_ms")),
     };
-    Ok((actions, Duration::from_millis(delay as u64)))
+    let step = Field::step_delay(0);
+    actions
+        .into_iter()
+        .enumerate()
+        .map(|(index, mut action)| {
+            let ms = match action.settings.remove(&step.key) {
+                None if index == 0 => 0,
+                None => delay,
+                Some(Value::Integer(ms)) if (0..=DELAY_LIMIT).contains(&ms) => ms,
+                Some(_) => {
+                    return Err(format!(
+                        "Sequence of actions: set the field \"{}\" of step {} to a number from 0 to {DELAY_LIMIT}.",
+                        step.label,
+                        index + 1
+                    ))
+                }
+            };
+            Ok((action, Duration::from_millis(ms as u64)))
+        })
+        .collect()
 }
 
 /// The kind `opencraft.sequence`.
 ///
 /// At each Invoke, a thread of its own asks the engine to do each action in
-/// the order of the list, and waits for the delay between two actions. The
+/// the order of the list, and waits for the delay before each action. The
 /// handler does not wait for the thread, so its next request does not wait
 /// (decision 0012). Each Invoke starts a new thread: two sequences can run
 /// at the same time. The thread ends after the last action, also when the
@@ -269,7 +291,7 @@ impl SequenceHandler {
     }
 
     fn invoke(&self, binding: BindingId, settings: &Settings) -> Result<()> {
-        let (actions, delay) = sequence_settings(settings)?;
+        let actions = sequence_settings(settings)?;
         if actions.is_empty() {
             return Ok(());
         }
@@ -278,8 +300,8 @@ impl SequenceHandler {
         thread::Builder::new()
             .name("opencraft-sequence".into())
             .spawn(move || {
-                for (index, action) in actions.into_iter().enumerate() {
-                    if index > 0 && !delay.is_zero() {
+                for (action, delay) in actions {
+                    if !delay.is_zero() {
                         system.sleep(delay);
                     }
                     send(
