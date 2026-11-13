@@ -28,6 +28,7 @@
 //! The handlers use only the handler interface of the engine (architecture
 //! rule 8, and `docs/decisions/0012-action-handler-interface.md`).
 
+mod audio;
 pub mod backend;
 mod descriptions;
 mod device;

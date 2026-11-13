@@ -60,6 +60,7 @@ pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dy
             intervals,
         }),
         Box::new(crate::device::DeviceHandler::default()),
+        Box::new(crate::audio::MicrophoneHandler::new(system.clone())),
         Box::new(NavigationHandler::default()),
         Box::new(ToggleHandler::default()),
         Box::new(SequenceHandler::new(system)),

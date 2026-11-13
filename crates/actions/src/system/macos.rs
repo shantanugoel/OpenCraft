@@ -311,6 +311,7 @@ pub fn media_key(key: MediaKey) -> Result<()> {
 
 // --- Sound volume ------------------------------------------------------------
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct PropertyAddress {
     selector: u32,
@@ -320,6 +321,24 @@ struct PropertyAddress {
 
 #[link(name = "CoreAudio", kind = "framework")]
 extern "C" {
+    fn AudioObjectHasProperty(object: u32, address: *const PropertyAddress) -> bool;
+    fn AudioObjectIsPropertySettable(
+        object: u32,
+        address: *const PropertyAddress,
+        settable: *mut u8,
+    ) -> i32;
+    fn AudioObjectAddPropertyListener(
+        object: u32,
+        address: *const PropertyAddress,
+        listener: AudioListener,
+        data: *mut c_void,
+    ) -> i32;
+    fn AudioObjectRemovePropertyListener(
+        object: u32,
+        address: *const PropertyAddress,
+        listener: AudioListener,
+        data: *mut c_void,
+    ) -> i32;
     fn AudioObjectGetPropertyData(
         object: u32,
         address: *const PropertyAddress,
@@ -425,6 +444,166 @@ pub fn set_volume_level(level: u8) -> Result<()> {
 
 pub fn set_muted(muted: bool) -> Result<()> {
     set(output_device()?, &MUTE, u32::from(muted))
+}
+
+// --- Input mute and property notifications ------------------------------------
+
+const DEFAULT_INPUT: PropertyAddress = PropertyAddress {
+    selector: four(b"dIn "),
+    scope: four(b"glob"),
+    element: 0,
+};
+const INPUT_MUTE: PropertyAddress = PropertyAddress {
+    selector: four(b"mute"),
+    scope: four(b"inpt"),
+    element: 0,
+};
+const DEVICES: PropertyAddress = PropertyAddress {
+    selector: four(b"dev#"),
+    scope: four(b"glob"),
+    element: 0,
+};
+
+fn input_device() -> Result<u32> {
+    get(SYSTEM_OBJECT, &DEFAULT_INPUT, 0_u32)
+}
+
+fn writable_mute(device: u32) -> bool {
+    let mut writable = 0_u8;
+    // SAFETY: the address and writable byte live through these calls.
+    unsafe {
+        AudioObjectHasProperty(device, &INPUT_MUTE)
+            && AudioObjectIsPropertySettable(device, &INPUT_MUTE, &mut writable) == 0
+            && writable != 0
+    }
+}
+
+pub fn microphone_muted() -> Result<Option<bool>> {
+    let device = input_device()?;
+    if device == 0 || !writable_mute(device) {
+        return Ok(None);
+    }
+    get(device, &INPUT_MUTE, 0_u32).map(|value| Some(value != 0))
+}
+
+pub fn set_microphone_muted(muted: bool) -> Result<()> {
+    let device = input_device()?;
+    if device == 0 || !writable_mute(device) {
+        return Err(Error::NoInputMute);
+    }
+    set(device, &INPUT_MUTE, u32::from(muted))
+}
+
+type AudioListener = unsafe extern "C" fn(u32, u32, *const PropertyAddress, *mut c_void) -> i32;
+type Notifications = std::collections::BTreeMap<usize, std::sync::mpsc::Sender<()>>;
+fn notifications() -> &'static std::sync::Mutex<Notifications> {
+    static SENDERS: std::sync::OnceLock<std::sync::Mutex<Notifications>> =
+        std::sync::OnceLock::new();
+    SENDERS.get_or_init(Default::default)
+}
+
+unsafe extern "C" fn audio_changed(
+    _: u32,
+    _: u32,
+    _: *const PropertyAddress,
+    data: *mut c_void,
+) -> i32 {
+    // The pointer is only an opaque token, never dereferenced. A callback
+    // already in flight after removal cannot access a dropped watch.
+    if let Some(sender) = notifications()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&(data as usize))
+    {
+        let _ = sender.send(());
+    }
+    0
+}
+
+struct InputWatch {
+    token: usize,
+    properties: Vec<(u32, PropertyAddress)>,
+    input: u32,
+}
+
+impl InputWatch {
+    fn add(&mut self, object: u32, address: PropertyAddress) -> Result<()> {
+        // SAFETY: callback and token remain valid even if removal races a callback.
+        let status = unsafe {
+            AudioObjectAddPropertyListener(
+                object,
+                &address,
+                audio_changed,
+                self.token as *mut c_void,
+            )
+        };
+        if status != 0 {
+            return Err(Error::System(status));
+        }
+        self.properties.push((object, address));
+        Ok(())
+    }
+    fn remove(&self, object: u32, address: &PropertyAddress) {
+        // SAFETY: this matches the registration. Tokens name no allocated memory.
+        unsafe {
+            AudioObjectRemovePropertyListener(
+                object,
+                address,
+                audio_changed,
+                self.token as *mut c_void,
+            );
+        }
+    }
+}
+
+impl super::AudioWatch for InputWatch {
+    fn refresh(&mut self) -> Result<()> {
+        let input = input_device()?;
+        if input != self.input {
+            for (object, address) in self.properties.drain(2..).collect::<Vec<_>>() {
+                self.remove(object, &address);
+            }
+            self.input = 0;
+            if input != 0 && writable_mute(input) {
+                self.add(input, INPUT_MUTE)?;
+            }
+            self.input = input;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for InputWatch {
+    fn drop(&mut self) {
+        notifications()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&self.token);
+        for (object, address) in &self.properties {
+            self.remove(*object, address);
+        }
+    }
+}
+
+pub fn watch_microphone(
+    changed: std::sync::mpsc::Sender<()>,
+) -> Result<Box<dyn super::AudioWatch>> {
+    use super::AudioWatch;
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    let token = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    notifications()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(token, changed);
+    let mut watch = InputWatch {
+        token,
+        properties: Vec::new(),
+        input: 0,
+    };
+    watch.add(SYSTEM_OBJECT, DEFAULT_INPUT)?;
+    watch.add(SYSTEM_OBJECT, DEVICES)?;
+    watch.refresh()?;
+    Ok(Box::new(watch))
 }
 
 // --- Applications and URLs ---------------------------------------------------

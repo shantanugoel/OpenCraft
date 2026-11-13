@@ -10,6 +10,7 @@ pub(crate) const HOTKEY: &str = "opencraft.hotkey";
 pub(crate) const TEXT: &str = "opencraft.type-text";
 pub(crate) const MEDIA: &str = "opencraft.media-key";
 pub(crate) const VOLUME: &str = "opencraft.volume";
+pub(crate) const MICROPHONE: &str = "opencraft.microphone-mute";
 pub(crate) const SHELL: &str = "opencraft.shell-command";
 pub(crate) const MOUSE: &str = "opencraft.mouse";
 pub(crate) const MAC_FUNCTION: &str = "opencraft.mac-function";
@@ -184,6 +185,7 @@ pub(crate) fn description(kind: &str) -> KindDescription {
                 ]),
             )],
         ),
+        MICROPHONE => ("Microphone mute", vec![]),
         VOLUME => {
             let mut operation = field(
                 "operation",
@@ -285,6 +287,7 @@ fn icon(kind: &str) -> &'static str {
         TEXT => "type",
         MEDIA => "play",
         VOLUME => "volume-2",
+        MICROPHONE => "mic",
         PAGE => "arrow-right",
         PROFILE => "layers",
         TOGGLE => "toggle-left",
@@ -325,6 +328,7 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
         HOTKEY | TEXT | MOUSE | MAC_FUNCTION => (SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
+        MICROPHONE => (MEDIA_GROUP, None),
         PAGE | PROFILE => (NAVIGATION, None),
         TOGGLE | SEQUENCE => (LOGIC, None),
         APPLICATION | URL | SHELL => (SYSTEM, None),

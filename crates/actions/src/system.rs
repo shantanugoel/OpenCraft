@@ -32,6 +32,8 @@ pub enum Error {
     NotSupported,
     #[error("the computer has no sound output with a volume control")]
     NoVolume,
+    #[error("the default sound input has no writable master mute")]
+    NoInputMute,
     #[error("the system refused the operation (code {0})")]
     System(i32),
     #[error("{0}")]
@@ -112,6 +114,23 @@ pub fn set_volume_level(level: u8) -> Result<()> {
 /// Switch the mute of the default sound output on or off.
 pub fn set_muted(muted: bool) -> Result<()> {
     platform::set_muted(muted)
+}
+
+/// A property listener. Refresh attaches to a changed default device.
+pub trait AudioWatch: Send {
+    fn refresh(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub fn microphone_muted() -> Result<Option<bool>> {
+    platform::microphone_muted()
+}
+pub fn set_microphone_muted(muted: bool) -> Result<()> {
+    platform::set_microphone_muted(muted)
+}
+pub fn watch_microphone(changed: std::sync::mpsc::Sender<()>) -> Result<Box<dyn AudioWatch>> {
+    platform::watch_microphone(changed)
 }
 
 /// Open an application. `application` is a name, for example `Safari`, or

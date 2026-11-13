@@ -35,6 +35,23 @@ The first plan put the permission work after the action work. That order is
 incorrect. The hotkey action needs the Accessibility permission on the first
 day.
 
+## Input mute (2026-11-15)
+
+Fact 13 of the calibration notes of issue #198: a Core Audio property test
+found four input devices. Three, including the default input, had a writable
+master mute property. The fourth had no master mute property. The test read
+the device list, input streams, default input and property flags only. It
+opened no input stream and showed no microphone permission prompt.
+Confidence: **Measured**, a local Swift test with CoreAudio. No device name
+or unique device identifier was recorded.
+
+A signed development build then used “Test the action” to set the default
+input mute. A separate Core Audio read gave mute on. A separate test restored
+the old value, and the window removed the state frame through the property
+listener, with no gesture. The build used a scratch profile and the device
+lock, with the real controller connected. No microphone prompt appeared.
+Confidence: **Measured**. The action opens no audio input stream.
+
 ## Code signature of a development build
 
 Date: 2026-11-12. Tool: `codesign -d -r-`, on the program `opencraft`.

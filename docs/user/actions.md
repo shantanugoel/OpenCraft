@@ -359,6 +359,21 @@ action can override the lock. See
 [Sleep and screen lock](background.md#sleep-and-screen-lock).
 
 ![The Device actions in the library](images/device-actions.png)
+## Microphone mute
+
+Group: **Media**. This action has no settings. A push switches the mute of
+the default sound input of the Mac. The key shows **Microphone muted** with
+a frame, or **Microphone on** with no frame. A change from another program
+also changes the key. The action follows a change of the default input.
+
+A device with no writable master mute shows **Not supported**. OpenCraft
+does not set its input volume to zero as a substitute. It opens no input
+stream, records no sound and asks for no microphone permission.
+
+Use **Test the action** to switch mute without a push on the device. Test
+again to put the previous mute state back.
+
+![Microphone mute and its state frame in the window](images/microphone-mute.png)
 
 ## Change the page
 
