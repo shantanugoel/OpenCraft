@@ -811,6 +811,31 @@ are in `crates/app/src/view/tests/menu.rs`.
 | A text of a row (`&str`, `String`, `SharedString`) can be read when the row gets it as a typed child (`child<E: 'static>` and `Any::downcast_ref`). A `Div` with children cannot be read. The type-ahead of a menu uses the text of these children and the name of the kind (`KindContent`). The "First page" menu of the profile sheet has its names in a `Div`, thus it has no type-ahead. | Source | `crates/app/src/view/menu.rs`, `MenuRow::child` |
 | An interceptor must not take keys from a text field. `window.focused_input(cx).is_some()` stops it, and a menu with no `MenuRow` (the colour popovers) has no keys. | Measured | `crates/app/src/view/menu.rs`, `on_keystroke` |
 
+## Command palette in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+command palette of
+[issue 192](https://github.com/shantanugoel/OpenCraft/issues/192), on the
+computer of [Release measurements](#release-measurements), with a scratch
+copy of the profiles and the device connected. A helper program operated the
+real window with Quartz events, read the Edit menu through System Events,
+and took pictures of the windows only. The pictures are kept outside the
+repository. The window tests are in `crates/app/src/view/tests/palette.rs`.
+The palette is not the Kit `Command` of [part 3](#3-popover-and-modal-layer):
+it is the shared modal layer of `crates/app/src/view/modal.rs` with a Kit
+`Input`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| GPUI dispatches the actions of the matched key bindings before the key-down listeners, also before the capture phase. The Kit `Input` binds Up, Down, and ⌘↵ in its key context `"Input"`, and its handlers of Up and Down do not propagate. Thus a `capture_key_down` on a parent of a focused field never gets Up and Down. | Source | `gpui-pre` 0.3.12 `src/window.rs`, `dispatch_key_event`; `gpui-base` 0.9.1 `src/input/base/state.rs` and `movement.rs` |
+| A binding with the context `"CommandPalette > Input"` has the depth of the field, the same as the bindings of the Kit. The binding that is added later wins, and `gpui_kit::init` adds the Kit bindings first. With this, Up, Down, ⌃P, ⌃N, and ⌘↵ in the field sent the actions of the palette, and the text of the field did not change. | Source; Measured (window test and real window) | `gpui-pre` 0.3.12 `src/keymap/context.rs`, `Descendant`; `crates/app/src/app_menu.rs`, `install`; `the_arrow_keys_move_the_selection_and_keep_it_visible` |
+| The Kit `Input` handles Escape and Return and then propagates them. The `capture_key_down` of the modal card then gets them, as in the profile settings sheet. | Measured | Window tests; real window |
+| `ScrollHandle::scroll_to_item(ix)` counts the direct children of the element with `track_scroll`. With the rows inside one more `div`, the list did not scroll. With the group headers and the rows as direct children, the selected row stayed visible at each press of Down and Up. | Measured | `the_arrow_keys_move_the_selection_and_keep_it_visible`, first version; real window pictures |
+| `Window::is_action_available_in(action, &focus)` tells if an element in the path of `focus` has a handler for the action, from the last frame. The palette uses it with the focus handle of the root element, so that it shows the same commands that the menus enable. `App::is_action_available` adds the global handlers (for example `OpenSettings`); in a handler of the window, the part for the active window gives no result, because that window is in an update. | Source; Measured (window test: "Undo" shows only with a step) | `gpui-pre` 0.3.12 `src/window.rs` and `src/app.rs`; `the_commands_are_the_commands_that_the_window_can_do_now` |
+| `MenuItem::Action` has public fields, thus a menu item can take a `Box<dyn Action>` from a table (`action.boxed_clone()`). The menus, the pane "Shortcuts", and the palette use one table of commands. The Edit menu showed "Search…" with the key K. | Source; Measured | `gpui-pre` 0.3.12 `src/platform/app_menu.rs`; `crates/app/src/app_menu.rs`, `commands`; AX `AXMenuItemCmdChar` |
+| A command from the palette goes to the window with `window.dispatch_action` after the close and `focus_workspace`. "Undo", "Hide Sidebar", and "Settings…" operated in the real window. | Measured | Real window pictures |
+| ⌘K with the focus in the field "Title" of the inspector opened the palette, and the typed letters went to the palette and not to the field. | Measured | Real window picture; `cmd_k_opens_the_palette_also_from_a_text_field` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

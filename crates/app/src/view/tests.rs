@@ -241,6 +241,7 @@ mod menu;
 mod nested;
 mod page_inspector;
 mod pages;
+mod palette;
 mod panes;
 mod profile_sheet;
 mod sidebar;

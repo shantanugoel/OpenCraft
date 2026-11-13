@@ -663,6 +663,39 @@ pub const BORDER_NO_COLOUR: Rgba = BORDER_SAMPLE_OTHER;
 /// the colour that the user selects.
 pub const PROFILE_COLOURS: [u32; 6] = [0x3b82f6, 0x14b8a6, 0x22c55e, 0xf59e0b, 0xef4444, 0xa855f7];
 
+// MARK: The command palette and the toolbar search field (sections 5 and 15)
+
+/// The size of the command palette, with its border, and the space from
+/// the top of the window to the palette.
+pub const PALETTE_WIDTH: Pixels = px(680.);
+pub const PALETTE_HEIGHT: Pixels = px(460.);
+pub const PALETTE_TOP: Pixels = px(120.);
+/// The width of the border of the palette, of a sheet, and of a popover.
+pub const BORDER_OVERLAY_WIDTH: Pixels = px(1.);
+/// The search row at the top of the palette, and the text field in it.
+pub const HEIGHT_PALETTE_SEARCH: Pixels = px(56.);
+pub const HEIGHT_PALETTE_FIELD: Pixels = px(36.);
+/// The search icon of the palette.
+pub const ICON_PALETTE_SEARCH: Pixels = px(18.);
+/// A row of the palette, and the footer of the palette.
+pub const HEIGHT_PALETTE_ROW: Pixels = px(36.);
+pub const HEIGHT_PALETTE_FOOTER: Pixels = px(36.);
+/// The tile of a row of the palette, its corner radius, and its icon.
+pub const PALETTE_TILE: Pixels = px(24.);
+pub const RADIUS_PALETTE_TILE: Pixels = RADIUS_CONTROL;
+pub const ICON_PALETTE_TILE: Pixels = px(14.);
+/// A row of the palette.
+pub const RADIUS_PALETTE_ROW: Pixels = RADIUS_CARD;
+/// The tile of the selected row: white at 18 %.
+pub const TILE_ON_ACCENT: Rgba = hex_alpha(0xffffff, 0.18);
+/// The chip with the selected control, for example "Key 8 selected".
+pub const BG_CONTEXT_CHIP: Rgba = hex(0x34363c);
+/// The search field of the toolbar: a button that looks like a search
+/// field.
+pub const WIDTH_TOOLBAR_SEARCH: Pixels = px(240.);
+/// The side padding of a key hint, for example "⌘K" (padding 1 5).
+pub const KEY_HINT_PADDING_X: Pixels = px(5.);
+
 /// The shadow of a sheet and of the command palette: 0 24 60, black at 55 %.
 pub fn sheet_shadow() -> Vec<BoxShadow> {
     vec![BoxShadow {
@@ -685,8 +718,12 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     ChevronRight,
     ChevronUp,
     ChevronsUpDown,
+    CircleDot,
+    ClipboardPaste,
     Copy,
+    CopyPlus,
     Ellipsis,
+    Eraser,
     GripVertical,
     Grid3x2,
     Info,
@@ -694,14 +731,18 @@ gpui_kit::assets::icon_assets!(pub WindowIcons, [
     Layers,
     PanelLeft,
     PanelRight,
+    PanelTop,
     Pencil,
     Play,
     Plus,
+    Power,
+    RectangleHorizontal,
     Redo2,
     Search,
     Settings,
     ShieldAlert,
     ShieldCheck,
+    Square,
     Trash,
     TriangleAlert,
     Undo2,

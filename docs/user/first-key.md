@@ -189,6 +189,42 @@ the same with a bar panel and a knob.
 - Each **Paste**, **Clear**, and **Copy to All Pages** is one change. You can
   undo it. See [Undo a change](#undo-a-change).
 
+## Search with Command-K
+
+The search finds action kinds, controls, pages, profiles, and commands. You
+can do all of this procedure with the keyboard.
+
+![The search with an empty field: the action kinds, the controls, the pages, the profiles, and the commands](images/command-palette.png)
+
+1. Push Command-K. Or click the search field at the right of the toolbar.
+   Or select **Edit > Search…**. The search opens in the centre of the
+   window. Command-K also operates when a text field has the cursor.
+2. Type a part of a name, for example `url`, `key 3`, `audio`, or
+   `sidebar`. The list shows the results in five groups. Each group shows
+   five results at the most.
+3. Push the Down arrow or the Up arrow to select a result. The list scrolls
+   with the selection.
+4. Push Return. The bottom line of the search tells what Return does.
+
+| Group | What it finds | What Return does |
+|---|---|---|
+| Actions | The action kinds of the library, by name | Sets the action on the selected control, as a click in the [library](actions.md#the-library) does |
+| Controls | The controls of the page on the device, by name (for example "Key 3") and by title | Selects the control |
+| Pages | The pages of all profiles. The text at the right shows the profile and the page number. | Shows the page on the device. A page of a different profile also makes that profile active. |
+| Profiles | The profiles. "On device" shows at the right of the active profile. | Makes the profile active |
+| Commands | The commands of the window, for example **Add a page**, **Page settings**, **Device settings**, **Add a profile**, **Settings…**, **Hide Sidebar**, and **Undo**. The key command shows at the right. | Does the command |
+
+- The text at the top right, for example "Key 8 selected", shows the
+  control that gets an action.
+- Command-Return does the same as Return, and then shows the result in the
+  tab **Inspector**: the control with the new action, the selected control,
+  or the selected page.
+- A command shows only when you can do it now. For example, **Undo** shows
+  only when there is a change to undo.
+- Push Escape, or click outside the search, to close it with no change.
+- If nothing agrees with your text, the search shows "No result for" and
+  your text.
+
 ## If the key does nothing
 
 - Look above the status bar. If a message shows, read it. See

@@ -464,6 +464,7 @@ fn the_shortcuts_list_the_key_commands_that_have_a_key_binding(cx: &mut TestAppC
     assert_eq!(
         rows,
         [
+            ("Search", "⌘K".to_string()),
             ("Undo", "⌘Z".to_string()),
             ("Redo", "⇧⌘Z".to_string()),
             ("Copy the control", "⌘C".to_string()),

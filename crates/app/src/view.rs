@@ -27,6 +27,7 @@
 //! | `clipboard` | Copy, Paste, Clear, and Copy to All Pages of the selected control |
 //! | `profile_sheet` | The profile settings sheet, with the export and the import of a profile |
 //! | `modal` | The modal layer of a sheet or the command palette, and the parts of a sheet |
+//! | `palette` | The command palette, the search field of the toolbar, and the commands that only the palette shows |
 //! | `controls` | Controls that more than one part uses |
 //! | `theme` | The visual constants |
 
@@ -72,6 +73,7 @@ pub(crate) mod modal;
 mod nested;
 mod page_inspector;
 mod pages;
+mod palette;
 mod panes;
 mod profile_sheet;
 mod right_panel;
@@ -144,6 +146,8 @@ pub struct DeviceView {
     library: library::LibraryState,
     /// The profile settings sheet (decision 0029, section 16).
     sheet: profile_sheet::ProfileSheet,
+    /// The command palette (decision 0029, section 15).
+    palette: palette::Palette,
     faces: states::StateFaces,
     /// The scroll position of the inspector. It shows a scrollbar when its
     /// content is taller than the window.
@@ -209,6 +213,7 @@ impl DeviceView {
             device: device::DevicePanel::new(window, cx),
             library,
             sheet: profile_sheet::ProfileSheet::new(window, cx),
+            palette: palette::Palette::new(window, cx),
             faces: states::StateFaces::new(window, cx),
             inspector_scroll: ScrollHandle::new(),
         }
@@ -372,11 +377,13 @@ impl Render for DeviceView {
         // window, thus the key commands of the window do not operate while
         // it is open (`modal`).
         let sheet = self.profile_sheet(window, cx);
+        let palette = self.command_palette(window, cx);
         div()
             .relative()
             .size_full()
             .child(self.workspace(window, cx))
             .children(sheet)
+            .children(palette)
     }
 }
 
@@ -398,6 +405,7 @@ impl DeviceView {
             .map(|root| self.sidebar_actions(root, cx))
             .map(|root| self.clipboard_actions(root, window, cx))
             .map(|root| self.step_actions(root, cx))
+            .map(|root| self.window_commands(root, cx))
             // With no handler, macOS disables the Edit menu item.
             .when(self.can_history(true, window, cx), |d| {
                 d.on_action(
