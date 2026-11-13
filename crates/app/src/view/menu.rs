@@ -9,7 +9,8 @@
 //! |---|---|
 //! | Down, Up | Move the highlight to the next or the previous item. At the end, the highlight goes to the other end. |
 //! | Home, End | Move the highlight to the first or the last item. |
-//! | Return | Select the highlighted item: its click handler runs. |
+//! | Return, Space | Select the highlighted item: its click handler runs. |
+//! | Tab, Shift-Tab | Nothing: the focus stays on the popup button while its menu is open. |
 //! | A letter or a digit | Move the highlight to the first item with a name that starts with the typed text. The text is cleared after one second. |
 //!
 //! The first item is highlighted when the menu opens. The highlight follows
@@ -29,11 +30,15 @@
 //! a text field has the focus, so that a menu with a field (a colour
 //! popover) keeps the keys of the field. A menu with no [`MenuRow`] has no
 //! keys at all.
+//!
+//! The menu element is also a focus trap: in a popover with controls (a
+//! colour popover), Tab and Shift-Tab move the focus between the controls
+//! of the popover only.
 
 use super::{controls::Accessible, theme};
 use gpui_kit::{
     component::WindowExt, fill, point, prelude::*, px, AnyElement, App, Bounds, ClickEvent,
-    DispatchPhase, Div, Element, ElementId, GlobalElementId, Hitbox, HitboxBehavior,
+    DispatchPhase, Div, Element, ElementId, FocusHandle, GlobalElementId, Hitbox, HitboxBehavior,
     InspectorElementId, KeystrokeEvent, LayoutId, MouseMoveEvent, Pixels, Role, ScrollHandle,
     SharedString, Stateful, Subscription, Window,
 };
@@ -247,11 +252,14 @@ thread_local! {
 /// interceptor of the keys when the state drops.
 struct MenuState {
     nav: NavRef,
+    /// The focus handle of the focus trap of the menu.
+    focus: FocusHandle,
     _keys: Subscription,
 }
 
-/// The function that makes the menu element from the scroll handle.
-type Builder = Box<dyn FnOnce(&ScrollHandle) -> AnyElement>;
+/// The function that makes the menu element from the scroll handle and the
+/// focus handle of the focus trap.
+type Builder = Box<dyn FnOnce(&ScrollHandle, &FocusHandle) -> AnyElement>;
 
 /// The wrapper of the menu element: it keeps the state of the keys, makes
 /// the scroll handle, and builds the menu with that handle.
@@ -263,10 +271,11 @@ pub(super) struct MenuKeys {
 
 impl MenuKeys {
     /// `build` makes the menu element. It must use the scroll handle for
-    /// the scrolling element (`track_scroll`).
+    /// the scrolling element (`track_scroll`), and the focus handle for its
+    /// focus trap.
     pub(super) fn new(
         id: impl Into<ElementId>,
-        build: impl FnOnce(&ScrollHandle) -> AnyElement + 'static,
+        build: impl FnOnce(&ScrollHandle, &FocusHandle) -> AnyElement + 'static,
     ) -> Self {
         Self {
             id: id.into(),
@@ -305,7 +314,7 @@ impl Element for MenuKeys {
     ) -> (LayoutId, NavRef) {
         let id = id.expect("The menu has an element identifier");
         let handle = window.window_handle();
-        let nav = window.with_element_state(id, |state: Option<MenuState>, _| {
+        let (nav, focus) = window.with_element_state(id, |state: Option<MenuState>, _| {
             let state = state.unwrap_or_else(|| {
                 let nav: NavRef = Rc::new(RefCell::new(Nav {
                     items: Vec::new(),
@@ -322,12 +331,16 @@ impl Element for MenuKeys {
                         }
                     })
                 };
-                MenuState { nav, _keys: keys }
+                MenuState {
+                    nav,
+                    focus: cx.focus_handle(),
+                    _keys: keys,
+                }
             });
-            (state.nav.clone(), state)
+            ((state.nav.clone(), state.focus.clone()), state)
         });
         let scroll = nav.borrow().scroll.clone();
-        let mut child = (self.build.take().expect("The menu builds one time"))(&scroll);
+        let mut child = (self.build.take().expect("The menu builds one time"))(&scroll, &focus);
         let layout = child.request_layout(window, cx);
         self.child = Some(child);
         (layout, nav)
@@ -401,7 +414,8 @@ fn on_keystroke(nav: &NavRef, event: &KeystrokeEvent, window: &mut Window, cx: &
             ("up", _) => Move::To((current + count - 1) % count),
             ("home", _) => Move::To(0),
             ("end", _) => Move::To(count - 1),
-            ("enter", _) => Move::Select,
+            ("enter" | "space", _) => Move::Select,
+            ("tab", _) => Move::To(current),
             (_, Some(text)) => {
                 let now = Instant::now();
                 if state

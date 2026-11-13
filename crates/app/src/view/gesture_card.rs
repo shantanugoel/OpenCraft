@@ -477,7 +477,8 @@ impl GestureCard {
                             .child(ADD_AN_ACTION),
                     )
                     .when_some(on_menu, |d, on_menu| {
-                        d.on_click(move |event, window, cx| on_menu(event, window, cx))
+                        controls::keyboard_focus(d, controls::Ring::Inside)
+                            .on_click(move |event, window, cx| on_menu(event, window, cx))
                     }),
             )
             .children(self.menu)
@@ -535,7 +536,8 @@ impl GestureCard {
                             .child(summary)
                     }))
                     .when_some(on_toggle, |d, on_toggle| {
-                        d.on_click(move |event, window, cx| on_toggle(event, window, cx))
+                        controls::keyboard_focus(d, controls::Ring::Outside)
+                            .on_click(move |event, window, cx| on_toggle(event, window, cx))
                     }),
             )
             .children(self.menu)
@@ -593,6 +595,9 @@ impl GestureCard {
                                     .size(theme::ICON_SMALL)
                                     .text_color(theme::TEXT_SECONDARY),
                             )
+                            .when(on_menu.is_some(), |d| {
+                                controls::keyboard_focus(d, controls::Ring::Inside)
+                            })
                             .when_some(on_menu, |d, on_menu| {
                                 d.on_click(move |event, window, cx| {
                                     // The click opens the menu, and does not
@@ -699,7 +704,9 @@ impl RenderOnce for GestureCard {
             .children(name)
             .child(content)
             .when_some(on_toggle, |d, on_toggle| {
-                d.on_click(move |event, window, cx| on_toggle(event, window, cx))
+                controls::keyboard_focus(d, controls::Ring::Inside)
+                    .rounded(radius)
+                    .on_click(move |event, window, cx| on_toggle(event, window, cx))
             });
         let mut body = self.body;
         if let Some(on_test) = self.on_test {

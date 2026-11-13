@@ -272,6 +272,40 @@ can do all of this procedure with the keyboard.
 - If nothing agrees with your text, the search shows "No result for" and
   your text.
 
+## Operate the window with the keyboard
+
+You can operate each button, popup button, switch, slider, colour sample, row,
+and card of the window with the keyboard.
+
+![The focus ring on the popup button of the text size in the inspector](images/keyboard-focus.png)
+
+| To do this | Push |
+|---|---|
+| Go to the next control | Tab |
+| Go to the previous control | Shift-Tab |
+| Click the control with the focus | Space or Return |
+| Move a slider, for example the brightness | Left arrow or Right arrow |
+| Select an item in an open menu | Up arrow or Down arrow, then Space or Return |
+| Select a starter profile in the first start window | The arrow keys |
+
+- The control with the focus has a blue ring. The ring shows only when you
+  use the keyboard. A click does not move the focus to a control, and it
+  removes the ring.
+- Tab goes through the sidebar, the toolbar, the page header, the tabs of
+  the right panel, and the inspector, in this order. In a sheet, in the
+  search, and in a popover, Tab stays in that part.
+- In a sheet, Return clicks the blue button (for example **Done**), also
+  when a different button has the focus. Space clicks the button with the
+  focus. Escape closes the sheet.
+- The controls of the device picture and the actions of the library are not
+  in the Tab order. Use Command-K: type `key 3` to select a key, or the name
+  of an action to set it. See [Search with Command-K](#search-with-command-k).
+- The key commands of the window, for example Command-Z and Command-K,
+  operate also when a control has the focus.
+- When a button has the focus, Delete clears the selected control, as
+  **Edit > Clear** does. Command-Z restores it. When a text field has the
+  cursor, Delete removes a character of the text.
+
 ## If the key does nothing
 
 - Look above the status bar. If a message shows, read it. See

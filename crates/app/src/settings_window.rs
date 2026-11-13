@@ -26,7 +26,7 @@ use crate::{
     shell::{Shell, ShellCommand},
     state::ViewState,
     view::{
-        controls::{small_button, Accessible},
+        controls::{keyboard_focus, small_button, Accessible, FocusOwner, Ring},
         theme,
     },
 };
@@ -387,6 +387,9 @@ pub struct SettingsView {
     fit: Rc<Fit>,
     /// The picture of the application icon, for the pane "About".
     icon: std::sync::Arc<gpui_kit::Image>,
+    /// Gives the focus back to the root element when the element with the
+    /// focus is not drawn any more, for example after a change of the pane.
+    _focus_lost: Subscription,
 }
 
 impl SettingsView {
@@ -430,9 +433,11 @@ impl SettingsView {
         });
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
+        let focus_lost = cx.on_focus_lost(window, |view, window, cx| window.focus(&view.focus, cx));
         Self {
             shell: shell.clone(),
             _shell_subscription: subscription,
+            _focus_lost: focus_lost,
             focus,
             // The options of the window have the title of the pane.
             shown: Shown::of(&snapshot),
@@ -539,8 +544,7 @@ impl SettingsView {
             SettingsPane::Shortcuts => IconName::Keyboard,
             SettingsPane::About => IconName::Info,
         };
-        div()
-            .id(id.clone())
+        keyboard_focus(div().id(id.clone()), Ring::Inside)
             .debug_selector(move || id.to_string())
             // A tab is one of a group of choices, as a segment is.
             .accessible(Role::RadioButton, pane.name())
@@ -647,6 +651,9 @@ impl Render for SettingsView {
             .key_context(SETTINGS)
             .track_focus(&self.focus)
             .on_action(cx.listener(|_, _: &CloseWindow, window, _| window.remove_window()))
+            .on_action(
+                cx.listener(|view, _: &FocusOwner, window, cx| window.focus(&view.focus, cx)),
+            )
             .size_full()
             .relative()
             .bg(theme::BG_BAR)

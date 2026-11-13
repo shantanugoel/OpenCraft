@@ -518,6 +518,7 @@ impl DeviceView {
                             .aria_expanded(menu_open)
                             .child(Icon::new(IconName::Plus).size(theme::ICON_KIND_NESTED))
                             .child(ADD_A_STEP)
+                            .map(|d| controls::keyboard_focus(d, controls::Ring::Inside))
                             .on_click(cx.listener(move |view, _, window, cx| {
                                 view.toggle_menu(toggle.clone(), window, cx)
                             })),
@@ -665,6 +666,7 @@ impl DeviceView {
                         .text_color(theme::TEXT_SECONDARY)
                         .child(value),
                 )
+                .map(|d| controls::keyboard_focus(d, controls::Ring::Inside))
                 .on_click(cx.listener(move |view, _, window, cx| {
                     view.toggle_nested(toggle.clone(), window, cx)
                 }))

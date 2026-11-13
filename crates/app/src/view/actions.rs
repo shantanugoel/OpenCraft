@@ -16,7 +16,7 @@ use gpui_kit::{
     base::TestTextExt,
     component::{
         input::{AnyInputState, TextareaState},
-        Icon,
+        Icon, WindowExt,
     },
     KeyDownEvent, Pixels,
 };
@@ -696,9 +696,10 @@ impl DeviceView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        // The recorder has the focus of the root element. A key in a text
-        // field is text.
-        if !self.focus.is_focused(window) {
+        // The recorder and the open menus get the keys of the root element
+        // and of a control with the keyboard focus. A key in a text field is
+        // text.
+        if window.focused_input(cx).is_some() {
             return;
         }
         let escape = event.keystroke.key == "escape"
@@ -1190,6 +1191,7 @@ impl DeviceView {
                             .text_color(colour)
                             .cursor_pointer()
                             .child(div().truncate().child(text.clone()).test_text(text))
+                            .map(|d| controls::keyboard_focus(d, controls::Ring::Outside))
                             .on_click(cx.listener(move |view, _, window, cx| {
                                 view.form.recording = Some(record.clone());
                                 view.focus_workspace(window, cx);
