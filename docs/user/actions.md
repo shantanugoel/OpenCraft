@@ -53,6 +53,35 @@ action.
 If the page or the device is selected, a click on an action kind does
 nothing, and the status bar shows "Select a control first".
 
+### Drag an action onto a control
+
+You can also drag an action kind from the library onto a control. You do
+not have to select the control first.
+
+![A drag of "Open a URL" onto an empty key face](images/drag-and-drop.png)
+
+1. Click **Library** at the top of the right panel.
+2. Push and hold the mouse button on an action kind, and move the pointer.
+   The row of the kind gets a dashed border, and a small picture of the
+   kind moves with the pointer.
+3. Move the pointer onto a key face, a bar panel, or a knob. Only the
+   control below the pointer gets a dashed blue border and the text
+   "Drop here".
+4. Release the mouse button.
+
+The action goes on the first gesture of the control, with the default
+settings of the kind: **Press** for a key, **Tap** for a bar panel, and
+**Turn** for a knob. This is also true when a different card of the control
+is open. The drop selects the control and opens the card of that gesture.
+The status bar shows the change, for example "Key 9 gets “Open a URL” for
+Press". The right panel stays on **Library**.
+
+- If the gesture has an action already, the new action replaces it. One
+  Command-Z (**Undo Drop Action**) gets the old action back.
+- If you release the mouse button outside a control, nothing changes.
+- During the drag, the line of help below the device tells where you can
+  drop the action.
+
 To find a kind, type a part of its name in the search field at the top of
 the library, for example `text`. The library then shows only the kinds with
 that text in their names. If no kind agrees, it shows "No action matches"

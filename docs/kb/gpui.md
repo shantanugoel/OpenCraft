@@ -766,6 +766,28 @@ pictures are kept outside the repository. The window tests are in
 | A native menu from `NativeMenu::show` at a right click on a step showed "Move Up", "Move Down", a separator, and "Remove". "Move Up" moved the step, and the toolbar tooltip then showed "Undo Move Step". | Measured | Real window pictures |
 | The test platform sends `InputEvent::Focus` to a field only in an active window. A test of the text edit of the history calls `window.activate_window()` first. | Measured | `the_two_actions_of_a_toggle_are_nested_cards_and_each_change_is_one_step` |
 
+## Drag and drop in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+drag from the library of
+[issue 185](https://github.com/shantanugoel/OpenCraft/issues/185), on the
+computer of [Release measurements](#release-measurements), with a copy of a
+profile and the device connected. A helper program made each drag with
+Quartz events, stopped the pointer at points during the drag, and took
+pictures of the window only. The pictures are kept outside the repository.
+The window tests are in `crates/app/src/view/tests/library.rs`. The method
+is the one of [part 4](#4-drag-and-drop-from-the-right-pane-to-the-centre-pane).
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A style of `group_drag_over` or of `drag_over` applies only to an element with a hitbox. `drag_over` makes a hitbox, `group_drag_over` alone does not. A full-size child with `opacity(0.)` and `drag_over::<T>(\|s, ..\| s.opacity(1.))` showed the drop target ("Drop here") on the control under the pointer only, and on no control when the pointer was between two controls. | Source; Measured | `gpui-pre` 0.3.12 `src/elements/div.rs`, `should_insert_hitbox` and `compute_style_internal`; window pictures; `crates/app/src/view/canvas.rs`, `drop_target` |
+| GPUI makes the hit test after the prepaint of the drag picture, and before the paint. The drag picture has no hitbox, thus it does not cover the drop targets. | Source; Measured | `src/window.rs`, `draw`; window pictures |
+| The value of the active drag is `pub(crate)`: a view cannot read which value is in the drag. `App::has_active_drag` is true for each drag, also for a drag of a pane divider. The constructor of `on_drag` can write the dragged value to the view, and `observe_release` of the picture entity removes it at the end of each drag, also after a drop outside all targets. | Source; Measured | `src/app.rs`, `active_drag`; window test `a_drop_outside_a_control_does_nothing` |
+| GPUI lays out the drag picture with `AvailableSpace::min_size()`, the smallest size of its content. The chip of the two drags (`KindLabel::drag_chip`) sets `whitespace_nowrap`, so that a long kind name stays on one line. | Source | `src/window.rs`, `draw`; `crates/app/src/view/gesture_card.rs` |
+| A margin on a child of the drag picture moves the picture from the point that GPUI gives (pointer minus press offset). A margin of the press offset plus (4, 14) put the picture below the pointer at each stop of the drag, and the text "Drop here" of the target stayed visible. | Measured | Window pictures; `crates/app/src/view/library.rs`, `DragPicture` |
+| The cursor during a drag is the cursor of the source element (`cursor_grab`, the open hand). `App::set_active_drag_cursor_style` changes it, but only after the drag starts: the `on_drag` constructor runs before GPUI sets the drag, thus a call there must go through `Window::defer`. | Source | `src/elements/div.rs`, `drag_cursor_style`; `src/app.rs` |
+| `VisualTestContext` has no `has_active_drag`. `cx.update(\|_, cx\| cx.has_active_drag())` reads it. | Measured (build error) | `crates/app/src/view/tests/library.rs` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

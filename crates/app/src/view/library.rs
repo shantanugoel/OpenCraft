@@ -9,12 +9,18 @@
 //! A search field filters the kinds by name. A click on a row sets the kind
 //! on the open gesture card of the selected control, and the status bar
 //! tells what changed (section 6.1).
+//!
+//! A row can also go onto a control with a drag (section 12). The row gives
+//! a [`KindDrag`] and the [`DragPicture`]; the canvas has the drop targets.
+//! A drop and a click use the same path ([`DeviceView::assign_to`]). A drop
+//! is one step "Drop Action" of the history (decision 0030).
 
 use super::gesture_card::{KindLabel, TileSize};
 use super::*;
 use crate::state::gestures;
-use gpui_kit::FontWeight;
+use gpui_kit::{CursorStyle, FontWeight, Pixels, Point};
 use opencraft_engine::{GestureKind, KindDescription};
+use std::cell::RefCell;
 
 /// The status bar text after a click in the library with no selected
 /// control.
@@ -23,13 +29,49 @@ pub(super) const SELECT_FIRST: &str = "Select a control first";
 /// The group name of a kind that gives no group.
 pub(super) const OTHER_GROUP: &str = "Other";
 
+/// The name of the step of the history that a drop makes (decision 0029,
+/// section 13).
+pub(super) const DROP_STEP: &str = "Drop Action";
+
 /// The state of the library tab.
 pub(super) struct LibraryState {
     /// The search field.
     pub(super) search: Entity<InputState>,
     /// The scroll position of the list.
     scroll: ScrollHandle,
+    /// The kind of the row in a drag. It goes back to `None` when the drag
+    /// picture goes away, also after a drop outside a control.
+    pub(super) dragging: Option<String>,
     _subscription: Subscription,
+}
+
+/// The data of a drag from the library: the kind of the row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct KindDrag {
+    pub(super) kind: String,
+}
+
+/// The picture at the pointer during a drag (section 12): a chip with the
+/// kind tile and the kind name.
+pub(super) struct DragPicture {
+    label: KindLabel,
+    /// The point of the press in the row. GPUI puts the top-left corner of
+    /// the picture at the pointer minus this offset (kb/gpui.md).
+    offset: Point<Pixels>,
+}
+
+impl Render for DragPicture {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        // GPUI puts the corner of this element at the pointer minus the
+        // offset. The margin moves the chip to its place from the pointer.
+        let (x, y) = theme::DRAG_PICTURE_OFFSET;
+        div().child(
+            self.label
+                .drag_chip()
+                .ml(self.offset.x + x)
+                .mt(self.offset.y + y),
+        )
+    }
 }
 
 impl LibraryState {
@@ -44,6 +86,7 @@ impl LibraryState {
         Self {
             search,
             scroll: ScrollHandle::new(),
+            dragging: None,
             _subscription: subscription,
         }
     }
@@ -137,11 +180,46 @@ impl DeviceView {
             self.focus_workspace(window, cx);
             return;
         };
+        self.assign_to(control, kind, None, window, cx);
+    }
+
+    /// A drop of `kind` on `control` (section 12). The canvas selected the
+    /// control first. The drop uses the first gesture of the control, also
+    /// when a different card is open, and it is one step "Drop Action" of
+    /// the history.
+    pub(super) fn drop_kind(
+        &mut self,
+        control: ControlId,
+        kind: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.library.dragging = None;
+        if self.framed_control() == Some(control) {
+            self.assign_to(control, kind, Some(DROP_STEP), window, cx);
+        }
+        cx.notify();
+    }
+
+    /// Set `kind`, with its default settings, on a gesture of the selected
+    /// `control`, and show the message of section 6.1. A click
+    /// (`drop` is `None`) uses the open card, else the first gesture. A
+    /// drop (`drop` is the name of the step) always uses the first gesture,
+    /// and its commands go to the engine as one step with that name.
+    fn assign_to(
+        &mut self,
+        control: ControlId,
+        kind: &str,
+        drop: Option<&str>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         // The open card can be the "Turn" card of a knob, or the "Tap" card
         // of its bar panel (section 10.4).
         let open = self
             .state
             .gesture
+            .filter(|_| drop.is_none())
             .and_then(|open| Some((open, self.card_name(control, open)?)));
         let first = open.is_none();
         let (Some((gesture, gesture_name)), Some(name)) = (
@@ -155,10 +233,16 @@ impl DeviceView {
             return;
         };
         self.close_kinds();
-        if first && control.kind == ControlKind::Knob {
-            self.set_turn(control, Some(kind.to_string()));
-        } else {
-            self.choose_card(gesture, Some(kind.to_string()));
+        let set = |view: &mut Self| {
+            if first && control.kind == ControlKind::Knob {
+                view.set_turn(control, Some(kind.to_string()));
+            } else {
+                view.choose_card(gesture, Some(kind.to_string()));
+            }
+        };
+        match drop {
+            Some(step) => self.one_step(step, set),
+            None => set(self),
         }
         self.sync_form(window, cx);
         let target = self
@@ -167,6 +251,41 @@ impl DeviceView {
             .map_or(control, |b| b.control);
         self.show_message(assigned_text(target, &name, gesture_name), window, cx);
         self.focus_workspace(window, cx);
+    }
+
+    /// Do `change`, and send the commands that it sends as one
+    /// `Command::Group` with the name `name`: one step of the history
+    /// (decision 0030). A group in `change` gives its commands to this
+    /// group. A change that sends nothing sends no group.
+    fn one_step(&mut self, name: &str, change: impl FnOnce(&mut Self)) {
+        let commands: Rc<RefCell<Vec<Command>>> = Rc::default();
+        let collect = commands.clone();
+        let send = std::mem::replace(
+            &mut self.send,
+            Rc::new(move |command| collect.borrow_mut().push(command)),
+        );
+        change(self);
+        self.send = send;
+        let commands: Vec<Command> = commands
+            .take()
+            .into_iter()
+            .flat_map(|command| match command {
+                Command::Group { commands, .. } => commands,
+                command => vec![command],
+            })
+            .collect();
+        if !commands.is_empty() {
+            (self.send)(Command::Group {
+                name: name.into(),
+                commands,
+            });
+        }
+    }
+
+    /// True while a row of the library is in a drag. A drag of a different
+    /// kind, for example of a pane divider, is not a drag of the library.
+    pub(super) fn kind_drag(&self, cx: &App) -> bool {
+        self.library.dragging.is_some() && cx.has_active_drag()
     }
 
     pub(super) fn library(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
@@ -256,6 +375,11 @@ impl DeviceView {
         members: Vec<usize>,
         cx: &mut Context<Self>,
     ) -> Div {
+        let drag = self
+            .library
+            .dragging
+            .as_deref()
+            .filter(|_| cx.has_active_drag());
         div()
             .flex()
             .flex_col()
@@ -269,6 +393,9 @@ impl DeviceView {
                 let kind = &self.state.kinds[index];
                 let label = KindLabel::new(kind);
                 let id = kind.kind.clone();
+                let in_drag = drag.is_some_and(|d| *d == kind.kind);
+                let view = cx.entity().downgrade();
+                let picture = label.clone();
                 div()
                     .id(SharedString::from(format!("library-{index}")))
                     .debug_selector(move || format!("library-{index}"))
@@ -285,8 +412,47 @@ impl DeviceView {
                     .text_size(theme::TEXT_BODY)
                     .font_weight(FontWeight::MEDIUM)
                     .cursor_grab()
-                    .hover(|d| d.bg(theme::HOVER_ROW))
-                    .active(|d| d.bg(theme::PRESSED))
+                    .map(|d| {
+                        if in_drag {
+                            // The row in a drag (section 11).
+                            d.bg(theme::ACCENT_TINT_DRAG)
+                                .border_dashed()
+                                .border_color(theme::ACCENT_LINE)
+                                .text_color(theme::TEXT_SECONDARY)
+                        } else if drag.is_some() {
+                            // No hover on the other rows during a drag.
+                            d
+                        } else {
+                            d.hover(|d| d.bg(theme::HOVER_ROW))
+                                .active(|d| d.bg(theme::PRESSED))
+                        }
+                    })
+                    .on_drag(
+                        KindDrag { kind: id.clone() },
+                        move |drag: &KindDrag, offset, window, cx| {
+                            let _ = view.update(cx, |view, cx| {
+                                view.library.dragging = Some(drag.kind.clone());
+                                cx.notify();
+                            });
+                            // The closed hand while the row is in the drag.
+                            window.defer(cx, |window, cx| {
+                                cx.set_active_drag_cursor_style(CursorStyle::ClosedHand, window);
+                            });
+                            let label = picture.clone();
+                            let picture = cx.new(|_| DragPicture { label, offset });
+                            // The drag picture goes away at the end of each
+                            // drag, also with no drop.
+                            let view = view.clone();
+                            cx.observe_release(&picture, move |_, cx| {
+                                let _ = view.update(cx, |view, cx| {
+                                    view.library.dragging = None;
+                                    cx.notify();
+                                });
+                            })
+                            .detach();
+                            picture
+                        },
+                    )
                     .child(label.tile(TileSize::Library))
                     .child(
                         div()

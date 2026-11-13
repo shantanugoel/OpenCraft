@@ -102,25 +102,7 @@ impl Render for StepDragPicture {
         div()
             .pl(inset(self.offset.x))
             .pt(inset(self.offset.y))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(theme::SPACE_8)
-                    .pl(theme::SPACE_8)
-                    .pr(theme::SPACE_12)
-                    .py(theme::DRAG_PICTURE_PADDING_Y)
-                    .rounded(theme::RADIUS_CARD)
-                    .bg(theme::BG_FIELD)
-                    .border_1()
-                    .border_color(theme::BG_SEGMENT_ON)
-                    .shadow(theme::drag_shadow())
-                    .text_size(theme::TEXT_CONTROL)
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(theme::TEXT_PRIMARY)
-                    .child(self.label.tile(TileSize::Drag))
-                    .child(self.label.name().clone()),
-            )
+            .child(self.label.drag_chip())
     }
 }
 

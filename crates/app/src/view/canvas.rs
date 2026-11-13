@@ -5,15 +5,20 @@
 //! is at its position in the layout of the engine, and each knob is below
 //! its feedback surface. The shell does not check for a model (rule 4).
 
-use super::{controls::square_button, *};
+use super::{controls::square_button, library::KindDrag, *};
 use crate::settings::RightPanelTab;
 use gpui_kit::{assets::IconName, component::Icon, FontWeight, MouseButton, MouseDownEvent, Rgba};
 use opencraft_engine::{DeviceLayout, DeviceSettings, KnobLightMode, SurfaceLayout};
 
-/// The help line when no knob is selected (section 8.4). The part for a
-/// drag (#185) comes with that task.
-pub(super) const HELP_NORMAL: &str =
-    "Click a control to change it · Right-click for Copy, Paste and Clear";
+/// The help line when no knob is selected (section 8.4).
+pub(super) const HELP_NORMAL: &str = "Click a control to change it · Drag an action onto a control · Right-click for Copy, Paste and Clear";
+
+/// The help line while a row of the library is in a drag (section 8.4).
+pub(super) const HELP_DRAG: &str =
+    "Drop on a key, a bar panel or a knob. Drop on a key with an action to replace it. ⌘Z undoes it.";
+
+/// The text "Drop here" of the drop target.
+pub(super) const DROP_HERE: &str = "Drop here";
 
 /// The parts of the body below the display: in pixels of the display (they
 /// change with the scale), and in points (they do not change).
@@ -143,6 +148,33 @@ fn hover_outline(group: SharedString, width: f32, height: f32, radius: f32, gap:
     .group_hover(group, |s| s.border_color(theme::ACCENT_LINE_HOVER))
 }
 
+/// The drop target on a control with the corner `radius` (section 12). It
+/// is on top of the image of the control, and it shows only while the
+/// pointer of a drag from the library is on the control. GPUI gives the
+/// style of `drag_over` from the hit test of the frame, thus only the control
+/// under the pointer shows it.
+fn drop_target(radius: f32) -> Div {
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+        .rounded(px(radius))
+        .bg(theme::ACCENT_TINT_DROP)
+        .border(theme::DROP_TARGET_BORDER)
+        .border_dashed()
+        .border_color(theme::ACCENT_LINE)
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_size(theme::TEXT_CAPTION)
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(theme::TEXT_ON_ACCENT)
+        .child(DROP_HERE)
+        .opacity(0.)
+        .drag_over::<KindDrag>(|style, _, _, _| style.opacity(1.))
+}
+
 impl DeviceView {
     /// The canvas column. `width` is the width that the panes give it.
     pub(super) fn canvas(&self, width: f32, window: &Window, cx: &mut Context<Self>) -> AnyElement {
@@ -179,7 +211,7 @@ impl DeviceView {
                     // page. A control stops the click.
                     .on_click(cx.listener(|view, _, window, cx| view.select_page(window, cx)))
                     .children(self.device(width, height, cx))
-                    .child(self.help_line()),
+                    .child(self.help_line(cx)),
             )
             .children(self.messages(cx))
             .child(self.status_bar())
@@ -269,7 +301,7 @@ impl DeviceView {
     }
 
     /// The line of help below the device (section 8.4).
-    fn help_line(&self) -> AnyElement {
+    fn help_line(&self, cx: &App) -> AnyElement {
         let knob = self
             .framed_control()
             .filter(|id| id.kind == ControlKind::Knob)
@@ -292,6 +324,7 @@ impl DeviceView {
             .text_color(theme::TEXT_TERTIARY)
             .truncate()
             .child(match knob {
+                _ if self.kind_drag(cx) => HELP_DRAG.into(),
                 Some(id) => format!(
                     "The dashed outline shows the bar panel that gives feedback for {}",
                     control_name(id)
@@ -406,6 +439,7 @@ impl DeviceView {
                 theme::DEVICE_PANEL_RADIUS
             };
         let empty = self.empty_key_face(id);
+        let drag = self.kind_drag(cx);
         let group: SharedString = format!("surface-{id}").into();
         div()
             .id(format!("surface-{id}"))
@@ -489,6 +523,9 @@ impl DeviceView {
                         .border_dashed()
                         .debug_selector(move || format!("feedback-{id}")),
                     )
+                } else if drag {
+                    // The drop target shows the control under the pointer.
+                    d
                 } else {
                     d.child(hover_outline(
                         group,
@@ -498,6 +535,9 @@ impl DeviceView {
                         theme::OUTLINE_GAP,
                     ))
                 }
+            })
+            .when(drag, |d| {
+                d.child(drop_target(radius).debug_selector(move || format!("drop-{id}")))
             })
             .on_click(cx.listener(move |view, _, window, cx| {
                 cx.stop_propagation();
@@ -518,6 +558,12 @@ impl DeviceView {
                     }
                 }),
             )
+            .on_drop(cx.listener(move |view, drag: &KindDrag, window, cx| {
+                view.select(id, window, cx);
+                if let Some(control) = view.state.selected_control {
+                    view.drop_kind(control, &drag.kind, window, cx);
+                }
+            }))
             .into_any_element()
     }
 
@@ -658,6 +704,7 @@ impl DeviceView {
         let top = margin + (f32::from(layout.display_height) + theme::DEVICE_KNOB_TOP) * scale;
         let highlight = self.state.highlights.get(&id);
         let selected = self.framed_control() == Some(id);
+        let drag = self.kind_drag(cx);
         let group: SharedString = format!("control-{id}").into();
         let angle =
             *self.state.knob_steps.get(&id).unwrap_or(&0) as f32 * std::f32::consts::TAU / 12.;
@@ -712,23 +759,34 @@ impl DeviceView {
                                 theme::DEVICE_KNOB_DOT
                             }),
                     )
-                    .child(if selected {
-                        outline(
-                            diameter,
-                            diameter,
-                            diameter / 2.,
-                            theme::OUTLINE_GAP_ROUND,
-                            theme::OUTLINE_WIDTH,
-                            theme::ACCENT_LINE,
-                        )
-                        .debug_selector(move || format!("selection-{id}"))
-                    } else {
-                        hover_outline(
-                            group,
-                            diameter,
-                            diameter,
-                            diameter / 2.,
-                            theme::OUTLINE_GAP_ROUND,
+                    .map(|d| {
+                        if selected {
+                            d.child(
+                                outline(
+                                    diameter,
+                                    diameter,
+                                    diameter / 2.,
+                                    theme::OUTLINE_GAP_ROUND,
+                                    theme::OUTLINE_WIDTH,
+                                    theme::ACCENT_LINE,
+                                )
+                                .debug_selector(move || format!("selection-{id}")),
+                            )
+                        } else if drag {
+                            d
+                        } else {
+                            d.child(hover_outline(
+                                group,
+                                diameter,
+                                diameter,
+                                diameter / 2.,
+                                theme::OUTLINE_GAP_ROUND,
+                            ))
+                        }
+                    })
+                    .when(drag, |d| {
+                        d.child(
+                            drop_target(diameter / 2.).debug_selector(move || format!("drop-{id}")),
                         )
                     })
                     .on_click(cx.listener(move |view, _, window, cx| {
@@ -741,7 +799,11 @@ impl DeviceView {
                             cx.stop_propagation();
                             view.right_click_control(id, event.position, window, cx);
                         }),
-                    ),
+                    )
+                    .on_drop(cx.listener(move |view, drag: &KindDrag, window, cx| {
+                        view.select_control(id, window, cx);
+                        view.drop_kind(id, &drag.kind, window, cx);
+                    })),
             )
             .child(
                 div()

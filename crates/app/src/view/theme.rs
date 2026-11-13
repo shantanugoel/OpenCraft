@@ -573,6 +573,18 @@ pub const DEVICE_AREA_GAP: Pixels = SPACE_18;
 /// The line height of the help line below the device.
 pub const HELP_LINE_HEIGHT: f32 = 16.;
 
+// MARK: Drag and drop (sections 11 and 12)
+
+/// The drop target on a control: the accent at 28 %, on top of the image.
+/// A library row in a drag has [`ACCENT_TINT_DRAG`].
+pub const ACCENT_TINT_DROP: Rgba = hex_alpha(0x1a6fd8, 0.28);
+/// The width of the dashed border of the drop target.
+pub const DROP_TARGET_BORDER: Pixels = px(2.);
+/// The top-left corner of the drag picture, from the pointer. The picture
+/// hangs below the pointer, so that the pointer and the text "Drop here" of
+/// the target stay visible.
+pub const DRAG_PICTURE_OFFSET: (Pixels, Pixels) = (px(4.), px(14.));
+
 // MARK: The Settings window (section 17)
 
 /// The title of a sheet, and the name of the application in the pane "About".
