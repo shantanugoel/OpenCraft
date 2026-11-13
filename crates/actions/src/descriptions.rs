@@ -5,6 +5,7 @@ use opencraft_engine::{
 };
 
 pub(crate) const APPLICATION: &str = "opencraft.open-application";
+pub(crate) const QUIT: &str = "opencraft.quit-application";
 pub(crate) const URL: &str = "opencraft.open-url";
 pub(crate) const HOTKEY: &str = "opencraft.hotkey";
 pub(crate) const TEXT: &str = "opencraft.type-text";
@@ -100,6 +101,19 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         }
         SCREEN_OFF => ("Screen off", vec![]),
         DEVICE_SLEEP => ("Device sleep", vec![]),
+        QUIT => (
+            "Quit an application",
+            vec![
+                field(
+                    "application",
+                    "Application",
+                    InputType::Path {
+                        kind: PathKind::File,
+                    },
+                ),
+                field("force", "Force quit", InputType::Toggle),
+            ],
+        ),
         URL => (
             "Open a URL",
             vec![
@@ -324,6 +338,7 @@ pub(crate) fn description(kind: &str) -> KindDescription {
 fn icon(kind: &str) -> &'static str {
     match kind {
         APPLICATION => "app-window",
+        QUIT => "circle-x",
         URL => "globe",
         SHELL => "terminal",
         HOTKEY => "keyboard",
@@ -377,7 +392,7 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
         MICROPHONE | OUTPUT => (MEDIA_GROUP, None),
         PAGE | PROFILE => (NAVIGATION, None),
         TOGGLE | SEQUENCE => (LOGIC, None),
-        APPLICATION | URL | SHELL => (SYSTEM, None),
+        APPLICATION | QUIT | URL | SHELL => (SYSTEM, None),
         _ => ("", None),
     }
 }

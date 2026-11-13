@@ -222,3 +222,72 @@ fn the_url_form_has_an_optional_browser_field() {
     ));
     assert_eq!(description.fields[1].default, None);
 }
+
+fn quit_action(application: &str, force: Option<Value>) -> opencraft_engine::Action {
+    let mut fields = vec![("application", Value::Text(application.into()))];
+    if let Some(force) = force {
+        fields.push(("force", force));
+    }
+    action("quit-application", &fields)
+}
+
+#[test]
+fn a_quit_action_asks_the_application_to_quit_and_force_stops_it() {
+    let mut rig = Rig::new("quit-application", true);
+    rig.invoke(quit_action("Calculator", None));
+    rig.invoke(quit_action("Calculator", Some(Value::Boolean(false))));
+    rig.invoke(quit_action(
+        " /System/Applications/Calculator.app ",
+        Some(Value::Boolean(true)),
+    ));
+    assert_eq!(
+        rig.system.calls(),
+        [
+            Call::Quit("Calculator".into(), false),
+            Call::Quit("Calculator".into(), false),
+            Call::Quit("/System/Applications/Calculator.app".into(), true),
+        ]
+    );
+    assert!(rig.messages.try_recv().is_err());
+}
+
+#[test]
+fn a_quit_action_with_wrong_settings_does_no_work() {
+    let mut rig = Rig::new("quit-application", true);
+    rig.invoke(action("quit-application", &[]));
+    rig.problem("Quit an application: type a value in the field \"Application\".");
+    rig.invoke(quit_action("  ", None));
+    rig.problem("the field \"Application\"");
+    rig.invoke(quit_action("Calculator", Some(Value::Text("yes".into()))));
+    rig.problem("Quit an application: set the field \"Force quit\" to On or Off.");
+    assert!(rig.system.calls().is_empty());
+}
+
+#[test]
+fn a_quit_error_is_a_problem_and_an_application_that_does_not_run_has_its_own_text() {
+    let mut rig = Rig::new("quit-application", true);
+    rig.system.fail(Some("quit"));
+    rig.invoke(quit_action("Calculator", None));
+    rig.problem("Cannot quit the application: the system refused the operation (code 42)");
+    // The real system gives `NotRunning`. See the native test of `macos_quit`.
+    let text = crate::system::Error::NotRunning.to_string();
+    assert_eq!(text, "the application does not run");
+}
+
+#[test]
+fn the_quit_form_has_an_application_field_and_a_force_switch_in_the_system_group() {
+    let description = crate::descriptions::description(crate::descriptions::QUIT);
+    assert_eq!(description.name, "Quit an application");
+    assert_eq!(description.group, "System");
+    assert!(!description.needs_accessibility);
+    assert_eq!(description.icon.as_deref(), Some("circle-x"));
+    let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
+    assert_eq!(keys, ["application", "force"]);
+    assert!(matches!(
+        description.fields[0].input,
+        InputType::Path { .. }
+    ));
+    assert_eq!(description.fields[1].input, InputType::Toggle);
+    // Force is Off, unless the user turns it On.
+    assert_eq!(description.fields[1].default, None);
+}

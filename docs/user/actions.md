@@ -10,6 +10,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | Group | Action kind | Needs the Accessibility permission |
 |---|---|---|
 | System | [Open an application](#open-an-application) | No |
+| System | [Quit an application](#quit-an-application) | No |
 | System | [Open a URL](#open-a-url) | No |
 | System | [Run a shell command](#run-a-shell-command) | No |
 | System | [Send a hotkey](#send-a-hotkey) | Yes |
@@ -184,6 +185,27 @@ OpenCraft saves each change immediately, as in
 - Arguments work only with an application. If you give arguments for a file
   or a folder, the window shows a message and OpenCraft opens nothing.
 - Old profiles load with no change. They have no arguments.
+
+## Quit an application
+
+| Setting | What to give |
+|---|---|
+| Application | The name of an application, for example `Calculator`, its bundle identifier, or the path of an application |
+| Force quit | On to end the application at once. Off to ask it to quit. |
+
+1. Type the name of the application. Or click **Choose…** and select the
+   application in the file dialog.
+2. Keep **Force quit** Off, unless the application does not answer.
+
+- With **Force quit** Off, OpenCraft asks the application to quit, as the
+  Quit menu item does. The application can ask you to save your work, and it
+  can refuse. Then it keeps running.
+- With **Force quit** On, macOS ends the application at once. The application
+  loses its unsaved work.
+- If the application does not run, the window shows a message.
+- OpenCraft quits each application that matches the name, and never itself.
+  It does not stop system processes.
+- This action asks for no new permission.
 
 ## Open a URL
 

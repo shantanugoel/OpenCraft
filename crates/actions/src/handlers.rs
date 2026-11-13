@@ -155,6 +155,21 @@ impl OpenHandler {
     fn invoke(&self, action: Action) -> Result<()> {
         match action.kind.as_str() {
             APPLICATION => self.open_target(&action),
+            QUIT => {
+                let force = match action.settings.get("force") {
+                    None => false,
+                    Some(Value::Boolean(force)) => *force,
+                    Some(_) => return Err(setting_problem(&action.kind, "force")),
+                };
+                self.system
+                    .quit_application(nonblank(&action, "application")?.trim(), force)
+                    .map_err(|e| match e {
+                        crate::system::Error::NotRunning => {
+                            "Cannot quit the application: it does not run.".to_string()
+                        }
+                        e => format!("Cannot quit the application: {e}."),
+                    })
+            }
             URL => {
                 let url = nonblank(&action, "url")?;
                 // No setting, and an empty setting, are the default browser.
@@ -203,7 +218,7 @@ impl OpenHandler {
 
 impl Handler for OpenHandler {
     fn kinds(&self) -> Vec<KindDescription> {
-        [APPLICATION, URL, SHELL].map(description).into()
+        [APPLICATION, QUIT, URL, SHELL].map(description).into()
     }
     fn start(&mut self, sender: MessageSender) {
         self.sender = Some(sender);

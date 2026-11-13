@@ -68,6 +68,8 @@ fn main() {
         ["paste", text] => system::paste_text(text).map(|()| wait()),
         ["app", name] => system::open_application(name, &[]),
         ["file", path] => system::open_file(path),
+        ["quit", name] => system::quit_application(name, false),
+        ["force-quit", name] => system::quit_application(name, true),
         ["url", url] => system::open_url(url, None),
         ["url-in", app, url] => system::open_url(url, Some(app)),
         ["shell", command] => system::start_shell_command(command).map(|mut child| {
@@ -77,7 +79,7 @@ fn main() {
             eprintln!(
                 "usage: system can-send-keys | ask | volume | set-volume N | mute on|off | \
                  media play|next|previous|up|down|mute | hotkey TEXT | type TEXT | paste TEXT | app NAME | file PATH | \
-                 url URL | url-in APP URL | shell COMMAND | mouse-click left|right|middle | mouse-scroll X Y | mac-function NAME"
+                 quit APP | force-quit APP | url URL | url-in APP URL | shell COMMAND | mouse-click left|right|middle | mouse-scroll X Y | mac-function NAME"
             );
             std::process::exit(2);
         }
