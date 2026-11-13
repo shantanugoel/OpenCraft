@@ -46,10 +46,9 @@ pub fn permission_texts(permission: &Permission) -> (&'static str, String) {
 }
 
 impl SettingsView {
-    pub(super) fn general(&self) -> AnyElement {
+    pub(super) fn general(&self, permission: &Permission) -> AnyElement {
         let settings = &self.snapshot.settings;
         let login = self.snapshot.start_at_login;
-        let permission = self.snapshot.permission.clone();
         let profiles = tilde(&self.snapshot.profiles_dir);
         div()
             .flex()
@@ -83,21 +82,25 @@ impl SettingsView {
                     .on_click(self.on_click(ShellCommand::ToggleShowWindowAtStart)),
                 ),
             ]))
-            .child(self.permission_group(&permission))
-            .child(group([
-                row(
-                    "Profiles folder",
-                    profiles,
-                    small_button("show-profiles", "Show in Finder", true)
-                        .on_click(self.on_click(ShellCommand::ShowInFinder(Place::Profiles))),
-                ),
-                row(
-                    "Log file",
-                    "Attach it when you report a fault",
-                    small_button("show-log-file", "Show in Finder", true)
-                        .on_click(self.on_click(ShellCommand::ShowInFinder(Place::LogFile))),
-                ),
-            ]))
+            .child(self.permission_group(permission))
+            .child(
+                group([
+                    row(
+                        "Profiles folder",
+                        profiles,
+                        small_button("show-profiles", "Show in Finder", true)
+                            .on_click(self.on_click(ShellCommand::ShowInFinder(Place::Profiles))),
+                    ),
+                    row(
+                        "Log file",
+                        "Attach it when you report a fault",
+                        small_button("show-log-file", "Show in Finder", true)
+                            .on_click(self.on_click(ShellCommand::ShowInFinder(Place::LogFile))),
+                    ),
+                ])
+                .id("folders")
+                .debug_selector(|| "folders".into()),
+            )
             .into_any_element()
     }
 

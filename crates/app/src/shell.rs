@@ -771,7 +771,7 @@ impl Shell {
         self.settings_notice = None;
         let shell = cx.entity();
         let snapshot = self.settings_snapshot();
-        let options = crate::settings_window::window_options(&snapshot, cx);
+        let options = crate::settings_window::window_options(&shell, &snapshot, cx);
         let opened = cx.open_window(options, move |window, cx| {
             let view = cx.new(|cx| SettingsView::new(&shell, snapshot, window, cx));
             cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))

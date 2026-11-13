@@ -270,6 +270,12 @@ inspector part). Do not copy a component and change it at the call site.
 - The window must show all controls at the minimum size 1080 × 700
   (`WINDOW_MIN`). A long text ends with "…" (`truncate`), it does not push
   other parts.
+- The Settings window has a fixed width and takes its height from the
+  content of its pane (`Fit` in `settings_window.rs`). A new row, a new
+  text size, or a new button size needs no number for the height. Do not
+  write a height for a pane. The window changes its height before it shows
+  a new pane, and it opens at the height of its content (`docs/kb/gpui.md`,
+  "Height of the Settings window from its content").
 
 ## 5. Behaviour rules
 
@@ -419,5 +425,4 @@ These parts do not obey this document yet. Each one has an issue.
 |---|---|
 | A control other than a text field does not take the keyboard focus, and has no focus ring. Tab does not move the focus. | [#242](https://github.com/shantanugoel/OpenCraft/issues/242) |
 | Only the shared controls have an accessible label. Rows, cards, and canvas controls have no role and no label. VoiceOver was not tested. | [#243](https://github.com/shantanugoel/OpenCraft/issues/243) |
-| The Settings window has a fixed height for each pane (`SETTINGS_HEIGHT_*`), not the height of its content. A new row needs a new constant. | [#244](https://github.com/shantanugoel/OpenCraft/issues/244) |
 | Three highlight looks for a row that the keys select: `MENU_HIGHLIGHT` in a drawn menu, `ACCENT` in the palette, the system accent in a native menu. | Accepted: the palette row is a selection, the menu row is a highlight. |

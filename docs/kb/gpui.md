@@ -623,6 +623,35 @@ repository.
 | In a bundle with an `Info.plist`, the owner name of the windows in the Quartz window list is the bundle name (`OpenCraft`), not the name of the executable. | Measured | Window list |
 | An item of a native menu shows its key equivalent as "⌘ ," for the key `,`. | Measured | Window picture of the menu |
 
+## Height of the Settings window from its content (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+change of [issue 244](https://github.com/shantanugoel/OpenCraft/issues/244),
+on the computer of [Release measurements](#release-measurements), with the
+device connected. The process used a copy of a profile and a different `HOME`.
+A helper program clicked with Quartz events and took pictures of the window
+only. It also recorded a region of the screen (`screencapture -v -V 6 -R
+x,y,w,h file.mov`). The recording has a frame only when the picture changes.
+`ffmpeg -i file.mov -fps_mode passthrough -frame_pts 1 %03d.png` then gives
+one picture for each frame, with the time in its name. The pictures and the
+recordings are kept outside the repository. The window tests are in
+`crates/app/src/settings_window/tests.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `Div::on_children_prepainted` gives the bounds of the children after their prepaint. The bottom of the last child minus the top of the first child is the height of a column that has no fixed height. | Measured | `settings_window::extent`; window tests |
+| An element with `.invisible()` and `.absolute()` is laid out and prepainted, and its `on_children_prepainted` function runs, but GPUI does not paint it. A hidden copy of the new content gives its height with no picture. | Measured | Real window; window tests |
+| `AnyElement::layout_as_root` and `Window::compute_layout` work only in the prepaint phase of a frame. Code outside a frame cannot measure an element with them. | Source | `gpui-pre` 0.3.12 `src/window.rs`, `compute_layout` (`debug_assert_prepaint`) |
+| `App::open_window` draws one frame before it returns, but it does not show that frame. A view that reports its height in `on_children_prepainted` has reported it when `open_window` returns. A window with `show: false` that the code removes at once with `window.remove_window()` shows nothing. | Source; Measured | `gpui-pre` 0.3.12 `src/app.rs`, `open_window`; real window |
+| `Window::resize` on macOS does not resize at once. It queues a task (`setContentSize:`), and `Window::viewport_size` changes only when the platform tells the window (`bounds_changed`). A call of `activate_window` after it is queued behind it. | Source | `gpui-pre-macos` 0.3.12 `src/window.rs`, `resize` and `activate` |
+| The test platform changes the bounds of the window in `resize`, but it does not tell the window. A test must call `simulate_resize` with the new bounds, as the real platform does. | Source; Measured | `gpui-pre` 0.3.12 `src/platform/test/window.rs`; `settle` in the window tests |
+| `setContentSize:` keeps the top edge of the window. The window list showed the same top for the three heights (482, 500, and 333), and the window grew and shrank at the bottom. | Measured | Window list |
+| A window that opened with `show: false` at the height of its title area, then got the height of its content with `resize`, and then `activate_window`, showed the first picture (the title area only) stretched to the new height for approximately three frames of a recording. A window that opens at the height of its content shows no such frame. | Measured | Recording of the opening |
+| A window with `show: false` gets no frame after `resize`: GPUI draws for a window that the user sees. Code that waits for a frame in such a window waits for ever. | Measured | Debug output |
+| With the view that waits for the new height of the window before it shows the new content, a click on a tab showed the new content and the new height in the same frame of the recording. The frames that were looked at (the frames around five changes in different directions) had no frame with the old content at the new height or the new content at the old height. | Measured | Recordings of changes of a tab |
+| Before `Window::request_animation_frame` was called while the view waits, the window twice (in approximately 20 changes of a tab, with a recording) had the new height and the old content stretched to it, until the pointer moved. The cause is not known. With the call in `render`, 42 changes of a tab in a recording did not show it. | Measured; the cause is not known | Window pictures; recordings |
+| A click on a window of an application that is not in front only brings the window to the front. It does not select a tab. | Measured | Window picture and window list |
+
 ## Page inspector in the application (2026-11-13)
 
 **Measured.** The application is the debug build of `opencraft` with the

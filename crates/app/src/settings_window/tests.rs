@@ -108,11 +108,8 @@ fn window(cx: &mut TestAppContext) -> (Fixture, &mut VisualTestContext) {
         view = Some(settings_view.clone());
         gpui_kit::base::Root::new(settings_view, window, cx)
     });
-    // The test text has its own metrics, thus the test window is tall: each
-    // element is inside the window. The heights of the real window are
-    // checked in the real window.
-    cx.simulate_resize(gpui_kit::size(px(theme::SETTINGS_WIDTH), px(800.)));
-    cx.run_until_parked();
+    // The window takes the height of its content in its first frame.
+    settle(cx);
     (
         Fixture {
             shell,
@@ -129,11 +126,47 @@ fn bounds(cx: &mut VisualTestContext, id: &str) -> Option<gpui_kit::Bounds<gpui_
     cx.debug_bounds(Box::leak(id.to_string().into_boxed_str()))
 }
 
-fn click(cx: &mut VisualTestContext, id: &str) {
+/// The height that the window asked the platform for.
+fn window_height(cx: &mut VisualTestContext) -> gpui_kit::Pixels {
+    cx.update(|window, _| window.bounds().size.height)
+}
+
+/// The test platform does not tell the window about a new size that the
+/// window asked for. The real platform does, in a few milliseconds. This
+/// function does it. It returns false if there is nothing to tell.
+fn deliver_resize(cx: &mut VisualTestContext) -> bool {
+    let (asked, seen) = cx.update(|window, _| (window.bounds().size, window.viewport_size()));
+    if asked == seen {
+        return false;
+    }
+    cx.simulate_resize(asked);
+    cx.run_until_parked();
+    true
+}
+
+/// Draw until the window has the height that it asked for, and shows the
+/// content for it.
+fn settle(cx: &mut VisualTestContext) {
+    cx.run_until_parked();
+    for _ in 0..8 {
+        if !deliver_resize(cx) {
+            return;
+        }
+    }
+    panic!("The height of the window does not settle");
+}
+
+/// Click without a delivery of the new size of the window.
+fn click_unsettled(cx: &mut VisualTestContext, id: &str) {
     let bounds = bounds(cx, id).unwrap_or_else(|| panic!("No element: {id}"));
     cx.simulate_mouse_move(bounds.center(), None, Modifiers::default());
     cx.simulate_click(bounds.center(), Modifiers::default());
     cx.run_until_parked();
+}
+
+fn click(cx: &mut VisualTestContext, id: &str) {
+    click_unsettled(cx, id);
+    settle(cx);
 }
 
 /// True if the switch `id` shows the state "on": its knob is in the end half
@@ -441,18 +474,152 @@ fn the_tabs_are_general_shortcuts_and_about_and_keep_the_last_pane(cx: &mut Test
     click(cx, "settings-tab-general");
     assert!(bounds(cx, "switch-dock-icon").is_some());
     assert_eq!(f.settings_on_disk().settings_pane, SettingsPane::General);
-    cx.update(|_, cx| assert_eq!(f.view.read(cx).pane(), SettingsPane::General));
+    cx.update(|_, cx| assert_eq!(f.view.read(cx).shown.pane, SettingsPane::General));
+}
+
+// MARK: The height of the window
+
+/// The padding of section 17 below `inner`, the last part of the content of
+/// the pane, and the height of the window: the content ends at the bottom of
+/// the window.
+fn assert_fitted_below(cx: &mut VisualTestContext, inner: &str) {
+    let content = bounds(cx, "settings-content").unwrap();
+    let inner = bounds(cx, inner).unwrap();
+    let tolerance = f32::from(theme::SETTINGS_HEIGHT_TOLERANCE) + 1.;
+    let padding = f32::from(theme::SETTINGS_CONTENT_Y);
+    assert!((f32::from(content.bottom() - inner.bottom()) - padding).abs() < tolerance);
+    let window = f32::from(window_height(cx));
+    assert!(
+        (f32::from(content.bottom()) - window).abs() < tolerance,
+        "The content ends at {}, the window is {window} high",
+        content.bottom()
+    );
+    assert_eq!(
+        f32::from(cx.update(|window, _| window.viewport_size().width)),
+        theme::SETTINGS_WIDTH
+    );
+}
+
+/// The padding of section 17 above and below `inner`, the only part of the
+/// content of the pane.
+fn assert_fitted(cx: &mut VisualTestContext, inner: &str) {
+    let content = bounds(cx, "settings-content").unwrap();
+    let top = bounds(cx, inner).unwrap().origin.y - content.origin.y;
+    let tolerance = f32::from(theme::SETTINGS_HEIGHT_TOLERANCE) + 1.;
+    assert!((f32::from(top) - f32::from(theme::SETTINGS_CONTENT_Y)).abs() < tolerance);
+    assert_fitted_below(cx, inner);
+}
+
+#[gpui_kit::test]
+fn each_pane_takes_its_height_from_its_content_with_the_padding_of_the_record(
+    cx: &mut TestAppContext,
+) {
+    let (_f, cx) = window(cx);
+    assert!(bounds(cx, "switch-dock-icon").is_some());
+    let general = window_height(cx);
+    assert_fitted_below(cx, "folders");
+    click(cx, "settings-tab-shortcuts");
+    assert_fitted(cx, "shortcuts");
+    let shortcuts = window_height(cx);
+    click(cx, "settings-tab-about");
+    assert_fitted(cx, "about");
+    let about = window_height(cx);
+    // The panes have different content, thus different heights.
+    assert!(general != shortcuts && shortcuts != about && general != about);
+    click(cx, "settings-tab-general");
+    assert_eq!(window_height(cx), general);
+}
+
+#[gpui_kit::test]
+fn a_new_row_makes_the_window_higher(cx: &mut TestAppContext) {
+    let (f, cx) = window(cx);
+    click(cx, "settings-tab-shortcuts");
+    // One key command only, then two.
+    cx.update(|_, cx| {
+        cx.clear_key_bindings();
+        cx.bind_keys([gpui_kit::KeyBinding::new("cmd-q", app_menu::Quit, None)]);
+    });
+    f.view.update(cx, |_, cx| cx.notify());
+    settle(cx);
+    assert_eq!(cx.update(|_, cx| shortcuts::rows(cx)).len(), 1);
+    assert_fitted(cx, "shortcuts");
+    let one = window_height(cx);
+    cx.update(|_, cx| cx.bind_keys([gpui_kit::KeyBinding::new("cmd-,", OpenSettings, None)]));
+    f.view.update(cx, |_, cx| cx.notify());
+    settle(cx);
+    assert_eq!(cx.update(|_, cx| shortcuts::rows(cx)).len(), 2);
+    assert_fitted(cx, "shortcuts");
+    let two = window_height(cx);
+    let row = f32::from(two - one);
+    assert!(
+        (34.0..=40.0).contains(&row),
+        "A row makes the window {row} higher"
+    );
+    // One row less: the window is lower again.
+    cx.update(|_, cx| {
+        cx.clear_key_bindings();
+        cx.bind_keys([gpui_kit::KeyBinding::new("cmd-q", app_menu::Quit, None)]);
+    });
+    f.view.update(cx, |_, cx| cx.notify());
+    settle(cx);
+    assert_eq!(window_height(cx), one);
+}
+
+#[gpui_kit::test]
+fn a_message_makes_the_window_higher_and_the_close_button_makes_it_lower(cx: &mut TestAppContext) {
+    let (f, cx) = window(cx);
+    let without = window_height(cx);
+    f.shell
+        .update(cx, |shell, _| shell.set_desktop(|_| false, |_| false));
+    click(cx, "show-profiles");
+    let message = bounds(cx, "settings-message").unwrap();
+    assert!(window_height(cx) > without);
+    // The message follows its text: padding above and below.
+    assert!((f32::from(message.bottom()) - f32::from(window_height(cx))).abs() < 1.5);
+    click(cx, "settings-message-close");
+    assert!(bounds(cx, "settings-message").is_none());
+    assert_eq!(window_height(cx), without);
+}
+
+#[gpui_kit::test]
+fn the_window_keeps_the_old_pane_until_it_has_the_new_height(cx: &mut TestAppContext) {
+    let (_f, cx) = window(cx);
+    let general = window_height(cx);
+    click_unsettled(cx, "settings-tab-shortcuts");
+    // The window asked for the new height, but the platform did not tell it
+    // yet: the screen still shows the old pane at the old height. The row of
+    // tabs already marks the new pane.
+    assert_ne!(window_height(cx), general);
+    assert_eq!(
+        cx.update(|window, _| window.viewport_size().height),
+        general
+    );
+    assert!(bounds(cx, "switch-dock-icon").is_some());
+    assert!(bounds(cx, "shortcuts").is_none());
+    // The platform tells the window: the next frame shows the new pane.
+    assert!(deliver_resize(cx));
+    assert!(bounds(cx, "shortcuts").is_some());
+    assert!(bounds(cx, "switch-dock-icon").is_none());
+    assert_fitted(cx, "shortcuts");
+}
+
+#[gpui_kit::test]
+fn the_window_shows_the_new_pane_if_the_platform_does_not_change_the_height(
+    cx: &mut TestAppContext,
+) {
+    let (_f, cx) = window(cx);
+    click_unsettled(cx, "settings-tab-shortcuts");
+    assert!(bounds(cx, "shortcuts").is_none());
+    cx.executor()
+        .advance_clock(theme::SETTINGS_RESIZE_TIMEOUT * 2);
+    cx.run_until_parked();
+    assert!(bounds(cx, "shortcuts").is_some());
 }
 
 #[test]
-fn each_pane_has_a_height_and_the_window_is_wide_enough_for_its_content() {
-    for pane in SettingsPane::ALL {
-        let height = pane_height(pane, 4, true);
-        // The title bar of 34, the tab row of 50 and its padding, and the
-        // padding of the content, at the least.
-        assert!(height > 34. + 50. + 8. + 36., "{pane:?}");
-    }
+fn the_window_is_640_wide_and_the_height_of_a_pane_is_not_a_constant() {
     assert_eq!(theme::SETTINGS_WIDTH, 640.);
+    assert!(theme::settings_header_height() > px(34. + 50.));
 }
 
 // MARK: The shortcuts
@@ -654,6 +821,59 @@ fn the_shell_opens_one_settings_window_and_brings_it_to_the_front(cx: &mut TestA
     shell.update(cx, |shell, cx| shell.open_settings(None, cx));
     cx.run_until_parked();
     assert_eq!(windows(cx), 2);
+}
+
+#[gpui_kit::test]
+fn a_new_window_opens_at_the_height_of_its_content(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        Theme::change(ThemeMode::Dark, None, cx);
+        app_menu::install(cx, &settings::Panes::default());
+    });
+    let config = dir.path().to_path_buf();
+    let shell = cx.update(|cx| {
+        cx.new(|cx| {
+            let mut shell = Shell::new(config, Settings::default(), Rc::new(|_| {}));
+            shell.listen(
+                async_channel::unbounded().1,
+                async_channel::unbounded().1,
+                cx,
+            );
+            shell
+        })
+    });
+    shell.update(cx, |shell, cx| shell.open_settings(None, cx));
+    cx.run_until_parked();
+    // The window that measured the content is gone: one window only.
+    assert_eq!(windows(cx), 1);
+    let handle = cx.update(|cx| cx.windows().into_iter().next().unwrap());
+    let cx = VisualTestContext::from_window(handle, cx).into_mut();
+    let height = window_height(cx);
+    // The window opened with the height of its content: no change of the
+    // height was necessary after the first frame.
+    assert_eq!(cx.update(|window, _| window.viewport_size().height), height);
+    assert_fitted_below(cx, "folders");
+    assert!(height > theme::settings_header_height());
+}
+
+#[gpui_kit::test]
+fn a_pane_that_is_selected_twice_before_the_height_changes_shows_the_last_one(
+    cx: &mut TestAppContext,
+) {
+    let (f, cx) = window(cx);
+    let general = window_height(cx);
+    click_unsettled(cx, "settings-tab-shortcuts");
+    // The user selects the first pane again before the platform answers.
+    click_unsettled(cx, "settings-tab-general");
+    settle(cx);
+    assert!(bounds(cx, "switch-dock-icon").is_some());
+    assert_eq!(window_height(cx), general);
+    // A new choice of the same pane (an old measurement is not valid) works.
+    click(cx, "settings-tab-shortcuts");
+    assert!(bounds(cx, "shortcuts").is_some());
+    assert_fitted(cx, "shortcuts");
+    cx.update(|_, cx| assert_eq!(f.view.read(cx).shown.pane, SettingsPane::Shortcuts));
 }
 
 #[gpui_kit::test]
