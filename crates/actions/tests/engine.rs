@@ -246,6 +246,26 @@ impl World {
     }
 }
 
+#[test]
+fn device_actions_use_the_handler_path_and_do_not_change_brightness() {
+    for (kind, state) in [
+        ("screen-off", opencraft_engine::DisplayState::ScreenOff),
+        ("device-sleep", opencraft_engine::DisplayState::DeviceSleep),
+    ] {
+        let mut world = World::new();
+        world.bind_key_3(built_in(kind, vec![]));
+        let before = world.engine.device_settings().clone();
+        world.press_key_3();
+        assert_eq!(world.engine.display_state(), state);
+        assert_eq!(world.engine.device_settings(), &before);
+        world.command(Command::WakeDevice);
+        assert_eq!(
+            world.engine.display_state(),
+            opencraft_engine::DisplayState::Awake
+        );
+    }
+}
+
 fn key_3(page: usize) -> BindingId {
     BindingId {
         page,
@@ -313,6 +333,8 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Type text", "System", accessibility, true),
             ("Media key", "Media", accessibility, true),
             ("Sound volume", "Media", Some("Knob"), false),
+            ("Screen off", "Device", Some("Computer wake"), false),
+            ("Device sleep", "Device", Some("Computer wake"), false),
             ("Change the page", "Navigation", None, false),
             ("Select a profile", "Navigation", None, false),
             ("Toggle", "Logic", None, false),
@@ -350,6 +372,8 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Type text", "type"),
             ("Media key", "play"),
             ("Sound volume", "volume-2"),
+            ("Screen off", "monitor-off"),
+            ("Device sleep", "moon"),
             ("Change the page", "arrow-right"),
             ("Select a profile", "layers"),
             ("Toggle", "toggle-left"),

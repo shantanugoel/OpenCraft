@@ -6,6 +6,46 @@ fn take_writes(device: &Rc<RefCell<FakeTransport>>) -> Vec<Vec<u8>> {
 }
 use opencraft_engine::{DisplayState, PowerNotice};
 
+#[test]
+fn a_handler_dark_request_consumes_the_whole_wake_gesture() {
+    use opencraft_engine::{EngineRequest, Message};
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    take_writes(&device);
+    rig.take_events();
+    rig.engine
+        .handler_message(Message::Engine(EngineRequest::DeviceDisplay(
+            DisplayState::ScreenOff,
+        )));
+    assert!(has(&take_writes(&device), protocol::sleep()));
+    device.borrow_mut().push_input(control_report(3, 0));
+    rig.poll_for(Duration::from_millis(40));
+    assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
+    device.borrow_mut().push_input(control_report(3, 1));
+    device.borrow_mut().push_input(control_report(3, 0));
+    rig.poll_for(Duration::from_millis(100));
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    assert!(!rig
+        .take_events()
+        .iter()
+        .any(|e| matches!(e, Event::Input(_))));
+    assert!(has(&take_writes(&device), protocol::init()));
+    device.borrow_mut().push_input(control_report(3, 1));
+    rig.poll_for(Duration::from_millis(40));
+    assert!(rig
+        .take_events()
+        .iter()
+        .any(|e| matches!(e, Event::Input(_))));
+    rig.engine
+        .handler_message(Message::Engine(EngineRequest::DeviceDisplay(
+            DisplayState::DeviceSleep,
+        )));
+    assert!(has(&take_writes(&device), protocol::disconnected()));
+    rig.engine.command(Command::WakeDevice);
+    rig.poll_for(Duration::from_millis(200));
+    assert!(has(&take_writes(&device), protocol::init()));
+}
+
 fn notice(rig: &mut Rig, notice: PowerNotice) {
     assert!(rig.engine.command(Command::PowerNotice(notice)));
 }

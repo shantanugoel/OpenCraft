@@ -30,6 +30,7 @@
 
 pub mod backend;
 mod descriptions;
+mod device;
 mod flow;
 mod handlers;
 pub mod hotkey;

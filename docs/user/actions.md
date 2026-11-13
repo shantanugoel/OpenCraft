@@ -16,6 +16,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | System | [Type text](#type-text) | Yes |
 | Media | [Media key](#media-key) | Yes |
 | Media | [Sound volume](#sound-volume) | No |
+| Device | [Screen off and Device sleep](#screen-off-and-device-sleep) | No |
 | Navigation | [Change the page](#change-the-page) | No |
 | Navigation | [Select a profile](#select-a-profile) | No |
 | Logic | [Toggle](#toggle) | Only for the actions that it contains |
@@ -247,6 +248,27 @@ OpenCraft sends the media key, as the media keys of a keyboard do.
   The "Turn" card sets Up for a turn to the right and Down for a turn to the
   left. See [The Turn card](controls.md#the-turn-card). The bar shows on the
   bar panel above the knob.
+
+## Screen off and Device sleep
+
+These kinds are in the **Device** group of the library. They have no settings.
+They do not change the saved brightness.
+
+- **Screen off** makes the displays and knob lights dark. OpenCraft keeps
+  the connection and its keep-alive in operation.
+- **Device sleep** makes them dark and stops the device keep-alive timer.
+  Use this when you do not need the device for a time.
+
+To wake either state, select **Wake Device** in the menu bar item or open the
+OpenCraft window. The full profile and stored settings return. A device input
+report also wakes it, if the firmware sends that report while dark. That
+first gesture, including its release, does not run an action. Whether this
+firmware sends input after sleep is not verified. Do not rely on a device
+key as the only wake path. While the screen is locked, no wake or device
+action can override the lock. See
+[Sleep and screen lock](background.md#sleep-and-screen-lock).
+
+![The Device actions in the library](images/device-actions.png)
 
 ## Change the page
 

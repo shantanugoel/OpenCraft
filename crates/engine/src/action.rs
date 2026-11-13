@@ -215,6 +215,8 @@ pub enum Message {
 pub enum EngineRequest {
     /// Make a different page the active page.
     SelectPage(PageTarget),
+    /// Change the device light state. The engine applies decision 0034.
+    DeviceDisplay(crate::DisplayState),
     /// Make the profile with the name `name` for the user the active
     /// profile, as [`crate::Command::SelectProfile`] does. If two profiles of
     /// the model have the name, the first in the order of the identities

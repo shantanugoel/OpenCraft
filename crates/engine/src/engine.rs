@@ -1246,6 +1246,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Message::Choices { id, options } => (self.sink)(Event::Choices { id, options }),
             Message::Status { kind, status } => (self.sink)(Event::Status { kind, status }),
             Message::Problem(text) => self.problem(text),
+            Message::Engine(EngineRequest::DeviceDisplay(state)) => {
+                if !self.power.locked && !self.power.sleeping {
+                    self.set_display_state(state);
+                }
+            }
             Message::Engine(EngineRequest::SelectPage(target)) => {
                 let count = self.profile.pages().len();
                 self.select_page(target.resolve(self.active, count));

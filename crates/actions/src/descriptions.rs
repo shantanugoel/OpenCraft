@@ -16,6 +16,8 @@ pub(crate) const PAGE: &str = "opencraft.page";
 pub(crate) const PROFILE: &str = "opencraft.profile";
 pub(crate) const TOGGLE: &str = "opencraft.toggle";
 pub(crate) const SEQUENCE: &str = "opencraft.sequence";
+pub(crate) const SCREEN_OFF: &str = "opencraft.screen-off";
+pub(crate) const DEVICE_SLEEP: &str = "opencraft.device-sleep";
 
 /// The groups of the built-in kinds in the library (decision 0029, section
 /// 11). The shell shows the groups in the order of their first kind.
@@ -70,6 +72,8 @@ pub(crate) fn description(kind: &str) -> KindDescription {
                 },
             )],
         ),
+        SCREEN_OFF => ("Screen off", vec![]),
+        DEVICE_SLEEP => ("Device sleep", vec![]),
         URL => ("Open a URL", vec![field("url", "URL", InputType::Text)]),
         HOTKEY => (
             "Send a hotkey",
@@ -197,6 +201,8 @@ fn icon(kind: &str) -> &'static str {
         PROFILE => "layers",
         TOGGLE => "toggle-left",
         SEQUENCE => "list",
+        SCREEN_OFF => "monitor-off",
+        DEVICE_SLEEP => "moon",
         _ => "circle-help",
     }
 }
@@ -220,6 +226,7 @@ fn direction(kind: &str) -> Option<Direction> {
 /// Accessibility permission, thus their help text names it.
 fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
+        SCREEN_OFF | DEVICE_SLEEP => ("Device", Some("Computer wake")),
         HOTKEY | TEXT => (SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
