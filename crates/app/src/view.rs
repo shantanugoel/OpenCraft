@@ -67,6 +67,7 @@ mod hotkey;
 mod inspector;
 mod knob;
 mod library;
+mod menu;
 pub(crate) mod modal;
 mod nested;
 mod page_inspector;

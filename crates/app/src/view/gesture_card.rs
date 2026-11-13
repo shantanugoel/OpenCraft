@@ -156,7 +156,14 @@ impl KindLabel {
     }
 
     /// The tile and the name, as in the popup and in the kind menu.
-    pub(super) fn content(&self, nested: bool) -> Div {
+    pub(super) fn content(&self, nested: bool) -> KindContent {
+        KindContent {
+            name: self.name.clone(),
+            element: self.content_div(nested),
+        }
+    }
+
+    fn content_div(&self, nested: bool) -> Div {
         div()
             .flex_1()
             .min_w_0()
@@ -176,6 +183,27 @@ impl KindLabel {
                     .when(!self.available, |d| d.text_color(theme::TEXT_TERTIARY))
                     .child(self.name.clone()),
             )
+    }
+}
+
+/// The element of [`KindLabel::content`]. It keeps the name, so that a menu
+/// row can find the name for the typed text of the menu.
+pub(super) struct KindContent {
+    name: SharedString,
+    element: Div,
+}
+
+impl KindContent {
+    pub(super) fn name(&self) -> &SharedString {
+        &self.name
+    }
+}
+
+impl IntoElement for KindContent {
+    type Element = Div;
+
+    fn into_element(self) -> Div {
+        self.element
     }
 }
 

@@ -237,6 +237,7 @@ mod history;
 mod knob;
 mod label_options;
 mod library;
+mod menu;
 mod nested;
 mod page_inspector;
 mod pages;

@@ -2,7 +2,10 @@
 //! sections 3.5 and 3.7): buttons, a popup button and its menu, a switch,
 //! a segmented control, a slider, a text field, and a colour sample.
 
-use super::theme;
+use super::{
+    menu::{MenuKeys, MenuRow},
+    theme,
+};
 use gpui_kit::{
     anchored,
     assets::IconName,
@@ -550,7 +553,10 @@ impl MenuPlace {
 /// moves up until it fits in the window, and covers the button, as a menu
 /// of macOS does. A layer below the menu covers the
 /// window: a click on it calls `close` and does nothing else. Make the rows
-/// with [`menu_row`] and [`menu_separator`].
+/// with [`menu_row`] and [`menu_separator`]. The menu has the keys of
+/// `view::menu` (arrows, Home, End, Return, and letters) for its
+/// [`menu_row`] items: the call site does nothing for them. Escape is the
+/// work of the owner of the menu.
 pub(super) fn popup_menu(
     id: impl Into<SharedString>,
     place: MenuPlace,
@@ -569,6 +575,7 @@ pub(super) fn popup_menu(
         },
         place.button_height,
     );
+    let keys_id = id.clone();
     div()
         .absolute()
         .top_0()
@@ -601,57 +608,67 @@ pub(super) fn popup_menu(
                 anchored()
                     .anchor(anchor)
                     .offset(point(px(0.), button_height))
-                    .child(
-                        div().py(theme::MENU_OFFSET).child(
+                    .child(MenuKeys::new(
+                        SharedString::from(format!("{keys_id}-keys")),
+                        move |scroll| {
                             div()
-                                .id(id)
-                                .debug_selector(move || menu_id.to_string())
-                                .occlude()
-                                .w(place.width)
-                                .max_h(theme::MENU_MAX_HEIGHT.min(
-                                    viewport.height
-                                        - (theme::MENU_OFFSET + theme::MENU_WINDOW_MARGIN) * 2.,
-                                ))
-                                .overflow_y_scroll()
-                                .flex()
-                                .flex_col()
-                                .p(theme::SPACE_6)
-                                .rounded(theme::RADIUS_POPOVER)
-                                .border_1()
-                                .border_color(theme::BORDER_OVERLAY)
-                                .bg(theme::BG_CARD)
-                                .shadow(theme::popover_shadow())
-                                // A menu does not take the text style of
-                                // its button.
-                                .text_size(theme::TEXT_CONTROL)
-                                .font_weight(gpui_kit::FontWeight::NORMAL)
-                                .text_color(theme::TEXT_PRIMARY)
-                                .children(rows),
-                        ),
-                    ),
+                                .py(theme::MENU_OFFSET)
+                                .child(
+                                    div()
+                                        .id(id)
+                                        .debug_selector(move || menu_id.to_string())
+                                        .occlude()
+                                        .w(place.width)
+                                        .max_h(theme::MENU_MAX_HEIGHT.min(
+                                            viewport.height
+                                                - (theme::MENU_OFFSET + theme::MENU_WINDOW_MARGIN)
+                                                    * 2.,
+                                        ))
+                                        .overflow_y_scroll()
+                                        .track_scroll(scroll)
+                                        .flex()
+                                        .flex_col()
+                                        .p(theme::SPACE_6)
+                                        .rounded(theme::RADIUS_POPOVER)
+                                        .border_1()
+                                        .border_color(theme::BORDER_OVERLAY)
+                                        .bg(theme::BG_CARD)
+                                        .shadow(theme::popover_shadow())
+                                        // A menu does not take the text style of
+                                        // its button.
+                                        .text_size(theme::TEXT_CONTROL)
+                                        .font_weight(gpui_kit::FontWeight::NORMAL)
+                                        .text_color(theme::TEXT_PRIMARY)
+                                        .children(rows),
+                                )
+                                .into_any_element()
+                        },
+                    )),
             )
             .with_priority(2),
         )
         .into_any_element()
 }
 
-/// A row of a menu: height 28, radius 6, a light background under the
-/// pointer. The caller adds the content and the click handler.
-pub(super) fn menu_row(id: impl Into<SharedString>) -> Stateful<Div> {
+/// A row of a menu: height 28, radius 6. The menu paints the highlight
+/// under the row that a key or the pointer selected
+/// ([`MenuRow`]). The caller adds the content and the click handler.
+pub(super) fn menu_row(id: impl Into<SharedString>) -> MenuRow {
     let id: SharedString = id.into();
-    div()
-        .id(id.clone())
-        .debug_selector(move || id.to_string())
-        .flex_shrink_0()
-        .h(theme::HEIGHT_MENU_ROW)
-        .px(theme::SPACE_8)
-        .flex()
-        .items_center()
-        .gap(theme::SPACE_8)
-        .rounded(theme::RADIUS_CONTROL)
-        .cursor_pointer()
-        .hover(|d| d.bg(theme::HOVER_ROW))
-        .active(|d| d.bg(theme::PRESSED))
+    MenuRow::new(
+        div()
+            .id(id.clone())
+            .debug_selector(move || id.to_string())
+            .flex_shrink_0()
+            .h(theme::HEIGHT_MENU_ROW)
+            .px(theme::SPACE_8)
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_8)
+            .rounded(theme::RADIUS_CONTROL)
+            .cursor_pointer()
+            .active(|d| d.bg(theme::PRESSED)),
+    )
 }
 
 /// The title of a group of rows, in the library and in a menu (decision

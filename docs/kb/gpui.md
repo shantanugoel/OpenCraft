@@ -788,6 +788,29 @@ is the one of [part 4](#4-drag-and-drop-from-the-right-pane-to-the-centre-pane).
 | The cursor during a drag is the cursor of the source element (`cursor_grab`, the open hand). `App::set_active_drag_cursor_style` changes it, but only after the drag starts: the `on_drag` constructor runs before GPUI sets the drag, thus a call there must go through `Window::defer`. | Source | `src/elements/div.rs`, `drag_cursor_style`; `src/app.rs` |
 | `VisualTestContext` has no `has_active_drag`. `cx.update(\|_, cx\| cx.has_active_drag())` reads it. | Measured (build error) | `crates/app/src/view/tests/library.rs` |
 
+## Menu keys in the application (2026-11-13)
+
+**Measured.** The application is the debug build of `opencraft` with the
+menu keys of
+[issue 217](https://github.com/shantanugoel/OpenCraft/issues/217), on the
+computer of [Release measurements](#release-measurements), with a scratch
+copy of a profile and the device connected. A helper program operated the
+real window with Quartz mouse and key events, and took pictures of the
+window only. The pictures are kept outside the repository. The window tests
+are in `crates/app/src/view/tests/menu.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A key listener that an element adds in its paint (`Window::on_key_event`, or `on_key_down`) attaches to the nearest dispatch node. That node gets keys only when the focus is in it. The menu is not in the focus path of the workspace, thus a listener of the menu gets no key. | Source | `gpui-pre` 0.3.12 `src/key_dispatch.rs`, `on_key_event`; `src/window.rs`, `dispatch_key_event` |
+| `App::intercept_keystrokes` gets each keystroke of the application before the key bindings and the key listeners. It returns a `Subscription`. A `Subscription` that is in the element state of an element ends when the element is not drawn, thus a menu has its keys only while it is open. The callback must compare `window.window_handle()` with the window of the menu. | Source; Measured | `src/app.rs`, `intercept_keystrokes`; `src/window.rs`, `with_element_state`; `menu.rs` |
+| `cx.stop_propagation()` in an interceptor stops the key bindings, but the key listeners of the focus path still run: the first listener of each phase is called before GPUI looks at the flag. In a first version, the interceptor closed the menu of the profile sheet at Escape, and then the `capture_key_down` of the modal card saw a closed menu and closed the sheet. The interceptor now does not handle Escape (the owners of the menus do). For Return, `Window::defer` moves the selection of the item after the listeners, and the sheet then sees an open menu. | Source; Measured | `src/window.rs`, `finish_dispatch_key_event`; `the_colour_and_the_first_page_go_to_the_engine` (failed in the first version); `the_keys_of_the_first_page_menu_do_not_close_the_sheet` |
+| `Window::with_element_state` works in `request_layout` of an element with an `id`. The element state keeps a `ScrollHandle` between frames, and the element makes the scrolling child with `track_scroll` from it. | Source; Measured | `crates/app/src/view/menu.rs`, `MenuKeys` |
+| `ScrollHandle::set_offset` moves a menu of `overflow_y_scroll` that has a tracked handle. The bounds of an item in the paint of the last frame, `bounds()`, and `max_offset()` give the new offset. The first item scrolls to the top (its group title shows), and the last item scrolls to the bottom. | Measured | `a_long_choice_menu_scrolls_to_the_highlighted_item` |
+| A `Hitbox` from `insert_hitbox` in the prepaint of a wrapper element, and a `MouseMoveEvent` listener of the wrapper, tell which row is under the pointer. The highlight follows the pointer, and the row has no `hover` style of its own. | Measured | `the_pointer_moves_the_highlight`; real window pictures |
+| `Window::paint_quad(fill(bounds, colour).corner_radii(r))` before the paint of the row gives the highlight under the content. The accent at 32 % showed the text and the kind tiles with no loss of contrast. | Measured | Real window pictures |
+| A text of a row (`&str`, `String`, `SharedString`) can be read when the row gets it as a typed child (`child<E: 'static>` and `Any::downcast_ref`). A `Div` with children cannot be read. The type-ahead of a menu uses the text of these children and the name of the kind (`KindContent`). The "First page" menu of the profile sheet has its names in a `Div`, thus it has no type-ahead. | Source | `crates/app/src/view/menu.rs`, `MenuRow::child` |
+| An interceptor must not take keys from a text field. `window.focused_input(cx).is_some()` stops it, and a menu with no `MenuRow` (the colour popovers) has no keys. | Measured | `crates/app/src/view/menu.rs`, `on_keystroke` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

@@ -112,6 +112,9 @@ pub const HOVER_ICON: Rgba = hex_alpha(0xffffff, 0.06);
 pub const TRANSPARENT: Rgba = hex_alpha(0x000000, 0.);
 /// A row under the pointer.
 pub const HOVER_ROW: Rgba = hex_alpha(0xffffff, 0.05);
+/// The highlighted item of a menu that the window draws: the item that a key
+/// selects, and the item under the pointer.
+pub const MENU_HIGHLIGHT: Rgba = hex_alpha(0x1a6fd8, 0.32);
 /// A selected row in a pane that does not have the selection, for example
 /// the active page row when the device is the selection.
 pub const SELECTED_UNFOCUSED: Rgba = hex_alpha(0xffffff, 0.07);
