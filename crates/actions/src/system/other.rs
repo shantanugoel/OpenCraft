@@ -77,6 +77,6 @@ pub fn open_file(_: &str) -> Result<()> {
     Err(Error::NotSupported)
 }
 
-pub fn open_url(_: &str) -> Result<()> {
+pub fn open_url(_: &str, _: Option<&str>) -> Result<()> {
     Err(Error::NotSupported)
 }
