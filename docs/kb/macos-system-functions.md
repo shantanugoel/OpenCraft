@@ -67,7 +67,9 @@ Lock is in
 | Fact | Confidence | Source |
 |---|---|---|
 | `open -b` is the public command to open an application by bundle identifier. It does not send an Automation request to System Events. | Source | `open(1)` |
-| The kind uses the existing Accessibility permission because some choices send key events. It adds no prompt for Automation or Screen Recording. | Inference | The calls above; [macos-permissions.md](macos-permissions.md) |
+| Mission Control and the screen saver open a bundle with `open -b`. Sleep calls `IOPMSleepSystem`. These calls send no key event. They need no Accessibility permission. | Inference | The call table; [macos-permissions.md](macos-permissions.md#actions) |
+| Launchpad, Screenshot, Lock, and Show desktop send a key event. They need the Accessibility permission. | Inference | The call table; [macos-permissions.md](macos-permissions.md#actions) |
+| The kind adds no prompt for Automation or Screen Recording. | Inference | The calls above |
 | The key-based choices use the default system shortcuts. A changed or disabled shortcut can change the result. | Source | [Apple shortcuts] |
 | On this computer, there is no `/System/Applications/Launchpad.app`. The action uses the documented shortcut, not that path. | Measured | File check, macOS 27.2 |
 

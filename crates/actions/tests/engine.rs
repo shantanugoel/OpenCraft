@@ -417,7 +417,7 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Type text", "System", accessibility, true),
             ("Media key", "Media", accessibility, true),
             ("Mouse event", "System", accessibility, true),
-            ("Mac system function", "System", accessibility, true),
+            ("Mac system function", "System", accessibility, false),
             ("Sound volume", "Media", Some("Knob"), false),
             ("Screen off", "Device", Some("Computer wake"), false),
             ("Device brightness", "Device", Some("Knob"), false),

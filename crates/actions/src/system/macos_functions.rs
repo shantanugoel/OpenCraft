@@ -118,6 +118,13 @@ mod tests {
         assert_eq!(call(MacFunction::Lock), Call::Hotkey("ctrl+cmd+q"));
         assert_eq!(call(MacFunction::ShowDesktop), Call::Hotkey("fn+f11"));
         for function in MacFunction::ALL {
+            let sends_key = matches!(call(function), Call::Hotkey(_));
+            assert_eq!(
+                crate::kinds::mac_function_needs_permission(function),
+                sends_key,
+                "{}",
+                function.name()
+            );
             if let Call::Hotkey(text) = call(function) {
                 assert!(text.parse::<crate::hotkey::Hotkey>().is_ok());
             }

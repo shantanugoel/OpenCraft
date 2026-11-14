@@ -1474,6 +1474,15 @@ same ready profiles are in the submenu "Ready Profiles" of the profile
 add menu. A ready profile keeps a link only when no profile already has
 it (decision 0035, section 5).
 
+Note (2026-11-14), from issue
+[#314](https://github.com/shantanugoel/OpenCraft/issues/314). The box names
+only the kinds that need the Accessibility permission for every use. The
+field is `needs_accessibility`. Mac system function is not in that list.
+Launchpad, Screenshot, Lock, and Show desktop send a key and need the
+permission. Mission Control, the screen saver, and Sleep do not. The facts
+are in
+[macos-system-functions.md](../kb/macos-system-functions.md#permissions-and-compatibility).
+
 ### 19. The menu bar item (#194)
 
 The native menu of [decision 0020](0020-menu-bar-item-and-dock-icon.md)

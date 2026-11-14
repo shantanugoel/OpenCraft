@@ -112,10 +112,12 @@ impl Snapshot {
     }
 }
 
-/// The text of the box about the permission: "Three actions need the
-/// Accessibility permission: … OpenCraft asks for it when you add the first
-/// one." The kind names come from their descriptions (section 20). `None`
-/// if the permission is given, or if no kind needs it.
+/// The text of the box about the permission, for example "Four actions need
+/// the Accessibility permission: Send a hotkey, Type text, Media key and
+/// Mouse event. OpenCraft asks for it when you add the first one." The kind
+/// names come from their descriptions (section 20): only a kind that needs
+/// the permission for every use. `None` if the permission is given, or if
+/// no kind needs it.
 pub fn permission_note(permission: &Permission) -> Option<String> {
     if permission.given || permission.kinds.is_empty() {
         return None;

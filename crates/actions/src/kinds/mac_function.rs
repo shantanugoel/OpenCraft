@@ -1,9 +1,11 @@
 //! The action "Mac system function".
 //!
 //! A missing function is Mission Control. The work reports the cause when
-//! macOS refuses Sleep. Every function needs the Accessibility permission
-//! today. [`needs_permission`] answers for one function, so a function that
-//! sends no key can later answer false without a change to the handler.
+//! macOS refuses Sleep. [`needs_permission`] answers for one function. A
+//! function that sends a key needs the Accessibility permission. Mission
+//! Control, the screen saver, and Sleep do not. The key handler does not
+//! choose. The kind does not always need the permission, so the first start
+//! note does not count it (`needs_accessibility`).
 
 use crate::descriptions::{choice, field_with_default, GROUP_SYSTEM};
 use crate::kinds::{Kind, Work};
@@ -45,8 +47,11 @@ pub(crate) fn description() -> KindDescription {
         name: NAME.into(),
         group: GROUP_SYSTEM.into(),
         icon: Some("monitor".into()),
+        // Some functions send a key. The library names the permission.
+        // The kind does not need it for every function, so the shell does
+        // not count it with the kinds that always need the permission.
         help: Some("Accessibility".into()),
-        needs_accessibility: true,
+        needs_accessibility: false,
         fields: vec![field_with_default(
             "function",
             "Function",
@@ -65,19 +70,17 @@ pub(crate) fn description() -> KindDescription {
     }
 }
 
-/// True when `function` needs the Accessibility permission.
+/// True when `function` sends a key and needs the Accessibility permission.
 ///
-/// Every function needs the permission. A function that sends no key can
-/// answer false on its own arm. The key handler does not choose.
+/// Mission Control, the screen saver, and Sleep use calls that send no key.
+/// The key handler does not choose.
 pub(crate) fn needs_permission(function: MacFunction) -> bool {
     match function {
-        MacFunction::MissionControl
-        | MacFunction::Launchpad
+        MacFunction::Launchpad
         | MacFunction::Screenshot
-        | MacFunction::ScreenSaver
-        | MacFunction::Sleep
         | MacFunction::Lock
         | MacFunction::ShowDesktop => true,
+        MacFunction::MissionControl | MacFunction::ScreenSaver | MacFunction::Sleep => false,
     }
 }
 
@@ -113,14 +116,14 @@ mod tests {
     }
 
     #[test]
-    fn the_description_lists_every_function_and_needs_the_permission() {
+    fn the_description_lists_every_function_and_does_not_always_need_permission() {
         let description = description();
         assert_eq!(description.kind, ID);
         assert_eq!(description.name, NAME);
         assert_eq!(description.group, GROUP_SYSTEM);
         assert_eq!(description.icon.as_deref(), Some("monitor"));
         assert_eq!(description.help.as_deref(), Some("Accessibility"));
-        assert!(description.needs_accessibility);
+        assert!(!description.needs_accessibility);
         assert!(description.direction.is_none());
         assert_eq!(crate::descriptions::description(ID), description);
         assert_eq!(description.fields.len(), 1);
@@ -143,9 +146,21 @@ mod tests {
     }
 
     #[test]
-    fn every_function_needs_the_permission() {
-        for function in MacFunction::ALL {
+    fn only_a_function_that_sends_a_key_needs_the_permission() {
+        for function in [
+            MacFunction::Launchpad,
+            MacFunction::Screenshot,
+            MacFunction::Lock,
+            MacFunction::ShowDesktop,
+        ] {
             assert!(needs_permission(function), "{}", function.name());
+        }
+        for function in [
+            MacFunction::MissionControl,
+            MacFunction::ScreenSaver,
+            MacFunction::Sleep,
+        ] {
+            assert!(!needs_permission(function), "{}", function.name());
         }
     }
 
@@ -175,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn a_bad_read_and_a_missing_permission_do_no_work() {
+    fn a_bad_read_does_no_work_and_sleep_runs_with_no_permission() {
         let system = System::default();
         let sender = None;
         let error = KIND
@@ -187,7 +202,12 @@ mod tests {
         assert_eq!(error, setting_problem(ID, "function"));
         let allow = || true;
         let blocked = Work::new(&system, &sender).with_keys(false, &allow);
-        for function in MacFunction::ALL {
+        for function in [
+            MacFunction::Launchpad,
+            MacFunction::Screenshot,
+            MacFunction::Lock,
+            MacFunction::ShowDesktop,
+        ] {
             let error = KIND
                 .invoke(
                     &values(&[("function", Value::Text(function.name().into()))]),
@@ -197,6 +217,26 @@ mod tests {
             assert_eq!(error, crate::handlers::no_permission());
         }
         assert!(system.calls().is_empty());
+        for function in [
+            MacFunction::MissionControl,
+            MacFunction::ScreenSaver,
+            MacFunction::Sleep,
+        ] {
+            KIND.invoke(
+                &values(&[("function", Value::Text(function.name().into()))]),
+                &blocked,
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            system.calls(),
+            [
+                MacFunction::MissionControl,
+                MacFunction::ScreenSaver,
+                MacFunction::Sleep,
+            ]
+            .map(Call::MacFunction)
+        );
     }
 
     #[test]

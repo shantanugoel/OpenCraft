@@ -13,14 +13,23 @@ fn all_built_in_actions_use_only_the_handler_ports() {
     let system = Arc::new(Fake::default());
     system.finish_shell(Exit::Code(9));
     let handlers = handlers_with_system(system.clone());
-    let input_kinds = handlers
+    // The key handler sends one status for each of its kinds. Mac system
+    // function is one of them. It does not need the permission for every
+    // function, so the count is not `needs_accessibility`.
+    let key_statuses = handlers
         .iter()
-        .flat_map(|h| h.kinds())
-        .filter(|k| k.needs_accessibility)
-        .count();
+        .find(|handler| {
+            handler
+                .kinds()
+                .iter()
+                .any(|kind| kind.kind == "opencraft.hotkey")
+        })
+        .expect("the key handler")
+        .kinds()
+        .len();
     let (ports, messages) = start_handlers(handlers).unwrap();
     let receive = || messages.recv_timeout(Duration::from_millis(500)).unwrap();
-    for _ in 0..input_kinds {
+    for _ in 0..key_statuses {
         assert!(matches!(
             receive(),
             Message::Status {
@@ -123,7 +132,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
         .permission
         .store(false, std::sync::atomic::Ordering::SeqCst);
     send("hotkey", invoke(text_action("hotkey", "hotkey", "cmd+a")));
-    for _ in 0..input_kinds {
+    for _ in 0..key_statuses {
         assert!(matches!(
             receive(),
             Message::Status {
@@ -144,7 +153,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             kind: "opencraft.hotkey".into(),
         },
     );
-    for _ in 0..input_kinds {
+    for _ in 0..key_statuses {
         assert!(matches!(
             receive(),
             Message::Status {
