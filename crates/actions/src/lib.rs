@@ -31,6 +31,9 @@
 //!   registry that lists those modules. A handler runs the kinds of its
 //!   group and does not read their settings. The key handler keeps one
 //!   poll of the Accessibility permission. The volume handler keeps its poll.
+//!   The microphone and sound output handlers keep their listeners and their
+//!   feedback. The sound handler runs "Play a sound" and "Stop all sound" in
+//!   one queue.
 //!
 //! The handlers use only the handler interface of the engine (architecture
 //! rule 8, and `docs/decisions/0012-action-handler-interface.md`).

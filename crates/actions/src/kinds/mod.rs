@@ -28,11 +28,15 @@
 mod hotkey;
 mod mac_function;
 mod media_key;
+pub(crate) mod microphone_mute;
 mod mouse;
 mod open_application;
 mod open_url;
+mod play_sound;
 mod quit_application;
 mod shell_command;
+pub(crate) mod sound_output;
+mod stop_sound;
 mod type_text;
 mod volume;
 
@@ -45,7 +49,7 @@ mod recording;
 
 use crate::backend::System;
 use crate::descriptions::setting_problem;
-use opencraft_engine::{KindDescription, Message, MessageSender, Settings, Value};
+use opencraft_engine::{ChoiceOption, KindDescription, Message, MessageSender, Settings, Value};
 
 /// One handler. Kinds with the same group share its thread and its queue.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -58,6 +62,14 @@ pub(crate) enum Group {
     Key,
     /// Sound volume. This kind keeps the volume handler and its poll.
     Volume,
+    /// Microphone mute. The handler keeps the listener and the feedback.
+    Microphone,
+    /// Sound output. The handler keeps the listener, the feedback, and the
+    /// choices.
+    Output,
+    /// Play a sound and stop all sound. These kinds share one handler and
+    /// one queue, so a stop does not pass a play that came before it.
+    Sound,
 }
 
 /// One call of a kind: the system port, and the sender of its handler.
@@ -124,6 +136,21 @@ pub(crate) trait Kind: Send + Sync {
     /// the settings. `perform` uses the system port. An error is the text
     /// of a Problem for the user.
     fn invoke(&self, settings: &Settings, work: &Work<'_>) -> Result<(), String>;
+
+    /// The choices of the runtime field `field`. `None` means that this kind
+    /// has no runtime choices for that field. The default is `None`.
+    fn choices(&self, field: &str, work: &Work<'_>) -> Option<Choices> {
+        let _ = (field, work);
+        None
+    }
+}
+
+/// The runtime choices of one field (decision 0014).
+pub(crate) struct Choices {
+    pub(crate) options: Vec<ChoiceOption>,
+    /// The handler sends this text as a Problem. The options stay valid, so
+    /// the form still has the options that the kind could make.
+    pub(crate) problem: Option<String>,
 }
 
 struct Registered {
@@ -172,6 +199,22 @@ const REGISTERED: &[Registered] = &[
     Registered {
         group: Group::Volume,
         kind: &volume::KIND,
+    },
+    Registered {
+        group: Group::Microphone,
+        kind: &microphone_mute::KIND,
+    },
+    Registered {
+        group: Group::Output,
+        kind: &sound_output::KIND,
+    },
+    Registered {
+        group: Group::Sound,
+        kind: &play_sound::KIND,
+    },
+    Registered {
+        group: Group::Sound,
+        kind: &stop_sound::KIND,
     },
 ];
 
@@ -322,7 +365,7 @@ mod tests {
     }
 
     #[test]
-    fn the_key_and_volume_groups_list_their_kinds_in_library_order() {
+    fn the_other_groups_list_their_kinds_in_library_order() {
         let key_ids: Vec<_> = kinds_of(Group::Key).map(|kind| kind.id()).collect();
         assert_eq!(
             key_ids,
@@ -334,11 +377,20 @@ mod tests {
                 mac_function::ID,
             ]
         );
-        let volume_ids: Vec<_> = kinds_of(Group::Volume).map(|kind| kind.id()).collect();
-        assert_eq!(volume_ids, [volume::ID]);
+        let ids = |group| kinds_of(group).map(|kind| kind.id()).collect::<Vec<_>>();
+        assert_eq!(ids(Group::Volume), [volume::ID]);
+        assert_eq!(ids(Group::Microphone), [microphone_mute::ID]);
+        assert_eq!(ids(Group::Output), [sound_output::ID]);
+        assert_eq!(ids(Group::Sound), [play_sound::ID, stop_sound::ID]);
         let handlers =
             handlers::build(Arc::new(recording::System::default()), Intervals::default());
-        for (id, group) in [(hotkey::ID, Group::Key), (volume::ID, Group::Volume)] {
+        for (id, group) in [
+            (hotkey::ID, Group::Key),
+            (volume::ID, Group::Volume),
+            (microphone_mute::ID, Group::Microphone),
+            (sound_output::ID, Group::Output),
+            (play_sound::ID, Group::Sound),
+        ] {
             let handler = handlers
                 .iter()
                 .find(|handler| handler.kinds().iter().any(|kind| kind.kind == id))

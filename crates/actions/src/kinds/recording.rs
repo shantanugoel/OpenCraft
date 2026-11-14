@@ -4,7 +4,7 @@
 //! panics, so a test sees the mistake.
 
 use crate::backend::{ShellChild, System as SystemPort};
-use crate::system::{Error, MediaKey, Result, Volume};
+use crate::system::{Error, MediaKey, OutputDevice, Result, Volume};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -25,12 +25,18 @@ pub(crate) enum Call {
     MacFunction(crate::mac_function::MacFunction),
     Level(u8),
     Muted(bool),
+    MicrophoneMuted(bool),
+    Output(String),
+    /// A sound: the file, the volume in percent, and the output.
+    PlaySound(String, u8, Option<String>),
+    StopSounds,
 }
 
 /// A failure of one operation. `Code` is [`Error::System`] with code 42.
 /// `operation` names the call: `application`, `file`, `quit`, `url`,
 /// `shell`, `hotkey`, `text`, `paste`, `media`, `mouse`, `mac-function`,
-/// `volume`, `level`, or `muted`.
+/// `volume`, `level`, `muted`, `microphone`, `set-microphone`, `outputs`,
+/// `output`, `set-output`, `play-sound`, or `stop-sounds`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Fault {
     Code(&'static str),
@@ -53,6 +59,11 @@ pub(crate) struct System {
     shell_end: Mutex<ShellEnd>,
     waited: Arc<AtomicBool>,
     volume: Mutex<Volume>,
+    /// The mute of the default input. None means that it has no master mute.
+    microphone: Mutex<Option<bool>>,
+    /// The sound outputs, and the UID of the default output.
+    outputs: Mutex<Vec<OutputDevice>>,
+    output: Mutex<String>,
     /// Paths that [`SystemPort::application_copies`] returns.
     copies: Mutex<Vec<String>>,
 }
@@ -68,6 +79,18 @@ impl Default for System {
                 level: 50,
                 muted: false,
             }),
+            microphone: Mutex::new(Some(false)),
+            outputs: Mutex::new(vec![
+                OutputDevice {
+                    id: "a".into(),
+                    name: "Speakers".into(),
+                },
+                OutputDevice {
+                    id: "b".into(),
+                    name: "Headphones".into(),
+                },
+            ]),
+            output: Mutex::new("a".into()),
             copies: Mutex::new(Vec::new()),
         }
     }
@@ -85,6 +108,21 @@ impl System {
     /// Set the level and the mute that [`SystemPort::volume`] returns.
     pub(crate) fn set_volume(&self, level: u8, muted: bool) {
         *self.volume.lock().unwrap() = Volume { level, muted };
+    }
+
+    /// Set the mute that [`SystemPort::microphone_muted`] returns.
+    pub(crate) fn set_microphone(&self, muted: Option<bool>) {
+        *self.microphone.lock().unwrap() = muted;
+    }
+
+    /// Make the output with this UID the default, with no recorded call.
+    pub(crate) fn select_output(&self, id: &str) {
+        *self.output.lock().unwrap() = id.into();
+    }
+
+    /// The UID of the default output.
+    pub(crate) fn output(&self) -> String {
+        self.output.lock().unwrap().clone()
     }
 
     pub(crate) fn set_end(&self, end: ShellEnd) {
@@ -187,6 +225,48 @@ impl SystemPort for System {
         self.record(Call::Muted(muted), "muted")?;
         self.volume.lock().unwrap().muted = muted;
         Ok(())
+    }
+    fn microphone_muted(&self) -> Result<Option<bool>> {
+        self.check("microphone")?;
+        Ok(*self.microphone.lock().unwrap())
+    }
+    fn set_microphone_muted(&self, muted: bool) -> Result<()> {
+        self.record(Call::MicrophoneMuted(muted), "set-microphone")?;
+        *self.microphone.lock().unwrap() = Some(muted);
+        Ok(())
+    }
+    fn output_devices(&self) -> Result<Vec<OutputDevice>> {
+        self.check("outputs")?;
+        Ok(self.outputs.lock().unwrap().clone())
+    }
+    fn default_output(&self) -> Result<OutputDevice> {
+        self.check("output")?;
+        let id = self.output();
+        self.outputs
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|device| device.id == id)
+            .cloned()
+            .ok_or(Error::NotSupported)
+    }
+    fn set_output(&self, id: &str) -> Result<()> {
+        self.record(Call::Output(id.into()), "set-output")?;
+        *self.output.lock().unwrap() = id.into();
+        Ok(())
+    }
+    fn play_sound(&self, file: &std::path::Path, volume: u8, device: Option<&str>) -> Result<()> {
+        self.record(
+            Call::PlaySound(
+                file.to_string_lossy().into_owned(),
+                volume,
+                device.map(str::to_string),
+            ),
+            "play-sound",
+        )
+    }
+    fn stop_sounds(&self) -> Result<()> {
+        self.record(Call::StopSounds, "stop-sounds")
     }
     fn application_copies(&self, _bundle_id: &str) -> Vec<String> {
         self.copies.lock().unwrap().clone()
