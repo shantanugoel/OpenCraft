@@ -263,6 +263,14 @@ fn a_clash_in_the_files_keeps_the_first_profile() {
             .clashes,
         ["US.ZOOM.XOS"]
     );
+    // Each entry has the links that apply, and the owner of each link.
+    let calls = profiles.iter().find(|entry| entry.id == "calls").unwrap();
+    assert_eq!(calls.applied.len(), 1);
+    assert_eq!(calls.link_owners[0].profile, "calls");
+    let home = profiles.iter().find(|entry| entry.id == "home").unwrap();
+    assert!(home.applied.is_empty());
+    assert_eq!(home.link_owners.len(), 1);
+    assert_eq!(home.link_owners[0].profile, "calls");
     // The files stay as they are.
     assert!(text_of(&rig, "home").contains("US.ZOOM.XOS"));
     front(&mut rig, bundle("us.zoom.xos"));

@@ -9,6 +9,8 @@
 //! - [`profile`]: the profile, its pages, and the content of each surface.
 //! - [`profiles`]: the profiles directory: one directory for each profile,
 //!   and the active profile of each device model.
+//! - [`profile_list`]: the rules for the links, the clashes, and the default
+//!   profile of the profile list.
 //! - [`store`]: one profile directory: the profile file and the image files.
 //! - [`share`]: the profile file for export and import, with the images.
 //! - [`render`] and [`label`]: the image of a surface, made from its content.
@@ -36,6 +38,7 @@ pub mod layout;
 pub mod location;
 pub mod power;
 pub mod profile;
+pub mod profile_list;
 pub mod profiles;
 pub mod render;
 pub mod runtime;
@@ -62,7 +65,7 @@ pub use profile::{
     LabelPosition, LabelStyle, Page, ParseFolderIdError, Profile, SurfaceContent, SurfaceIcon,
     LABEL_SIZES,
 };
-pub use profiles::{ProfileEntry, ProfilesDir};
+pub use profiles::{LinkOwner, ProfileEntry, ProfilesDir};
 pub use render::{icon_color, label_color, page_preview};
 pub use store::{
     default_profiles_dir, profile_from_text, Backup, BackupReason, Loaded, ProfileStore,

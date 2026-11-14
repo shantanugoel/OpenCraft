@@ -39,6 +39,10 @@ const FALLBACK_ID: &str = "profile";
 
 /// One profile in the list for a shell.
 ///
+/// [`ProfilesDir::list`] gives entries that have only the values of the file.
+/// The entries of [`crate::profile_list::ProfileList`] also have `clashes`,
+/// `applied`, and `link_owners`.
+///
 /// The pages and the first page let a shell show the profile settings of a
 /// profile that is not active. For the active profile, they are the values
 /// of the last [`crate::Event::Profiles`]: [`crate::Event::Pages`] gives the
@@ -60,6 +64,21 @@ pub struct ProfileEntry {
     /// The bundle identifiers of this profile that a profile before it, in
     /// the order of the identities, also links. Those links do not apply.
     pub clashes: Vec<String>,
+    /// The links of this profile that apply: the links in `applications`
+    /// that are not in `clashes`.
+    pub applied: Vec<ApplicationLink>,
+    /// The owner of each link in `applications`, in the same order.
+    pub link_owners: Vec<LinkOwner>,
+}
+
+/// The owner of a link to an application: the first profile, in the order of
+/// the identities, that links it. The link of the owner applies.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LinkOwner {
+    /// The bundle identifier, as the owner stores it.
+    pub bundle_id: String,
+    /// The identity of the owner.
+    pub profile: String,
 }
 
 impl ProfileEntry {
@@ -72,7 +91,7 @@ impl ProfileEntry {
             pages: profile.pages().iter().map(|p| p.name.clone()).collect(),
             first_page: profile.first_page(),
             applications: profile.applications.clone(),
-            clashes: Vec::new(),
+            ..Self::default()
         }
     }
 }
@@ -120,7 +139,7 @@ impl ProfilesDir {
                     pages: summary.pages,
                     first_page: summary.first_page,
                     applications: summary.applications,
-                    clashes: Vec::new(),
+                    ..ProfileEntry::default()
                 });
             }
         }
