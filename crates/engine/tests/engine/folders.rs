@@ -51,7 +51,7 @@ fn open_of(events: &[Event]) -> Vec<FolderId> {
         .iter()
         .rev()
         .find_map(|event| match event {
-            Event::Pages { open, .. } => Some(open.clone()),
+            Event::Pages { location, .. } => Some(location.open.clone()),
             _ => None,
         })
         .unwrap_or_else(|| panic!("no pages event in {events:?}"))

@@ -93,10 +93,12 @@ fn a_profile_starts_on_its_first_page() {
     let events = rig.take_events();
     assert!(events.contains(&Event::Pages {
         names: vec!["Main".into(), "Media".into(), "Calls".into()],
-        active: 1,
+        location: Location {
+            page: 1,
+            open: Vec::new()
+        },
         first: 1,
         folders: Vec::new(),
-        open: Vec::new(),
     }));
     assert_color(&last_state(&events, KEY_3).image, 2, 2, RED);
 
@@ -171,10 +173,12 @@ fn the_first_page_of_the_active_profile_is_a_step_of_the_history() {
     let events = rig.take_events();
     assert!(events.contains(&Event::Pages {
         names: vec!["Main".into(), "Media".into(), "Calls".into()],
-        active: 1,
+        location: Location {
+            page: 1,
+            open: Vec::new()
+        },
         first: 2,
         folders: Vec::new(),
-        open: Vec::new(),
     }));
     assert!(events.contains(&Event::History {
         undo: Some("Set First Page".into()),

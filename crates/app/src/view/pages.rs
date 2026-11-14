@@ -8,9 +8,7 @@
 
 use super::*;
 use gpui_kit::{PromptButton, PromptLevel};
-use opencraft_engine::{
-    Action, BindingId, FolderId, GestureKind, ProfileEntry, Settings, SurfaceIcon,
-};
+use opencraft_engine::{Action, FolderId, GestureKind, ProfileEntry, Settings, SurfaceIcon};
 
 /// A row of the sidebar that has a name. A profile row has the identity of
 /// the profile, a page row has the number of the page in the active
@@ -567,12 +565,11 @@ impl DeviceView {
         }
         let surface = SurfaceId::new(SurfaceKind::KeyFace, 1);
         commands.push(Command::SetBinding {
-            binding: BindingId {
-                page: self.state.page,
-                control: ControlId::new(ControlKind::Key, 1),
-                gesture: GestureKind::Press,
-                folder: Some(id),
-            },
+            binding: self
+                .state
+                .location
+                .opened(id)
+                .binding_id(ControlId::new(ControlKind::Key, 1), GestureKind::Press),
             action: Some(Action {
                 kind: kind.kind.clone(),
                 settings: Settings::new(),

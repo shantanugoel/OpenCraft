@@ -352,7 +352,7 @@ impl DeviceView {
         if names.is_empty() {
             return header.into_any_element();
         }
-        let page = self.state.page;
+        let page = self.state.location.page;
         let count = names.len();
         let previous = page > 0;
         let next = page + 1 < count;
@@ -427,6 +427,7 @@ impl DeviceView {
         let title = pages::page_title(&self.state.pages, page);
         let open: Vec<_> = self
             .state
+            .location
             .open
             .iter()
             .filter_map(|id| self.folder_name(*id).map(|name| (*id, name.to_string())))
@@ -617,7 +618,7 @@ impl DeviceView {
         if self.state.pages.is_empty() {
             String::new()
         } else {
-            pages::page_title(&self.state.pages, self.state.page)
+            pages::page_title(&self.state.pages, self.state.location.page)
         }
     }
 

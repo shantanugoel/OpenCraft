@@ -421,10 +421,12 @@ fn a_profile_change_sends_disappear_then_writes_only_changed_images_then_sends_a
         events[15],
         Event::Pages {
             names: vec!["Page 1".into()],
-            active: 0,
+            location: Location {
+                page: 0,
+                open: Vec::new()
+            },
             first: 0,
             folders: Vec::new(),
-            open: Vec::new(),
         }
     );
     assert_eq!(binding_states(&events[16..]), [key_3()]);
@@ -464,10 +466,12 @@ fn a_profile_change_starts_on_the_first_page_and_removes_the_feedback() {
     let events = rig.take_events();
     assert!(events.contains(&Event::Pages {
         names: vec!["Page 1".into(), "Page 2".into()],
-        active: 0,
+        location: Location {
+            page: 0,
+            open: Vec::new()
+        },
         first: 0,
         folders: Vec::new(),
-        open: Vec::new(),
     }));
 }
 
@@ -867,7 +871,7 @@ fn removing_an_active_three_page_profile_sends_the_same_new_state_as_a_selection
         .unwrap();
     let pages = events
         .iter()
-        .position(|e| matches!(e, Event::Pages { active: 0, names, .. } if names.len() == 1))
+        .position(|e| matches!(e, Event::Pages { location: Location { page: 0, .. }, names, .. } if names.len() == 1))
         .unwrap();
     assert!(profiles < pages);
     assert_eq!(removed.engine.active_profile(), "default");
@@ -1163,7 +1167,13 @@ fn a_device_of_a_different_model_selects_the_profiles_of_that_model() {
     assert!(matches!(events[1], Event::Kinds(_)));
     assert_eq!(surfaces(&events[2..16]).len(), 14);
     assert_eq!(events[16], profiles_event(&[("other", "Other")], "other"));
-    assert!(matches!(events[17], Event::Pages { active: 0, .. }));
+    assert!(matches!(
+        events[17],
+        Event::Pages {
+            location: Location { page: 0, .. },
+            ..
+        }
+    ));
     assert_eq!(binding_states(&events[18..19]), [key_3()]);
     assert!(matches!(events[19], Event::History { undo: None, .. }));
     assert!(matches!(events[20], Event::DeviceSettings(_)));

@@ -651,7 +651,7 @@ impl DeviceView {
     fn page_row(&self, page: usize, cx: &mut Context<Self>) -> AnyElement {
         // An open folder is the selection. The page rows show no selection
         // then (decision 0036).
-        let selected = page == self.state.page && self.state.open.is_empty();
+        let selected = page == self.state.location.page && self.state.location.folder().is_none();
         // When the device is the selection, the active page has the look of
         // a selected row in a pane that does not have the selection.
         let focused = selected && !self.device.open;
@@ -725,7 +725,10 @@ impl DeviceView {
             cx.notify();
         }
         // The same page still closes the open folders.
-        if page != self.state.page || shown != self.state.profile || !self.state.open.is_empty() {
+        if page != self.state.location.page
+            || shown != self.state.profile
+            || !self.state.location.folder().is_none()
+        {
             (self.send)(in_profile(shown, Command::SelectPage { page }));
         }
     }
@@ -734,7 +737,7 @@ impl DeviceView {
         let Some(name) = self.folder_name(id).map(str::to_string) else {
             return div().into_any_element();
         };
-        let selected = self.state.open.last() == Some(&id);
+        let selected = self.state.location.folder() == Some(id);
         let focused = selected && !self.device.open;
         let editing = self.lists.edit == Some(NameEdit::Rename(Row::Folder(id)));
         let shown = self.state.profile.clone();

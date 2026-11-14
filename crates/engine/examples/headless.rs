@@ -116,11 +116,14 @@ fn main() {
             }
             Event::Pages {
                 names,
-                active,
+                location,
                 first,
                 ..
             } => {
-                println!("[{at:8.3}] pages: {names:?}, active {active}, first {first}")
+                println!(
+                    "[{at:8.3}] pages: {names:?}, active {}, first {first}",
+                    location.page
+                )
             }
             Event::ProfileExported { profile, path } => {
                 println!("[{at:8.3}] exported: {profile} to {}", path.display())

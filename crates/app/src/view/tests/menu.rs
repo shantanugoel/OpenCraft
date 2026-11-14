@@ -279,3 +279,46 @@ fn a_long_choice_menu_scrolls_to_the_highlighted_item(cx: &mut TestAppContext) {
         Some(&Value::Text("o10".into()))
     );
 }
+
+#[gpui_kit::test]
+fn a_binding_of_a_key_names_the_open_folder(cx: &mut TestAppContext) {
+    use opencraft_engine::{FolderEntry, FolderId, Location};
+    let folder = FolderId::from_raw(1).unwrap();
+    let (cx, tx, sent) = start(cx);
+    // No folder is open: the binding of the key has no folder.
+    click(cx, "gesture-Release-kind");
+    keys(cx, "enter");
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&set(GestureKind::Release, "test.open"))
+    );
+    // A folder is open: the binding of the key is a binding of the folder,
+    // and the page under the folders stays the page of the binding.
+    tx.try_send(Event::Pages {
+        names: vec!["Page 1".into()],
+        location: Location {
+            page: 0,
+            open: vec![folder],
+        },
+        first: 0,
+        folders: vec![FolderEntry {
+            id: folder,
+            name: "Clips".into(),
+        }],
+    })
+    .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    click(cx, "gesture-Release-kind");
+    keys(cx, "enter");
+    let Some(Command::SetBinding { binding, .. }) = sent.borrow().last().cloned() else {
+        panic!("expected a binding, got {:?}", sent.borrow().last())
+    };
+    assert_eq!(
+        binding,
+        BindingId {
+            folder: Some(folder),
+            ..self::binding(GestureKind::Release)
+        }
+    );
+}

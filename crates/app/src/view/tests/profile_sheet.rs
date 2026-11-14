@@ -345,7 +345,7 @@ fn export_and_import_send_the_file_and_an_import_shows_the_new_profile(cx: &mut 
         assert!(view.sheet.profile.is_none());
         assert_eq!(view.state.profile.as_deref(), Some("work-2"));
         assert_eq!(view.state.pages, ["Mail", "Calls"]);
-        assert_eq!(view.state.page, 1);
+        assert_eq!(view.state.location.page, 1);
         assert_eq!(
             view.status_message.as_deref(),
             Some("The profile “Work 2” is imported, and it is on the device")

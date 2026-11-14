@@ -9,10 +9,12 @@ use opencraft_engine::ProfileEntry;
 pub(super) fn pages(names: &[&str], active: usize) -> Event {
     Event::Pages {
         names: names.iter().map(|n| (*n).into()).collect(),
-        active,
+        location: opencraft_engine::Location {
+            page: active,
+            open: Vec::new(),
+        },
         first: 0,
         folders: Vec::new(),
-        open: Vec::new(),
     }
 }
 

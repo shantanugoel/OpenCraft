@@ -14,8 +14,9 @@ use opencraft_engine::runtime::{self, POLL_INTERVAL};
 use opencraft_engine::store::{PROFILE_FILE, SCHEMA_VERSION};
 use opencraft_engine::{
     Action, BindingId, BindingState, Color, Command, Counters, DeviceSettings, Engine, Event,
-    Feedback, GestureKind, Handler, HandlerPort, KindDescription, Message, MessageSender, Profile,
-    ProfileEntry, ProfileStore, ProfilesDir, Request, Settings, Status, SurfaceState, Value,
+    Feedback, GestureKind, Handler, HandlerPort, KindDescription, Location, Message, MessageSender,
+    Profile, ProfileEntry, ProfileStore, ProfilesDir, Request, Settings, Status, SurfaceState,
+    Value,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -539,10 +540,12 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
         events[18],
         Event::Pages {
             names: vec!["Page 1".into()],
-            active: 0,
+            location: Location {
+                page: 0,
+                open: Vec::new()
+            },
             first: 0,
             folders: Vec::new(),
-            open: Vec::new(),
         }
     );
     assert_eq!(

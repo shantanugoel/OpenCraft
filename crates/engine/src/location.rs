@@ -150,13 +150,30 @@ impl Location {
 
     /// The identity of the binding of `gesture` on `control` at this location.
     /// See [`Self::binding`].
-    pub(crate) fn binding_id(&self, control: ControlId, gesture: GestureKind) -> BindingId {
+    pub fn binding_id(&self, control: ControlId, gesture: GestureKind) -> BindingId {
         BindingId {
             page: self.page,
             control,
             gesture,
             folder: self.folder_of_control(control),
         }
+    }
+
+    /// This location with `folder` open as the last folder. A shell uses it
+    /// to name a binding of a folder that is not open yet.
+    pub fn opened(&self, folder: FolderId) -> Location {
+        let mut open = self.open.clone();
+        open.push(folder);
+        Location {
+            page: self.page,
+            open,
+        }
+    }
+
+    /// The last open folder: the folder that the keys show. `None` when no
+    /// folder is open. This does not check that the folder exists.
+    pub fn folder(&self) -> Option<FolderId> {
+        self.last_folder()
     }
 
     /// True when `binding` names a control of this location.

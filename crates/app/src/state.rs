@@ -2,8 +2,8 @@
 
 use opencraft_engine::{
     ActiveCause, BackgroundState, BindingId, BindingState, ControlId, ControlKind, DeviceLayout,
-    DeviceSettings, Event, FolderEntry, FolderId, Gesture, GestureKind, InputEvent,
-    KindDescription, ProfileEntry, Status, SurfaceId, SurfaceKind, SurfaceState,
+    DeviceSettings, Event, FolderEntry, Gesture, GestureKind, InputEvent, KindDescription,
+    Location, ProfileEntry, Status, SurfaceId, SurfaceKind, SurfaceState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -66,8 +66,11 @@ pub struct ViewState {
     /// while the application runs.
     pub turns_apart: BTreeSet<ControlId>,
     pub kinds: Vec<KindDescription>,
-    /// The page that the device shows. The commands for a binding use it.
-    pub page: usize,
+    /// The location: the page that the device shows and the open folders,
+    /// from the first to the last. The last one is the folder that the keys
+    /// show. The engine sends it, and it holds the folder rule (decision
+    /// 0036): the app builds each binding identity with it.
+    pub location: Location,
     /// The names of the pages of the active profile, in their order.
     pub pages: Vec<String>,
     /// The first page of the active profile: the page that the device shows
@@ -75,9 +78,6 @@ pub struct ViewState {
     pub first_page: usize,
     /// The folders of the active profile, in sidebar order (decision 0036).
     pub folders: Vec<FolderEntry>,
-    /// The open folders, from the first to the last. The last one is the
-    /// folder that the keys show.
-    pub open: Vec<FolderId>,
     /// The profiles of the device model, and the identity of the active profile.
     pub profiles: Vec<ProfileEntry>,
     pub profile: Option<String>,
@@ -188,7 +188,7 @@ impl ViewState {
                 if self.profile.as_ref().is_some_and(|p| *p != active) {
                     self.pages.clear();
                     self.folders.clear();
-                    self.open.clear();
+                    self.location = Location::default();
                     self.bindings.clear();
                     self.epoch += 1;
                 }
@@ -199,17 +199,15 @@ impl ViewState {
             }
             Event::Pages {
                 names,
-                active,
+                location,
                 first,
                 folders,
-                open,
             } => {
                 // The engine sends each binding of the location next.
-                self.page = active;
+                self.location = location;
                 self.pages = names;
                 self.first_page = first;
                 self.folders = folders;
-                self.open = open;
                 self.bindings.clear();
                 self.epoch += 1;
                 self.update_open_card();
@@ -367,33 +365,18 @@ impl ViewState {
         }
     }
 
-    /// The folder of a key while a folder is open. Knobs, the touch bar, and
-    /// the bar panels stay on the page under the folders (decision 0036).
-    pub fn folder_of(&self, control: ControlId) -> Option<FolderId> {
-        if control.kind == ControlKind::Key {
-            self.open.last().copied()
-        } else {
-            None
-        }
-    }
-
     /// The open card of `control`: the card that the user opened last, or
     /// the first card with an action at the location.
     fn open_card_of(&self, control: ControlId) -> Option<GestureKind> {
         if let Some(gesture) = self.open_cards.get(&control) {
             return *gesture;
         }
-        let folder = self.folder_of(control);
         gestures(control.kind)
             .iter()
             .map(|&(gesture, _)| gesture)
             .find(|&gesture| {
-                self.bindings.contains_key(&BindingId {
-                    page: self.page,
-                    control,
-                    gesture,
-                    folder,
-                })
+                self.bindings
+                    .contains_key(&self.location.binding_id(control, gesture))
             })
     }
 
@@ -455,12 +438,7 @@ impl ViewState {
         } else {
             selected
         };
-        Some(BindingId {
-            page: self.page,
-            control,
-            gesture,
-            folder: self.folder_of(control),
-        })
+        Some(self.location.binding_id(control, gesture))
     }
 
     /// The bar panel that gives the feedback of the knob `knob`, from the
@@ -546,7 +524,7 @@ pub fn gestures(kind: ControlKind) -> &'static [(GestureKind, &'static str)] {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use opencraft_engine::{ControlLayout, RgbImage, SurfaceContent, SurfaceLayout};
+    use opencraft_engine::{ControlLayout, FolderId, RgbImage, SurfaceContent, SurfaceLayout};
 
     pub fn layout() -> Event {
         Event::Layout(Arc::new(DeviceLayout {
@@ -770,6 +748,72 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn the_location_of_the_pages_event_names_the_bindings_of_a_key_and_of_a_knob() {
+        let now = Instant::now();
+        let mut s = ViewState::default();
+        s.apply(layout(), now);
+        let folder = FolderId::from_raw(1).expect("1 is a folder identity");
+        let pages = |location| Event::Pages {
+            names: vec!["Page 1".into(), "Page 2".into()],
+            location,
+            first: 0,
+            folders: Vec::new(),
+        };
+        let key_press = |s: &ViewState| {
+            s.location
+                .binding_id(control(ControlKind::Key), GestureKind::Press)
+        };
+        let knob_turn = |s: &ViewState| {
+            s.location
+                .binding_id(control(ControlKind::Knob), GestureKind::TurnLeft)
+        };
+        // No folder is open: no binding has a folder.
+        s.apply(
+            pages(Location {
+                page: 1,
+                open: Vec::new(),
+            }),
+            now,
+        );
+        assert_eq!(key_press(&s).folder, None);
+        assert_eq!(key_press(&s).page, 1);
+        assert_eq!(s.location.folder(), None);
+        // A folder is open: a key has the folder, a knob has none, and both
+        // keep the page under the folders.
+        s.apply(
+            pages(Location {
+                page: 1,
+                open: vec![folder],
+            }),
+            now,
+        );
+        assert_eq!(key_press(&s).folder, Some(folder));
+        assert_eq!(knob_turn(&s).folder, None);
+        assert_eq!(knob_turn(&s).page, 1);
+        assert_eq!(s.location.folder(), Some(folder));
+        // A new active profile drops the location.
+        s.apply(
+            Event::Profiles {
+                profiles: Vec::new(),
+                active: "first".into(),
+                default: "first".into(),
+                cause: opencraft_engine::ActiveCause::Selected,
+            },
+            now,
+        );
+        s.apply(
+            Event::Profiles {
+                profiles: Vec::new(),
+                active: "second".into(),
+                default: "first".into(),
+                cause: opencraft_engine::ActiveCause::Selected,
+            },
+            now,
+        );
+        assert_eq!(s.location, Location::default());
+    }
+
+    #[test]
     fn a_pages_event_removes_the_bindings_and_sets_the_page_of_an_edit() {
         use opencraft_engine::{Action, Settings};
         let now = Instant::now();
@@ -793,10 +837,12 @@ pub(crate) mod tests {
         s.apply(
             Event::Pages {
                 names: vec!["Page 1".into(), "Page 2".into()],
-                active: 1,
+                location: Location {
+                    page: 1,
+                    open: Vec::new(),
+                },
                 first: 0,
                 folders: Vec::new(),
-                open: Vec::new(),
             },
             now,
         );

@@ -55,12 +55,7 @@ impl DeviceView {
         self.state.selected?;
         let control = self.state.selected_control?;
         let gesture = gestures(control.kind).first()?.0;
-        let binding = BindingId {
-            page: self.state.page,
-            control,
-            gesture,
-            folder: self.state.folder_of(control),
-        };
+        let binding = self.state.location.binding_id(control, gesture);
         let state = self.state.bindings.get(&binding).filter(|b| b.available)?;
         let kind = self.kind(&state.action.as_ref()?.kind)?;
         kind.states.as_ref()?;

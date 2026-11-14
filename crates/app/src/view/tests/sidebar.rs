@@ -114,10 +114,10 @@ fn the_sidebar_shows_the_profiles_and_the_pages_of_the_active_profile(cx: &mut T
         last(&sent),
         Some(on("default", Command::SelectPage { page: 1 }))
     );
-    cx.update(|_, cx| assert_eq!(view.read(cx).state.page, 0));
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.location.page, 0));
     // An action on the device changes the page: the sidebar follows.
     send(cx, &tx, pages(&["Main", "Meetings", "Media"], 1));
-    cx.update(|_, cx| assert_eq!(view.read(cx).state.page, 1));
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.location.page, 1));
     let count = sent.borrow().len();
     click(cx, "page-1");
     assert_eq!(sent.borrow().len(), count, "The active page is selected");
@@ -512,7 +512,7 @@ fn removal_of_the_active_larger_profile_replaces_its_pages(cx: &mut TestAppConte
         let state = &view.read(cx).state;
         assert_eq!(state.profile.as_deref(), Some("work"));
         assert_eq!(state.pages, ["Work"]);
-        assert_eq!(state.page, 0);
+        assert_eq!(state.location.page, 0);
     });
     let count = sent.borrow().len();
     click(cx, "page-0");
@@ -601,19 +601,21 @@ fn a_folder_row_opens_the_folder_and_the_page_row_closes_it(cx: &mut TestAppCont
         &tx,
         Event::Pages {
             names: vec!["Main".into(), "Meetings".into(), "Media".into()],
-            active: 0,
+            location: opencraft_engine::Location {
+                page: 0,
+                open: vec![folder],
+            },
             first: 0,
             folders: vec![FolderEntry {
                 id: folder,
                 name: "Clips".into(),
             }],
-            open: vec![folder],
         },
     );
     assert!(cx.debug_bounds("folder-0000000000000001").is_some());
     assert!(cx.debug_bounds("folder-add").is_some());
     assert!(cx.debug_bounds("page-header-folder").is_some());
-    cx.update(|_, cx| assert_eq!(view.read(cx).state.open, vec![folder]));
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.location.open, vec![folder]));
 
     sent.borrow_mut().clear();
     click(cx, "page-0");
