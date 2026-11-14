@@ -34,9 +34,7 @@ fn mac_function_checks_settings_permission_and_system_errors_without_real_calls(
         let mut rig = Rig::new("mac-function", false);
         rig.invoke(text_action("mac-function", "function", function.name()));
         statuses(
-            (0..crate::descriptions::KEY_KINDS.len())
-                .map(|_| rig.recv())
-                .collect(),
+            (0..super::key_kind_count()).map(|_| rig.recv()).collect(),
             false,
         );
         rig.problem("Accessibility");
@@ -45,9 +43,7 @@ fn mac_function_checks_settings_permission_and_system_errors_without_real_calls(
         rig.system.fail(Some("mac-function"));
         rig.invoke(text_action("mac-function", "function", function.name()));
         statuses(
-            (0..crate::descriptions::KEY_KINDS.len())
-                .map(|_| rig.recv())
-                .collect(),
+            (0..super::key_kind_count()).map(|_| rig.recv()).collect(),
             true,
         );
         rig.problem("42");
@@ -73,7 +69,7 @@ fn a_sleep_that_macos_refuses_gives_a_message_with_the_cause() {
 
 #[test]
 fn mac_function_description_has_all_choices_and_its_library_group() {
-    let description = crate::descriptions::description(crate::descriptions::MAC_FUNCTION);
+    let description = crate::descriptions::description("opencraft.mac-function");
     assert_eq!(description.group, "System");
     assert!(description.needs_accessibility);
     assert!(description.direction.is_none());

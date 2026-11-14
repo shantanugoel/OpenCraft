@@ -27,8 +27,9 @@
 //! - [`system`]: the work that an action does on the computer: keys, text,
 //!   media keys, sound volume, applications, URLs, and shell commands.
 //! - `kinds`: one module for each built-in kind that has moved, and the
-//!   registry that lists those modules. The open handler runs the kinds in
-//!   its group and does not read their settings.
+//!   registry that lists those modules. A handler runs the kinds of its
+//!   group and does not read their settings. The key handler keeps one
+//!   poll of the Accessibility permission. The volume handler keeps its poll.
 //!
 //! The handlers use only the handler interface of the engine (architecture
 //! rule 8, and `docs/decisions/0012-action-handler-interface.md`).

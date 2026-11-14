@@ -105,7 +105,13 @@ share a handler keep one handler, one thread, and one queue. The handler
 interface does not change. The engine does not change. A kind that is not
 in the registry stays in the old tables. The first modules are the four
 kinds of the open handler: open an application, quit an application, open
-a URL, and a shell command.
+a URL, and a shell command. The five kinds of the key handler are modules
+too: send a hotkey, type text, a media key, a mouse event, and a Mac
+system function (issue
+[#367](https://github.com/shantanugoel/OpenCraft/issues/367)). They keep
+one handler, one thread, and one poll of the Accessibility permission.
+The sound volume kind is a module too. It keeps the volume handler and
+its poll.
 
 ## Results
 

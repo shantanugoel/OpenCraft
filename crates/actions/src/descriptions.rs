@@ -7,17 +7,10 @@ use opencraft_engine::{
     ChoiceOption, Direction, Field, InputType, KindDescription, PathKind, TwoStates, Value,
 };
 
-pub(crate) const HOTKEY: &str = "opencraft.hotkey";
-pub(crate) const TEXT: &str = "opencraft.type-text";
-pub(crate) const MEDIA: &str = "opencraft.media-key";
-pub(crate) const VOLUME: &str = "opencraft.volume";
 pub(crate) const MICROPHONE: &str = "opencraft.microphone-mute";
 pub(crate) const OUTPUT: &str = "opencraft.sound-output";
 pub(crate) const PLAY_SOUND: &str = "opencraft.play-sound";
 pub(crate) const STOP_SOUND: &str = "opencraft.stop-sound";
-pub(crate) const MOUSE: &str = "opencraft.mouse";
-pub(crate) const MAC_FUNCTION: &str = "opencraft.mac-function";
-pub(crate) const KEY_KINDS: [&str; 5] = [HOTKEY, TEXT, MEDIA, MOUSE, MAC_FUNCTION];
 pub(crate) const PAGE: &str = "opencraft.page";
 pub(crate) const PROFILE: &str = "opencraft.profile";
 pub(crate) const OPEN_FOLDER: &str = "opencraft.open-folder";
@@ -30,11 +23,9 @@ pub(crate) const DEVICE_BRIGHTNESS: &str = "opencraft.device-brightness";
 /// The groups of the built-in kinds in the library (decision 0029, section
 /// 11). The shell shows the groups in the order of their first kind.
 pub(crate) const GROUP_SYSTEM: &str = "System";
-const MEDIA_GROUP: &str = "Media";
+pub(crate) const GROUP_MEDIA: &str = "Media";
 const NAVIGATION: &str = "Navigation";
 const LOGIC: &str = "Logic";
-/// The help text of a kind that needs the Accessibility permission.
-const ACCESSIBILITY: &str = "Accessibility";
 
 /// The largest page number that the page change accepts. The user sees page
 /// numbers from 1.
@@ -56,7 +47,22 @@ pub(crate) fn field(key: &str, label: &str, input: InputType) -> Field {
     }
 }
 
-fn choice(options: &[(&str, &str)]) -> InputType {
+/// A [`field`] with a default value.
+pub(crate) fn field_with_default(
+    key: &str,
+    label: &str,
+    input: InputType,
+    default: Value,
+) -> Field {
+    Field {
+        key: key.into(),
+        label: label.into(),
+        input,
+        default: Some(default),
+    }
+}
+
+pub(crate) fn choice(options: &[(&str, &str)]) -> InputType {
     InputType::Choice {
         options: options
             .iter()
@@ -93,101 +99,6 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             ("Device brightness", vec![operation, value, step])
         }
         SCREEN_OFF => ("Screen off", vec![]),
-        HOTKEY => (
-            "Send a hotkey",
-            vec![field("hotkey", "Hotkey", InputType::Hotkey)],
-        ),
-        MAC_FUNCTION => {
-            let mut function = field(
-                "function",
-                "Function",
-                choice(&[
-                    ("mission-control", "Mission Control"),
-                    ("launchpad", "Launchpad"),
-                    ("screenshot", "Screenshot"),
-                    ("screen-saver", "Screen saver"),
-                    ("sleep", "Sleep"),
-                    ("lock", "Lock"),
-                    ("show-desktop", "Show desktop"),
-                ]),
-            );
-            function.default = Some(Value::Text("mission-control".into()));
-            ("Mac system function", vec![function])
-        }
-        MOUSE => {
-            let mut operation = field(
-                "operation",
-                "Operation",
-                choice(&[
-                    ("click", "Click"),
-                    ("double-click", "Double click"),
-                    ("move", "Move to position"),
-                    ("move-relative", "Move by offset"),
-                    ("scroll-up", "Scroll up"),
-                    ("scroll-down", "Scroll down"),
-                    ("scroll-left", "Scroll left"),
-                    ("scroll-right", "Scroll right"),
-                    ("drag", "Drag to position"),
-                ]),
-            );
-            operation.default = Some(Value::Text("click".into()));
-            let mut button = field(
-                "button",
-                "Button",
-                choice(&[("left", "Left"), ("right", "Right"), ("middle", "Middle")]),
-            );
-            button.default = Some(Value::Text("left".into()));
-            let mut x = field(
-                "x",
-                "X",
-                InputType::Integer {
-                    min: -100_000,
-                    max: 100_000,
-                },
-            );
-            x.default = Some(Value::Integer(0));
-            let mut y = field(
-                "y",
-                "Y",
-                InputType::Integer {
-                    min: -100_000,
-                    max: 100_000,
-                },
-            );
-            y.default = Some(Value::Integer(0));
-            let mut step = field(
-                "step",
-                "Scroll step",
-                InputType::Integer { min: 1, max: 1000 },
-            );
-            step.default = Some(Value::Integer(3));
-            ("Mouse event", vec![operation, button, x, y, step])
-        }
-        TEXT => (
-            "Type text",
-            vec![
-                field("text", "Text", InputType::LongText),
-                field("paste", "Paste with clipboard", InputType::Toggle),
-                field("return_after", "Push Return after", InputType::Toggle),
-            ],
-        ),
-        MEDIA => (
-            "Media key",
-            vec![field(
-                "key",
-                "Key",
-                choice(&[
-                    ("play-pause", "Play or pause"),
-                    ("next", "Next"),
-                    ("previous", "Previous"),
-                    ("fast-forward", "Fast forward"),
-                    ("rewind", "Rewind"),
-                    ("volume-up", "Volume up"),
-                    ("volume-down", "Volume down"),
-                    ("mute", "Mute"),
-                ]),
-            )],
-        ),
         MICROPHONE => ("Microphone mute", vec![]),
         OUTPUT => {
             let mut operation = field(
@@ -228,17 +139,6 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             )
         }
         STOP_SOUND => ("Stop all sound", vec![]),
-        VOLUME => {
-            let mut operation = field(
-                "operation",
-                "Operation",
-                choice(&[("up", "Up"), ("down", "Down"), ("mute", "Mute")]),
-            );
-            operation.default = Some(Value::Text("up".into()));
-            let mut step = field("step", "Step", InputType::Integer { min: 1, max: 25 });
-            step.default = Some(Value::Integer(5));
-            ("Sound volume", vec![operation, step])
-        }
         PAGE => {
             let mut target = field(
                 "target",
@@ -337,7 +237,8 @@ pub(crate) fn description(kind: &str) -> KindDescription {
         group: group.into(),
         help: help.map(Into::into),
         icon: Some(icon(kind).into()),
-        needs_accessibility: KEY_KINDS.contains(&kind),
+        // A kind module sets this flag on its own description.
+        needs_accessibility: false,
         fields,
         direction: direction(kind),
         // The toggle shows its state on the surface (decision 0017).
@@ -352,12 +253,6 @@ pub(crate) fn description(kind: &str) -> KindDescription {
 /// the engine (decision 0029, section 20, and decision 0033).
 fn icon(kind: &str) -> &'static str {
     match kind {
-        HOTKEY => "keyboard",
-        MOUSE => "mouse-pointer-2",
-        MAC_FUNCTION => "monitor",
-        TEXT => "type",
-        MEDIA => "play",
-        VOLUME => "volume-2",
         MICROPHONE => "mic",
         OUTPUT => "speaker",
         PLAY_SOUND => "music",
@@ -374,17 +269,12 @@ fn icon(kind: &str) -> &'static str {
     }
 }
 
-/// The direction field of a kind for a turn of a knob (decision 0014):
-/// "Sound volume" goes up for a turn to the right, and down for a turn to
-/// the left.
+/// The direction field of a kind that has not moved (decision 0014).
+/// Device brightness goes up for a turn to the right, and down for a turn
+/// to the left.
 fn direction(kind: &str) -> Option<Direction> {
     match kind {
-        MOUSE => Some(Direction {
-            key: "operation".into(),
-            right: "scroll-down".into(),
-            left: "scroll-up".into(),
-        }),
-        VOLUME | DEVICE_BRIGHTNESS => Some(Direction {
+        DEVICE_BRIGHTNESS => Some(Direction {
             key: "operation".into(),
             right: "up".into(),
             left: "down".into(),
@@ -393,17 +283,13 @@ fn direction(kind: &str) -> Option<Direction> {
     }
 }
 
-/// The group of a built-in kind in the library, and its help text
-/// (decision 0029, section 11). The kinds that send keys need the
-/// Accessibility permission, thus their help text names it.
+/// The group of a built-in kind that has not moved, and its help text
+/// (decision 0029, section 11).
 fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
         SCREEN_OFF => ("Device", Some("Computer wake")),
         DEVICE_BRIGHTNESS => ("Device", Some("Knob")),
-        HOTKEY | TEXT | MOUSE | MAC_FUNCTION => (GROUP_SYSTEM, Some(ACCESSIBILITY)),
-        MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
-        VOLUME => (MEDIA_GROUP, Some("Knob")),
-        MICROPHONE | OUTPUT | PLAY_SOUND | STOP_SOUND => (MEDIA_GROUP, None),
+        MICROPHONE | OUTPUT | PLAY_SOUND | STOP_SOUND => (GROUP_MEDIA, None),
         PAGE | PROFILE | OPEN_FOLDER | CLOSE_FOLDER => (NAVIGATION, None),
         TOGGLE | SEQUENCE => (LOGIC, None),
         _ => ("", None),

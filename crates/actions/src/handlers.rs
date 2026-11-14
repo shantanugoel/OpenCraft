@@ -3,11 +3,10 @@
 use crate::backend::{RealSystem, System};
 use crate::descriptions::*;
 use crate::flow::{NavigationHandler, SequenceHandler, ToggleHandler};
-use crate::hotkey::Hotkey;
-use crate::system::{MediaKey, Volume};
+use crate::system::Volume;
 use opencraft_engine::{
-    Action, BindingId, Feedback, Handler, KindDescription, Message, MessageSender, Request,
-    Settings, Status, Value,
+    Action, BindingId, Feedback, Handler, KindDescription, Message, MessageSender, Request, Status,
+    Value,
 };
 use std::collections::BTreeMap;
 use std::io;
@@ -149,11 +148,11 @@ impl Handler for OpenHandler {
 }
 
 fn key_status(sender: &Option<MessageSender>, ready: bool) {
-    for kind in KEY_KINDS {
+    for kind in crate::kinds::kinds_of(crate::kinds::Group::Key) {
         send(
             sender,
             Message::Status {
-                kind: kind.into(),
+                kind: kind.id().into(),
                 status: if ready {
                     Status::Ready
                 } else {
@@ -167,12 +166,21 @@ fn key_status(sender: &Option<MessageSender>, ready: bool) {
     }
 }
 
-enum KeyWork<'a> {
-    Hotkey(Hotkey),
-    Text(&'a str, bool, bool),
-    Media(MediaKey),
-    Mouse(crate::mouse::MouseEvent),
-    MacFunction(crate::mac_function::MacFunction),
+/// Read the permission and store it. Send the status when the permission is
+/// missing, or when the previous read was missing, so that an Invoke repeats
+/// the status.
+fn permission_now(
+    system: &dyn System,
+    ready: &Mutex<bool>,
+    sender: &Option<MessageSender>,
+) -> bool {
+    let mut previous = ready.lock().unwrap_or_else(|e| e.into_inner());
+    let current = system.can_send_keys();
+    if !current || !*previous {
+        key_status(sender, current);
+    }
+    *previous = current;
+    current
 }
 
 /// The problem of a key action when OpenCraft does not have the permission
@@ -185,50 +193,6 @@ pub(crate) fn no_permission() -> String {
     )
 }
 
-fn text_option(action: &Action, key: &str) -> Result<bool> {
-    match action.settings.get(key) {
-        None => Ok(false),
-        Some(Value::Boolean(value)) => Ok(*value),
-        _ => Err(setting_problem(TEXT, key)),
-    }
-}
-
-fn key_work(action: &Action) -> Result<KeyWork<'_>> {
-    Ok(match action.kind.as_str() {
-        HOTKEY => KeyWork::Hotkey(
-            text(action, "hotkey")?
-                .parse()
-                .map_err(|_| setting_problem(HOTKEY, "hotkey"))?,
-        ),
-        MAC_FUNCTION => KeyWork::MacFunction(
-            crate::mac_function::MacFunction::from_name(match action.settings.get("function") {
-                None => "mission-control",
-                Some(Value::Text(value)) => value,
-                _ => return Err(setting_problem(MAC_FUNCTION, "function")),
-            })
-            .ok_or_else(|| setting_problem(MAC_FUNCTION, "function"))?,
-        ),
-        MOUSE => KeyWork::Mouse(crate::mouse::work(action)?),
-        TEXT => KeyWork::Text(
-            text(action, "text")?,
-            text_option(action, "paste")?,
-            text_option(action, "return_after")?,
-        ),
-        MEDIA => KeyWork::Media(match text(action, "key")? {
-            "play-pause" => MediaKey::PlayPause,
-            "next" => MediaKey::Next,
-            "previous" => MediaKey::Previous,
-            "fast-forward" => MediaKey::FastForward,
-            "rewind" => MediaKey::Rewind,
-            "volume-up" => MediaKey::VolumeUp,
-            "volume-down" => MediaKey::VolumeDown,
-            "mute" => MediaKey::Mute,
-            _ => return Err(setting_problem(MEDIA, "key")),
-        }),
-        _ => return Err("This handler does not have that action kind.".into()),
-    })
-}
-
 struct KeyHandler {
     system: Arc<dyn System>,
     sender: Option<MessageSender>,
@@ -239,13 +203,7 @@ struct KeyHandler {
 
 impl KeyHandler {
     fn check_permission(&self) -> bool {
-        let mut previous = self.ready.lock().unwrap_or_else(|e| e.into_inner());
-        let ready = self.system.can_send_keys();
-        if !ready || !*previous {
-            key_status(&self.sender, ready);
-        }
-        *previous = ready;
-        ready
+        permission_now(self.system.as_ref(), &self.ready, &self.sender)
     }
 
     fn watch_permission(&mut self) -> Result<()> {
@@ -272,54 +230,29 @@ impl KeyHandler {
         Ok(())
     }
 
+    /// Run one key kind. The kind reads the settings before it uses the
+    /// permission, so a bad setting is not a permission problem. The kind
+    /// decides whether these settings need the permission.
     fn invoke(&self, action: &Action) -> Result<()> {
-        let permitted = self.check_permission();
-        let work = key_work(action)?;
-        if !permitted {
-            // The user must see the cause at the time of the gesture. The
-            // shell shows one message for the same text.
-            return Err(no_permission());
-        }
-        let result = match work {
-            KeyWork::Hotkey(hotkey) => self.system.send_hotkey(&hotkey),
-            KeyWork::Text(text, paste, return_after) => {
-                let result = if paste {
-                    self.system.paste_text(text)
-                } else {
-                    self.system.type_text(text)
-                };
-                result.and_then(|()| {
-                    if return_after {
-                        self.system
-                            .send_hotkey(&"return".parse().expect("Return key"))
-                    } else {
-                        Ok(())
-                    }
-                })
-            }
-            KeyWork::Media(key) => self.system.media_key(key),
-            KeyWork::Mouse(event) => self.system.mouse_event(event),
-            KeyWork::MacFunction(function) => {
-                return self
-                    .system
-                    .mac_function(function)
-                    .map_err(|e| format!("Cannot do the Mac system function: {e}."));
-            }
+        let Some(kind) = crate::kinds::find_in(crate::kinds::Group::Key, &action.kind) else {
+            return Ok(());
         };
-        result.map_err(|e| {
-            // The user can revoke access between the preflight and the send.
-            if self.check_permission() {
-                format!("Cannot send keys or mouse events: {e}.")
-            } else {
-                no_permission()
-            }
-        })
+        let permitted = self.check_permission();
+        let system = Arc::clone(&self.system);
+        let ready = Arc::clone(&self.ready);
+        let sender = self.sender.clone();
+        let recheck = move || permission_now(system.as_ref(), &ready, &sender);
+        let work = crate::kinds::Work::new(self.system.as_ref(), &self.sender)
+            .with_keys(permitted, &recheck);
+        kind.invoke(&action.settings, &work)
     }
 }
 
 impl Handler for KeyHandler {
     fn kinds(&self) -> Vec<KindDescription> {
-        KEY_KINDS.map(description).into()
+        crate::kinds::kinds_of(crate::kinds::Group::Key)
+            .map(|kind| kind.description())
+            .collect()
     }
     fn start(&mut self, sender: MessageSender) {
         self.sender = Some(sender);
@@ -331,10 +264,12 @@ impl Handler for KeyHandler {
     }
     fn handle(&mut self, request: Request) {
         match request {
-            Request::Invoke { action, .. } if KEY_KINDS.contains(&action.kind.as_str()) => {
+            Request::Invoke { action, .. } => {
                 problem(&self.sender, self.invoke(&action));
             }
-            Request::Resolve { kind } if KEY_KINDS.contains(&kind.as_str()) => {
+            Request::Resolve { kind }
+                if crate::kinds::find_in(crate::kinds::Group::Key, &kind).is_some() =>
+            {
                 self.system.ask_to_send_keys();
                 self.check_permission();
             }
@@ -406,20 +341,9 @@ impl VolumeState {
     }
 }
 
-fn volume_settings(settings: &Settings) -> Result<(&str, u8)> {
-    let operation = match settings.get("operation") {
-        None => "up",
-        Some(Value::Text(value)) if ["up", "down", "mute"].contains(&value.as_str()) => value,
-        _ => return Err(setting_problem(VOLUME, "operation")),
-    };
-    let step = match settings.get("step") {
-        None => 5,
-        Some(Value::Integer(step)) if (1..=25).contains(step) => *step as u8,
-        _ => return Err(setting_problem(VOLUME, "step")),
-    };
-    Ok((operation, step))
-}
-
+/// The handler for [`crate::kinds::Group::Volume`].
+/// The kind module reads the settings and changes the volume. This handler
+/// keeps the bindings, the feedback, and the poll.
 struct VolumeHandler {
     system: Arc<dyn System>,
     sender: Option<MessageSender>,
@@ -429,31 +353,6 @@ struct VolumeHandler {
 }
 
 impl VolumeHandler {
-    fn invoke(&self, settings: &Settings) -> Result<()> {
-        let (operation, step) = volume_settings(settings)?;
-        let volume = self
-            .system
-            .volume()
-            .map_err(|e| format!("Cannot read the sound volume: {e}."))?;
-        let result = if operation == "mute" {
-            self.system.set_muted(!volume.muted)
-        } else {
-            let level = if operation == "up" {
-                volume.level.saturating_add(step).min(100)
-            } else {
-                volume.level.saturating_sub(step)
-            };
-            self.system.set_volume_level(level).and_then(|()| {
-                if volume.muted {
-                    self.system.set_muted(false)
-                } else {
-                    Ok(())
-                }
-            })
-        };
-        result.map_err(|e| format!("Cannot set the sound volume: {e}."))
-    }
-
     fn start_poll(&mut self) {
         if self.poll.is_some() {
             return;
@@ -483,14 +382,18 @@ impl VolumeHandler {
 
 impl Handler for VolumeHandler {
     fn kinds(&self) -> Vec<KindDescription> {
-        vec![description(VOLUME)]
+        crate::kinds::kinds_of(crate::kinds::Group::Volume)
+            .map(|kind| kind.description())
+            .collect()
     }
     fn start(&mut self, sender: MessageSender) {
         self.sender = Some(sender);
     }
     fn handle(&mut self, request: Request) {
         match request {
-            Request::Appear { binding, action } if action.kind == VOLUME => {
+            Request::Appear { binding, action }
+                if crate::kinds::find_in(crate::kinds::Group::Volume, &action.kind).is_some() =>
+            {
                 {
                     let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
                     state.bindings.insert(binding, None);
@@ -510,9 +413,14 @@ impl Handler for VolumeHandler {
                     }
                 }
             }
-            Request::Invoke { binding, action } if action.kind == VOLUME => {
+            Request::Invoke { binding, action } => {
+                let Some(kind) = crate::kinds::find_in(crate::kinds::Group::Volume, &action.kind)
+                else {
+                    return;
+                };
                 let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-                if let Err(text) = self.invoke(&action.settings) {
+                let work = crate::kinds::Work::new(self.system.as_ref(), &self.sender);
+                if let Err(text) = kind.invoke(&action.settings, &work) {
                     state.problem = Some(text.clone());
                     send(&self.sender, Message::Problem(text));
                 }
