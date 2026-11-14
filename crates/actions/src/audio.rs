@@ -142,7 +142,7 @@ impl MicrophoneHandler {
             return;
         }
         let (wake, changed) = mpsc::channel();
-        let mut watch = match self.system.watch_microphone(wake.clone()) {
+        let watch = match self.system.watch_microphone(wake.clone()) {
             Ok(watch) => watch,
             Err(error) => {
                 send(
@@ -152,39 +152,31 @@ impl MicrophoneHandler {
                 return;
             }
         };
-        let stop = Arc::new(AtomicBool::new(false));
-        let cancelled = stop.clone();
         let system = self.system.clone();
         let sender = self.sender.clone();
         let state = self.state.clone();
-        match std::thread::Builder::new()
-            .name("opencraft-input-mute".into())
-            .spawn(move || {
-                while changed.recv().is_ok() && !cancelled.load(Ordering::Acquire) {
-                    // A callback does no Core Audio work. Reattach after a change
-                    // of default input, then read and send only changed feedback.
-                    if let Err(error) = watch.refresh() {
-                        send(
-                            &sender,
-                            Message::Problem(format!(
-                                "Cannot follow the microphone mute: {error}."
-                            )),
-                        );
-                    }
-                    state.lock().unwrap_or_else(|e| e.into_inner()).refresh(
-                        system.as_ref(),
+        // A callback does no Core Audio work. The worker reattaches after a
+        // change of the default input, then reads and sends only changed feedback.
+        match AudioWorker::spawn(
+            "opencraft-input-mute",
+            wake,
+            changed,
+            watch,
+            move |result| {
+                if let Err(error) = result {
+                    send(
                         &sender,
-                        None,
+                        Message::Problem(format!("Cannot follow the microphone mute: {error}.")),
                     );
                 }
-            }) {
-            Ok(thread) => {
-                self.worker = Some(AudioWorker {
-                    wake,
-                    stop,
-                    thread: Some(thread),
-                })
-            }
+                state.lock().unwrap_or_else(|e| e.into_inner()).refresh(
+                    system.as_ref(),
+                    &sender,
+                    None,
+                );
+            },
+        ) {
+            Ok(worker) => self.worker = Some(worker),
             Err(error) => send(
                 &self.sender,
                 Message::Problem(format!("Cannot follow the microphone mute: {error}.")),
