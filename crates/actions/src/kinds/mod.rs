@@ -11,9 +11,8 @@
 //!
 //! To add a kind, copy [`open_application`]: `ID`, `description`, `read`,
 //! `perform`, and a value that implements [`Kind`]. Then add one line to
-//! [`REGISTERED`]. Do not add the kind to the tables in
-//! [`crate::descriptions`]. Those tables serve only a kind that is not in
-//! the registry yet. A new [`Group`] also needs a handler that calls
+//! [`REGISTERED`]. [`crate::descriptions`] has no table of kinds: each kind
+//! gives its own description. A new [`Group`] also needs a handler that calls
 //! [`kinds_of`] and [`find_in`].
 //!
 //! [`Kind::invoke`] is `perform(&read(settings)?, work)`. A kind that sends
@@ -24,19 +23,33 @@
 //! the permission. A kind that must handle Appear, Disappear, Resolve, or
 //! Choices adds a method on [`Kind`] with an empty default, and its handler
 //! calls that method.
+//!
+//! A kind that only asks the engine for work (a page, a profile, a folder,
+//! the device, a toggle, a sequence) calls [`Work::ask`]. The request
+//! handler of its group ([`crate::flow`]) gives it the binding with
+//! [`Work::binding`], the memory of the handler with [`Work::memory`], and
+//! the shared system port with [`Work::shared_system`].
 
+mod close_folder;
+mod device_brightness;
 mod hotkey;
 mod mac_function;
 mod media_key;
 pub(crate) mod microphone_mute;
 mod mouse;
 mod open_application;
+mod open_folder;
 mod open_url;
+pub(crate) mod page;
 mod play_sound;
+mod profile;
 mod quit_application;
+mod screen_off;
+mod sequence;
 mod shell_command;
 pub(crate) mod sound_output;
 mod stop_sound;
+mod toggle;
 mod type_text;
 mod volume;
 
@@ -49,7 +62,12 @@ mod recording;
 
 use crate::backend::System;
 use crate::descriptions::setting_problem;
-use opencraft_engine::{ChoiceOption, KindDescription, Message, MessageSender, Settings, Value};
+use opencraft_engine::{
+    BindingId, ChoiceOption, EngineRequest, KindDescription, Message, MessageSender, Settings,
+    Value,
+};
+use std::cell::RefCell;
+use std::sync::Arc;
 
 /// One handler. Kinds with the same group share its thread and its queue.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -70,6 +88,24 @@ pub(crate) enum Group {
     /// Play a sound and stop all sound. These kinds share one handler and
     /// one queue, so a stop does not pass a play that came before it.
     Sound,
+    /// Change the page, select a profile, open a folder, and close a folder.
+    /// These kinds only ask the engine for work.
+    Navigation,
+    /// Toggle. The handler keeps the states of the toggles.
+    Toggle,
+    /// Sequence of actions. A sequence waits on a thread of its own.
+    Sequence,
+    /// Screen off and device brightness. These kinds only ask the engine for
+    /// work.
+    Device,
+}
+
+/// What a handler of the engine request kinds remembers between two calls.
+/// The handler owns it and gives it to a kind on [`Work`].
+#[derive(Default)]
+pub(crate) struct Memory {
+    /// The states of the toggles (decision 0017).
+    pub(crate) toggles: toggle::States,
 }
 
 /// One call of a kind: the system port, and the sender of its handler.
@@ -87,6 +123,13 @@ pub(crate) struct Work<'a> {
     /// calls it. It returns true when the permission is still present, and
     /// the handler sends the new status. None keeps the system error.
     recheck_keys: Option<&'a dyn Fn() -> bool>,
+    /// The binding of the call. Only the request handler sets it.
+    binding: Option<BindingId>,
+    /// The memory of the request handler.
+    memory: Option<&'a RefCell<Memory>>,
+    /// The system port as a shared pointer, for a kind that works on a thread
+    /// of its own. Only the request handler sets it.
+    shared_system: Option<&'a Arc<dyn System>>,
 }
 
 impl<'a> Work<'a> {
@@ -96,7 +139,54 @@ impl<'a> Work<'a> {
             sender,
             keys_allowed: true,
             recheck_keys: None,
+            binding: None,
+            memory: None,
+            shared_system: None,
         }
+    }
+
+    /// The binding that the engine gave to this call.
+    pub(crate) fn with_binding(mut self, binding: BindingId) -> Self {
+        self.binding = Some(binding);
+        self
+    }
+
+    /// The memory of the handler.
+    pub(crate) fn with_memory(mut self, memory: &'a RefCell<Memory>) -> Self {
+        self.memory = Some(memory);
+        self
+    }
+
+    /// The system port as a shared pointer.
+    pub(crate) fn with_shared_system(mut self, system: &'a Arc<dyn System>) -> Self {
+        self.shared_system = Some(system);
+        self
+    }
+
+    /// The binding of this call, if the handler gave one.
+    pub(crate) fn binding(&self) -> Option<BindingId> {
+        self.binding
+    }
+
+    /// The memory of the handler, if the handler gave it.
+    pub(crate) fn memory(&self) -> Option<&'a RefCell<Memory>> {
+        self.memory
+    }
+
+    /// A shared pointer to the system port, if the handler gave it.
+    pub(crate) fn shared_system(&self) -> Option<Arc<dyn System>> {
+        self.shared_system.cloned()
+    }
+
+    /// Send a message to the engine. A closed channel is not an error: the
+    /// shell may already have stopped.
+    pub(crate) fn send(&self, message: Message) {
+        crate::handlers::send(self.sender, message);
+    }
+
+    /// Ask the engine for work (decision 0016).
+    pub(crate) fn ask(&self, request: EngineRequest) {
+        self.send(Message::Engine(request));
     }
 
     /// The permission from the one check of the key handler.
@@ -142,6 +232,12 @@ pub(crate) trait Kind: Send + Sync {
     fn choices(&self, field: &str, work: &Work<'_>) -> Option<Choices> {
         let _ = (field, work);
         None
+    }
+
+    /// The Appear of a binding with this kind. The binding is `work.binding()`.
+    /// The default does nothing.
+    fn appear(&self, settings: &Settings, work: &Work<'_>) {
+        let _ = (settings, work);
     }
 }
 
@@ -215,6 +311,38 @@ const REGISTERED: &[Registered] = &[
     Registered {
         group: Group::Sound,
         kind: &stop_sound::KIND,
+    },
+    Registered {
+        group: Group::Navigation,
+        kind: &page::KIND,
+    },
+    Registered {
+        group: Group::Navigation,
+        kind: &profile::KIND,
+    },
+    Registered {
+        group: Group::Navigation,
+        kind: &open_folder::KIND,
+    },
+    Registered {
+        group: Group::Navigation,
+        kind: &close_folder::KIND,
+    },
+    Registered {
+        group: Group::Toggle,
+        kind: &toggle::KIND,
+    },
+    Registered {
+        group: Group::Sequence,
+        kind: &sequence::KIND,
+    },
+    Registered {
+        group: Group::Device,
+        kind: &screen_off::KIND,
+    },
+    Registered {
+        group: Group::Device,
+        kind: &device_brightness::KIND,
     },
 ];
 
@@ -382,6 +510,13 @@ mod tests {
         assert_eq!(ids(Group::Microphone), [microphone_mute::ID]);
         assert_eq!(ids(Group::Output), [sound_output::ID]);
         assert_eq!(ids(Group::Sound), [play_sound::ID, stop_sound::ID]);
+        assert_eq!(
+            ids(Group::Navigation),
+            [page::ID, profile::ID, open_folder::ID, close_folder::ID]
+        );
+        assert_eq!(ids(Group::Toggle), [toggle::ID]);
+        assert_eq!(ids(Group::Sequence), [sequence::ID]);
+        assert_eq!(ids(Group::Device), [screen_off::ID, device_brightness::ID]);
         let handlers =
             handlers::build(Arc::new(recording::System::default()), Intervals::default());
         for (id, group) in [
@@ -390,6 +525,10 @@ mod tests {
             (microphone_mute::ID, Group::Microphone),
             (sound_output::ID, Group::Output),
             (play_sound::ID, Group::Sound),
+            (page::ID, Group::Navigation),
+            (toggle::ID, Group::Toggle),
+            (sequence::ID, Group::Sequence),
+            (screen_off::ID, Group::Device),
         ] {
             let handler = handlers
                 .iter()

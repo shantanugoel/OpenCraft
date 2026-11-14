@@ -1,35 +1,19 @@
-//! The descriptions that the shell uses to make the settings form.
+//! The helpers that the kind modules use to make their descriptions.
 //!
-//! A kind that has a module in [`crate::kinds`] gives its description from
-//! that module. The tables in this file serve only a kind that has not moved.
+//! Each built-in kind has a module in [`crate::kinds`], and that module gives
+//! the description of the kind (decision 0014). This file has the names of the
+//! groups of the library, the helpers for a field, and the text of a problem
+//! with a setting.
 
-use opencraft_engine::{
-    ChoiceOption, Direction, Field, InputType, KindDescription, ShownWhen, TwoStates, Value,
-};
-
-pub(crate) const PAGE: &str = "opencraft.page";
-pub(crate) const PROFILE: &str = "opencraft.profile";
-pub(crate) const OPEN_FOLDER: &str = "opencraft.open-folder";
-pub(crate) const CLOSE_FOLDER: &str = "opencraft.close-folder";
-pub(crate) const TOGGLE: &str = "opencraft.toggle";
-pub(crate) const SEQUENCE: &str = "opencraft.sequence";
-pub(crate) const SCREEN_OFF: &str = "opencraft.screen-off";
-pub(crate) const DEVICE_BRIGHTNESS: &str = "opencraft.device-brightness";
+use opencraft_engine::{ChoiceOption, Field, InputType, KindDescription, Value};
 
 /// The groups of the built-in kinds in the library (decision 0029, section
 /// 11). The shell shows the groups in the order of their first kind.
 pub(crate) const GROUP_SYSTEM: &str = "System";
 pub(crate) const GROUP_MEDIA: &str = "Media";
-const NAVIGATION: &str = "Navigation";
-const LOGIC: &str = "Logic";
-
-/// The largest page number that the page change accepts. The user sees page
-/// numbers from 1.
-pub(crate) const PAGE_LIMIT: i64 = 100;
-/// The largest delay of a sequence, in milliseconds.
-pub(crate) const DELAY_LIMIT: i64 = 10_000;
-/// The delay of a sequence with no delay in its settings, in milliseconds.
-pub(crate) const DEFAULT_DELAY: i64 = 100;
+pub(crate) const GROUP_NAVIGATION: &str = "Navigation";
+pub(crate) const GROUP_LOGIC: &str = "Logic";
+pub(crate) const GROUP_DEVICE: &str = "Device";
 
 /// The label of the button that asks for the Accessibility permission.
 pub(crate) const PERMISSION_BUTTON: &str = "Give the permission";
@@ -70,194 +54,15 @@ pub(crate) fn choice(options: &[(&str, &str)]) -> InputType {
     }
 }
 
+/// The description of the kind `kind`. A name that is not a built-in kind
+/// gets an empty description that has only the name.
 pub(crate) fn description(kind: &str) -> KindDescription {
-    // A kind module owns its description. This match is only for a kind
-    // that has not moved into [`crate::kinds`].
-    if let Some(kind) = crate::kinds::find(kind) {
-        return kind.description();
-    }
-    let (name, fields) = match kind {
-        DEVICE_BRIGHTNESS => {
-            let mut operation = field(
-                "operation",
-                "Operation",
-                choice(&[("up", "Up"), ("down", "Down"), ("set", "Set value")]),
-            );
-            operation.default = Some(Value::Text("up".into()));
-            let mut value = field(
-                "value",
-                "Brightness",
-                InputType::Integer { min: 0, max: 100 },
-            );
-            value.default = Some(Value::Integer(80));
-            let mut step = field("step", "Step", InputType::Integer { min: 1, max: 100 });
-            step.default = Some(Value::Integer(5));
-            ("Device brightness", vec![operation, value, step])
-        }
-        SCREEN_OFF => ("Screen off", vec![]),
-        PAGE => {
-            let mut target = field(
-                "target",
-                "Page",
-                choice(&[
-                    ("next", "Next page"),
-                    ("previous", "Previous page"),
-                    ("number", "Page number"),
-                ]),
-            );
-            target.default = Some(Value::Text("next".into()));
-            let mut page = field(
-                "page",
-                "Page number",
-                InputType::Integer {
-                    min: 1,
-                    max: PAGE_LIMIT,
-                },
-            );
-            page.default = Some(Value::Integer(1));
-            // Off in an old profile: the key keeps its own title.
-            let show = field("show_number", "Show the page number", InputType::Toggle);
-            ("Change the page", vec![target, page, show])
-        }
-        PROFILE => {
-            let mut target = field(
-                "target",
-                "Select",
-                choice(&[
-                    ("profile", "A profile"),
-                    ("next", "Next profile"),
-                    ("previous", "Previous profile"),
-                ]),
-            );
-            target.default = Some(Value::Text("profile".into()));
-            let mut page = field(
-                "page",
-                "Page",
-                InputType::Integer {
-                    min: 0,
-                    max: PAGE_LIMIT,
-                },
-            );
-            page.default = Some(Value::Integer(0));
-            (
-                "Select a profile",
-                vec![
-                    target,
-                    field("profile", "Profile", InputType::Profile),
-                    page,
-                ],
-            )
-        }
-        OPEN_FOLDER => (
-            "Open a folder",
-            vec![field("folder", "Folder", InputType::Folder)],
-        ),
-        CLOSE_FOLDER => ("Back", vec![]),
-        TOGGLE => (
-            "Toggle",
-            vec![
-                field("on", "From Off to On", InputType::Action),
-                field("off", "From On to Off", InputType::Action),
-                field("on_label", "Label for on", InputType::Text),
-            ],
-        ),
-        SEQUENCE => {
-            let mut delay = field(
-                "delay_ms",
-                "Delay between two actions, in milliseconds",
-                InputType::Integer {
-                    min: 0,
-                    max: DELAY_LIMIT,
-                },
-            );
-            delay.default = Some(Value::Integer(DEFAULT_DELAY));
-            (
-                "Sequence of actions",
-                vec![
-                    field("actions", "Actions", InputType::TimedActionList),
-                    delay,
-                ],
-            )
-        }
-        _ => {
-            return KindDescription {
-                kind: kind.into(),
-                ..KindDescription::default()
-            }
-        }
-    };
-    let (group, help) = library_place(kind);
-    KindDescription {
-        kind: kind.into(),
-        name: name.into(),
-        group: group.into(),
-        help: help.map(Into::into),
-        icon: Some(icon(kind).into()),
-        // A kind module sets this flag on its own description.
-        needs_accessibility: false,
-        fields,
-        direction: direction(kind),
-        // The toggle shows its state on the surface (decision 0017).
-        states: (kind == TOGGLE).then(|| TwoStates {
-            on_label: Some("on_label".into()),
-        }),
-        folder_back: kind == CLOSE_FOLDER,
-        shown_when: shown_when(kind),
-    }
-}
-
-/// The fields that the shell shows only for some values of a choice
-/// (decision 0038).
-fn shown_when(kind: &str) -> Vec<ShownWhen> {
-    match kind {
-        DEVICE_BRIGHTNESS => vec![
-            ShownWhen::new("value", "operation", &["set"]),
-            ShownWhen::new("step", "operation", &["up", "down"]),
-        ],
-        PAGE => vec![ShownWhen::new("page", "target", &["number"])],
-        _ => Vec::new(),
-    }
-}
-
-/// The icon of a built-in kind on its kind tile: a name of the icon set of
-/// the engine (decision 0029, section 20, and decision 0033).
-fn icon(kind: &str) -> &'static str {
-    match kind {
-        PAGE => "arrow-right",
-        PROFILE => "layers",
-        OPEN_FOLDER => "folder",
-        CLOSE_FOLDER => "corner-up-left",
-        TOGGLE => "toggle-left",
-        SEQUENCE => "list",
-        SCREEN_OFF => "monitor-off",
-        DEVICE_BRIGHTNESS => "sun",
-        _ => "circle-help",
-    }
-}
-
-/// The direction field of a kind that has not moved (decision 0014).
-/// Device brightness goes up for a turn to the right, and down for a turn
-/// to the left.
-fn direction(kind: &str) -> Option<Direction> {
-    match kind {
-        DEVICE_BRIGHTNESS => Some(Direction {
-            key: "operation".into(),
-            right: "up".into(),
-            left: "down".into(),
-        }),
-        _ => None,
-    }
-}
-
-/// The group of a built-in kind that has not moved, and its help text
-/// (decision 0029, section 11).
-fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
-    match kind {
-        SCREEN_OFF => ("Device", Some("Computer wake")),
-        DEVICE_BRIGHTNESS => ("Device", Some("Knob")),
-        PAGE | PROFILE | OPEN_FOLDER | CLOSE_FOLDER => (NAVIGATION, None),
-        TOGGLE | SEQUENCE => (LOGIC, None),
-        _ => ("", None),
+    match crate::kinds::find(kind) {
+        Some(kind) => kind.description(),
+        None => KindDescription {
+            kind: kind.into(),
+            ..KindDescription::default()
+        },
     }
 }
 
