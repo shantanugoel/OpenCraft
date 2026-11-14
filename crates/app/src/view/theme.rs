@@ -888,6 +888,10 @@ pub const FIRST_START_LEFT_TEXT: Pixels = px(240.);
 pub const FIRST_START_RIGHT_TOP: Pixels = SPACE_28;
 pub const FIRST_START_RIGHT_SIDE: Pixels = SPACE_32;
 pub const FIRST_START_RIGHT_BOTTOM: Pixels = px(22.);
+/// The list of ready profiles on the first start window: its width, and
+/// its greatest height. The list grows with its rows, up to this height.
+pub const FIRST_START_READY_WIDTH: Pixels = px(360.);
+pub const FIRST_START_READY_MAX_HEIGHT: Pixels = px(420.);
 /// The line height of the text below the title.
 pub const FIRST_START_LINE_HEIGHT: f32 = 1.5;
 /// The small device picture: its size, corner radius, and padding.

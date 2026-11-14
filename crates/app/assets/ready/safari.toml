@@ -1,0 +1,249 @@
+# Safari: tabs, find, and page zoom.
+# A ready profile (issue #340). It links to one application.
+# It uses built-in icons and no image file.
+schema_version = 5
+name = "Safari"
+model = "n4-pro"
+color = "#298886"
+
+[[applications]]
+bundle_id = "com.apple.Safari"
+name = "Safari"
+
+[[pages]]
+name = "Browse"
+
+[pages.surfaces.key-face-1]
+label = "New tab"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "plus"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Close"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "x"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Reopen"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "rotate-cw"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Back"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-left"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-5]
+label = "Forward"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-right"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Address"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "link"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "Find"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "search"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Reader"
+color = "#CC7135"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "book-open"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Reload"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "refresh-cw"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "Tabs"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "folder"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Zoom"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "zoom-in"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Back"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-left"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Forward"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-right"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Reload"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "refresh-cw"
+icon_color = "#FFFFFF"
+
+
+[pages.bindings.key-1.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings]
+hotkey = "cmd+t"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings]
+hotkey = "cmd+w"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-3.press.settings]
+hotkey = "shift+cmd+t"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-4.press.settings]
+hotkey = "cmd+leftbracket"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-5.press.settings]
+hotkey = "cmd+rightbracket"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-6.press.settings]
+hotkey = "cmd+l"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-7.press.settings]
+hotkey = "cmd+f"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-8.press.settings]
+hotkey = "shift+cmd+r"
+
+[pages.bindings.key-9.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-9.press.settings]
+hotkey = "cmd+r"
+
+[pages.bindings.key-10.press]
+kind = "opencraft.open-folder"
+[pages.bindings.key-10.press.settings]
+folder = "4b7e1c9a2d6f8041"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-2.tap.settings]
+hotkey = "cmd+leftbracket"
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-3.tap.settings]
+hotkey = "cmd+rightbracket"
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-4.tap.settings]
+hotkey = "cmd+r"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.turn-left.settings]
+hotkey = "cmd+minus"
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.turn-right.settings]
+hotkey = "shift+cmd+equal"
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.push.settings]
+hotkey = "shift+cmd+r"
+
+[[folders]]
+id = "4b7e1c9a2d6f8041"
+name = "Tabs"
+
+[folders.surfaces.key-face-1]
+label = "Back"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "corner-up-left"
+icon_color = "#FFFFFF"
+
+[folders.surfaces.key-face-2]
+label = "Next"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-right"
+icon_color = "#FFFFFF"
+
+[folders.surfaces.key-face-3]
+label = "Previous"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-left"
+icon_color = "#FFFFFF"
+
+
+[folders.bindings.key-1.press]
+kind = "opencraft.close-folder"
+
+[folders.bindings.key-2.press]
+kind = "opencraft.hotkey"
+[folders.bindings.key-2.press.settings]
+hotkey = "shift+cmd+rightbracket"
+
+[folders.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[folders.bindings.key-3.press.settings]
+hotkey = "shift+cmd+leftbracket"

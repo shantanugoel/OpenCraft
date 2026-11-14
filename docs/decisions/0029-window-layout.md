@@ -1440,6 +1440,17 @@ Note (2026-11-13), from the work of #196. The code does this:
   call keys send the key commands of Zoom, Google Meet, and Microsoft Teams,
   one page for each.
 
+Note (2026-11-14), from the work of #340. The window size stays 800 × 560.
+The right column has the button "Ready profiles…" on the same row as
+"Start". The button opens a list above it. Each row of the list has a
+switch. A switch that is on adds that ready profile when the user clicks
+"Start". The switches are off at the start, so "Start" adds only the
+selected starter profile. The engine adds the ready profiles first, then
+the starter profile, so the starter profile is the active profile. The
+same ready profiles are in the submenu "Ready Profiles" of the profile
+add menu. A ready profile keeps a link only when no profile already has
+it (decision 0035, section 5).
+
 ### 19. The menu bar item (#194)
 
 The native menu of [decision 0020](0020-menu-bar-item-and-dock-icon.md)

@@ -416,21 +416,43 @@ impl DeviceView {
                     .map(|d| keyboard_focus(d, Ring::Inside))
                     .on_click(cx.listener(|view, event: &ClickEvent, window, cx| {
                         view.focus_workspace(window, cx);
-                        let mut menu = NativeMenu::new();
-                        for command in crate::app_menu::commands(
-                            &view.panes,
-                            &crate::app_menu::EditMenu::default(),
-                        ) {
-                            if let Some(title) = command.profile_add_menu {
-                                menu = menu.menu(title, command.action);
-                            }
-                        }
-                        menu.show(event.position(), window, cx);
+                        profile_add_menu(view).show(event.position(), window, cx);
                     })),
             )
             .into_any_element()
     }
+}
 
+/// The native menu of the profile add button. The items come from the
+/// command table. A command with a submenu is in that submenu, after a
+/// separator.
+fn profile_add_menu(view: &DeviceView) -> NativeMenu {
+    let mut top = NativeMenu::new();
+    let mut groups: Vec<(&'static str, NativeMenu)> = Vec::new();
+    for command in crate::app_menu::commands(&view.panes, &crate::app_menu::EditMenu::default()) {
+        let Some(title) = command.profile_add_menu else {
+            continue;
+        };
+        if let Some(submenu) = command.profile_add_submenu {
+            if groups.last().is_none_or(|(name, _)| *name != submenu) {
+                groups.push((submenu, NativeMenu::new()));
+            }
+            let (_, menu) = groups.last_mut().expect("the group was just added");
+            *menu = std::mem::replace(menu, NativeMenu::new()).menu(title, command.action);
+        } else {
+            top = top.menu(title, command.action);
+        }
+    }
+    if !groups.is_empty() {
+        top = top.separator();
+    }
+    for (title, menu) in groups {
+        top = top.submenu(title, menu);
+    }
+    top
+}
+
+impl DeviceView {
     /// The profile rows, and the page rows below the active profile.
     fn profile_rows(&self, cx: &mut Context<Self>) -> Div {
         let mut rows = div()

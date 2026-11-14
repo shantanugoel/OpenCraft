@@ -9,7 +9,7 @@
 //!   and the bar panels of the selected starter profile, and the state of
 //!   the device: "*model name* found", or "Connect your device".
 //! - **The right column.** The title, the four starter profile cards, a
-//!   box about the Accessibility permission, and "Start".
+//!   box about the Accessibility permission, "Ready profiles…", and "Start".
 //!
 //! The pictures of the key faces and the bar panels of the device picture are
 //! the images of the engine (`opencraft_engine::page_preview`, rule 11): the
@@ -18,11 +18,12 @@
 //! of a key, which comes from the profile (decision 0029, section 18).
 //!
 //! "Start", Return, and a double-click on a card send the selected starter
-//! profile to the shell (`Shell::start_with`). The shell sends it to the
-//! engine, which writes it (rule 9), and opens the main window. The window
-//! does not ask for the Accessibility permission. The main window asks
-//! when the first action that needs it gets on a control
-//! (`view::permission_sheet`).
+//! profile to the shell (`Shell::start_with`). "Ready profiles…" opens a
+//! list. Each switch that is on adds that ready profile before the starter
+//! profile. The shell sends the profiles to the engine, which writes them
+//! (rule 9), and opens the main window. The window does not ask for the
+//! Accessibility permission. The main window asks when the first action
+//! that needs it gets on a control (`view::permission_sheet`).
 
 use crate::{
     app_menu::{CloseWindow, FIRST_START},
@@ -53,6 +54,10 @@ mod tests;
 
 /// The text below the title.
 const INTRO: &str = "Choose a profile to start with. You can change each key later.";
+
+/// The text in the list of ready profiles.
+const READY_HELP: &str =
+    "Turn on a profile to add it when you click Start. Each profile links to its application.";
 
 /// The text below the device name with a device.
 pub const CONNECTED_TEXT: &str = "Connected by USB";
@@ -239,6 +244,12 @@ pub struct FirstStartView {
     /// focus, as in a group of radio buttons of macOS.
     cards: Vec<FocusHandle>,
     previews: Option<Previews>,
+    /// The ready profiles that Start adds, as indexes of [`crate::ready::READY`].
+    ready: Vec<usize>,
+    /// The list of ready profiles is open.
+    ready_open: bool,
+    /// The focus trap of the list.
+    ready_focus: FocusHandle,
     /// Gives the focus back to the root element when the element with the
     /// focus is not drawn any more.
     _focus_lost: Subscription,
@@ -272,6 +283,9 @@ impl FirstStartView {
             selected: 0,
             cards: STARTERS.iter().map(|_| cx.focus_handle()).collect(),
             previews: None,
+            ready: Vec::new(),
+            ready_open: false,
+            ready_focus: cx.focus_handle(),
             _focus_lost: focus_lost,
         };
         view.sync_previews(window);
@@ -314,21 +328,66 @@ impl FirstStartView {
         }
     }
 
-    /// Start with the selected starter profile, and close this window. The
-    /// shell opens the main window.
+    /// Start with the selected starter profile and the ready profiles that
+    /// are on, and close this window. The shell opens the main window.
     fn start(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let selected = self.selected;
+        let ready = self.ready.clone();
         self.shell
-            .update(cx, |shell, cx| shell.start_with(selected, cx));
+            .update(cx, |shell, cx| shell.start_with(selected, &ready, cx));
         window.remove_window();
     }
 
+    /// Open or close the list of ready profiles.
+    fn toggle_ready(&mut self, cx: &mut Context<Self>) {
+        self.ready_open = !self.ready_open;
+        cx.notify();
+    }
+
+    /// Turn one ready profile on or off.
+    fn set_ready(&mut self, index: usize, on: bool, cx: &mut Context<Self>) {
+        if on {
+            if !self.ready.contains(&index) {
+                self.ready.push(index);
+                self.ready.sort_unstable();
+            }
+        } else {
+            self.ready.retain(|item| *item != index);
+        }
+        cx.notify();
+    }
+
+    /// Close the list of ready profiles.
+    fn close_ready(&mut self, cx: &mut Context<Self>) {
+        if self.ready_open {
+            self.ready_open = false;
+            cx.notify();
+        }
+    }
+
     /// Return starts. The arrow keys move the selection in the grid of
-    /// cards.
+    /// cards. While the list of ready profiles is open, Escape closes the
+    /// list and the arrow keys do not move the cards.
     fn key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let modifiers = event.keystroke.modifiers;
         if modifiers.platform || modifiers.control || modifiers.alt {
             return;
+        }
+        if self.ready_open {
+            match event.keystroke.key.as_str() {
+                "escape" => {
+                    cx.stop_propagation();
+                    self.close_ready(cx);
+                    return;
+                }
+                "left" | "right" | "up" | "down" => {
+                    cx.stop_propagation();
+                    return;
+                }
+                // A switch in the list has the key. Do not start.
+                "enter" if self.ready_focus.contains_focused(window, cx) => return,
+                _ => {}
+            }
         }
         let columns = 2;
         let selected = self.selected;
@@ -549,6 +608,9 @@ impl FirstStartView {
                     .child(div().flex_1().min_w_0().flex().children(cards.next())),
             );
         }
+        let ready_label = crate::ready::button_text(self.ready.len());
+        let ready = controls::button("first-start-ready", ready_label)
+            .on_click(cx.listener(|view, _, _, cx| view.toggle_ready(cx)));
         let start = controls::main_button("first-start-start", "Start", theme::SPACE_16)
             .on_click(cx.listener(|view, _, window, cx| view.start(window, cx)));
         div()
@@ -622,7 +684,122 @@ impl FirstStartView {
                             .child(text),
                     )
             }))
-            .child(div().flex().justify_end().child(start))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(ready)
+                    .child(start),
+            )
+    }
+
+    /// The list of ready profiles, above the button that opens it.
+    fn ready_list(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let list = div()
+            .id("first-start-ready-list")
+            .debug_selector(|| "first-start-ready-list".into())
+            .accessible(Role::Dialog, crate::ready::LIST_TITLE)
+            .occlude()
+            .absolute()
+            .bottom(theme::FIRST_START_RIGHT_BOTTOM + theme::HEIGHT_CONTROL + theme::SPACE_8)
+            .left(theme::FIRST_START_LEFT + theme::FIRST_START_RIGHT_SIDE)
+            .w(theme::FIRST_START_READY_WIDTH)
+            .max_h(theme::FIRST_START_READY_MAX_HEIGHT)
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .rounded(theme::RADIUS_POPOVER)
+            .bg(theme::BG_FIELD)
+            .border_1()
+            .border_color(theme::BORDER_OVERLAY)
+            .shadow(theme::popover_shadow())
+            .text_size(theme::TEXT_BODY)
+            .text_color(theme::TEXT_PRIMARY)
+            .capture_key_down(cx.listener(|view, event: &KeyDownEvent, _, cx| {
+                if event.keystroke.key == "escape" {
+                    cx.stop_propagation();
+                    view.close_ready(cx);
+                }
+            }))
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .p(theme::SPACE_12)
+                    .flex()
+                    .flex_col()
+                    .gap(theme::SPACE_4)
+                    .child(
+                        div()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(crate::ready::LIST_TITLE),
+                    )
+                    .child(
+                        div()
+                            .id("first-start-ready-help")
+                            .readable_text(READY_HELP)
+                            .text_size(theme::TEXT_HELP)
+                            .text_color(theme::TEXT_SECONDARY)
+                            .line_height(relative(theme::LINE_HEIGHT_TEXT))
+                            .child(READY_HELP),
+                    ),
+            )
+            .child(
+                div()
+                    .min_h_0()
+                    .px(theme::SPACE_12)
+                    .pb(theme::SPACE_8)
+                    .flex()
+                    .flex_col()
+                    .children(
+                        crate::ready::READY
+                            .iter()
+                            .enumerate()
+                            .map(|(index, ready)| self.ready_row(index, ready, cx)),
+                    ),
+            );
+        controls::popover_focus(list, "first-start-ready-trap".into(), &self.ready_focus)
+    }
+
+    /// One row of the list: the name, the description, and the switch.
+    fn ready_row(
+        &self,
+        index: usize,
+        ready: &crate::ready::ReadyProfile,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let on = self.ready.contains(&index);
+        let id: SharedString = format!("ready-{index}").into();
+        div()
+            .flex_shrink_0()
+            .py(theme::SPACE_6)
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_12)
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(theme::SPACE_2)
+                    .child(div().truncate().child(ready.name))
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(theme::TEXT_HELP)
+                            .text_color(theme::TEXT_SECONDARY)
+                            .child(ready.description),
+                    ),
+            )
+            .child(
+                controls::switch(id, ready.name, on, theme::SWITCH_SETTINGS).on_click(cx.listener(
+                    move |view, _, _, cx| {
+                        let on = !view.ready.contains(&index);
+                        view.set_ready(index, on, cx);
+                    },
+                )),
+            )
     }
 
     /// The card of the starter profile `index`.
@@ -738,6 +915,7 @@ impl Render for FirstStartView {
             }))
             .on_key_down(cx.listener(|view, event, window, cx| view.key_down(event, window, cx)))
             .size_full()
+            .relative()
             .flex()
             .flex_col()
             .bg(theme::BG_BAR)
@@ -754,5 +932,6 @@ impl Render for FirstStartView {
                     .child(self.left_column())
                     .child(self.right_column(cx)),
             )
+            .when(self.ready_open, |row| row.child(self.ready_list(cx)))
     }
 }

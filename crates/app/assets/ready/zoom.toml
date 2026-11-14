@@ -1,0 +1,213 @@
+# Zoom: mute, video, share, and close.
+# A ready profile (issue #340). It links to one application.
+# It uses built-in icons and no image file.
+schema_version = 5
+name = "Zoom"
+model = "n4-pro"
+color = "#3D875A"
+
+[[applications]]
+bundle_id = "us.zoom.xos"
+name = "zoom.us"
+
+[[pages]]
+name = "Meeting"
+
+[pages.surfaces.key-face-1]
+label = "Mute"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "mic"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Video"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "video"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Share"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "share"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "People"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "users"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-5]
+label = "Chat"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "message-circle"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Hand"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "hand"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "Record"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "circle"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Full"
+color = "#CC7135"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "maximize"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Views"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "layout-grid"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "Close"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "x"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Mute"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "mic"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Video"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "video"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Share"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "share"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Close"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "x"
+icon_color = "#FFFFFF"
+
+
+[pages.bindings.key-1.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings]
+hotkey = "shift+cmd+a"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings]
+hotkey = "shift+cmd+v"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-3.press.settings]
+hotkey = "shift+cmd+s"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-4.press.settings]
+hotkey = "cmd+u"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-5.press.settings]
+hotkey = "shift+cmd+h"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-6.press.settings]
+hotkey = "alt+y"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-7.press.settings]
+hotkey = "shift+cmd+r"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-8.press.settings]
+hotkey = "shift+cmd+f"
+
+[pages.bindings.key-9.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-9.press.settings]
+hotkey = "shift+cmd+w"
+
+[pages.bindings.key-10.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-10.press.settings]
+hotkey = "cmd+w"
+
+[pages.bindings.bar-panel-1.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-1.tap.settings]
+hotkey = "shift+cmd+a"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-2.tap.settings]
+hotkey = "shift+cmd+v"
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-3.tap.settings]
+hotkey = "shift+cmd+s"
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-4.tap.settings]
+hotkey = "cmd+w"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+[pages.bindings.knob-1.push]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.push.settings]
+operation = "mute"
+step = 5

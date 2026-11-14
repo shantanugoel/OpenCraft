@@ -30,6 +30,7 @@ mod menu;
 mod menu_bar;
 #[cfg(target_os = "macos")]
 mod power;
+mod ready;
 mod settings;
 mod settings_window;
 mod shell;

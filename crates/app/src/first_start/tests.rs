@@ -468,6 +468,7 @@ fn each_part_of_the_first_start_window_has_a_role_and_a_label(cx: &mut TestAppCo
             starter.name
         );
     }
+    assert!(has(Role::Button, "Ready profiles…"), "{nodes:#?}");
     assert!(has(Role::Button, "Start"), "{nodes:#?}");
 }
 
@@ -489,6 +490,10 @@ fn tab_reaches_the_selected_card_and_start_and_the_arrows_move_the_focus(cx: &mu
     );
     assert_eq!(
         focus_after(&mut visual, "tab").as_deref(),
+        Some("first-start-ready")
+    );
+    assert_eq!(
+        focus_after(&mut visual, "tab").as_deref(),
         Some("first-start-start")
     );
     assert_eq!(
@@ -507,6 +512,27 @@ fn tab_reaches_the_selected_card_and_start_and_the_arrows_move_the_focus(cx: &mu
     );
     assert_eq!(
         focus_after(&mut visual, "shift-tab").as_deref(),
+        Some("first-start-ready")
+    );
+    assert_eq!(
+        focus_after(&mut visual, "shift-tab").as_deref(),
         Some("starter-1")
     );
+}
+
+#[gpui_kit::test]
+fn start_adds_the_ready_profiles_that_are_on_before_the_starter(cx: &mut TestAppContext) {
+    let f = shell(cx);
+    let (_view, mut visual) = open(&f, cx);
+    click(&mut visual, "first-start-ready");
+    click(&mut visual, "ready-0");
+    click(&mut visual, "ready-2");
+    visual.simulate_keystrokes("escape");
+    visual.run_until_parked();
+    assert!(
+        visual.debug_bounds("first-start-ready-list").is_none(),
+        "Escape closes the list"
+    );
+    click(&mut visual, "first-start-start");
+    assert_eq!(started(&f.sent), ["Safari", "Zoom", "Everyday Mac"]);
 }
