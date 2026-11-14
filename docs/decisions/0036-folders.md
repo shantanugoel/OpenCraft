@@ -176,7 +176,7 @@ new `open: Vec<FolderId>`. None of them is in a file.
 | `Command::MovePage` | The active page keeps its page, possibly with a new number. The folders stay open. |
 | A change of the active profile (also the automatic switch of decision 0035) | All folders close. The new profile shows its first page. |
 | `Command::CopyToAllPages` | It copies to the pages of the page cycle only, never to a folder. With a folder open, it gives the problem "Copy to All Pages is not possible in a folder." The window disables the item. |
-| `PasteControl`, `ClearControl`, `SetLabel` and the other changes of a surface or a binding | They change the page of the control (section 3) |
+| `PasteControl`, `ClearControl`, `SetLabel` and the other changes of a surface or a binding | They change the page of the control (section 3). In a text edit, the target of `SetLabel` on a key face holds the last open folder, thus a title on the page and a title in a folder are two steps ([decision 0030](0030-undo-and-redo-in-the-engine.md#one-edit-of-a-text-field-is-one-step)). |
 
 ### 5. Knobs, bar panels, and the touch bar in a folder
 
@@ -236,7 +236,11 @@ gives in `Command::Choices`.
 **The history.** A step keeps the location before and after the change,
 not only the active page, and the copy of the pages also holds the folders.
 An undo and a redo restore the location. If a folder of the restored list
-does not exist, the list ends before it.
+does not exist, the list ends before it. A change of the active profile
+closes the folders, but it keeps the history of the profile for the
+session ([decision 0030](0030-undo-and-redo-in-the-engine.md#a-change-of-the-active-profile)).
+Thus an undo after a trip to a different profile and back restores a
+removed folder.
 
 **`Event::Pages`** gets two fields. The engine sends the event after each
 change of the folders and of the location:
@@ -314,7 +318,11 @@ The keys that open a removed folder stay as they are, because the engine
 does not read their settings (rule 8). A press gives the problem of section
 3, and the form shows "(not found)". An undo puts the folder back with the
 same identity, and the keys operate again. Thus a removal loses no key, and
-the history can repair it. VSD Craft deleted a folder with no question; this
+the history can repair it. The undo stays after an automatic switch to a
+different profile and back, and after a manual selection (issue
+[#349](https://github.com/shantanugoel/OpenCraft/issues/349)). Only a
+restart, the removal of the profile, or more than 8 other profiles with a
+history remove it. VSD Craft deleted a folder with no question; this
 rule prevents that.
 
 ### 11. Other states

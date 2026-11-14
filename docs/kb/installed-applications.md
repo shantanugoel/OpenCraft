@@ -30,7 +30,7 @@ The action "Open an application" still stores a name or a path. See
 
 | Fact | Confidence | Source |
 |---|---|---|
-| The scan does not load icons. The window asks for an icon when a row needs it, and it keeps the bitmap for the process. | Source | `applications.rs` and `view/application_picker.rs` |
+| The scan does not load icons. When the picker or the profile sheet opens, `pump_application_icons` loads the icons of all scanned applications that have no icon in the cache, 8 at a time. It does not wait until a row shows. The window keeps each bitmap for the process. | Source | `applications.rs` and `view/application_picker.rs` |
 | `NSWorkspace.iconForFile` returns an `NSImage` for a path. The window draws it on the user interface thread with `lockFocus` and `NSBitmapImageRep.initWithFocusedViewRect`. That initializer is deprecated. Its replacement snapshots a view, and an icon is not a view. | Source | AppKit documentation; the objc2 0.3.2 bindings, which mark `initWithFocusedViewRect` deprecated |
 | The window draws eight icons, then waits 1 ms, so the list can paint. A missing path gets no AppKit call. | Source | `view/application_picker.rs` |
 | The field and the row show the icon at 16 points (`ICON_APPLICATION`). The request to AppKit is 32 pixels. The cache keeps the bitmap that AppKit returns. | Source | `ICON_PIXELS` and `theme::ICON_APPLICATION` |
