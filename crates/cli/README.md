@@ -38,7 +38,7 @@ the probe sends the stop sequence of OpenCraft, and the displays become dark
 | `clear [slot]` | Send the clear command for one slot, or for all slots |
 | `background` | Draw a test pattern or an image file on the 800×480 background |
 | `raw` | Hexdump raw input reports. Can save the full reports to a file. |
-| `record` | Record each gesture of the connected device to a file, one prompt at a time. The steps come from its descriptor. Options: `--out <dir>`, `--from <step>`. |
+| `record` | Record each gesture of the connected device to a file, one prompt at a time. The steps come from its descriptor. `--out <dir>` is necessary. `--from <step>` continues after a stop. |
 | `send <name> [args]` | Send one protocol command and nothing else. Print the first 16 bytes that go out. |
 | `bars` | Draw the 4 bar panels with a pattern that shows their edges |
 | `wide <slot>` | Send to one slot an image that is wider than the surface |
@@ -169,8 +169,9 @@ Options of `raw`:
 | `--draw` | Draw the slot numbers after each connection, as `test` does |
 | `--keep-alive <n>` | Not necessary: `raw` sends the keep-alive each 10 seconds. For a measurement, `<n>` changes the interval in seconds. `0` stops the keep-alive. |
 
-To record the input of every control, run `scripts/record-input.sh`. It runs
-`opencraft-probe record`, which shows one line for each gesture. See
+To record the input of every control, run `scripts/record-input.sh <directory>`.
+The directory is the `--out` directory. `opencraft-probe record` shows one
+line for each gesture. See
 [crates/core/tests/fixtures/input/README.md](../core/tests/fixtures/input/README.md).
 
 ## Verified hardware

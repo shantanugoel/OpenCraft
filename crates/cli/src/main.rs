@@ -89,7 +89,7 @@ COMMANDS:
     raw                  Hexdump raw input reports; can save them to a file
     record               Record each gesture of the connected device to a
                          file. The steps come from its descriptor.
-                         (--out <dir>, --from <step>)
+                         --out <dir> is necessary. --from <step> is optional.
     send <name> [args]   Send one protocol command and nothing else. The names
                          are: brightness <0-100>..., knob-colors <rrggbb>...,
                          knob-brightness <0-100>..., sleep, keep-alive, start,

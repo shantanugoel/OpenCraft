@@ -982,7 +982,9 @@ impl DeviceView {
         let top = origin + place.y * scale;
         let radius = plain_radius(id.kind) * scale;
         let selected = self.framed_control() == Some(id);
-        let highlight = self.state.highlights.contains_key(&id);
+        // A key press is in `pressed`. A turn, a push, a tap, and a swipe
+        // are in `highlights`. A key face reads both through `surface_active`.
+        let highlight = self.state.pressed.contains(&id) || self.state.highlights.contains_key(&id);
         let drag = self.kind_drag(cx);
         let group: SharedString = format!("control-{id}").into();
         let name = control_name(id);
@@ -1010,10 +1012,10 @@ impl DeviceView {
                     .left_0()
                     .size_full()
                     .rounded(px(radius))
-                    .border_1()
-                    .when(highlight, |d| d.border_color(theme::INPUT_GLOW))
+                    .when(highlight, |d| d.border_2().border_color(theme::INPUT_GLOW))
                     .when(!highlight, |d| {
-                        d.border_dashed()
+                        d.border_1()
+                            .border_dashed()
                             .border_color(theme::DEVICE_KEY_EMPTY_BORDER)
                     }),
             )

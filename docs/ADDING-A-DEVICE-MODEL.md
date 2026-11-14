@@ -103,16 +103,27 @@ The input report format is the protocol. Only the input codes are model
 data. The format is in
 [kb/streamdock-protocol.md](kb/streamdock-protocol.md#input-reports).
 
-1. Connect the device and run:
+1. Add one control to the descriptor for each key, knob, bar panel, and
+   touch bar. Give each control its row and its column. Give each control
+   a code that no other control has. Do not use `0xFF`. `record` uses the
+   kind, the number, and the position. It does not use the code to build
+   the steps. After the recording, put the codes from the files into the
+   descriptor.
+2. Connect the device and run:
 
    ```sh
    opencraft-probe record --out <directory>
    ```
 
+   `--out` is necessary. With no directory, the command stops. It does not
+   write into `crates/core/tests/fixtures/input/`.
+
    The command reads the descriptor of the connected device. It shows one
    line for each gesture. Do the gesture, then wait. The command goes to the
    next line when the device sends no more reports. Do not use the keyboard,
-   except when a line says to push Enter.
+   except when a line says to push Enter. The script
+   `scripts/record-input.sh` runs this command. Its first argument is the
+   directory.
 
    The command adds these steps from the descriptor:
 
@@ -128,16 +139,20 @@ data. The format is in
      swipes to the left and to the right.
 
    A step with 20 swipes ends when you push a knob. That push is not in the
-   file. When the model has no knob, the line says to push Enter. The Enter
-   key is not in the file. Each step also ends after 120 seconds.
+   file. Push Enter to end that step before 120 seconds. The Enter key is
+   not in the file. When the knob codes are not correct, a knob push does
+   not end the step. When the model has no knob, the line says to push
+   Enter. Each step also ends after 120 seconds. When Enter is not
+   available, a step that waits for Enter ends when the device sends no
+   more reports.
 
    Each gesture goes to one file. The file name is the step number and a
    short name, for example `01-key-row1-col1.txt`. For the N4 Pro, the names
    and the lines are the same as the files in
-   `crates/core/tests/fixtures/input/`. To continue after a stop, add
-   `--from <step>`.
+   `crates/core/tests/fixtures/input/`. To continue after a stop, run the
+   same command with `--from <step>`.
 
-2. To record one gesture with no list, use `raw`:
+3. To record one gesture with no list, use `raw`:
 
    ```sh
    opencraft-probe raw --save key-row1-col1.txt \
@@ -147,10 +162,10 @@ data. The format is in
    Do the gesture, then push Enter. The time limit is 10 seconds. For a long
    gesture, add `--seconds 60`. If no report comes, add `--draw`. The probe
    then sends the start sequence and draws the slot numbers first.
-3. Read the code at byte 9 and the state at byte 10 of each report. Compare
+4. Read the code at byte 9 and the state at byte 10 of each report. Compare
    them with the codes of the N4 Pro in
    [kb/n4-pro-hardware.md](kb/n4-pro-hardware.md#controls-and-input-codes).
-4. If a report does not agree with the protocol, write it in the issue. Do
+5. If a report does not agree with the protocol, write it in the issue. Do
    not change the decoder for one model.
 
 The files of `raw` have the same format as the files of `record`.

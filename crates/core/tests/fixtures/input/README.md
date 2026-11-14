@@ -12,7 +12,7 @@ Connect the device. Quit VSD Craft. Run this command in the root of the
 repository:
 
 ```sh
-scripts/record-input.sh
+scripts/record-input.sh crates/core/tests/fixtures/input
 ```
 
 The probe draws the slot numbers on the key faces and the bar panels, then it
@@ -20,15 +20,20 @@ shows one line for each gesture. The list of gestures comes from the descriptor
 of the connected device. The files in this directory are the list for the N4
 Pro. Do the gesture on the device, then wait for the next line. The probe goes
 to the next line when the device sends no more reports. Do not use the
-keyboard. Each gesture goes to one file. A gesture that gives no report has no
-file.
+keyboard, except to push Enter when a line says to push a knob. That Enter
+key is not in the file. Each gesture goes to one file. A gesture that gives
+no report has no file.
+
+The first argument of the script is the directory for the files. The command
+`opencraft-probe record` needs `--out`. It does not write into this directory
+unless you name it.
 
 The probe sends the keep-alive command each 10 seconds. Without it, the device
 stops the connection. See
 [the protocol entry](../../../../../docs/kb/streamdock-protocol.md#keep-alive-and-stop).
 
-To continue after a stop, give the step number:
-`scripts/record-input.sh --from 13`.
+To continue after a stop, give the directory and the step number:
+`scripts/record-input.sh crates/core/tests/fixtures/input --from 13`.
 
 You can also record by hand, with no prompts:
 

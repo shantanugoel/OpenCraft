@@ -291,7 +291,7 @@ a camera saw all 14 images each time. (Measured: camera, 2026-11-11)
 | The vendor SDK names `transport_change_mode` an N1 mode switch. The classes of the N4 and the N4 Pro do not call it. | Source | SDK commit `fc124cb`: `transport_c.h`, `streamdockN4.cpp`, `streamdockN4Pro.cpp` |
 | The Python class `StreamDockN1` calls `switchMode(2)` at the end of `open`. It makes no pause after that call. | Source | SDK, `StreamDockN1.py`, `open` |
 | `mirajazz` 0.16.3 has `set_mode` for a device that has more than one mode. The N1 example sends the mode, waits 50 ms, then sends the brightness and the clear. The example does not send `DIS`. | Source | `src/device.rs`, `examples/n1.rs`, CHANGELOG 0.7.0 |
-| These sources do not give a position for `MOD` in the start sequence, and they do not give a pause for that sequence. | Inference | The three rows above |
+| The N1 example sends `MOD` first and then waits 50 ms. It sends no `DIS`, so no source gives the position of `MOD` relative to `DIS`. No source sends `MOD` to the N4 or the N4 Pro. | Inference | The three rows above |
 | The probe option `--mode` of `test` sends `MOD` before `Device::start`, then waits 300 ms. `Device::start` does not send `MOD`. | Measured | `crates/cli/src/main.rs`, `crates/core/src/connection.rs` |
 
 ## Keep-alive and stop
