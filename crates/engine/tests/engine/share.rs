@@ -306,7 +306,13 @@ fn a_wrong_file_gives_a_problem_and_changes_nothing() {
     let other = out.path().join("other.opencraft");
     let mut profile = Profile::for_model("other-model", "Other", Vec::new());
     profile.color = None;
-    share::export(&profile, &ProfilesDir::new(out.path()).store("x"), &other).unwrap();
+    share::export(
+        &profile,
+        &ProfilesDir::new(out.path()).store("x"),
+        &other,
+        &[],
+    )
+    .unwrap();
     let missing = out.path().join("missing.opencraft");
 
     let before: Vec<String> = fs::read_dir(rig.dir.path())

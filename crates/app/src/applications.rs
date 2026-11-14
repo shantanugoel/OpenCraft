@@ -7,8 +7,8 @@
 //!
 //! A picker gives an [`InstalledApplication`]: the name, the bundle
 //! identifier, and the path. The action "Open an application" stores the
-//! path. That text is the form the action already accepts. A later profile
-//! link can store the bundle identifier.
+//! bundle identifier and the path. The path tells two copies of one bundle
+//! identifier apart (decision 0037).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -134,6 +134,17 @@ pub fn application_icon(path: &Path) -> Option<image::RgbaImage> {
         let _ = path;
         None
     }
+}
+
+/// The bundle identifier of the application at `path`, when `path` is an
+/// application bundle and the bundle has an identifier.
+pub(crate) fn bundle_identifier_at(path: &Path) -> Option<String> {
+    let name = path.file_name()?.to_str()?;
+    if !name.to_ascii_lowercase().ends_with(".app") {
+        return None;
+    }
+    let id = application_at(path.to_path_buf()).bundle_identifier;
+    (!id.is_empty()).then_some(id)
 }
 
 pub(crate) fn application_at(path: PathBuf) -> InstalledApplication {

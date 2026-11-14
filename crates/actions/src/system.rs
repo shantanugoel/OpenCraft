@@ -183,6 +183,12 @@ pub fn watch_microphone(changed: std::sync::mpsc::Sender<()>) -> Result<Box<dyn 
     platform::watch_microphone(changed)
 }
 
+/// The paths of the applications that the system has registered for
+/// `bundle_id`. An empty list means that no application is registered.
+pub fn application_copies(bundle_id: &str) -> Vec<String> {
+    platform::application_copies(bundle_id)
+}
+
 /// Open an application. `application` is a name, for example `Safari`, or
 /// the path of an application. If the application runs, the system brings it
 /// to the front. The system gives `arguments` to the application only when

@@ -53,6 +53,8 @@ pub(crate) struct System {
     shell_end: Mutex<ShellEnd>,
     waited: Arc<AtomicBool>,
     volume: Mutex<Volume>,
+    /// Paths that [`SystemPort::application_copies`] returns.
+    copies: Mutex<Vec<String>>,
 }
 
 impl Default for System {
@@ -66,6 +68,7 @@ impl Default for System {
                 level: 50,
                 muted: false,
             }),
+            copies: Mutex::new(Vec::new()),
         }
     }
 }
@@ -86,6 +89,11 @@ impl System {
 
     pub(crate) fn set_end(&self, end: ShellEnd) {
         *self.shell_end.lock().unwrap() = end;
+    }
+
+    /// The registered copies of a bundle identifier, for the next open.
+    pub(crate) fn set_copies(&self, copies: Vec<String>) {
+        *self.copies.lock().unwrap() = copies;
     }
 
     /// True after the waiter of the last command has returned from `wait`.
@@ -179,6 +187,9 @@ impl SystemPort for System {
         self.record(Call::Muted(muted), "muted")?;
         self.volume.lock().unwrap().muted = muted;
         Ok(())
+    }
+    fn application_copies(&self, _bundle_id: &str) -> Vec<String> {
+        self.copies.lock().unwrap().clone()
     }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()> {
         self.record(

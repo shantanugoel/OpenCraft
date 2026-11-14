@@ -17,7 +17,7 @@ use objc2::encode::{Encode, Encoding, RefEncode};
 use objc2::rc::autoreleasepool;
 use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void, CStr};
 use std::process::{Command, Stdio};
 
 // --- The permission to send keys ---------------------------------------------
@@ -814,6 +814,62 @@ fn open(arguments: &[&str]) -> Result<()> {
     }
 }
 
+/// The paths of the applications registered for `bundle_id`.
+///
+/// `NSWorkspace.URLsForApplicationsWithBundleIdentifier` returns each copy.
+/// An identifier that no application has gives an empty list. See
+/// `docs/kb/macos-open-and-quit.md`.
+pub fn application_copies(bundle_id: &str) -> Vec<String> {
+    if bundle_id.is_empty() {
+        return Vec::new();
+    }
+    let identifier = CFString::new(bundle_id);
+    autoreleasepool(|_| unsafe {
+        // SAFETY: the selectors are those of AppKit and Foundation. A
+        // `CFString` is an `NSString`. Each object stays valid in this pool,
+        // and the paths are copied before the pool ends.
+        let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let urls: *mut AnyObject = msg_send![
+            workspace,
+            URLsForApplicationsWithBundleIdentifier: identifier
+                .as_concrete_TypeRef()
+                .cast::<AnyObject>()
+        ];
+        if urls.is_null() {
+            return Vec::new();
+        }
+        let count: usize = msg_send![urls, count];
+        let mut paths = Vec::new();
+        for index in 0..count {
+            let url: *mut AnyObject = msg_send![urls, objectAtIndex: index];
+            if url.is_null() {
+                continue;
+            }
+            let path: *mut AnyObject = msg_send![url, path];
+            let path = ns_utf8(path);
+            if !path.is_empty() {
+                paths.push(path);
+            }
+        }
+        paths
+    })
+}
+
+/// The text of an `NSString`, or an empty text for nil.
+///
+/// # Safety
+/// `string` is nil or an `NSString`.
+unsafe fn ns_utf8(string: *mut AnyObject) -> String {
+    if string.is_null() {
+        return String::new();
+    }
+    let bytes: *const c_char = msg_send![string, UTF8String];
+    if bytes.is_null() {
+        return String::new();
+    }
+    CStr::from_ptr(bytes).to_string_lossy().into_owned()
+}
+
 /// The path with a leading `~/` replaced by the home folder. A name with no
 /// slash, and a path that starts with `/`, do not change.
 fn expand_home(path: &str) -> String {
@@ -928,6 +984,26 @@ mod tests {
         assert!(events
             .iter()
             .all(|e| e.get_flags() == CGEventFlags::CGEventFlagCommand));
+    }
+
+    #[test]
+    fn an_unknown_bundle_identifier_has_no_registered_application() {
+        assert!(application_copies("com.opencraft.tests.missing-bundle").is_empty());
+    }
+
+    #[test]
+    fn calculator_is_registered_at_its_bundle_when_it_is_installed() {
+        let path = "/System/Applications/Calculator.app";
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let copies = application_copies("com.apple.calculator");
+        assert!(
+            copies
+                .iter()
+                .any(|copy| copy.trim_end_matches('/').eq_ignore_ascii_case(path)),
+            "{copies:?}"
+        );
     }
 
     #[test]

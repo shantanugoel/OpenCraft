@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::mpsc::Sender;
 
-/// The settings of an action. The engine does not read these values.
+/// The settings of an action. The engine does not read these values to run
+/// an action. The export is the exception: it replaces the home directory
+/// in a path setting, and it does not interpret the action. See decision
+/// 0037.
 pub type Settings = BTreeMap<String, Value>;
 
 /// A value that TOML keeps without loss.
@@ -378,16 +381,21 @@ pub struct ChoiceOption {
     pub label: String,
 }
 
-/// Which path the shell asks for. The value in the profile is text for
-/// both kinds: a name or a path. Kind `Application` tells the shell to
-/// show the list of installed applications. The handler does not read
-/// the kind.
+/// Which path the shell asks for. The value in the profile is text.
+/// Kind `Application` tells the shell to show the list of installed
+/// applications, and names the setting that stores the bundle identifier.
+/// The shell reads this description. It has no list of kinds (rule 12).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PathKind {
     /// A file or a folder. The shell opens the file dialog.
     File,
     /// An application. The shell opens the list of installed applications.
-    Application,
+    /// It stores the path in the field. When the application has a bundle
+    /// identifier, the shell also stores that identifier in the setting
+    /// named by `bundle_id`. An empty name means the field stores only the
+    /// path. The path stays in the profile as the user gave it, and an
+    /// export replaces the home directory (decision 0037).
+    Application { bundle_id: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

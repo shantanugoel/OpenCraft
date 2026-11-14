@@ -180,6 +180,16 @@ OpenCraft saves each change immediately, as in
 
 ![The application picker. The search is Safari, and the list shows Safari.](images/application-picker.png)
 
+- When you choose an application that has a bundle identifier, OpenCraft
+  stores the bundle identifier and the path. The profile keeps the path as
+  you gave it.
+- OpenCraft opens the registered application with that bundle identifier.
+  If only one copy is registered, OpenCraft opens that copy. This still
+  works after you move the application.
+- If two copies have the same bundle identifier, OpenCraft opens the copy
+  at the stored path.
+- If you type a name or a path, OpenCraft uses that text. It removes the
+  bundle identifier.
 - A name with no `/` is the name of an application. A path that ends with
   `.app` is an application. Each other path is a file or a folder. macOS
   opens a file in its default application, and a folder in Finder.
@@ -193,6 +203,9 @@ OpenCraft saves each change immediately, as in
 - Arguments work only with an application. If you give arguments for a file
   or a folder, the window shows a message and OpenCraft opens nothing.
 - Old profiles load with no change. They have no arguments.
+- When you export the profile, OpenCraft writes `~` in place of your home
+  folder in each path. See
+  [Export and import a profile](controls.md#export-and-import-a-profile).
 
 ## Quit an application
 

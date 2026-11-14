@@ -75,6 +75,10 @@ pub fn stop_sounds() -> Result<()> {
     Err(Error::NotSupported)
 }
 
+pub fn application_copies(_: &str) -> Vec<String> {
+    Vec::new()
+}
+
 pub fn open_application(_: &str, _: &[String]) -> Result<()> {
     Err(Error::NotSupported)
 }

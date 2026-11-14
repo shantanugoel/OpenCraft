@@ -107,6 +107,13 @@ a name. "Choose…" opens the list. "Choose a different application…" opens
 the file dialog. The list gives the name, the bundle identifier, and the
 path. The action "Open an application" stores the path.
 
+Note (2026-11-14): issue
+[#350](https://github.com/shantanugoel/OpenCraft/issues/350) and
+[decision 0037](0037-application-bundle-and-export-path.md). A path of kind
+Application names the setting that stores the bundle identifier. The field
+still stores the path. The action "Open an application" stores both. The
+path tells two copies of one bundle identifier apart.
+
 Note (2026-11-15): issue
 [#277](https://github.com/shantanugoel/OpenCraft/issues/277) added the
 run-time choice and colour types. When a form opens, the shell sends

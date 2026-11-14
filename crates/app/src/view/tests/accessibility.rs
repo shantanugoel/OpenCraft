@@ -221,7 +221,9 @@ fn the_application_picker_has_a_dialog_and_rows(cx: &mut TestAppContext) {
             key: "application".into(),
             label: "Application, file or folder".into(),
             input: InputType::Path {
-                kind: PathKind::Application,
+                kind: PathKind::Application {
+                    bundle_id: String::new(),
+                },
             },
             default: Some(Value::Text(String::new())),
         }],

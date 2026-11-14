@@ -26,11 +26,12 @@
 //! image = "images/4f1c2a9be07d3356.png"
 //! ```
 //!
-//! The file holds no path of the computer: an image path is relative to the
-//! profile directory, and the file does not name the profiles directory or
-//! the identity of the profile. The engine does not read the settings of an
-//! action (rule 8), thus a setting that the user typed, for example a
-//! command, goes into the file as it is.
+//! The file holds no path of the computer outside an action setting: an
+//! image path is relative to the profile directory, and the file does not
+//! name the profiles directory or the identity of the profile. A path
+//! setting in the home directory is written with `~` in place of that
+//! directory (decision 0037). The engine does not interpret the action.
+//! A setting that is not a path goes into the file as the user typed it.
 //!
 //! An import reads a file from a source that the engine does not trust. It
 //! checks the size of the file, the number and the size of the images, and
@@ -38,6 +39,7 @@
 //! with a name from the data, as for an image of the user. Thus no data from
 //! the file goes to a path that the file gives.
 
+use crate::action::{Action, InputType, KindDescription, Value};
 use crate::error::{Error, Result};
 use crate::profile::{ImageUse, Profile};
 use crate::store::{self, image_name, write_and_rename, BackupReason, ProfileStore};
@@ -92,11 +94,96 @@ fn error(reason: impl Into<String>) -> Error {
     Error::ProfileFile(reason.into())
 }
 
+/// Replace the home directory with `~` in each path setting of `profile`.
+/// `kinds` tell which settings are paths. A contained action is included.
+fn hide_home_paths(profile: &mut Profile, kinds: &[KindDescription]) {
+    let Ok(home) = std::env::var("HOME") else {
+        return;
+    };
+    let home = home.trim_end_matches('/');
+    if home.is_empty() {
+        return;
+    }
+    profile.for_each_action(|action| hide_action(action, kinds, home));
+}
+
+fn hide_action(action: &mut Action, kinds: &[KindDescription], home: &str) {
+    let Some(description) = kinds.iter().find(|kind| kind.kind == action.kind) else {
+        return;
+    };
+    for field in &description.fields {
+        match &field.input {
+            InputType::Path { .. } => {
+                if let Some(Value::Text(text)) = action.settings.get_mut(&field.key) {
+                    *text = hide_home(text, home);
+                }
+            }
+            InputType::Action => {
+                let Some(value) = action.settings.get(&field.key).cloned() else {
+                    continue;
+                };
+                let Some(mut inner) = Action::from_value(&value) else {
+                    continue;
+                };
+                hide_action(&mut inner, kinds, home);
+                action.settings.insert(field.key.clone(), inner.to_value());
+            }
+            InputType::ActionList | InputType::TimedActionList => {
+                let Some(value) = action.settings.get(&field.key).cloned() else {
+                    continue;
+                };
+                let Some(mut items) = Action::list_from_value(&value) else {
+                    continue;
+                };
+                for item in &mut items {
+                    hide_action(item, kinds, home);
+                }
+                action
+                    .settings
+                    .insert(field.key.clone(), Action::list_to_value(&items));
+            }
+            _ => {}
+        }
+    }
+}
+
+/// `path` with a home-directory prefix replaced by `~`. A path that only
+/// starts with the same characters, for example a different user name, does
+/// not change. The comparison ignores the case of ASCII letters.
+fn hide_home(path: &str, home: &str) -> String {
+    let home = home.trim_end_matches('/');
+    if home.is_empty() {
+        return path.to_string();
+    }
+    if path.eq_ignore_ascii_case(home) {
+        return "~".to_string();
+    }
+    if path.len() > home.len()
+        && path.as_bytes().get(home.len()) == Some(&b'/')
+        && path[..home.len()].eq_ignore_ascii_case(home)
+    {
+        return format!("~/{}", &path[home.len() + 1..]);
+    }
+    path.to_string()
+}
+
 /// Write `profile` and its images from `source` to the file `path`. An
 /// image that is missing in `source` is not in the file, and its surface has
 /// no image in the file.
-pub fn export(profile: &Profile, source: &ProfileStore, path: &Path) -> Result<()> {
+///
+/// `kinds` are the descriptions the handlers gave. A field of input type
+/// Path whose text is in the home directory is written with `~` in place of
+/// that directory. The profile in memory does not change. A kind with no
+/// description keeps its settings, because the export cannot know which of
+/// them are paths.
+pub fn export(
+    profile: &Profile,
+    source: &ProfileStore,
+    path: &Path,
+    kinds: &[KindDescription],
+) -> Result<()> {
     let mut profile = profile.clone();
+    hide_home_paths(&mut profile, kinds);
     let mut images = toml::Table::new();
     let mut missing = Vec::new();
     for relative in profile.image_paths() {
@@ -316,7 +403,7 @@ mod tests {
             .unwrap()
             .update(KEY_1, |c| c.image = Some(background.clone()));
         let file = dir.path().join("Work.opencraft");
-        export(&profile, &store, &file).unwrap();
+        export(&profile, &store, &file, &[]).unwrap();
 
         let package = import(&file).unwrap();
         assert_eq!(package.image_count(), 1);
@@ -376,7 +463,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let (store, profile) = sample(&dir);
         let file = dir.path().join("Work.opencraft");
-        export(&profile, &store, &file).unwrap();
+        export(&profile, &store, &file, &[]).unwrap();
 
         let package = import(&file).unwrap();
         assert_eq!(package.image_count(), 2, "each image one time");
@@ -410,7 +497,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let (store, profile) = sample(&dir);
         let file = dir.path().join("Work.opencraft");
-        export(&profile, &store, &file).unwrap();
+        export(&profile, &store, &file, &[]).unwrap();
         let text = fs::read_to_string(&file).unwrap();
         assert!(
             text.starts_with("format = \"OpenCraft profile\"\nversion = 1\n"),
@@ -432,7 +519,7 @@ mod tests {
             c.image = Some("images/0123456789abcdef.png".into())
         });
         let file = dir.path().join("Work.opencraft");
-        export(&profile, &store, &file).unwrap();
+        export(&profile, &store, &file, &[]).unwrap();
         let imported = import(&file)
             .unwrap()
             .write_images(&ProfileStore::new(dir.path().join("i")), BACKGROUND)
@@ -546,5 +633,149 @@ mod tests {
         data[16..20].copy_from_slice(&100_000u32.to_be_bytes());
         data[20..24].copy_from_slice(&100_000u32.to_be_bytes());
         assert!(decode(&data).is_err());
+    }
+
+    #[test]
+    fn hide_home_replaces_only_a_home_directory_prefix() {
+        let home = "/tmp/opencraft-home";
+        assert_eq!(
+            hide_home(&format!("{home}/Applications/Demo.app"), home),
+            "~/Applications/Demo.app"
+        );
+        assert_eq!(
+            hide_home(
+                &format!("{home}/Applications/Demo.app"),
+                &home.to_ascii_uppercase()
+            ),
+            "~/Applications/Demo.app"
+        );
+        assert_eq!(hide_home(home, home), "~");
+        assert_eq!(
+            hide_home("/tmp/opencraft-home2/Demo.app", home),
+            "/tmp/opencraft-home2/Demo.app"
+        );
+        assert_eq!(
+            hide_home("~/Applications/Demo.app", home),
+            "~/Applications/Demo.app"
+        );
+        assert_eq!(
+            hide_home("/Applications/Demo.app", home),
+            "/Applications/Demo.app"
+        );
+        assert_eq!(hide_home("Safari", home), "Safari");
+        assert_eq!(
+            hide_home(&format!("{home}/Applications/Demo.app"), ""),
+            format!("{home}/Applications/Demo.app")
+        );
+    }
+
+    #[test]
+    fn an_export_hides_the_home_directory_in_each_path_setting_only() {
+        let Ok(home) = std::env::var("HOME") else {
+            return;
+        };
+        let home = home.trim_end_matches('/').to_string();
+        if home.is_empty() {
+            return;
+        }
+        let inside = format!("{home}/Applications/Demo.app");
+        let nested = format!("{home}/Sounds/click.wav");
+        let outside = "/Applications/Demo.app".to_string();
+        let command = format!("ls {home}/Documents");
+        let dir = TempDir::new().unwrap();
+        let store = ProfileStore::new(dir.path().join("work"));
+        let mut profile = Profile::new("Work", vec![Page::new("Main")]);
+        let open = Action {
+            kind: "opencraft.open-application".into(),
+            settings: [
+                ("application".into(), Value::Text(inside.clone())),
+                ("bundle_id".into(), Value::Text("com.example.demo".into())),
+                ("arguments".into(), Value::Text(command.clone())),
+            ]
+            .into(),
+        };
+        let sequence = Action {
+            kind: "opencraft.sequence".into(),
+            settings: [(
+                "steps".into(),
+                Action::list_to_value(&[Action {
+                    kind: "opencraft.play-sound".into(),
+                    settings: [("file".into(), Value::Text(nested.clone()))].into(),
+                }]),
+            )]
+            .into(),
+        };
+        use opencraft_core::{ControlId, ControlKind};
+        profile.page_mut(0).unwrap().set_binding(
+            ControlId::new(ControlKind::Key, 1),
+            crate::action::GestureKind::Press,
+            Some(open),
+        );
+        profile.page_mut(0).unwrap().set_binding(
+            ControlId::new(ControlKind::Key, 2),
+            crate::action::GestureKind::Press,
+            Some(sequence),
+        );
+        let mut folder = crate::profile::Folder {
+            id: crate::profile::FolderId::from_raw(1).unwrap(),
+            page: Page::new("Folder"),
+        };
+        folder.page.set_binding(
+            ControlId::new(ControlKind::Key, 1),
+            crate::action::GestureKind::Press,
+            Some(Action {
+                kind: "opencraft.quit-application".into(),
+                settings: [("application".into(), Value::Text(outside.clone()))].into(),
+            }),
+        );
+        assert!(profile.add_folder(folder));
+        let kinds = vec![
+            path_kind("opencraft.open-application", "application"),
+            path_kind("opencraft.play-sound", "file"),
+            path_kind("opencraft.quit-application", "application"),
+            crate::action::KindDescription {
+                kind: "opencraft.sequence".into(),
+                fields: vec![crate::action::Field {
+                    key: "steps".into(),
+                    label: "Steps".into(),
+                    input: InputType::ActionList,
+                    default: None,
+                }],
+                ..Default::default()
+            },
+        ];
+        let file = dir.path().join("Work.opencraft");
+        export(&profile, &store, &file, &kinds).unwrap();
+        let text = fs::read_to_string(&file).unwrap();
+        assert!(text.contains("~/Applications/Demo.app"), "{text}");
+        assert!(text.contains("~/Sounds/click.wav"), "{text}");
+        assert!(text.contains(&outside), "{text}");
+        assert!(text.contains(&command), "{text}");
+        assert!(!text.contains(&inside), "{text}");
+        assert!(!text.contains(&nested), "{text}");
+        assert!(text.contains("com.example.demo"), "{text}");
+        let kept = profile.page(0).unwrap().binding(
+            ControlId::new(ControlKind::Key, 1),
+            crate::action::GestureKind::Press,
+        );
+        assert_eq!(
+            kept.unwrap().settings.get("application"),
+            Some(&Value::Text(inside))
+        );
+    }
+
+    fn path_kind(kind: &str, key: &str) -> crate::action::KindDescription {
+        crate::action::KindDescription {
+            kind: kind.into(),
+            fields: vec![crate::action::Field {
+                key: key.into(),
+                label: "Path".into(),
+                input: InputType::Path {
+                    kind: crate::action::PathKind::File,
+                },
+                default: None,
+            }],
+            ..Default::default()
+        }
     }
 }

@@ -1,8 +1,12 @@
 //! The action "Open an application".
 //!
 //! The target is an application, a file, or a folder. Arguments apply only
-//! to an application. The functions that classify a target and split
-//! arguments are pure, so a test of them needs no system.
+//! to an application. The action stores the bundle identifier of an
+//! application, and the path as a fallback. One registered copy opens at
+//! its current path. Two copies of one bundle identifier are told apart by
+//! the stored path (decision 0037). The functions that classify a target,
+//! choose a copy, and split arguments are pure, so a test of them needs no
+//! system.
 
 use crate::descriptions::{field, setting_problem, GROUP_SYSTEM};
 use crate::kinds::{nonblank, Kind, Work};
@@ -12,6 +16,9 @@ use opencraft_engine::{InputType, KindDescription, PathKind, Settings, Value};
 pub(crate) const ID: &str = "opencraft.open-application";
 
 const NAME: &str = "Open an application";
+
+/// The setting that stores the bundle identifier.
+const BUNDLE_ID: &str = "bundle_id";
 
 /// The registry value for this kind.
 pub(crate) static KIND: OpenApplication = OpenApplication;
@@ -40,14 +47,15 @@ pub(crate) fn description() -> KindDescription {
         group: GROUP_SYSTEM.into(),
         icon: Some("app-window".into()),
         fields: vec![
-            // The key keeps its name, so that an old profile loads.
-            // Kind Application asks the shell for the list of installed
-            // applications. The stored text is still a name or a path.
+            // The path stays in this field. The shell stores the bundle
+            // identifier in `bundle_id` when the application has one.
             field(
                 "application",
                 "Application, file or folder",
                 InputType::Path {
-                    kind: PathKind::Application,
+                    kind: PathKind::Application {
+                        bundle_id: BUNDLE_ID.into(),
+                    },
                 },
             ),
             field("arguments", "Arguments", InputType::Text),
@@ -112,6 +120,8 @@ fn split_arguments(text: &str) -> Option<Vec<String>> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Target {
     Application {
+        /// A bundle identifier, when the setting has one.
+        bundle_id: Option<String>,
         path: String,
         arguments: Vec<String>,
     },
@@ -132,7 +142,11 @@ pub(crate) fn read(settings: &Settings) -> Result<Target, String> {
     // `trim` removes spaces. A trailing slash on a bundle path stays.
     let path = raw.trim().to_string();
     if is_application(raw) {
-        Ok(Target::Application { path, arguments })
+        Ok(Target::Application {
+            bundle_id: bundle_id(settings),
+            path,
+            arguments,
+        })
     } else if arguments.is_empty() {
         Ok(Target::File { path })
     } else {
@@ -143,13 +157,86 @@ pub(crate) fn read(settings: &Settings) -> Result<Target, String> {
     }
 }
 
+/// The bundle identifier in the settings, when the text is one. Any other
+/// value is absent: the path is then the only target.
+fn bundle_id(settings: &Settings) -> Option<String> {
+    match settings.get(BUNDLE_ID) {
+        Some(Value::Text(text)) => {
+            let text = text.trim();
+            opencraft_engine::front::valid_bundle_id(text).then(|| text.to_string())
+        }
+        _ => None,
+    }
+}
+
+/// The path to open. One registered copy uses that copy, so a move of the
+/// application still opens it. Several copies use the stored path to tell
+/// them apart. No copy uses the stored path or name.
+pub(crate) fn choose_copy(stored: &str, copies: &[String]) -> String {
+    choose_with(stored, copies, std::env::var("HOME").ok().as_deref())
+}
+
+fn choose_with(stored: &str, copies: &[String], home: Option<&str>) -> String {
+    let copies: Vec<&str> = copies
+        .iter()
+        .map(String::as_str)
+        .filter(|path| !path.trim().is_empty())
+        .collect();
+    match copies.as_slice() {
+        [] => stored.to_string(),
+        [only] => (*only).to_string(),
+        many => many
+            .iter()
+            .copied()
+            .find(|copy| same_path(stored, copy, home))
+            .unwrap_or(stored)
+            .to_string(),
+    }
+}
+
+/// True when `stored` and `copy` are the same path. A leading `~/` is the
+/// home folder. A trailing slash does not count, and the case of ASCII
+/// letters does not count.
+fn same_path(stored: &str, copy: &str, home: Option<&str>) -> bool {
+    let norm = |path: &str| {
+        expand_prefix(path.trim(), home)
+            .trim_end_matches('/')
+            .to_ascii_lowercase()
+    };
+    let stored = norm(stored);
+    !stored.is_empty() && stored == norm(copy)
+}
+
+/// `path` with a leading `~/` replaced by `home`. A name, and a path that
+/// starts with `/`, do not change. This matches `expand_home` in the macOS
+/// system code.
+fn expand_prefix(path: &str, home: Option<&str>) -> String {
+    let Some(rest) = path.strip_prefix("~/") else {
+        return path.to_string();
+    };
+    match home.map(|home| home.trim_end_matches('/')) {
+        Some(home) if !home.is_empty() => format!("{home}/{rest}"),
+        _ => path.to_string(),
+    }
+}
+
 /// Open the target. The system brings a running application to the front.
 pub(crate) fn perform(target: &Target, work: &Work<'_>) -> Result<(), String> {
     match target {
-        Target::Application { path, arguments } => work
-            .system
-            .open_application(path, arguments)
-            .map_err(|e| format!("Cannot open the application: {e}.")),
+        Target::Application {
+            bundle_id,
+            path,
+            arguments,
+        } => {
+            let copies = match bundle_id {
+                Some(id) => work.system.application_copies(id),
+                None => Vec::new(),
+            };
+            let path = choose_copy(path, &copies);
+            work.system
+                .open_application(&path, arguments)
+                .map_err(|e| format!("Cannot open the application: {e}."))
+        }
         Target::File { path } => work
             .system
             .open_file(path)
@@ -185,7 +272,9 @@ mod tests {
         assert_eq!(
             description.fields[0].input,
             InputType::Path {
-                kind: PathKind::Application,
+                kind: PathKind::Application {
+                    bundle_id: BUNDLE_ID.into(),
+                },
             }
         );
         assert_eq!(description.fields[0].default, None);
@@ -234,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn read_accepts_an_old_profile_and_splits_arguments() {
+    fn read_accepts_a_name_or_a_path_and_splits_arguments() {
         let application = |target: &str, arguments: Option<&str>| {
             let mut pairs = vec![("application", Value::Text(target.into()))];
             if let Some(arguments) = arguments {
@@ -245,6 +334,7 @@ mod tests {
         assert_eq!(
             application("Safari", None),
             Target::Application {
+                bundle_id: None,
                 path: "Safari".into(),
                 arguments: vec![],
             }
@@ -252,6 +342,7 @@ mod tests {
         assert_eq!(
             application(" Test ", Some("")),
             Target::Application {
+                bundle_id: None,
                 path: "Test".into(),
                 arguments: vec![],
             }
@@ -259,6 +350,7 @@ mod tests {
         assert_eq!(
             application("Test", Some("  ")),
             Target::Application {
+                bundle_id: None,
                 path: "Test".into(),
                 arguments: vec![],
             }
@@ -269,6 +361,7 @@ mod tests {
                 Some("--new-window \"two words\"")
             ),
             Target::Application {
+                bundle_id: None,
                 path: "/Applications/Test.app/".into(),
                 arguments: vec!["--new-window".into(), "two words".into()],
             }
@@ -341,6 +434,7 @@ mod tests {
         let system = System::default();
         run(
             &Target::Application {
+                bundle_id: None,
                 path: "Test".into(),
                 arguments: vec!["-x".into()],
             },
@@ -365,6 +459,7 @@ mod tests {
         assert_eq!(
             run(
                 &Target::Application {
+                    bundle_id: None,
                     path: "Test".into(),
                     arguments: vec![],
                 },
@@ -383,6 +478,108 @@ mod tests {
             )
             .unwrap_err(),
             "Cannot open the file or folder: the system refused the operation (code 42)."
+        );
+    }
+
+    #[test]
+    fn read_keeps_a_bundle_identifier_and_ignores_a_value_that_is_not_one() {
+        let with_id = values(&[
+            (
+                "application",
+                Value::Text(" /Applications/Demo.app ".into()),
+            ),
+            ("bundle_id", Value::Text(" com.example.demo ".into())),
+        ]);
+        assert_eq!(
+            read(&with_id).unwrap(),
+            Target::Application {
+                bundle_id: Some("com.example.demo".into()),
+                path: "/Applications/Demo.app".into(),
+                arguments: vec![],
+            }
+        );
+        // A file has no bundle identifier. The path is the target.
+        let file = values(&[
+            ("application", Value::Text("/tmp/notes.txt".into())),
+            ("bundle_id", Value::Text("com.example.demo".into())),
+        ]);
+        assert_eq!(
+            read(&file).unwrap(),
+            Target::File {
+                path: "/tmp/notes.txt".into(),
+            }
+        );
+        for ignored in [Value::Text("not an id".into()), Value::Boolean(true)] {
+            let settings = values(&[
+                ("application", Value::Text("Demo".into())),
+                ("bundle_id", ignored),
+            ]);
+            assert_eq!(
+                read(&settings).unwrap(),
+                Target::Application {
+                    bundle_id: None,
+                    path: "Demo".into(),
+                    arguments: vec![],
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn choose_copy_uses_one_registration_or_the_stored_path() {
+        let one = vec!["/Applications/Moved.app".into()];
+        assert_eq!(
+            choose_with("/tmp/old/Demo.app", &one, None),
+            "/Applications/Moved.app"
+        );
+        let two = vec!["/Applications/Demo.app".into(), "/tmp/copy/Demo.app".into()];
+        assert_eq!(
+            choose_with("/tmp/copy/Demo.app/", &two, None),
+            "/tmp/copy/Demo.app"
+        );
+        assert_eq!(
+            choose_with("/APPLICATIONS/DEMO.APP", &two, None),
+            "/Applications/Demo.app"
+        );
+        assert_eq!(
+            choose_with("/tmp/missing/Demo.app", &two, None),
+            "/tmp/missing/Demo.app"
+        );
+        assert_eq!(choose_with("Safari", &[], None), "Safari");
+        assert_eq!(
+            choose_with("~/copy/Demo.app", &two, Some("/tmp")),
+            "/tmp/copy/Demo.app"
+        );
+        assert_eq!(
+            expand_prefix("~/Applications/Demo.app", Some("/tmp/copy")),
+            "/tmp/copy/Applications/Demo.app"
+        );
+        assert_eq!(expand_prefix("Safari", Some("/tmp/copy")), "Safari");
+        assert_eq!(
+            expand_prefix("~/Applications/Demo.app", None),
+            "~/Applications/Demo.app"
+        );
+    }
+
+    #[test]
+    fn perform_opens_the_one_registered_copy() {
+        let system = System::default();
+        system.set_copies(vec!["/Applications/Moved.app".into()]);
+        run(
+            &Target::Application {
+                bundle_id: Some("com.example.demo".into()),
+                path: "/tmp/old/Demo.app".into(),
+                arguments: vec!["-n".into()],
+            },
+            &system,
+        )
+        .unwrap();
+        assert_eq!(
+            system.calls(),
+            [Call::Application(
+                "/Applications/Moved.app".into(),
+                vec!["-n".into()]
+            )]
         );
     }
 }
