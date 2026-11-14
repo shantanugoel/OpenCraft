@@ -205,7 +205,7 @@ click Go > Go to Folder, and type the path.
 |---|---|
 | `profiles/` | The profiles folder |
 | `profiles/<name>/` | One profile: the file `profile.toml` and the folder `images` with the images of the profile |
-| `profiles/state.toml` | The active profile |
+| `profiles/state.toml` | The active profile, and the model of the last device that connected |
 | `profiles/device-settings.toml` | The device settings |
 | `profiles/removed/` | The profiles that you removed |
 | `shell.toml` | The options of the Settings window, and the sizes of the panes of the window |

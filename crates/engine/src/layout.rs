@@ -50,8 +50,9 @@ pub struct DeviceLayout {
 
 impl DeviceLayout {
     /// The layout of the first descriptor: the layout that the engine sends
-    /// before the first connection. A shell test uses it, for example to
-    /// check the starter profiles of the first start against the model.
+    /// at the start when no device has connected yet (decision 0039). A shell
+    /// test uses it, for example to check the starter profiles of the first
+    /// start against the model.
     pub fn of_default_model() -> Self {
         Self::from(&opencraft_core::device::DESCRIPTORS[0])
     }

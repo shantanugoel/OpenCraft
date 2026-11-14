@@ -292,6 +292,10 @@ identifier of the descriptor.
 - A profile of the N4 Pro does not show on the new model, and a profile of
   the new model does not show on the N4 Pro. The profiles of the other model
   stay in the profiles directory.
+- The engine starts with the layout of the model of the last device that
+  connected. `state.toml` has its identifier in the key `last_model`. If the
+  file has no such key, the engine uses the first descriptor. See
+  [decision 0039](decisions/0039-start-with-the-last-connected-model.md).
 - The device settings of the model are in their own table of `state.toml`.
   The engine sends only the setting commands that the model has. See
   [decision 0022](decisions/0022-device-settings-and-stop-state.md).
@@ -321,7 +325,6 @@ tests do not find them. Each limit has an issue, or it says when to make one.
 
 | Limit | Where | Issue |
 |---|---|---|
-| Before a device connects, the engine shows the layout and the profiles of the first descriptor, the N4 Pro. When the device connects, the engine changes to the correct model. | `crates/engine/src/runtime.rs` | [#156](https://github.com/shantanugoel/OpenCraft/issues/156) |
 | The window puts each knob in one row below the display. The descriptor has no place of a knob relative to the display. | `knob_centre` in `crates/app/src/view/canvas.rs` | Make an issue if a model has a knob that is not below the display. Measure the place first, and write it in `docs/kb/`. |
 | Only protocol version 3 (512 bytes in, 1024 bytes out) is known. A device with other report sizes possibly has other commands and another report format. | `crates/core/src/protocol.rs`, `events.rs` | Make an issue with the sizes of step 1 |
 | A surface can turn by 0° or 180° only. | `Rotation` in `crates/core/src/device.rs` | Make an issue if a device needs a different turn |

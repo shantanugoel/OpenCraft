@@ -751,7 +751,7 @@ fn a_rename_changes_the_name_and_not_the_identity() {
     assert!(file_of(&rig, "work").unwrap().contains("name = \"Office\""));
     assert!(requests.try_recv().is_err());
     assert!(sent(&device).is_empty());
-    assert_eq!(names_in(rig.dir.path()), ["default", "work"]);
+    assert_eq!(names_in(rig.dir.path()), ["default", STATE_FILE, "work"]);
 
     // The same name changes nothing. A name of spaces and a missing profile
     // are problems.

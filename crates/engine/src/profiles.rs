@@ -6,7 +6,7 @@
 //!   directory. The engine makes the name from the name that the user gives,
 //!   and does not change it when the user renames the profile.
 //! - The file `state.toml` holds the identity of the active profile for each
-//!   device model.
+//!   device model, and the model of the last device that connected.
 //! - The engine does not delete a profile. A removal moves the directory into
 //!   the directory `removed`.
 //!
@@ -14,6 +14,8 @@
 //!
 //! ```toml
 //! # state.toml
+//! last_model = "n4-pro"
+//!
 //! [active]
 //! n4-pro = "default"
 //! ```
@@ -27,6 +29,9 @@ use std::path::{Path, PathBuf};
 
 /// The name of the file with the active profile of each model.
 pub const STATE_FILE: &str = "state.toml";
+
+/// The key of `state.toml` with the model of the last device that connected.
+const LAST_MODEL_KEY: &str = "last_model";
 
 /// The name of the directory that holds the removed profiles.
 pub const REMOVED_DIR: &str = "removed";
@@ -199,6 +204,25 @@ impl ProfilesDir {
         if let Some(active) = active.as_table_mut() {
             active.insert(model.to_string(), toml::Value::String(id.to_string()));
         }
+        self.write_state(&table)
+    }
+
+    /// The model identifier of the last device that connected, in
+    /// `state.toml` (decision 0039). `None` if the file is missing, cannot
+    /// be read, or has no such key.
+    pub fn last_model(&self) -> Option<String> {
+        let table = self.state()?;
+        Some(table.get(LAST_MODEL_KEY)?.as_str()?.to_string())
+    }
+
+    /// Record `model` as the model of the last device that connected. The
+    /// other keys stay.
+    pub fn set_last_model(&self, model: &str) -> Result<()> {
+        let mut table = self.state().unwrap_or_default();
+        table.insert(
+            LAST_MODEL_KEY.to_string(),
+            toml::Value::String(model.to_string()),
+        );
         self.write_state(&table)
     }
 

@@ -9,7 +9,7 @@
 use crate::action::{Handler, HandlerPort, Message};
 use crate::engine::{Command, Engine, Event};
 use crate::profiles::ProfilesDir;
-use opencraft_core::device::DESCRIPTORS;
+use opencraft_core::device::{Descriptor, DESCRIPTORS};
 use opencraft_core::{Clock, Connector, Device, HidConnector, HidTransport, Link};
 use std::io;
 use std::path::PathBuf;
@@ -140,19 +140,36 @@ pub fn spawn(
 ) -> io::Result<EngineHandle> {
     let (ports, messages) = start_handlers(handlers)?;
     start_thread(STOP_TIMEOUT, move |commands| {
+        let profiles = ProfilesDir::new(config.profiles_dir);
+        let start = start_descriptor(DESCRIPTORS, &profiles);
         let mut engine = Engine::with_handlers(
             Link::new(DeviceConnector {
                 no_device: config.no_device,
             }),
-            ProfilesDir::new(config.profiles_dir),
-            // The layout until a device connects. With more than one model,
-            // this is not always the model of the device (issue #156).
-            &DESCRIPTORS[0],
+            profiles,
+            start,
             ports,
             sink,
         );
         run_with_handlers(&mut engine, commands, &messages);
     })
+}
+
+/// The descriptor for the layout, the profiles, and the device settings until
+/// a device connects (decision 0039): the model of the last device that
+/// connected, as `state.toml` in `profiles` records it. If the file names no
+/// model, or a model that is not in `table`, this is the first descriptor of
+/// `table`.
+///
+/// `table` must not be empty.
+pub fn start_descriptor(
+    table: &'static [Descriptor],
+    profiles: &ProfilesDir,
+) -> &'static Descriptor {
+    profiles
+        .last_model()
+        .and_then(|model| table.iter().find(|d| d.model == model))
+        .unwrap_or(&table[0])
 }
 
 /// Start the engine thread with the body `body`, and give the handle.
