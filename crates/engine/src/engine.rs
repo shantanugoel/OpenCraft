@@ -53,6 +53,7 @@ mod power;
 
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::front::{ActiveCause, FrontApplication};
+use crate::front_switch::{Decision, FrontSwitch, Situation};
 use crate::history::{History, SavedProfile, Target};
 use crate::icons;
 use crate::layout::DeviceLayout;
@@ -779,19 +780,12 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// The device settings of the model of the device.
     settings: DeviceSettings,
     power: Power,
-    /// True if the last front application was this process (decision 0035).
-    shell_in_front: bool,
-    /// The profile that the switch rule gave for the last front application
-    /// that is not OpenCraft. Empty at the start, and after the setting
-    /// goes on.
-    last_target: Option<String>,
-    /// True after a manual selection while OpenCraft is in front, until the
-    /// next front application that is not OpenCraft.
-    chosen_in_window: bool,
+    /// The state machine of the automatic switch, and the setting of section
+    /// 7 (decision 0035). It does no I/O: the engine carries out its
+    /// decisions.
+    front_switch: FrontSwitch,
     /// Why the active profile is active.
     cause: ActiveCause,
-    /// The setting of section 7. A missing key in `state.toml` is true.
-    follow_front: bool,
     /// False if the settings file has an error or a newer schema version.
     /// Then the engine does not write the file until the user changes a
     /// setting.
@@ -911,11 +905,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             link_problem: None,
             settings: DeviceSettings::defaults(default_model.settings),
             power: Power::default(),
-            shell_in_front: false,
-            last_target: None,
-            chosen_in_window: false,
+            front_switch: FrontSwitch::new(true),
             cause: ActiveCause::Selected,
-            follow_front: true,
             settings_can_save: true,
             settings_changed_at: None,
             settings_save_failed: false,
@@ -1718,9 +1709,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// it.
     fn open_profiles(&mut self) {
         let model = self.descriptor.model;
-        self.follow_front = self.profiles.follow_front();
-        self.last_target = None;
-        self.chosen_in_window = false;
+        self.front_switch.restart(self.profiles.follow_front());
         self.cause = ActiveCause::Selected;
         let entries = match self.profiles.list(model) {
             Ok(entries) => entries,
@@ -1843,7 +1832,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
 
     /// Tell the shell the setting of the automatic switch.
     fn send_follow(&mut self) {
-        (self.sink)(Event::FollowFrontApplication(self.follow_front));
+        (self.sink)(Event::FollowFrontApplication(self.front_switch.follow()));
     }
 
     /// Make the profile `id` the active profile. This is

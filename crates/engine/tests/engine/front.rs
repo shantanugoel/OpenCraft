@@ -3,9 +3,7 @@
 
 use super::*;
 use opencraft_engine::store::SCHEMA_VERSION;
-use opencraft_engine::{
-    ActiveCause, ApplicationLink, EngineRequest, FrontApplication, Page, ProfileTarget,
-};
+use opencraft_engine::{ActiveCause, ApplicationLink, FrontApplication, Page};
 use std::path::Path;
 
 fn link(bundle_id: &str, name: &str) -> ApplicationLink {
@@ -47,14 +45,6 @@ fn front(rig: &mut Rig, front: FrontApplication) {
 
 fn bundle(bundle_id: &str) -> FrontApplication {
     FrontApplication::Bundle(bundle_id.into())
-}
-
-fn select_key(rig: &mut Rig, id: &str) {
-    rig.engine
-        .handler_message(Message::Engine(EngineRequest::SelectProfile {
-            target: ProfileTarget::Profile(id.into()),
-            page: None,
-        }));
 }
 
 fn profiles_of(events: &[Event]) -> Vec<&Event> {
@@ -312,7 +302,7 @@ fn the_default_profile_follows_the_mark_and_then_the_rule() {
 }
 
 #[test]
-fn the_switch_follows_the_front_application_and_keeps_a_manual_choice() {
+fn the_engine_carries_out_the_selection_of_the_front_application() {
     let mut rig = calls_and_home();
     assert!(rig.engine.command(Command::SelectPage { page: 1 }));
     rig.take_events();
@@ -335,36 +325,30 @@ fn the_switch_follows_the_front_application_and_keeps_a_manual_choice() {
         .iter()
         .any(|event| matches!(event, Event::Pages { .. })));
 
-    // OpenCraft in front, then back to the same application: no load.
-    front(&mut rig, FrontApplication::Shell);
-    front(&mut rig, bundle("US.ZOOM.XOS"));
-    assert_eq!(rig.engine.active_profile(), "calls");
-    assert_eq!(rig.engine.active_page(), 1);
-    assert!(rig.take_events().is_empty());
-
-    // A selection in the window comes back to the linked profile.
+    // The rules of the decision are in the table test of
+    // `front_switch.rs`. Here: a selection in the window comes back to the
+    // linked profile, and the engine loads and shows it.
     front(&mut rig, FrontApplication::Shell);
     assert!(rig.engine.command(Command::SelectProfile {
         profile: "home".into(),
     }));
-    front(&mut rig, bundle("us.zoom.xos"));
-    assert_eq!(rig.engine.active_profile(), "calls");
-
-    // A key selection between two applications with no link stays.
-    front(&mut rig, bundle("com.apple.Safari"));
     assert_eq!(rig.engine.active_profile(), "home");
-    select_key(&mut rig, "calls");
-    assert_eq!(rig.engine.active_profile(), "calls");
-    front(&mut rig, bundle("com.apple.Terminal"));
-    assert_eq!(rig.engine.active_profile(), "calls");
-
-    // A key selection while OpenCraft is in front does not stay.
-    front(&mut rig, FrontApplication::Shell);
-    select_key(&mut rig, "home");
+    rig.take_events();
     front(&mut rig, bundle("us.zoom.xos"));
     assert_eq!(rig.engine.active_profile(), "calls");
+    assert_eq!(
+        rig.engine.active_page(),
+        0,
+        "the profile loads at its first page"
+    );
+    let events = rig.take_events();
+    assert!(events
+        .iter()
+        .any(|event| matches!(event, Event::Pages { .. })));
 }
 
+/// The power state of the engine reaches the machine. The table test of
+/// `front_switch.rs` has the rule.
 #[test]
 fn a_lock_and_a_sleep_do_not_change_the_profile() {
     let mut rig = calls_and_home();
@@ -419,6 +403,7 @@ fn the_setting_turns_the_switch_off_until_the_next_change() {
     assert!(events.contains(&Event::FollowFrontApplication(false)));
     front(&mut rig, bundle("com.apple.Safari"));
     assert_eq!(rig.engine.active_profile(), "calls");
+    assert!(rig.take_events().is_empty());
 
     assert!(rig.engine.command(Command::SetFollowFrontApplication(true)));
     assert!(rig
