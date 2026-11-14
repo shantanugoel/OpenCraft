@@ -15,6 +15,7 @@
 //! - [`icons`]: the built-in icon set for surfaces.
 //! - [`device_settings`]: the device settings of each model, and their file.
 //! - [`layout`]: the layout of the device, as a message for a shell.
+//! - [`location`]: the active page and the open folders.
 //! - [`engine`]: the engine logic, with the commands and the events.
 //! - [`history`]: the undo and redo history of the active profile.
 //! - [`runtime`]: the engine thread.
@@ -32,6 +33,7 @@ pub mod history;
 pub mod icons;
 pub mod label;
 pub mod layout;
+pub mod location;
 pub mod power;
 pub mod profile;
 pub mod profiles;
@@ -46,6 +48,7 @@ pub use engine::{BackgroundState, Command, Counters, Engine, Event, NewBackgroun
 /// The image type of the messages.
 pub use image::RgbImage;
 pub use layout::{ControlLayout, DeviceLayout, SurfaceLayout};
+pub use location::{Holder, Location};
 /// The types of the device layer that are in the messages.
 pub use opencraft_core::{ControlId, ControlKind, Gesture, InputEvent, SurfaceId, SurfaceKind};
 pub use power::{DisplayState, PowerNotice};

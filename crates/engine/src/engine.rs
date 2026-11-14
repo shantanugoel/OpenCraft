@@ -9,11 +9,14 @@
 //! each wake of the computer from sleep. The device and the shell get the
 //! same image (rule 11).
 //!
-//! The engine holds the number of the active page in memory. The device and
-//! the shell show the active page, and the commands for a surface or a
-//! binding change it. At the start, the active page is the first page. The
-//! steps of a page change are in [`Engine::select_page`]. The reasons are in
-//! `docs/decisions/0016-pages-and-engine-requests-from-a-handler.md`.
+//! The engine holds the location in memory: the active page and the open
+//! folders. [`crate::location::Location`] answers which page or folder holds
+//! a control. The device and the shell show that location, and the commands
+//! for a surface or a binding change it. At the start, the active page is
+//! the first page and no folder is open. The steps of a page change are in
+//! [`Engine::select_page`]. The reasons are in
+//! `docs/decisions/0016-pages-and-engine-requests-from-a-handler.md` and
+//! `docs/decisions/0036-folders.md`.
 //!
 //! The engine gets the profiles directory, and holds only the active profile
 //! in memory. It offers only the profiles of the model of the device. The
@@ -48,9 +51,10 @@ mod power;
 
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::front::{ActiveCause, FrontApplication};
-use crate::history::{History, Location, SavedProfile, Target};
+use crate::history::{History, SavedProfile, Target};
 use crate::icons;
 use crate::layout::DeviceLayout;
+use crate::location::Location;
 use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
     image_uses_of, ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry,
@@ -370,26 +374,20 @@ pub enum Command {
 
 /// The name of the step of the history that `command` makes, and the
 /// target that a later change in the same text edit can join (decision
-/// 0030). `active` is the number of the active page, and `folder` is the
-/// last open folder. `None`: the command changes no page, and makes no step.
+/// 0030). `location` is the page under the folders and the open folders.
+/// `None`: the command changes no page, and makes no step.
 ///
 /// Each command has one line here. A new command that changes the pages
 /// gets its name here, and then the history covers it with no more work.
 /// The match has no wildcard, thus the compiler asks for the line.
-fn step_of(
-    command: &Command,
-    active: usize,
-    folder: Option<FolderId>,
-) -> Option<(String, Option<Target>)> {
+fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Target>)> {
     let step = |name: &str, target| Some((name.to_string(), target));
     match command {
         Command::SetLabel { surface, .. } => step(
             "Set Title",
             Some(Target::Label {
-                page: active,
-                // A key face is in the last open folder. Each other surface
-                // stays on the page under the folders.
-                folder: folder.filter(|_| surface.kind == SurfaceKind::KeyFace),
+                page: location.page,
+                folder: location.folder_of_surface(*surface),
                 surface: *surface,
             }),
         ),
@@ -437,8 +435,8 @@ fn step_of(
         // The mark of the first page is on a page. For a profile that is not
         // active, the pages do not change, and no step occurs.
         Command::SetFirstPage { .. } => step("Set First Page", None),
-        Command::Group { name, commands } => step(name, group_target(commands, active, folder)),
-        Command::InProfile { command, .. } => step_of(command, active, folder),
+        Command::Group { name, commands } => step(name, group_target(commands, location)),
+        Command::InProfile { command, .. } => step_of(command, location),
         Command::PasteControl { .. } => step("Paste", None),
         Command::ClearControl { .. } => step("Clear", None),
         Command::CopyToAllPages { .. } => step("Copy to All Pages", None),
@@ -484,10 +482,10 @@ fn step_of(
 /// if each command of the group has a target. Thus one edit of a text field
 /// that writes two bindings, for example a setting of the "Turn" card of a
 /// knob, is one step (decision 0030).
-fn group_target(commands: &[Command], active: usize, folder: Option<FolderId>) -> Option<Target> {
+fn group_target(commands: &[Command], location: &Location) -> Option<Target> {
     let targets = commands
         .iter()
-        .map(|c| step_of(c, active, folder).and_then(|(_, target)| target))
+        .map(|c| step_of(c, location).and_then(|(_, target)| target))
         .collect::<Option<Vec<_>>>()?;
     targets.first().copied()
 }
@@ -739,13 +737,9 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     store: ProfileStore,
     /// The active profile.
     profile: Profile,
-    /// The number of the active page. It is always a page of `profile`.
-    /// While folders are open, this is the page under the folders
-    /// (decision 0036).
-    active: usize,
-    /// The open folders, from the first to the last. The device shows the
-    /// keys of the last one. Empty: no folder is open.
-    open: Vec<FolderId>,
+    /// The active page and the open folders. Location answers which page
+    /// or folder holds a control (decision 0036).
+    location: Location,
     /// False if the profile file could not be read. Then the engine does not
     /// write the file, because the write would replace it.
     can_save: bool,
@@ -848,8 +842,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             entries: Vec::new(),
             profile_id: String::new(),
             profile: Profile::default(),
-            active: 0,
-            open: Vec::new(),
+            location: Location::default(),
             can_save: true,
             descriptor: default_model,
             images: BTreeMap::new(),
@@ -1017,12 +1010,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// The number of the active page. Page numbers start at 0. While folders
     /// are open, this is the page under the folders.
     pub fn active_page(&self) -> usize {
-        self.active
+        self.location.page
     }
 
     /// The open folders, from the first to the last.
     pub fn open_folders(&self) -> &[FolderId] {
-        &self.open
+        &self.location.open
     }
 
     /// The link to the device.
@@ -1038,116 +1031,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// The page under the folders. The knobs, the bar panels, the touch bar,
     /// and the background come from this page.
     fn page(&self) -> &Page {
-        &self.profile.pages()[self.active]
+        &self.profile.pages()[self.location.page]
     }
 
-    /// The folder of a key while a folder is open. Every other control has
-    /// no folder: it stays on the page under the folders.
-    fn folder_of(&self, control: ControlId) -> Option<FolderId> {
-        if control.kind == ControlKind::Key {
-            self.open.last().copied()
-        } else {
-            None
-        }
-    }
-
-    /// Drop a restored open list at the first folder that does not exist.
-    fn valid_open(&self, open: Vec<FolderId>) -> Vec<FolderId> {
-        let mut out = Vec::new();
-        for id in open {
-            if self.profile.folder(id).is_none() || out.contains(&id) {
-                break;
-            }
-            out.push(id);
-        }
-        out
-    }
-
-    fn listed(
-        page: usize,
-        source: &Page,
-        folder: Option<FolderId>,
-        keep: impl Fn(ControlKind) -> bool,
-    ) -> Vec<(BindingId, Action)> {
-        source
-            .bindings()
-            .filter(|((control, _), _)| keep(control.kind))
-            .map(|((control, gesture), action)| {
-                (
-                    BindingId {
-                        page,
-                        control,
-                        gesture,
-                        folder,
-                    },
-                    action.clone(),
-                )
-            })
-            .collect()
-    }
-
-    /// The bindings of the location: the keys of the last open folder, and
-    /// the other controls of the page under the folders.
-    fn location_bindings(&self) -> Vec<(BindingId, Action)> {
-        let page = self.active;
-        if let Some(id) = self.open.last().copied() {
-            let mut out = self
-                .profile
-                .folder(id)
-                .map(|folder| {
-                    Self::listed(page, &folder.page, Some(id), |kind| {
-                        kind == ControlKind::Key
-                    })
-                })
-                .unwrap_or_default();
-            out.extend(Self::listed(page, self.page(), None, |kind| {
-                kind != ControlKind::Key
-            }));
-            out
-        } else {
-            Self::listed(page, self.page(), None, |_| true)
-        }
-    }
-
-    /// The key bindings of the location.
+    /// The key bindings of the location. A change of the open folders
+    /// sends Disappear and Appear for these bindings only (decision 0036).
     fn key_bindings(&self) -> Vec<(BindingId, Action)> {
-        self.location_bindings()
+        self.location
+            .bindings(&self.profile)
             .into_iter()
             .filter(|(binding, _)| binding.control.kind == ControlKind::Key)
             .collect()
-    }
-
-    /// The page that holds `control` at the location.
-    fn page_of_control(&self, control: ControlId) -> &Page {
-        if let Some(id) = self.folder_of(control) {
-            if let Some(folder) = self.profile.folder(id) {
-                return &folder.page;
-            }
-        }
-        self.page()
-    }
-
-    /// The page that holds `control` at the location, for a change.
-    fn page_of_control_mut(&mut self, control: ControlId) -> Option<&mut Page> {
-        if control.kind == ControlKind::Key {
-            if let Some(id) = self.open.last().copied() {
-                return self.profile.folder_mut(id).map(|folder| &mut folder.page);
-            }
-        }
-        self.profile.page_mut(self.active)
-    }
-
-    /// The content of `surface` at the location. A key face comes from the
-    /// last open folder.
-    fn content_of(&self, id: SurfaceId) -> SurfaceContent {
-        if id.kind == SurfaceKind::KeyFace {
-            if let Some(folder_id) = self.open.last().copied() {
-                if let Some(folder) = self.profile.folder(folder_id) {
-                    return folder.page.content(id);
-                }
-            }
-        }
-        self.page().content(id)
     }
 
     fn disappear_bindings(&self, bindings: &[(BindingId, Action)]) {
@@ -1187,30 +1081,30 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 name: folder.page.name.clone(),
             })
             .collect();
-        let open = self.open.clone();
+        let open = self.location.open.clone();
         // The entry of the active profile follows the pages.
         self.update_entry();
         (self.sink)(Event::Pages {
             names,
-            active: self.active,
+            active: self.location.page,
             first: self.profile.first_page(),
             folders,
             open,
         });
-        for (binding, action) in self.location_bindings() {
+        for (binding, action) in self.location.bindings(&self.profile) {
             self.binding_event(binding, Some(action));
         }
     }
 
     /// Send Appear for each binding of the location.
     fn appear(&self) {
-        self.appear_bindings(&self.location_bindings());
+        self.appear_bindings(&self.location.bindings(&self.profile));
     }
 
     /// Send Disappear for each binding of the location, and remove all
     /// feedback. This is step 1 of a page change.
     fn disappear(&mut self) {
-        self.disappear_bindings(&self.location_bindings());
+        self.disappear_bindings(&self.location.bindings(&self.profile));
         self.feedback.clear();
     }
 
@@ -1227,12 +1121,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.disappear();
         let result = change(&mut self.profile);
         let count = self.profile.pages().len();
-        self.active = page.min(count.saturating_sub(1));
+        self.location.page = page.min(count.saturating_sub(1));
         if close_folders {
-            self.open.clear();
+            self.location.open.clear();
         } else {
-            let open = std::mem::take(&mut self.open);
-            self.open = self.valid_open(open);
+            let open = std::mem::take(&mut self.location.open);
+            self.location.open = Location::restored_open(&self.profile, &open);
         }
         self.redraw();
         self.send_pages();
@@ -1243,8 +1137,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Change the open folders. Only the keys change: the knobs, the bar
     /// panels, the touch bar, and the background stay (decision 0036).
     fn set_open(&mut self, open: Vec<FolderId>) {
-        let open = self.valid_open(open);
-        if open == self.open {
+        let open = Location::restored_open(&self.profile, &open);
+        if open == self.location.open {
             return;
         }
         let old = self.key_bindings();
@@ -1252,7 +1146,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         for (binding, _) in &old {
             self.feedback.remove(binding);
         }
-        self.open = open;
+        self.location.open = open;
         self.redraw_keys();
         self.send_pages();
         let now = self.key_bindings();
@@ -1338,8 +1232,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !self.is_page(page) {
             return;
         }
-        if page == self.active {
-            if !self.open.is_empty() {
+        if page == self.location.page {
+            if !self.location.open.is_empty() {
                 self.set_open(Vec::new());
             }
             return;
@@ -1388,7 +1282,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !self.is_page(page) || !self.is_page(to) || page == to {
             return;
         }
-        let active = self.active;
+        let active = self.location.page;
         let after = if active == page {
             to
         } else if page < active && to >= active {
@@ -1411,13 +1305,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem("A profile keeps one page at the minimum.".to_string());
             return;
         }
-        let after = match page.cmp(&self.active) {
-            std::cmp::Ordering::Less => self.active - 1,
+        let after = match page.cmp(&self.location.page) {
+            std::cmp::Ordering::Less => self.location.page - 1,
             std::cmp::Ordering::Equal => page.min(count - 2),
-            std::cmp::Ordering::Greater => self.active,
+            std::cmp::Ordering::Greater => self.location.page,
         };
         self.changed_at = Some(self.now());
-        if page == self.active {
+        if page == self.location.page {
             // The same number can be a different page now. The folders close.
             self.change_page(|profile| profile.remove_page(page), after, true);
         } else {
@@ -1435,10 +1329,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         active: usize,
         close_folders: bool,
     ) {
-        if active == self.active && !(close_folders && !self.open.is_empty()) {
+        if active == self.location.page && !(close_folders && !self.location.open.is_empty()) {
             change(&mut self.profile);
             self.send_pages();
-        } else if active == self.active {
+        } else if active == self.location.page {
             change(&mut self.profile);
             self.set_open(Vec::new());
         } else {
@@ -1453,10 +1347,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             );
             return;
         }
-        if self.open.last() == Some(&id) {
+        if self.location.open.last() == Some(&id) {
             return;
         }
-        let mut open = self.open.clone();
+        let mut open = self.location.open.clone();
         if let Some(pos) = open.iter().position(|folder| *folder == id) {
             open.truncate(pos + 1);
         } else {
@@ -1466,10 +1360,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     fn close_folder(&mut self) {
-        if self.open.is_empty() {
+        if self.location.open.is_empty() {
             return;
         }
-        let mut open = self.open.clone();
+        let mut open = self.location.open.clone();
         open.pop();
         self.set_open(open);
     }
@@ -1552,11 +1446,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem("The profile has no folder with this identity.".to_string());
             return;
         }
-        let open = match self.open.iter().position(|folder| *folder == id) {
-            Some(pos) => self.open[..pos].to_vec(),
-            None => self.open.clone(),
+        let open = match self.location.open.iter().position(|folder| *folder == id) {
+            Some(pos) => self.location.open[..pos].to_vec(),
+            None => self.location.open.clone(),
         };
-        let location_changes = open != self.open;
+        let location_changes = open != self.location.open;
         self.profile.remove_folder(id);
         self.changed_at = Some(self.now());
         if location_changes {
@@ -1589,7 +1483,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     fn set_binding(&mut self, binding: BindingId, action: Option<Action>) {
-        if binding.page != self.active || binding.folder != self.folder_of(binding.control) {
+        if !self.location.shows(binding) {
             self.problem(
                 "OpenCraft did not change the binding, because its page is not the page \
                  that the device shows."
@@ -1597,7 +1491,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             );
             return;
         }
-        let Some(page) = self.page_of_control_mut(binding.control) else {
+        let Some(page) = self
+            .location
+            .page_for_change(&mut self.profile, binding.control)
+        else {
             return;
         };
         let before = page.binding(binding.control, binding.gesture).cloned();
@@ -1623,18 +1520,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let Some(gesture) = GestureKind::from_gesture(event.gesture) else {
             return;
         };
-        let Some(action) = self
-            .page_of_control(event.control)
-            .binding(event.control, gesture)
-            .cloned()
+        let Some((binding, action)) = self
+            .location
+            .binding(&self.profile, event.control, gesture)
+            .map(|(binding, action)| (binding, action.clone()))
         else {
             return;
-        };
-        let binding = BindingId {
-            page: self.active,
-            control: event.control,
-            gesture,
-            folder: self.folder_of(event.control),
         };
         let kind = action.kind.clone();
         if self.request(&kind, Request::Invoke { binding, action }) {
@@ -1645,7 +1536,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Run the action of `binding` as a gesture does. See
     /// [`Command::TestAction`].
     fn test_action(&mut self, binding: BindingId) {
-        if binding.page != self.active || binding.folder != self.folder_of(binding.control) {
+        if !self.location.shows(binding) {
             self.problem(
                 "OpenCraft did not test the action, because its page is not the page \
                  that the device shows."
@@ -1654,9 +1545,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             return;
         }
         let Some(action) = self
-            .page_of_control(binding.control)
-            .binding(binding.control, binding.gesture)
-            .cloned()
+            .location
+            .binding(&self.profile, binding.control, binding.gesture)
+            .map(|(_, action)| action.clone())
         else {
             self.problem("OpenCraft did not test the action, because the gesture has none.".into());
             return;
@@ -1692,11 +1583,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     pub fn handler_message(&mut self, message: Message) {
         match message {
             Message::Feedback { binding, feedback } => {
-                if binding.page != self.active
-                    || binding.folder != self.folder_of(binding.control)
+                if !self.location.shows(binding)
                     || self
-                        .page_of_control(binding.control)
-                        .binding(binding.control, binding.gesture)
+                        .location
+                        .binding(&self.profile, binding.control, binding.gesture)
                         .is_none()
                     || self.feedback_surface(binding.control).is_none()
                 {
@@ -1735,7 +1625,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             Message::Engine(EngineRequest::SelectPage(target)) => {
                 let count = self.profile.pages().len();
-                self.select_page(target.resolve(self.active, count));
+                self.select_page(target.resolve(self.location.page, count));
             }
             Message::Engine(EngineRequest::OpenFolder(id)) => self.open_folder(id),
             Message::Engine(EngineRequest::CloseFolder) => self.close_folder(),
@@ -1856,8 +1746,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// in the list of profiles.
     fn use_profile(&mut self, id: String, profile: Profile, can_save: bool) {
         self.store = self.profiles.store(&id);
-        self.active = profile.first_page();
-        self.open.clear();
+        self.location.page = profile.first_page();
+        self.location.open.clear();
         self.profile = profile;
         self.can_save = can_save;
         self.changed_at = None;
@@ -2083,7 +1973,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             None => self.load_profile(id),
         }
         if let Some(page) = page.filter(|page| *page < self.profile.pages().len()) {
-            self.active = page;
+            self.location.page = page;
         }
         self.redraw();
         self.send_profiles();
@@ -2513,7 +2403,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             return;
         }
         self.changed_at = Some(self.now());
-        if page == self.active {
+        if page == self.location.page {
             self.redraw();
         }
     }
@@ -2550,7 +2440,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Make the image of `surface` from the profile, keep it, and send the
     /// state of the surface.
     fn render(&mut self, surface: &Surface) {
-        let content = self.content_of(surface.id);
+        let content = self.location.content(&self.profile, surface.id);
         let source = content
             .image
             .as_deref()
@@ -2616,7 +2506,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let Some(command) = self.for_active_profile(command) else {
             return true;
         };
-        match step_of(&command, self.active, self.open.last().copied()) {
+        match step_of(&command, &self.location) {
             Some((name, target)) => self.step(name, target, command),
             None => self.obey(command),
         }
@@ -2651,12 +2541,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if self.history.joins(target) {
             let names = self.history.names();
             let go_on = self.obey(command);
-            self.history.joined(
-                self.profile.pages(),
-                self.profile.folders(),
-                self.active,
-                &self.open,
-            );
+            self.history
+                .joined(self.profile.pages(), self.profile.folders(), &self.location);
             if self.history.names() != names {
                 self.send_history();
             }
@@ -2664,8 +2550,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
         let before_pages = self.profile.pages().to_vec();
         let before_folders = self.profile.folders().to_vec();
-        let undo_page = self.active;
-        let undo_open = self.open.clone();
+        let undo_place = self.location.clone();
         let go_on = self.obey(command);
         if self.profile.pages() != before_pages.as_slice()
             || self.profile.folders() != before_folders.as_slice()
@@ -2677,14 +2562,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     pages: before_pages,
                     folders: before_folders,
                 },
-                Location {
-                    page: undo_page,
-                    open: undo_open,
-                },
-                Location {
-                    page: self.active,
-                    open: self.open.clone(),
-                },
+                undo_place,
+                self.location.clone(),
             );
             self.send_history();
         }
@@ -2746,8 +2625,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let old_pages = self.profile.replace_pages(pages);
         let old_folders = self.profile.replace_folders(folders);
         let count = self.profile.pages().len();
-        self.active = page.min(count.saturating_sub(1));
-        self.open = self.valid_open(open);
+        self.location.page = page.min(count.saturating_sub(1));
+        self.location.open = Location::restored_open(&self.profile, &open);
         self.redraw();
         self.send_pages();
         self.appear();
@@ -2906,7 +2785,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let Some(parts) = self.parts(control) else {
             return;
         };
-        let content = ControlContent::read(self.page_of_control(control), control, parts);
+        let content = ControlContent::read(
+            self.location.page_of(&self.profile, control),
+            control,
+            parts,
+        );
         self.clipboard = Some((content, self.store.dir().to_path_buf()));
         (self.sink)(Event::Clipboard(control.kind));
     }
@@ -2956,19 +2839,18 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let Some(parts) = Parts::of(self.descriptor, control) else {
             return;
         };
-        let (surface, bindings) = content.changes(self.page_of_control(control), control, parts);
+        let (surface, bindings) = content.changes(
+            self.location.page_of(&self.profile, control),
+            control,
+            parts,
+        );
         // The surface first: a shell then gets the new content before the
         // bindings, for example for the text field of the label.
         if let Some((id, new)) = surface {
             self.change(id, |c| *c = new);
         }
         for (control, gesture, action) in bindings {
-            let binding = BindingId {
-                page: self.active,
-                control,
-                gesture,
-                folder: self.folder_of(control),
-            };
+            let binding = self.location.binding_id(control, gesture);
             self.set_binding(binding, action);
         }
     }
@@ -2978,7 +2860,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// shows the active page, which does not change, thus no handler and no
     /// image changes.
     fn copy_to_all_pages(&mut self, control: ControlId) {
-        if !self.open.is_empty() {
+        if !self.location.open.is_empty() {
             self.problem("Copy to All Pages is not possible in a folder.".to_string());
             return;
         }
@@ -2987,7 +2869,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         };
         let content = ControlContent::read(self.page(), control, parts);
         let mut changed = false;
-        for number in (0..self.profile.pages().len()).filter(|n| *n != self.active) {
+        for number in (0..self.profile.pages().len()).filter(|n| *n != self.location.page) {
             if let Some(page) = self.profile.page_mut(number) {
                 changed |= content.write(page, control, parts);
             }
@@ -3005,23 +2887,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem(format!("This device has no {id} with content."));
             return;
         };
-        let updated = if id.kind == SurfaceKind::KeyFace {
-            if let Some(folder_id) = self.open.last().copied() {
-                self.profile
-                    .folder_mut(folder_id)
-                    .is_some_and(|folder| folder.page.update(id, change))
-            } else {
-                let active = self.active;
-                self.profile
-                    .page_mut(active)
-                    .is_some_and(|page| page.update(id, change))
-            }
-        } else {
-            let active = self.active;
-            self.profile
-                .page_mut(active)
-                .is_some_and(|page| page.update(id, change))
-        };
+        let updated = self
+            .location
+            .surface_for_change(&mut self.profile, id)
+            .is_some_and(|page| page.update(id, change));
         if !updated {
             return;
         }
