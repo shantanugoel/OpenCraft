@@ -577,23 +577,31 @@ proposed release is 0.4.0.
   with macOS keys (PLUG-31).
 - A measurement of the time from a change of the front application to the
   new profile on the device, and of the idle processor use with the
-  observer of the front application (P9-M1).
+  observer of the front application (P9-M1). [#349](https://github.com/shantanugoel/OpenCraft/issues/349)
+holds the corrections from the review of the phase.
 
 **Exit criteria.**
 
 - [ ] The device shows the linked profile when its application comes to the
   front, and the default profile when no link matches. The owner did this
   check with three applications.
-- [ ] The observer of the front application does not poll. The idle
+- [x] The observer of the front application does not poll. The idle
   processor use stays below 0.5 % of one core.
-- [ ] A link and a "Select a profile" key stay correct after a rename of the
+- [x] A link and a "Select a profile" key stay correct after a rename of the
   profile and after a move of the application.
 - [ ] A folder key opens the folder, and Back returns to the page before it.
   "Next page" does not go into a folder.
-- [ ] Profiles of schema 3 and 4 load and change to the new schema 5. An
+- [x] Profiles of schema 3 and 4 load and change to the new schema 5. An
   engine test covers it.
-- [ ] The ready per-application profiles install from the first-start
+- [x] The ready per-application profiles install from the first-start
   window or from the profile settings sheet.
+
+**Result.** All task issues are merged. The time from the notice of the
+front application to the end of the device writes, and the idle processor
+use, are in [kb/footprint.md](kb/footprint.md). The ready profiles install
+from the **+** menu of **PROFILES** and from the first-start window. Two
+criteria wait for the checks of the owner on the device: see
+[checks/phase-9-checks.md](checks/phase-9-checks.md).
 
 **Decisions that this phase forces.** The front application and the
 selection of a profile: see
