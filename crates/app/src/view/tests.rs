@@ -276,5 +276,6 @@ mod panes;
 mod permission_sheet;
 mod profile_field;
 mod profile_sheet;
+mod shown_fields;
 mod sidebar;
 mod test_model;

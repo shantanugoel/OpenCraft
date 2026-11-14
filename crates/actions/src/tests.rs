@@ -1,7 +1,7 @@
 use crate::handlers::{build, Intervals};
 use crate::{handlers, handlers_with_system};
 use opencraft_engine::{
-    Feedback, Handler, InputType, Message, PathKind, Request, Settings, Status, Value,
+    Feedback, Handler, InputType, Message, PathKind, Request, Settings, ShownWhen, Status, Value,
 };
 use std::collections::BTreeSet;
 use std::sync::atomic::Ordering;
@@ -843,6 +843,14 @@ fn the_kinds_that_ask_the_engine_have_the_fields_of_their_decisions() {
     assert_eq!(values, ["next", "previous", "number"]);
     assert_eq!(page[0].0, "target");
     assert_eq!(page[0].2, Some(Value::Text("next".into())));
+    let page_kind = kinds
+        .iter()
+        .find(|description| description.kind == "opencraft.page")
+        .unwrap();
+    assert_eq!(
+        page_kind.shown_when,
+        vec![ShownWhen::new("page", "target", &["number"])]
+    );
     assert_eq!(
         page[1],
         (

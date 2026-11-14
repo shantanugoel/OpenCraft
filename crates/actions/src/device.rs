@@ -40,6 +40,13 @@ mod tests {
             (direction.right.as_str(), direction.left.as_str()),
             ("up", "down")
         );
+        assert_eq!(
+            description.shown_when,
+            vec![
+                opencraft_engine::ShownWhen::new("value", "operation", &["set"]),
+                opencraft_engine::ShownWhen::new("step", "operation", &["up", "down"]),
+            ]
+        );
     }
 
     #[test]

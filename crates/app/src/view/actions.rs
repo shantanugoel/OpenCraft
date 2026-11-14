@@ -1,6 +1,6 @@
 //! The gesture cards of the selected control, and the settings form of the
 //! open card, made only from engine descriptions (decision 0029, section
-//! 10.3).
+//! 10.3, and decision 0038).
 //!
 //! A field of the input type Action or Action list contains actions. The form
 //! shows each contained action with the same code as the action of the
@@ -35,7 +35,7 @@ fn bundle_key_of(input: &InputType) -> Option<&str> {
 
 use opencraft_engine::{
     Action, BindingId, ChoiceOption, Color, Field, FolderId, GestureKind, InputType,
-    KindDescription, PathKind, Status, Value,
+    KindDescription, PathKind, Settings, ShownWhen, Status, Value,
 };
 
 /// The function that makes the body rows of an open gesture card from its
@@ -188,6 +188,61 @@ pub(super) fn change(action: &mut Action, path: &[Slot], f: impl FnOnce(&mut Act
     action.settings.insert(slot.key.clone(), value);
 }
 
+/// The text of choice field `key`. A missing value uses the default of that
+/// field. A value that is not text has no choice.
+fn choice_text_of(fields: &[Field], settings: &Settings, key: &str) -> Option<String> {
+    if let Some(value) = settings.get(key) {
+        return match value {
+            Value::Text(text) => Some(text.clone()),
+            _ => None,
+        };
+    }
+    fields
+        .iter()
+        .find(|field| field.key == key)
+        .and_then(|field| match &field.default {
+            Some(Value::Text(text)) => Some(text.clone()),
+            _ => None,
+        })
+}
+
+/// True when the shell shows the field `key` (decision 0038). A field with
+/// no rule is shown.
+fn field_shown(fields: &[Field], rules: &[ShownWhen], settings: &Settings, key: &str) -> bool {
+    let Some(rule) = rules.iter().find(|rule| rule.field == key) else {
+        return true;
+    };
+    choice_text_of(fields, settings, &rule.key)
+        .is_some_and(|value| rule.values.iter().any(|item| item == &value))
+}
+
+/// Remove each hidden field. When a rule shows a field that has a default
+/// and no stored value, store that default.
+fn apply_shown(fields: &[Field], rules: &[ShownWhen], settings: &mut Settings) {
+    let hidden: Vec<String> = fields
+        .iter()
+        .filter(|field| !field_shown(fields, rules, settings, &field.key))
+        .map(|field| field.key.clone())
+        .collect();
+    for key in hidden {
+        settings.remove(&key);
+    }
+    for rule in rules {
+        if !field_shown(fields, rules, settings, &rule.field) || settings.contains_key(&rule.field)
+        {
+            continue;
+        }
+        let Some(default) = fields
+            .iter()
+            .find(|field| field.key == rule.field)
+            .and_then(|field| field.default.clone())
+        else {
+            continue;
+        };
+        settings.insert(rule.field.clone(), default);
+    }
+}
+
 /// The actions in the field `key`. A missing value or a value of a
 /// different form gives an empty list.
 pub(super) fn list(action: &Action, key: &str) -> Vec<Action> {
@@ -203,16 +258,24 @@ impl DeviceView {
         self.state.kinds.iter().find(|k| k.kind == kind)
     }
 
-    /// A new action of `kind` with the default value of each field.
+    /// A new action of `kind` with the default of each field that the form
+    /// shows (decision 0038).
     pub(super) fn default_action(&self, kind: &str) -> Option<Action> {
         let kind = self.kind(kind)?;
+        let mut settings: Settings = kind
+            .fields
+            .iter()
+            .filter_map(|field| {
+                field
+                    .default
+                    .clone()
+                    .map(|value| (field.key.clone(), value))
+            })
+            .collect();
+        apply_shown(&kind.fields, &kind.shown_when, &mut settings);
         Some(Action {
             kind: kind.kind.clone(),
-            settings: kind
-                .fields
-                .iter()
-                .filter_map(|f| f.default.clone().map(|v| (f.key.clone(), v)))
-                .collect(),
+            settings,
         })
     }
 
@@ -317,6 +380,9 @@ impl DeviceView {
             return;
         };
         for field in &kind.fields {
+            if !field_shown(&kind.fields, &kind.shown_when, &action.settings, &field.key) {
+                continue;
+            }
             match field.input {
                 InputType::RuntimeChoice | InputType::RuntimeChoiceList => out.push((
                     FieldPath {
@@ -366,6 +432,9 @@ impl DeviceView {
             ));
         }
         for field in &kind.fields {
+            if !field_shown(&kind.fields, &kind.shown_when, &action.settings, &field.key) {
+                continue;
+            }
             let value = action.settings.get(&field.key);
             match field.input {
                 InputType::Choice { .. }
@@ -678,11 +747,28 @@ impl DeviceView {
 
     pub(super) fn set_field(&mut self, binding: BindingId, path: &FieldPath, value: Value) {
         let key = path.key.clone();
+        let (fields, rules) = self.kind_fields(binding, &path.action);
         self.edit(binding, |root| {
             change(root, &path.action, |action| {
-                action.settings.insert(key, value);
+                action.settings.insert(key.clone(), value.clone());
+                apply_shown(&fields, &rules, &mut action.settings);
             })
         });
+    }
+
+    /// The fields of the action at `path`, and the rules for when the shell
+    /// shows them.
+    fn kind_fields(&self, binding: BindingId, path: &[Slot]) -> (Vec<Field>, Vec<ShownWhen>) {
+        let Some(action) = self
+            .edit_action(binding)
+            .and_then(|action| contained(&action, path))
+        else {
+            return (Vec::new(), Vec::new());
+        };
+        let Some(kind) = self.kind(&action.kind) else {
+            return (Vec::new(), Vec::new());
+        };
+        (kind.fields.clone(), kind.shown_when.clone())
     }
 
     /// Open or close a menu of the cards. The focus goes back to the root
@@ -1234,6 +1320,9 @@ impl DeviceView {
         } else if let Some(kind) = self.kind(&action.kind) {
             let on_label = self.on_label_in_faces(path);
             for (index, field) in kind.fields.iter().enumerate() {
+                if !field_shown(&kind.fields, &kind.shown_when, &action.settings, &field.key) {
+                    continue;
+                }
                 if field.input.is_action_list() || on_label.as_ref() == Some(&field.key) {
                     continue;
                 }
@@ -2038,5 +2127,60 @@ mod choice_text_tests {
             ),
             "B, A"
         );
+    }
+}
+
+#[cfg(test)]
+mod shown_when_tests {
+    use super::{apply_shown, field_shown};
+    use opencraft_engine::{Field, InputType, Settings, ShownWhen, Value};
+
+    fn operation() -> Field {
+        Field {
+            key: "operation".into(),
+            label: "Operation".into(),
+            input: InputType::Choice {
+                options: Vec::new(),
+            },
+            default: Some(Value::Text("up".into())),
+        }
+    }
+
+    fn step() -> Field {
+        Field {
+            key: "step".into(),
+            label: "Step".into(),
+            input: InputType::Integer { min: 1, max: 25 },
+            default: Some(Value::Integer(5)),
+        }
+    }
+
+    fn rules() -> Vec<ShownWhen> {
+        vec![ShownWhen::new("step", "operation", &["up", "down"])]
+    }
+
+    #[test]
+    fn a_missing_operation_uses_up_so_the_step_stays() {
+        let fields = vec![operation(), step()];
+        let settings = Settings::new();
+        assert!(field_shown(&fields, &rules(), &settings, "step"));
+        assert!(field_shown(&fields, &rules(), &settings, "operation"));
+    }
+
+    #[test]
+    fn mute_drops_the_step_and_up_stores_the_default() {
+        let fields = vec![operation(), step()];
+        let rules = rules();
+        let mut settings = Settings::from([
+            ("operation".into(), Value::Text("mute".into())),
+            ("step".into(), Value::Integer(12)),
+        ]);
+        assert!(!field_shown(&fields, &rules, &settings, "step"));
+        apply_shown(&fields, &rules, &mut settings);
+        assert_eq!(settings.get("step"), None);
+        assert_eq!(settings.get("operation"), Some(&Value::Text("mute".into())));
+        settings.insert("operation".into(), Value::Text("down".into()));
+        apply_shown(&fields, &rules, &mut settings);
+        assert_eq!(settings.get("step"), Some(&Value::Integer(5)));
     }
 }
