@@ -40,7 +40,7 @@ for the same thing.
 | Action | A unit of work, given as data: a kind and its settings. |
 | Binding | The link from one gesture on one control to one action. |
 | Page | One full set of bindings and surface content for a device. |
-| Folder | A set of key faces and key bindings in a profile, outside the cycle of the pages. A key opens it, and "Back" closes it. The knobs and the touch bar stay those of the page under it. See [decision 0036](decisions/0036-folders.md). |
+| Folder | A set of key faces and key bindings in a profile, outside the cycle of the pages. A key opens it, and "Back" closes it. The knobs and the touch bar stay those of the page under it. The Location module of the engine holds the active page and the open folders, and it gives the page or the folder of a control. See [decision 0036](decisions/0036-folders.md). |
 | Profile | A named set of pages and folders for one device model. It can be linked to applications. |
 | Front application | The application that macOS shows as active. The shell reports it, and the engine selects the profile that is linked to it, or the default profile. See [decision 0035](decisions/0035-front-application-selects-the-profile.md). |
 | Engine | The component that owns the device, the profile, and the actions. |
@@ -175,8 +175,8 @@ These rules stay true in all phases.
 ## 6. Data flow
 
 **Input.** The device sends a report. The device layer decodes the report into
-an input event. The engine finds the binding for that event on the active page.
-The engine sends the action to its handler. The engine also sends the input
+an input event. The Location module gives the binding for that event. The
+engine sends the action to its handler. The engine also sends the input
 event to the shell, so that the shell can show it.
 
 **Output.** A command or an action changes the necessary state of a surface. The

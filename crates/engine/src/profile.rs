@@ -3,7 +3,7 @@
 //!
 //! These types are the profile in memory. The file format is in
 //! [`crate::store`], and the profiles directory is in [`crate::profiles`].
-//! The engine holds the number of the active page: see [`crate::engine`].
+//! The engine holds the location: see [`crate::location`].
 
 use crate::action::{Action, GestureKind};
 use opencraft_core::device::DESCRIPTORS;

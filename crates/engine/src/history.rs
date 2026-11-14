@@ -3,9 +3,10 @@
 //!
 //! The engine writes the profile (architecture rule 9), thus the engine
 //! keeps the history. A step keeps a copy of the pages and the folders of
-//! the profile, and the location: the active page and the open folders. An
-//! undo puts the copy back, and keeps the pages and the folders that it
-//! replaced for the redo. Thus a new command that changes the pages or the
+//! the profile, and the location ([`crate::location::Location`]): the active
+//! page and the open folders. An undo puts the copy back, and keeps the
+//! pages and the folders that it replaced for the redo. Thus a new command
+//! that changes the pages or the
 //! folders needs no inverse command: it needs only a name. See
 //! [`crate::engine::Command`] and
 //! `docs/decisions/0030-undo-and-redo-in-the-engine.md`. Decision 0036 adds
@@ -17,6 +18,7 @@
 //! a different application and back keeps the undo of a change.
 
 use crate::action::BindingId;
+use crate::location::Location;
 use crate::profile::{Folder, FolderId, Page};
 use opencraft_core::SurfaceId;
 
@@ -61,14 +63,10 @@ struct Step {
     pages: Vec<Page>,
     /// The folders at the same side as `pages`.
     folders: Vec<Folder>,
-    /// The active page before the change. An undo shows this page.
-    undo_page: usize,
-    /// The active page after the change. A redo shows this page.
-    redo_page: usize,
-    /// The open folders before the change.
-    undo_open: Vec<FolderId>,
-    /// The open folders after the change.
-    redo_open: Vec<FolderId>,
+    /// The location before the change. An undo shows this location.
+    undo_place: Location,
+    /// The location after the change. A redo shows this location.
+    redo_place: Location,
 }
 
 /// A copy of the pages and the folders of a profile.
@@ -76,13 +74,6 @@ struct Step {
 pub(crate) struct SavedProfile {
     pub pages: Vec<Page>,
     pub folders: Vec<Folder>,
-}
-
-/// The active page and the open folders.
-#[derive(Debug, Clone)]
-pub(crate) struct Location {
-    pub page: usize,
-    pub open: Vec<FolderId>,
 }
 
 /// The two lists of steps of a profile that is not active.
@@ -124,21 +115,14 @@ impl History {
     }
 
     /// A change joined the last step. The pages are now `pages` and the
-    /// folders are now `folders`. The redo of the step shows `active` and
-    /// `open_folders`. If the step changes nothing now, for example a letter
-    /// that the user typed and removed, the step goes away.
-    pub fn joined(
-        &mut self,
-        pages: &[Page],
-        folders: &[Folder],
-        active: usize,
-        open_folders: &[FolderId],
-    ) {
+    /// folders are now `folders`. The redo of the step shows `place`. If
+    /// the step changes nothing now, for example a letter that the user
+    /// typed and removed, the step goes away.
+    pub fn joined(&mut self, pages: &[Page], folders: &[Folder], place: &Location) {
         let Some(last) = self.undo.last_mut() else {
             return;
         };
-        last.redo_page = active;
-        last.redo_open = open_folders.to_vec();
+        last.redo_place = place.clone();
         if last.pages == pages && last.folders == folders {
             self.undo.pop();
             self.open = None;
@@ -161,10 +145,8 @@ impl History {
             name,
             pages: before.pages,
             folders: before.folders,
-            undo_page: undo_place.page,
-            redo_page: redo_place.page,
-            undo_open: undo_place.open,
-            redo_open: redo_place.open,
+            undo_place,
+            redo_place,
         });
         if self.undo.len() > HISTORY_LIMIT {
             self.undo.remove(0);
@@ -180,15 +162,13 @@ impl History {
         let Some(mut step) = self.undo.pop() else {
             return false;
         };
+        let place = step.undo_place.clone();
         let saved = swap(
             SavedProfile {
                 pages: step.pages,
                 folders: step.folders,
             },
-            Location {
-                page: step.undo_page,
-                open: step.undo_open.clone(),
-            },
+            place,
         );
         step.pages = saved.pages;
         step.folders = saved.folders;
@@ -202,15 +182,13 @@ impl History {
         let Some(mut step) = self.redo.pop() else {
             return false;
         };
+        let place = step.redo_place.clone();
         let saved = swap(
             SavedProfile {
                 pages: step.pages,
                 folders: step.folders,
             },
-            Location {
-                page: step.redo_page,
-                open: step.redo_open.clone(),
-            },
+            place,
         );
         step.pages = saved.pages;
         step.folders = saved.folders;
@@ -426,9 +404,9 @@ mod tests {
         let mut history = History::default();
         history.start_text_edit();
         push(&mut history, "Rename Page", Some(NAME), pages(&["A"]), 0, 0);
-        history.joined(&pages(&["AB"]), &[], 0, &[]);
+        history.joined(&pages(&["AB"]), &[], &Location::default());
         assert_eq!(history.names().0.as_deref(), Some("Rename Page"));
-        history.joined(&pages(&["A"]), &[], 0, &[]);
+        history.joined(&pages(&["A"]), &[], &Location::default());
         assert_eq!(history.names(), (None, None));
         assert!(!history.joins(Some(NAME)));
     }
