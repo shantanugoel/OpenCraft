@@ -163,6 +163,12 @@ These rules stay true in all phases.
    through engine commands. The engine writes the file. The file has a schema
    version. The format is in
    [decision 0009](decisions/0009-profile-file-format.md).
+   - The saved document module (`saved`) holds the rules for the write of the
+     active profile and of the device settings: the delay, the retry, one
+     problem message for a series of failed writes, the refusal to write over
+     a file that the engine cannot read, and the write at the stop. The engine
+     changes a document only through `edit` or `edit_if`. These calls mark the
+     change, thus no edit can forget to mark it.
 10. **The engine holds the necessary state of each surface.** The engine can
     draw all surfaces again at any time. It does this after a connection, a
     page change, and a wake from sleep. The shell reports system notices,

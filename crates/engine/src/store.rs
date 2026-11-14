@@ -122,6 +122,7 @@ use crate::profile::{
     Color, Folder, FolderId, LabelPosition, LabelStyle, Page, Profile, SurfaceContent, SurfaceIcon,
     MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
+use crate::saved::SavedFile;
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, ImageReader};
 use opencraft_core::{ControlKind, SurfaceKind};
@@ -246,6 +247,16 @@ pub struct Summary {
 #[derive(Debug, Clone)]
 pub struct ProfileStore {
     dir: PathBuf,
+}
+
+impl SavedFile<Profile> for ProfileStore {
+    fn exists(&self) -> bool {
+        self.profile_path().exists()
+    }
+
+    fn write(&self, profile: &Profile) -> Result<()> {
+        self.save(profile)
+    }
 }
 
 impl ProfileStore {

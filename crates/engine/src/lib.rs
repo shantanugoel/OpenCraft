@@ -20,6 +20,8 @@
 //! - [`location`]: the active page and the open folders.
 //! - [`engine`]: the engine logic, with the commands and the events.
 //! - [`history`]: the undo and redo history of the active profile.
+//! - [`saved`]: a value that the engine writes to a file after a delay: the
+//!   active profile and the device settings.
 //! - [`runtime`]: the engine thread.
 //!
 //! A shell uses only this crate, and not the device layer. Thus the crate
@@ -42,6 +44,7 @@ pub mod profile_list;
 pub mod profiles;
 pub mod render;
 pub mod runtime;
+pub mod saved;
 pub mod share;
 pub mod store;
 

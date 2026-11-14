@@ -24,6 +24,7 @@
 
 use crate::error::Result;
 use crate::profile::Color;
+use crate::saved::SavedFile;
 use crate::store::{io_error, write_and_rename};
 use opencraft_core::protocol;
 pub use opencraft_core::SettingsSupport;
@@ -329,6 +330,24 @@ pub fn load(
         }
     }
     Ok(settings.fit(support))
+}
+
+/// The settings file of one model in the profiles directory `dir`, as the
+/// file of a [`crate::saved::SavedDocument`].
+#[derive(Debug, Clone, Copy)]
+pub struct SettingsFile<'a> {
+    pub dir: &'a Path,
+    pub model: &'a str,
+}
+
+impl SavedFile<DeviceSettings> for SettingsFile<'_> {
+    fn exists(&self) -> bool {
+        settings_path(self.dir).exists()
+    }
+
+    fn write(&self, settings: &DeviceSettings) -> Result<()> {
+        save(self.dir, self.model, settings)
+    }
 }
 
 /// Write the settings of `model` to the settings file in the profiles
