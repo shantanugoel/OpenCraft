@@ -1460,8 +1460,7 @@ stays. The items, in this order:
 |---|---|---|
 | "*model name* · connected" or "*model name* · not connected", with a dot image (`success` or `text-disabled`) | Text, not enabled | The connection state |
 | Separator | | |
-| "Profile" | Section title, not enabled | |
-| One item for each profile | Check mark on the active profile | Selects the profile |
+| "Profile: *name*" | Submenu with one item for each profile, a check mark on the active profile. *name* is the active profile. | Selects the profile |
 | "Page: *name*" | Submenu with one item for each page of the active profile, a check mark on the active page | Selects the page |
 | Separator | | |
 | The brightness row | One custom view: "Brightness" and the value ("80 %") on one line; below it a small sun icon, a slider, and a large sun icon. Width 270, padding 4 10 8. | Sets the display brightness, as the device inspector does |
@@ -1489,12 +1488,12 @@ and the code does this:
   a coloured character in the title (green for "connected", the system
   tertiary label colour for "not connected"), at the left of the text, in the
   column of the item titles. It is not in the column of the check marks.
-- The row of the profiles has the title "Profile" as a native section header.
-  The items of the profiles have no icon.
+- The item "Profile: *name*" is a submenu, in the same way as the pages.
+  *name* is the active profile. The items of the profiles have no icon.
 - The custom view follows the width of the menu. Its text is 14 points from
   the edge, in the column of the check marks, and the right edge has the same
   space. The slider has the lowest value of the device model, not 0.
-- The menu has no "Page" submenu and no "Profile" section before the engine
+- The menu has no "Page" submenu and no "Profile" submenu before the engine
   sends the pages and the profiles. It has no brightness row before the engine
   sends the device settings.
 - A selection of the active profile or the active page sends no command.
@@ -1503,6 +1502,11 @@ and the code does this:
   the menu opens again. The engine saves the value.
 - "Open OpenCraft" has the key equivalent ⌘O, and works while the menu is
   open. The window does not bind ⌘O.
+
+Note (2026-11-14), from issue
+[#355](https://github.com/shantanugoel/OpenCraft/issues/355). The profiles
+are one submenu. Before this, each profile was an item under the section
+title "Profile".
 
 ### 20. Data that the shell needs from the engine
 

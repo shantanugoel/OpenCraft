@@ -430,7 +430,7 @@ The exact look follows [DESIGN.md](../DESIGN.md) in the task of each part.
   The user guide has the full text. The control is a switch, for the same
   reason as the default profile.
 - **The menu bar item**: the item "Follow the Front Application" with a
-  check mark, below the profile items. It sends the same command.
+  check mark, below the profile submenu. It sends the same command.
 
 ### 12. Undo
 
