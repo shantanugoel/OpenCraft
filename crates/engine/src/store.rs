@@ -237,8 +237,8 @@ pub struct Summary {
     pub pages: Vec<String>,
     /// The number of the first page, from 0.
     pub first_page: usize,
-    /// The links that the file names. A link that the read cannot use is
-    /// not in the list. The full read of the file checks every link.
+    /// The links that the file names. The summary uses the same check as
+    /// the full read. When that check gives an error, the list is empty.
     pub applications: Vec<ApplicationLink>,
 }
 
@@ -356,7 +356,7 @@ impl ProfileStore {
             color: text_of("color").and_then(|c| c.parse().ok()),
             pages,
             first_page,
-            applications: applications_of(&table),
+            applications: applications_of(&table).unwrap_or_default(),
         }
     }
 
@@ -981,14 +981,9 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         found => return Err(BackupReason::NewerSchema { found }),
     }
     let version = header.schema_version;
-    if version < APPLICATIONS_VERSION || version < FOLDERS_VERSION {
+    if version < FOLDERS_VERSION {
         let table: toml::Table = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
-        if version < APPLICATIONS_VERSION && table.contains_key("applications") {
-            return Err(invalid(format!(
-                "version {version} has no application links"
-            )));
-        }
-        if version < FOLDERS_VERSION && table.contains_key("folders") {
+        if table.contains_key("folders") {
             return Err(invalid(format!("version {version} has no folders")));
         }
     }
@@ -1086,7 +1081,7 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     }
     let mut profile = Profile::for_model(model, file.name, pages);
     profile.color = color;
-    profile.applications = applications_from(version, file.applications).map_err(invalid)?;
+    profile.applications = check_links(version, file.applications).map_err(invalid)?;
     if let Some(first) = first_page {
         profile.mark_first_page(first);
     }
@@ -1094,8 +1089,14 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     Ok(profile)
 }
 
-/// The links of the file. A file of a version before the links has none.
-fn applications_from(
+/// The links of the file, after one check.
+///
+/// `links` is `None` when the file has no `applications` key. A file of a
+/// version before the links then has none. A key in an older file, a link
+/// that is not correct, a link that is two times in the file, or more than
+/// the maximum count gives an error. The full read and the summary both
+/// use this function.
+fn check_links(
     version: u32,
     links: Option<Vec<ApplicationData>>,
 ) -> std::result::Result<Vec<ApplicationLink>, String> {
@@ -1129,23 +1130,20 @@ fn applications_from(
     Ok(applications)
 }
 
-/// The links that a summary can read. A link with no bundle identifier or
-/// no name is not in the list.
-fn applications_of(table: &toml::Table) -> Vec<ApplicationLink> {
-    let Some(links) = table.get("applications").and_then(|value| value.as_array()) else {
-        return Vec::new();
+/// The links of a summary table. This uses [`check_links`], the same check
+/// as the full read.
+fn applications_of(table: &toml::Table) -> std::result::Result<Vec<ApplicationLink>, String> {
+    let Some(value) = table.get("applications") else {
+        return Ok(Vec::new());
     };
-    links
-        .iter()
-        .filter_map(|link| {
-            let bundle_id = link.get("bundle_id")?.as_str()?.to_string();
-            let name = link.get("name")?.as_str()?.to_string();
-            if !valid_bundle_id(&bundle_id) || name.is_empty() {
-                return None;
-            }
-            Some(ApplicationLink { bundle_id, name })
-        })
-        .collect()
+    let version = table
+        .get("schema_version")
+        .and_then(toml::Value::as_integer)
+        .and_then(|number| u32::try_from(number).ok())
+        .ok_or_else(|| "the schema version is not correct".to_string())?;
+    let links =
+        Vec::<ApplicationData>::deserialize(value.clone()).map_err(|error| error.to_string())?;
+    check_links(version, Some(links))
 }
 
 /// The text of the profile file for `profile`.
@@ -1701,6 +1699,7 @@ color = "#1E6FD9"
             "{text}"
         );
         assert_eq!(store.load().unwrap().profile, profile);
+        assert_eq!(store.summary().applications, profile.applications);
 
         let version_3 = "schema_version = 3\nname = \"Old\"\nmodel = \"n4-pro\"\n\n\
                          [[pages]]\nname = \"Main\"\n";
@@ -1712,6 +1711,55 @@ color = "#1E6FD9"
         assert!(text.starts_with("schema_version = 5\n"), "{text}");
         assert!(text.contains("name = \"Main\""), "{text}");
         assert!(!text.contains("applications"), "{text}");
+        assert!(store.summary().applications.is_empty());
+    }
+
+    #[test]
+    fn the_summary_and_the_full_read_agree_on_links_that_are_not_correct() {
+        let (_dir, store) = store();
+        fs::create_dir_all(store.dir()).unwrap();
+        let head = "schema_version = 5\nname = \"Calls\"\nmodel = \"n4-pro\"\n\n";
+        // One more than the maximum count.
+        let mut too_many = String::from(head);
+        for number in 0..MAX_LINKS + 1 {
+            too_many.push_str(&format!(
+                "[[applications]]\nbundle_id = \"com.example.app{number}\"\nname = \"App {number}\"\n"
+            ));
+        }
+        let repeated = format!(
+            "{head}[[applications]]\nbundle_id = \"us.zoom.xos\"\nname = \"zoom.us\"\n\
+             [[applications]]\nbundle_id = \"US.ZOOM.XOS\"\nname = \"Zoom\"\n"
+        );
+        // A link that is not correct, then a link that is correct. The
+        // summary must not keep the correct link.
+        let incorrect = format!(
+            "{head}[[applications]]\nbundle_id = \"not valid\"\nname = \"Bad\"\n\
+             [[applications]]\nbundle_id = \"com.apple.Safari\"\nname = \"Safari\"\n"
+        );
+        let old = "schema_version = 4\nname = \"x\"\nmodel = \"m\"\n\
+                   [[applications]]\nbundle_id = \"com.apple.Safari\"\nname = \"Safari\"\n";
+        for (label, text) in [
+            ("too many", too_many),
+            ("repeated", repeated),
+            ("not correct", incorrect),
+            ("version 4", old.to_string()),
+        ] {
+            let from_read = parse(&text)
+                .map(|profile| profile.applications)
+                .map_err(|reason| match reason {
+                    BackupReason::Invalid(message) => message,
+                    other => other.to_string(),
+                });
+            let from_summary = applications_of(&text.parse().unwrap());
+            assert_eq!(from_summary, from_read, "{label}");
+            assert!(from_read.is_err(), "{label}");
+            fs::write(store.profile_path(), &text).unwrap();
+            assert!(store.summary().applications.is_empty(), "{label}");
+            assert!(
+                matches!(store.read(), Err(Error::Unusable { .. })),
+                "{label}"
+            );
+        }
     }
 
     #[test]
