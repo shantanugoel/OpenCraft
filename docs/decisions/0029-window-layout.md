@@ -1496,7 +1496,7 @@ and the code does this:
 - The menu has no "Page" submenu and no "Profile" submenu before the engine
   sends the pages and the profiles. It has no brightness row before the engine
   sends the device settings.
-- A selection of the active profile or the active page sends no command.
+- A selection of the active profile sends no command.
 - The slider sends at most one command in each 50 ms, and the last value
   always goes to the engine. A change from the window moves the slider when
   the menu opens again. The engine saves the value.
@@ -1507,6 +1507,13 @@ Note (2026-11-14), from issue
 [#355](https://github.com/shantanugoel/OpenCraft/issues/355). The profiles
 are one submenu. Before this, each profile was an item under the section
 title "Profile".
+
+Note (2026-11-14), from issue
+[#371](https://github.com/shantanugoel/OpenCraft/issues/371). A choice of
+the page that is shown sends the page command. The engine closes the open
+folders when that page is the page under the folders
+([decision 0036](0036-folders.md#4-the-pages-and-the-folders)). A choice of
+a different page operates as before.
 
 ### 20. Data that the shell needs from the engine
 
