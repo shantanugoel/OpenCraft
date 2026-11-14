@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Record the input of each control of the N4 Pro.
-# The probe shows one line for each gesture and goes to the next line by
-# itself. The procedure is in GitHub issue #11. The file format is in
-# crates/core/tests/fixtures/input/README.md.
+# Record the input of each control of the connected device.
+# The probe reads the descriptor and shows one line for each gesture. It
+# goes to the next line by itself. The steps are in
+# docs/ADDING-A-DEVICE-MODEL.md, section "Record the input". The file format
+# is in crates/core/tests/fixtures/input/README.md.
 #
 # Usage: scripts/record-input.sh [--from <step number>]
 #

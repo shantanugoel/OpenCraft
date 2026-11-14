@@ -87,7 +87,8 @@ COMMANDS:
     clear [slot]         Send the clear command for one slot, or for all slots
     background           Draw a test pattern on the background
     raw                  Hexdump raw input reports; can save them to a file
-    record               Record each gesture to a file, one prompt at a time
+    record               Record each gesture of the connected device to a
+                         file. The steps come from its descriptor.
                          (--out <dir>, --from <step>)
     send <name> [args]   Send one protocol command and nothing else. The names
                          are: brightness <0-100>..., knob-colors <rrggbb>...,

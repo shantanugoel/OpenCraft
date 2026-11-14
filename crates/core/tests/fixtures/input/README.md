@@ -15,10 +15,13 @@ repository:
 scripts/record-input.sh
 ```
 
-The probe draws the slot numbers on the key faces and the bar panels, then it shows one line for each gesture. Do the
-gesture on the device, then wait for the next line. The probe goes to the next
-line when the device sends no more reports. Do not use the keyboard. Each
-gesture goes to one file. A gesture that gives no report has no file.
+The probe draws the slot numbers on the key faces and the bar panels, then it
+shows one line for each gesture. The list of gestures comes from the descriptor
+of the connected device. The files in this directory are the list for the N4
+Pro. Do the gesture on the device, then wait for the next line. The probe goes
+to the next line when the device sends no more reports. Do not use the
+keyboard. Each gesture goes to one file. A gesture that gives no report has no
+file.
 
 The probe sends the keep-alive command each 10 seconds. Without it, the device
 stops the connection. See
