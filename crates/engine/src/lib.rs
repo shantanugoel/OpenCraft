@@ -33,6 +33,7 @@ pub mod device_settings;
 pub mod engine;
 pub mod error;
 pub mod front;
+pub mod front_switch;
 pub mod history;
 pub mod icons;
 pub mod label;

@@ -309,11 +309,14 @@ fn a_profile_shows_its_application_and_the_default_mark(cx: &mut TestAppContext)
                 name: "Safari".into(),
             },
         ],
-        clashes: vec!["us.zoom.xos".into()],
         ..Default::default()
     };
+    // The list gives the links that apply and the owner of each link.
+    let profiles = opencraft_engine::profile_list::ProfileList::new(vec![calls, work], None)
+        .entries()
+        .to_vec();
     tx.try_send(Event::Profiles {
-        profiles: vec![calls, work],
+        profiles,
         active: "calls".into(),
         default: "work".into(),
         cause: ActiveCause::Linked {
