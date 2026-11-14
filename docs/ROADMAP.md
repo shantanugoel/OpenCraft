@@ -615,9 +615,6 @@ record of the owner checks.
   open. The owner chose the design in that issue. The choice blocks no
   phase. A profile file can still contain a home path until that issue is
   done.
-- The menu bar item lists every profile. A nested list is
-  [issue #355](https://github.com/shantanugoel/OpenCraft/issues/355). It
-  blocks no phase.
 - The time from the notice of the front application to the end of the
   device writes, and the idle processor use, are in
   [kb/footprint.md](kb/footprint.md). The ready profiles install from the

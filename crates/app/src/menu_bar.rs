@@ -13,7 +13,7 @@ use objc2::{
     define_class, msg_send,
     rc::Retained,
     runtime::{NSObject, NSObjectProtocol, ProtocolObject},
-    sel, AnyThread, ClassType, DefinedClass, MainThreadMarker, MainThreadOnly,
+    sel, AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly,
 };
 use objc2_app_kit::{
     NSAccessibility, NSApplication, NSApplicationActivationOptions, NSAutoresizingMaskOptions,
@@ -288,7 +288,6 @@ impl MenuBar {
         for row in rows {
             let entry = match row {
                 Row::Separator => NSMenuItem::separatorItem(mtm),
-                Row::Section(title) => section_header(mtm, title),
                 Row::Brightness(brightness) => {
                     let (item, made) = self.brightness_row(*brightness);
                     *self.target.ivars().value.borrow_mut() = Some(made.value.clone());
@@ -303,21 +302,21 @@ impl MenuBar {
                     entry.setAttributedTitle(Some(&device_title(title, *connected)));
                     entry
                 }
-                Row::Pages { title, pages } => {
-                    let entry = menu_item(mtm, title, "");
-                    let submenu = NSMenu::new(mtm);
-                    for page in pages {
-                        let item = menu_item(mtm, &page.title, "");
-                        self.make_selectable(&item, Some(page.command()), &mut table);
-                        if page.checked {
-                            item.setState(NSControlStateValueOn);
-                        }
-                        submenu.addItem(&item);
-                    }
-                    entry.setSubmenu(Some(&submenu));
-                    entry
-                }
-                Row::Profile { checked, .. } | Row::Follow { checked } => {
+                Row::Profiles { title, profiles } => self.choice_submenu(
+                    title,
+                    profiles.iter().map(|profile| {
+                        (profile.title.as_str(), profile.checked, profile.command())
+                    }),
+                    &mut table,
+                ),
+                Row::Pages { title, pages } => self.choice_submenu(
+                    title,
+                    pages
+                        .iter()
+                        .map(|page| (page.title.as_str(), page.checked, page.command())),
+                    &mut table,
+                ),
+                Row::Follow { checked } => {
                     let entry = menu_item(mtm, row.title().unwrap_or_default(), row.key());
                     self.make_selectable(&entry, row.command(), &mut table);
                     if *checked {
@@ -339,6 +338,29 @@ impl MenuBar {
             self.menu.addItem(&entry);
         }
         *self.target.ivars().table.borrow_mut() = table;
+    }
+
+    /// An item that opens a submenu. Each child can be selected. A checked
+    /// child has the check mark.
+    fn choice_submenu<'a>(
+        &self,
+        title: &str,
+        choices: impl IntoIterator<Item = (&'a str, bool, ShellCommand)>,
+        table: &mut Vec<Option<ShellCommand>>,
+    ) -> Retained<NSMenuItem> {
+        let mtm = self.mtm;
+        let entry = menu_item(mtm, title, "");
+        let submenu = NSMenu::new(mtm);
+        for (title, checked, command) in choices {
+            let item = menu_item(mtm, title, "");
+            self.make_selectable(&item, Some(command), table);
+            if checked {
+                item.setState(NSControlStateValueOn);
+            }
+            submenu.addItem(&item);
+        }
+        entry.setSubmenu(Some(&submenu));
+        entry
     }
 
     /// Give `item` the action `select:`, and put `command` in the table.
@@ -431,20 +453,6 @@ impl MenuBar {
         let item = menu_item(mtm, "Brightness", "");
         item.setView(Some(&view));
         (item, BrightnessRow { slider, value })
-    }
-}
-
-/// A title for the rows below it. macOS 14 and later have the standard
-/// section header. Before it, the title is a line that the user cannot select.
-fn section_header(mtm: MainThreadMarker, title: &str) -> Retained<NSMenuItem> {
-    // SAFETY: `respondsToSelector:` takes a selector and gives a boolean.
-    let has_header: bool = unsafe {
-        msg_send![NSMenuItem::class(), respondsToSelector: sel!(sectionHeaderWithTitle:)]
-    };
-    if has_header {
-        NSMenuItem::sectionHeaderWithTitle(&NSString::from_str(title), mtm)
-    } else {
-        menu_item(mtm, title, "")
     }
 }
 

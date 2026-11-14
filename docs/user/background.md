@@ -25,7 +25,7 @@ displays with the menu. The window does not have to be open.
 | Menu item | What it does |
 |---|---|
 | *Device name* · connected, or *Device name* · not connected | Shows the state of the device. The dot is green when the device is connected. You cannot click it. |
-| Profile, and the list of your profiles | Click a profile to make it the active profile. The device shows it. The check mark is at the active profile. |
+| Profile: *name* | Opens a list of your profiles. Click a profile to make it the active profile. The device shows it. The check mark is at the active profile. |
 | Follow the Front Application | Turns the automatic profile change on or off. The check mark shows when it is on. See [The profile follows the front application](controls.md#the-profile-follows-the-front-application). |
 | Page: *name* | Opens a list of the pages of the active profile. Click a page to show it on the device. The check mark is at the active page. |
 | Brightness | The slider sets the brightness of the displays of the device. Drag the knob of the slider. The number at the right shows the value. OpenCraft saves the value and uses it again when it starts. The same value shows in **Device settings** in the window. |

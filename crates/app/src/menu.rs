@@ -6,10 +6,11 @@
 //! the licence notices are in the Settings window (decision 0029, section
 //! 17). The menu has the items that open that window.
 //!
-//! [`MenuState::rows`] gives the rows of the menu for a state. The rows
-//! follow the profiles and the pages of the engine, thus the number of rows
-//! changes. Each row that the user can select has its command in
-//! [`Row::command`].
+//! [`MenuState::rows`] gives the rows of the menu for a state. The profile
+//! row and the page row are submenus. Their items follow the profiles and
+//! the pages of the engine. Each row that the user can select has its
+//! command in [`Row::command`]. A row of a submenu has its command in
+//! [`ProfileRow::command`] or [`PageRow::command`].
 //!
 //! To add an item, add it to [`Row`], to [`MenuState::rows`], and to
 //! [`Row::command`].
@@ -31,6 +32,21 @@ pub struct Brightness {
 
 /// The highest display brightness, in percent.
 pub const HIGHEST_BRIGHTNESS: u8 = 100;
+
+/// One row of a submenu of profiles.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfileRow {
+    pub id: String,
+    pub title: String,
+    pub checked: bool,
+}
+
+impl ProfileRow {
+    /// The command that the row sends when the user selects it.
+    pub fn command(&self) -> ShellCommand {
+        ShellCommand::SelectProfile(self.id.clone())
+    }
+}
 
 /// One row of a submenu of pages.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,17 +72,14 @@ pub enum Row {
         connected: bool,
     },
     Separator,
-    /// A title for the rows below it. The user cannot select it.
-    Section(String),
-    /// A profile. The active profile has a check mark.
-    Profile {
-        id: String,
-        title: String,
-        checked: bool,
-    },
     /// The automatic switch (decision 0035). A check mark means it is on.
     Follow {
         checked: bool,
+    },
+    /// The submenu of the profiles. The title names the active profile.
+    Profiles {
+        title: String,
+        profiles: Vec<ProfileRow>,
     },
     /// The submenu of the pages of the active profile.
     Pages {
@@ -94,7 +107,6 @@ impl Row {
     /// slider sends [`ShellCommand::SetBrightness`] when it moves.
     pub fn command(&self) -> Option<ShellCommand> {
         match self {
-            Row::Profile { id, .. } => Some(ShellCommand::SelectProfile(id.clone())),
             Row::Follow { checked } => Some(ShellCommand::SetFollowFrontApplication(!checked)),
             Row::Open => Some(ShellCommand::Open),
             Row::WakeDevice => Some(ShellCommand::WakeDevice),
@@ -105,7 +117,7 @@ impl Row {
             Row::Quit => Some(ShellCommand::Quit),
             Row::Device { .. }
             | Row::Separator
-            | Row::Section(_)
+            | Row::Profiles { .. }
             | Row::Pages { .. }
             | Row::Brightness(_) => None,
         }
@@ -114,10 +126,9 @@ impl Row {
     /// The title, for the rows that are items with a title.
     pub fn title(&self) -> Option<&str> {
         match self {
-            Row::Device { title, .. }
-            | Row::Section(title)
-            | Row::Profile { title, .. }
-            | Row::Pages { title, .. } => Some(title),
+            Row::Device { title, .. } | Row::Profiles { title, .. } | Row::Pages { title, .. } => {
+                Some(title)
+            }
             Row::Follow { .. } => Some("Follow the Front Application"),
             Row::Permission => Some("Accessibility Permission Not Given…"),
             Row::Open => Some("Open OpenCraft"),
@@ -192,12 +203,29 @@ impl MenuState {
             Row::Separator,
         ];
         if !self.profiles.is_empty() {
-            rows.push(Row::Section("Profile".into()));
-            rows.extend(self.profiles.iter().map(|p| Row::Profile {
-                id: p.id.clone(),
-                title: p.name.clone(),
-                checked: self.profile.as_ref() == Some(&p.id),
-            }));
+            // The title names the active profile. With no active profile,
+            // the item is still the list, and its title is "Profile".
+            let active_name = self
+                .profiles
+                .iter()
+                .find(|profile| self.profile.as_ref() == Some(&profile.id))
+                .map(|profile| profile.name.as_str());
+            let title = match active_name {
+                Some(active_name) => format!("Profile: {active_name}"),
+                None => "Profile".to_string(),
+            };
+            rows.push(Row::Profiles {
+                title,
+                profiles: self
+                    .profiles
+                    .iter()
+                    .map(|profile| ProfileRow {
+                        id: profile.id.clone(),
+                        title: profile.name.clone(),
+                        checked: self.profile.as_ref() == Some(&profile.id),
+                    })
+                    .collect(),
+            });
         }
         rows.push(Row::Follow {
             checked: self.follow_front,
@@ -309,10 +337,7 @@ mod tests {
             [
                 "Stream Dock N4 Pro · connected",
                 "-",
-                "Profile",
-                "Desk",
-                "Video",
-                "Game",
+                "Profile: Video",
                 "Follow the Front Application",
                 "Page: Mail",
                 "-",
@@ -332,14 +357,19 @@ mod tests {
     #[test]
     fn the_active_profile_and_the_active_page_have_the_check_mark() {
         let rows = state().rows();
-        let checked: Vec<_> = rows
-            .iter()
-            .filter_map(|r| match r {
-                Row::Profile { id, checked, .. } => Some((id.as_str(), *checked)),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(checked, [("desk", false), ("video", true), ("game", false)]);
+        let Some(Row::Profiles { title, profiles }) =
+            rows.iter().find(|r| matches!(r, Row::Profiles { .. }))
+        else {
+            panic!("no submenu of profiles");
+        };
+        assert_eq!(title, "Profile: Video");
+        assert_eq!(
+            profiles
+                .iter()
+                .map(|p| (p.id.as_str(), p.checked))
+                .collect::<Vec<_>>(),
+            [("desk", false), ("video", true), ("game", false)]
+        );
         let Some(Row::Pages { pages, .. }) = rows.iter().find(|r| matches!(r, Row::Pages { .. }))
         else {
             panic!("no submenu of pages");
@@ -353,19 +383,34 @@ mod tests {
     #[test]
     fn a_profile_row_selects_its_profile() {
         let rows = state().rows();
-        let commands: Vec<_> = rows
-            .iter()
-            .filter(|r| matches!(r, Row::Profile { .. }))
-            .map(|r| r.command())
-            .collect();
+        let Some(Row::Profiles { profiles, .. }) =
+            rows.iter().find(|r| matches!(r, Row::Profiles { .. }))
+        else {
+            panic!("no submenu of profiles");
+        };
         assert_eq!(
-            commands,
+            profiles.iter().map(ProfileRow::command).collect::<Vec<_>>(),
             [
-                Some(ShellCommand::SelectProfile("desk".into())),
-                Some(ShellCommand::SelectProfile("video".into())),
-                Some(ShellCommand::SelectProfile("game".into())),
+                ShellCommand::SelectProfile("desk".into()),
+                ShellCommand::SelectProfile("video".into()),
+                ShellCommand::SelectProfile("game".into()),
             ]
         );
+    }
+
+    #[test]
+    fn the_profile_submenu_keeps_the_list_when_no_profile_is_active() {
+        let mut state = state();
+        state.profile = None;
+        let Some(Row::Profiles { title, profiles }) = state
+            .rows()
+            .into_iter()
+            .find(|r| matches!(r, Row::Profiles { .. }))
+        else {
+            panic!("no submenu of profiles");
+        };
+        assert_eq!(title, "Profile");
+        assert!(profiles.iter().all(|profile| !profile.checked));
     }
 
     #[test]
@@ -405,7 +450,7 @@ mod tests {
                 row,
                 Row::Device { .. }
                     | Row::Separator
-                    | Row::Section(_)
+                    | Row::Profiles { .. }
                     | Row::Pages { .. }
                     | Row::Brightness(_)
             ) {

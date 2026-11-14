@@ -87,6 +87,9 @@ profiles, a submenu of the pages, and a slider for the display brightness.
 The tested facts about a custom view in a menu are in
 [kb/gpui.md](../kb/gpui.md#the-menu-with-the-brightness-row-2026-11-13).
 
+Note (2026-11-14): the profiles are one submenu. Section 19 of
+[decision 0029](0029-window-layout.md) gives the items.
+
 ### Commands from the menu
 
 A class that `objc2::define_class!` makes is the target of each menu item.
