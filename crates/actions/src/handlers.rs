@@ -2,11 +2,11 @@
 
 use crate::backend::{RealSystem, System};
 use crate::descriptions::*;
-use crate::flow::{NavigationHandler, SequenceHandler, ToggleHandler};
+use crate::flow::RequestHandler;
+use crate::kinds::Group;
 use crate::system::Volume;
 use opencraft_engine::{
     Action, BindingId, Feedback, Handler, KindDescription, Message, MessageSender, Request, Status,
-    Value,
 };
 use std::collections::BTreeMap;
 use std::io;
@@ -57,13 +57,13 @@ pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dy
             poll: None,
             intervals,
         }),
-        Box::new(crate::device::DeviceHandler::default()),
+        Box::new(RequestHandler::new(Group::Device, system.clone())),
         Box::new(crate::audio::MicrophoneHandler::new(system.clone())),
         Box::new(crate::audio_output::OutputHandler::new(system.clone())),
         Box::new(crate::sound::SoundHandler::new(system.clone())),
-        Box::new(NavigationHandler::default()),
-        Box::new(ToggleHandler::default()),
-        Box::new(SequenceHandler::new(system)),
+        Box::new(RequestHandler::new(Group::Navigation, system.clone())),
+        Box::new(RequestHandler::new(Group::Toggle, system.clone())),
+        Box::new(RequestHandler::new(Group::Sequence, system)),
     ]
 }
 
@@ -76,24 +76,6 @@ pub(crate) fn send(sender: &Option<MessageSender>, message: Message) {
 pub(crate) fn problem(sender: &Option<MessageSender>, result: Result<()>) {
     if let Err(text) = result {
         send(sender, Message::Problem(text));
-    }
-}
-
-/// The text in the setting `key` of `action`. Empty text is a problem.
-fn text<'a>(action: &'a Action, key: &str) -> Result<&'a str> {
-    match action.settings.get(key) {
-        Some(Value::Text(value)) if !value.is_empty() => Ok(value),
-        _ => Err(setting_problem(&action.kind, key)),
-    }
-}
-
-/// As [`text`], but text with only spaces and line ends is also a problem.
-pub(crate) fn nonblank<'a>(action: &'a Action, key: &str) -> Result<&'a str> {
-    let value = text(action, key)?;
-    if value.trim().is_empty() {
-        Err(setting_problem(&action.kind, key))
-    } else {
-        Ok(value)
     }
 }
 

@@ -146,7 +146,7 @@ fn a_page_key_sends_its_page_number_from_one_as_a_label_only_when_the_setting_is
 
 #[test]
 fn the_page_form_has_a_switch_for_the_page_number_that_is_off_by_default() {
-    let description = crate::descriptions::description(crate::descriptions::PAGE);
+    let description = crate::descriptions::description(crate::kinds::page::ID);
     assert_eq!(description.group, "Navigation");
     let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
     assert_eq!(keys, ["target", "page", "show_number"]);

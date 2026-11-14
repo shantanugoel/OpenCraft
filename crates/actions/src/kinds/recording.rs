@@ -30,6 +30,8 @@ pub(crate) enum Call {
     /// A sound: the file, the volume in percent, and the output.
     PlaySound(String, u8, Option<String>),
     StopSounds,
+    /// A wait of a sequence, in milliseconds. The fake does not wait.
+    Sleep(u64),
 }
 
 /// A failure of one operation. `Code` is [`Error::System`] with code 42.
@@ -297,7 +299,10 @@ impl SystemPort for System {
             waited: Arc::clone(&self.waited),
         }))
     }
-    fn sleep(&self, _duration: Duration) {
-        unused()
+    fn sleep(&self, duration: Duration) {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(Call::Sleep(duration.as_millis() as u64));
     }
 }
