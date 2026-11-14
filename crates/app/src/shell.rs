@@ -159,6 +159,8 @@ pub enum ShellCommand {
     /// follows the engine events.
     SelectProfile(String),
     /// Make the page with this number of the active profile the active page.
+    /// The shell sends this also for the page that is shown. The engine
+    /// then closes the open folders (decision 0036).
     SelectPage(usize),
     /// Set the display brightness of the device, in percent. Only the
     /// slider of the menu bar item (macOS) makes this command.
@@ -460,9 +462,10 @@ impl Shell {
                 }
             }
             ShellCommand::SelectPage(page) => {
-                if self.state.page != page {
-                    (self.send)(Command::SelectPage { page });
-                }
+                // The shown page still goes to the engine. The engine closes
+                // the open folders (decision 0036) and ignores a choice that
+                // changes nothing.
+                (self.send)(Command::SelectPage { page });
             }
             ShellCommand::SetBrightness(value) => self.set_brightness(value, cx),
             ShellCommand::OpenSettings(pane) => self.open_settings(pane, cx),
@@ -1317,7 +1320,8 @@ mod tests {
             .try_send(ShellCommand::SelectProfile("video".into()))
             .unwrap();
         f.commands.try_send(ShellCommand::SelectPage(1)).unwrap();
-        // The active profile and the active page: nothing to do.
+        // The active profile: nothing to do. The shown page still goes to
+        // the engine, so the engine can close the open folders.
         f.commands
             .try_send(ShellCommand::SelectProfile("desk".into()))
             .unwrap();
@@ -1331,6 +1335,7 @@ mod tests {
                     profile: "video".into()
                 },
                 Command::SelectPage { page: 1 },
+                Command::SelectPage { page: 0 },
             ]
         );
     }

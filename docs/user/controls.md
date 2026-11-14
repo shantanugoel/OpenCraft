@@ -186,7 +186,8 @@ to show that folder.
 
 **Next page** and **Previous page** close every folder. They go to the next
 or the previous page. They do not open a folder. A different profile also
-closes every folder.
+closes every folder. In the menu bar item, a click on the page that the
+device shows also closes every folder.
 
 **Copy to All Pages** is dim while a folder is open.
 
