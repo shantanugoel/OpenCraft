@@ -15,7 +15,9 @@ use opencraft_core::{
 };
 use std::io::{BufRead, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// The time to wait for the first report of a step that ends on a quiet gap.
@@ -31,12 +33,22 @@ enum End {
     /// No report for this number of milliseconds.
     Quiet(u64),
     /// The user pushes a knob. The report of the push is not in the file.
-    /// The descriptor has a knob, and each knob has a push code.
+    /// The descriptor has a knob, and each knob has a push code. Enter also
+    /// ends the step, so a knob code that is not correct does not make the
+    /// step wait for [`STEP_LIMIT`].
     KnobPush,
     /// The user pushes Enter. The descriptor has no knob. The Enter key is
     /// not in the file. The step also ends at [`STEP_LIMIT`].
     Enter,
 }
+
+/// When Enter cannot arrive, a step that waits for it ends after this time
+/// with no report, or after this time from the last report.
+const ENTER_CLOSED_QUIET: Duration = Duration::from_millis(2000);
+
+/// The line the command prints when standard input has ended.
+const ENTER_CLOSED_NOTE: &str =
+    "Enter is not available. A step that waits for Enter ends when the device sends no more reports.";
 
 struct Step {
     name: String,
@@ -54,7 +66,9 @@ fn step(name: impl Into<String>, prompt: impl Into<String>, end: End) -> Step {
 
 /// The lines that the command shows before the first step.
 ///
-/// A step that ends on Enter is the only step that uses the keyboard.
+/// A step that ends on Enter is the only step whose line names the keyboard.
+/// A step that ends on a knob push also ends on Enter. Its line still says
+/// to push a knob, so the introduction does not name the keyboard.
 fn introduction(steps: &[Step]) -> &'static str {
     if steps.iter().any(|step| step.end == End::Enter) {
         "Use the keyboard only when a line says to push Enter. Each dot is one report from the device."
@@ -67,8 +81,8 @@ fn introduction(steps: &[Step]) -> &'static str {
 ///
 /// Keys come first, by row and then by column. Then each knob, then each bar
 /// panel, then the touch-bar steps when the model has a touch bar. A step
-/// with 20 swipes ends on a knob push when the model has a knob. With no
-/// knob, that step ends when the user pushes Enter.
+/// with 20 swipes ends on a knob push when the model has a knob. Enter also
+/// ends that step. With no knob, that step ends when the user pushes Enter.
 fn steps(descriptor: &Descriptor) -> Vec<Step> {
     let mut out = Vec::new();
     let keys = controls_sorted(descriptor, ControlKind::Key);
@@ -323,6 +337,8 @@ fn row_name(row: u8) -> String {
 /// step that ends on Enter can see the key without a second reader.
 struct EnterLines {
     rx: Receiver<()>,
+    /// True after standard input ends. Enter cannot arrive after that.
+    closed: Arc<AtomicBool>,
 }
 
 impl EnterLines {
@@ -333,6 +349,8 @@ impl EnterLines {
             libc::tcflush(0, libc::TCIFLUSH);
         }
         let (tx, rx) = mpsc::channel();
+        let closed = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&closed);
         std::thread::spawn(move || {
             let stdin = std::io::stdin();
             let mut lines = stdin.lock();
@@ -340,7 +358,10 @@ impl EnterLines {
             loop {
                 line.clear();
                 match lines.read_line(&mut line) {
-                    Ok(0) | Err(_) => break,
+                    Ok(0) | Err(_) => {
+                        flag.store(true, Ordering::Release);
+                        break;
+                    }
                     Ok(_) => {
                         if tx.send(()).is_err() {
                             break;
@@ -349,7 +370,7 @@ impl EnterLines {
                 }
             }
         });
-        Self { rx }
+        Self { rx, closed }
     }
 
     /// Drop Enter keys that arrived before this step.
@@ -362,6 +383,53 @@ impl EnterLines {
     fn take_press(&self) -> bool {
         self.rx.try_recv().is_ok()
     }
+
+    fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::Acquire)
+    }
+}
+
+/// `--out` is necessary. The command used to write into the N4 Pro fixture
+/// directory when the flag was absent. A recording of another model then
+/// replaced those files.
+fn output_directory(rest: &[String]) -> Result<&str, &'static str> {
+    flag_str(rest, "--out").ok_or("record needs --out <directory>")
+}
+
+fn waits_for_enter(end: End) -> bool {
+    matches!(end, End::Enter | End::KnobPush)
+}
+
+/// Enter, or a knob push, ends the step before the quiet checks.
+fn key_ends_step(end: End, enter_pressed: bool, knob_push: bool) -> bool {
+    (waits_for_enter(end) && enter_pressed) || (end == End::KnobPush && knob_push)
+}
+
+/// A quiet gap ends the step. When Enter cannot arrive, a step that waits
+/// for Enter uses [`ENTER_CLOSED_QUIET`] instead of [`STEP_LIMIT`].
+fn quiet_done(
+    end: End,
+    enter_closed: bool,
+    has_report: bool,
+    since_start: Duration,
+    since_last: Duration,
+) -> bool {
+    let limit = match end {
+        End::Quiet(ms) if has_report => Duration::from_millis(ms),
+        End::Quiet(_) => FIRST_REPORT_LIMIT,
+        End::Enter | End::KnobPush if enter_closed => ENTER_CLOSED_QUIET,
+        End::Enter | End::KnobPush => return false,
+    };
+    let waited = if has_report { since_last } else { since_start };
+    waited >= limit
+}
+
+fn say_enter_closed(enter: Option<&EnterLines>, told: &mut bool) {
+    if *told || !enter.is_some_and(EnterLines::is_closed) {
+        return;
+    }
+    println!("{ENTER_CLOSED_NOTE}");
+    *told = true;
 }
 
 /// The device, with the time of the last command, for the keep-alive.
@@ -382,7 +450,7 @@ impl Session {
 }
 
 pub fn cmd_record(rest: &[String]) -> AnyResult {
-    let out = flag_str(rest, "--out").unwrap_or("crates/core/tests/fixtures/input");
+    let out = output_directory(rest)?;
     let from = flag_u64(rest, "--from").unwrap_or(1).max(1) as usize;
 
     // The step list needs the descriptor, so open the device before the
@@ -409,25 +477,29 @@ pub fn cmd_record(rest: &[String]) -> AnyResult {
     };
     let enter = steps
         .iter()
-        .any(|step| step.end == End::Enter)
+        .any(|step| waits_for_enter(step.end))
         .then(EnterLines::start);
 
     println!("Do what each line says. Then wait for the next line.");
     println!("{}\n", introduction(&steps));
 
     let mut missing = Vec::new();
+    let mut told_enter = false;
     for (i, step) in steps.iter().enumerate().skip(from - 1) {
         let n = i + 1;
-        if step.end == End::Enter {
+        if waits_for_enter(step.end) {
             if let Some(lines) = enter.as_ref() {
                 lines.discard_pending();
             }
+            say_enter_closed(enter.as_ref(), &mut told_enter);
         }
         print!("[{n:>2}/{}] {}  ", steps.len(), step.prompt);
         std::io::stdout().flush()?;
 
-        let reports = run_step(&mut session, step.end, enter.as_ref())
-            .map_err(|e| format!("{e}\n\n  To continue: opencraft-probe record --from {n}"))?;
+        let reports =
+            run_step(&mut session, step.end, enter.as_ref(), &mut told_enter).map_err(|e| {
+                format!("{e}\n\n  To continue: opencraft-probe record --out {out} --from {n}")
+            })?;
 
         let path = Path::new(out).join(format!("{n:02}-{}.txt", step.name));
         if reports.is_empty() {
@@ -459,14 +531,18 @@ fn run_step(
     session: &mut Session,
     end: End,
     enter: Option<&EnterLines>,
+    told_enter: &mut bool,
 ) -> opencraft_core::Result<Vec<(u64, Vec<u8>)>> {
     let mut reports: Vec<(u64, Vec<u8>)> = Vec::new();
     let started = Instant::now();
     let mut first: Option<Instant> = None;
     let mut last = Instant::now();
+    if waits_for_enter(end) {
+        say_enter_closed(enter, told_enter);
+    }
 
     loop {
-        if end == End::Enter && enter.is_some_and(EnterLines::take_press) {
+        if key_ends_step(end, enter.is_some_and(EnterLines::take_press), false) {
             return Ok(reports);
         }
         let report = session.poll()?;
@@ -477,16 +553,19 @@ fn run_step(
             if decoded == Decoded::Ack {
                 continue;
             }
-            if matches!(end, End::KnobPush)
-                && matches!(
+            if key_ends_step(
+                end,
+                false,
+                matches!(
                     decoded,
                     Decoded::Input(InputEvent {
                         gesture: Gesture::Push,
                         ..
                     })
-                )
-            {
+                ),
+            ) {
                 // The push ends the step, also when no swipe gave a report.
+                // The report of the push is not in the file.
                 return Ok(reports);
             }
             let t0 = *first.get_or_insert(now);
@@ -499,14 +578,17 @@ fn run_step(
         if started.elapsed() >= STEP_LIMIT {
             return Ok(reports);
         }
-        if let End::Quiet(ms) = end {
-            let done = match first {
-                None => started.elapsed() >= FIRST_REPORT_LIMIT,
-                Some(_) => now.duration_since(last) >= Duration::from_millis(ms),
-            };
-            if done {
-                return Ok(reports);
-            }
+        if waits_for_enter(end) {
+            say_enter_closed(enter, told_enter);
+        }
+        if quiet_done(
+            end,
+            enter.is_some_and(EnterLines::is_closed),
+            first.is_some(),
+            started.elapsed(),
+            now.duration_since(last),
+        ) {
+            return Ok(reports);
         }
     }
 }
@@ -861,5 +943,69 @@ mod tests {
         assert_eq!(ordinal(21), "21st");
         assert_eq!(ordinal(22), "22nd");
         assert_eq!(ordinal(23), "23rd");
+    }
+
+    #[test]
+    fn record_needs_an_output_directory() {
+        assert_eq!(
+            output_directory(&[]).unwrap_err(),
+            "record needs --out <directory>"
+        );
+        assert_eq!(
+            output_directory(&["--from".into(), "2".into()]).unwrap_err(),
+            "record needs --out <directory>"
+        );
+        assert_eq!(
+            output_directory(&["--out".into()]).unwrap_err(),
+            "record needs --out <directory>"
+        );
+        assert_eq!(
+            output_directory(&["--out".into(), "recordings".into()]).unwrap(),
+            "recordings"
+        );
+    }
+
+    #[test]
+    fn a_knob_push_step_also_ends_when_the_user_pushes_enter() {
+        assert!(key_ends_step(End::KnobPush, true, false));
+        assert!(key_ends_step(End::KnobPush, false, true));
+        assert!(!key_ends_step(End::KnobPush, false, false));
+        assert!(key_ends_step(End::Enter, true, false));
+        assert!(!key_ends_step(End::Enter, false, true));
+        assert!(!key_ends_step(End::Quiet(1000), true, true));
+    }
+
+    #[test]
+    fn a_step_that_waits_for_enter_ends_after_a_quiet_time_when_enter_cannot_arrive() {
+        let quiet = ENTER_CLOSED_QUIET;
+        let almost = quiet - Duration::from_millis(1);
+        assert!(!quiet_done(End::Enter, true, false, almost, quiet));
+        assert!(quiet_done(End::Enter, true, false, quiet, Duration::ZERO));
+        assert!(!quiet_done(End::KnobPush, true, true, quiet, almost));
+        assert!(quiet_done(End::KnobPush, true, true, Duration::ZERO, quiet));
+        // Standard input is still open, so the step waits for the key.
+        // The time limit of the step is outside this check.
+        assert!(!quiet_done(End::Enter, false, true, STEP_LIMIT, STEP_LIMIT));
+        assert!(!quiet_done(
+            End::KnobPush,
+            false,
+            false,
+            STEP_LIMIT,
+            STEP_LIMIT
+        ));
+        assert!(quiet_done(
+            End::Quiet(1000),
+            false,
+            true,
+            Duration::from_secs(30),
+            Duration::from_millis(1000),
+        ));
+        assert!(!quiet_done(
+            End::Quiet(1000),
+            false,
+            false,
+            FIRST_REPORT_LIMIT - Duration::from_millis(1),
+            Duration::ZERO,
+        ));
     }
 }

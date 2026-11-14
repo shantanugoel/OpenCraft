@@ -10,9 +10,11 @@
 //! `docs/ADDING-A-DEVICE-MODEL.md`.
 
 use super::*;
+use crate::view::theme;
+use gpui_kit::{BorderStyle, Hsla};
 use opencraft_engine::{
-    ControlLayout, DeviceLayout, DeviceSettings, KnobLightMode, KnobLights, SettingsSupport,
-    SurfaceLayout,
+    ControlLayout, DeviceLayout, DeviceSettings, InputEvent, KnobLightMode, KnobLights,
+    SettingsSupport, SurfaceLayout,
 };
 
 fn face(number: u8) -> SurfaceId {
@@ -267,5 +269,116 @@ fn the_user_can_select_a_key_that_has_no_surface_and_give_it_a_binding(cx: &mut 
             gesture: GestureKind::Press,
             folder: None,
         })
+    );
+}
+
+#[derive(Debug)]
+struct PlainBorder {
+    width: f32,
+    colour: Hsla,
+    style: BorderStyle,
+}
+
+fn same_colour(left: Hsla, right: Hsla) -> bool {
+    (left.h - right.h).abs() < 1e-3
+        && (left.s - right.s).abs() < 1e-3
+        && (left.l - right.l).abs() < 1e-3
+        && (left.a - right.a).abs() < 1e-3
+}
+
+/// The borders painted on the element `id`. GPUI can paint one border as
+/// more than one quad. Each quad has the size of the element.
+fn plain_borders(cx: &mut VisualTestContext, id: &'static str) -> Vec<PlainBorder> {
+    let bounds = cx
+        .debug_bounds(id)
+        .unwrap_or_else(|| panic!("No element: {id}"));
+    cx.update(|window, app| {
+        window.draw(app).clear(app);
+        let scale = window.scale_factor();
+        let left = f32::from(bounds.origin.x);
+        let top = f32::from(bounds.origin.y);
+        let width = f32::from(bounds.size.width);
+        let height = f32::from(bounds.size.height);
+        let mut found = Vec::new();
+        for quad in window.painted_quads() {
+            let quad_left = quad.bounds.origin.x.0 / scale;
+            let quad_top = quad.bounds.origin.y.0 / scale;
+            let quad_width = quad.bounds.size.width.0 / scale;
+            let quad_height = quad.bounds.size.height.0 / scale;
+            let border = quad.border_widths.top.0 / scale;
+            let same = (quad_left - left).abs() < 1.5
+                && (quad_top - top).abs() < 1.5
+                && (quad_width - width).abs() < 1.5
+                && (quad_height - height).abs() < 1.5;
+            if same && border > 0.4 {
+                found.push((border, quad.border_color, quad.border_style));
+            }
+        }
+        assert!(!found.is_empty(), "no border quad for {id}");
+        found
+            .into_iter()
+            .map(|(width, colour, style)| PlainBorder {
+                width,
+                colour,
+                style,
+            })
+            .collect()
+    })
+}
+
+#[gpui_kit::test]
+fn a_press_of_a_key_with_no_surface_glows_until_the_release(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    send(cx, &tx, layout_with_controls_that_have_no_surface());
+    let id = ControlId::new(ControlKind::Key, 7);
+
+    expect_border(
+        &plain_borders(cx, "control-key 7"),
+        1.,
+        BorderStyle::Dashed,
+        theme::DEVICE_KEY_EMPTY_BORDER.into(),
+    );
+
+    send(
+        cx,
+        &tx,
+        Event::Input(InputEvent {
+            control: id,
+            gesture: Gesture::Press,
+        }),
+    );
+    cx.update(|_, cx| assert!(view.read(cx).state.pressed.contains(&id)));
+    expect_border(
+        &plain_borders(cx, "control-key 7"),
+        2.,
+        BorderStyle::Solid,
+        theme::INPUT_GLOW.into(),
+    );
+
+    send(
+        cx,
+        &tx,
+        Event::Input(InputEvent {
+            control: id,
+            gesture: Gesture::Release,
+        }),
+    );
+    cx.update(|_, cx| assert!(!view.read(cx).state.pressed.contains(&id)));
+    expect_border(
+        &plain_borders(cx, "control-key 7"),
+        1.,
+        BorderStyle::Dashed,
+        theme::DEVICE_KEY_EMPTY_BORDER.into(),
+    );
+}
+
+fn expect_border(borders: &[PlainBorder], width: f32, style: BorderStyle, colour: Hsla) {
+    assert!(
+        borders.iter().all(|border| {
+            (border.width - width).abs() < 0.6
+                && border.style == style
+                && same_colour(border.colour, colour)
+        }),
+        "{borders:?}"
     );
 }

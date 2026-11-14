@@ -605,10 +605,11 @@ the knob labels when the layout has a knob. The space is below the display
 when the layout has no knob.
 
 The element has a dashed border and the name of the control, for example
-"Key 7". The selection outline is the outline of a key face. A click
-selects that control. The click does not select the device. The inspector
-shows the gestures of the control. It shows no "Appearance" section,
-because the control has no display.
+"Key 7". When the user operates that control on the device, the border is
+the input glow, the same as on a key face. The selection outline is the
+outline of a key face. A click selects that control. The click does not
+select the device. The inspector shows the gestures of the control. It
+shows no "Appearance" section, because the control has no display.
 
 The descriptor has no place for a knob relative to the display. Each knob
 stays in one row below the display. Measure that place before it becomes

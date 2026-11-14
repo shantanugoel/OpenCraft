@@ -45,6 +45,9 @@ Issue: [#339](https://github.com/shantanugoel/OpenCraft/issues/339).
    to the next page, or click **Next page** in the window if the page has
    no such key. Does the device show the next page, and not the folder?
    yes/no
+8. Press the key that opens the folder again. Click the menu bar item of
+   OpenCraft. Choose the page that the window already shows. Does the
+   device show that page, and not the folder? yes/no
 
 ## The profile follows the front application
 

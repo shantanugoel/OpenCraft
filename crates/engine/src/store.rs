@@ -981,12 +981,6 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         found => return Err(BackupReason::NewerSchema { found }),
     }
     let version = header.schema_version;
-    if version < FOLDERS_VERSION {
-        let table: toml::Table = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
-        if table.contains_key("folders") {
-            return Err(invalid(format!("version {version} has no folders")));
-        }
-    }
     let file: FileData = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
     let model = match (version >= MODEL_VERSION, file.model) {
         (true, Some(model)) if !model.is_empty() => model,
@@ -1484,6 +1478,33 @@ image = "images/4f1c2a9be07d3356.png"
                 backup.reason
             );
             assert_eq!(&fs::read(&backup.path).unwrap(), text, "case {i}");
+        }
+    }
+
+    /// `FileData.folders` is `Some` when the key is in the file, including an
+    /// empty array. One check after that read is enough. An older file does
+    /// not need a second parse of the text.
+    #[test]
+    fn an_old_file_with_folders_fails_on_the_one_check() {
+        let cases = [
+            (
+                4,
+                "schema_version = 4\nname = \"x\"\nmodel = \"m\"\nfolders = []\n",
+            ),
+            (
+                4,
+                "schema_version = 4\nname = \"x\"\nmodel = \"m\"\n[[folders]]\nid = \"0000000000000001\"\nname = \"Clips\"\n",
+            ),
+            (1, "schema_version = 1\nname = \"x\"\nfolders = []\n"),
+        ];
+        for (version, text) in cases {
+            assert_eq!(
+                parse(text),
+                Err(BackupReason::Invalid(format!(
+                    "version {version} has no folders"
+                ))),
+                "{text}"
+            );
         }
     }
 
