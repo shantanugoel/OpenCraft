@@ -84,8 +84,8 @@ OpenCraft makes the profile, closes this window, and opens its main window.
   operate when that application is in front.
 - You can change each key later. See [Configure a key](first-key.md).
 - The box at the bottom of the window shows the action kinds that need the
-  Accessibility permission. It shows only when OpenCraft does not have the
-  permission. See
+  Accessibility permission for every use. It shows only when OpenCraft does
+  not have the permission. See
   [Give the Accessibility permission](#give-the-accessibility-permission).
 - If no device is connected, the window shows "Connect your device", and
   the device picture is dim. You can select a starter profile and click
@@ -195,23 +195,28 @@ for the device each second. You do not have to start OpenCraft again.
 
 ## Give the Accessibility permission
 
-This step is not necessary to install OpenCraft. Do it only when you first
-use "Send a hotkey", "Type text", or "Media key". The first start does not
-ask for the permission.
+This step is not necessary to install OpenCraft. Do it when you first use
+an action that sends keys or mouse events. The first start does not ask
+for the permission.
 
-Three action kinds need the Accessibility permission of macOS: "Send a
-hotkey", "Type text", and "Media key". These actions send keys to other
-applications. The other action kinds do not need a permission. OpenCraft
-also does not need the Input Monitoring permission.
+These action kinds need the Accessibility permission for every use: "Send a
+hotkey", "Type text", "Media key", and "Mouse event". "Mac system function"
+needs it only for Launchpad, Screenshot, Lock, and Show desktop. See
+[Mac system function](actions.md#mac-system-function). The other action
+kinds do not need a permission. OpenCraft also does not need the Input
+Monitoring permission.
 
-If OpenCraft does not have the permission, the inspector shows this text below
-each action of these kinds: "OpenCraft needs the Accessibility permission to
-send keys." Then the action does nothing. When you do the action on the
-device, the window shows the message "OpenCraft did not send the keys,
-because it does not have the Accessibility permission." above the status
-bar.
+If OpenCraft does not have the permission, the inspector shows this text
+below an action that sends keys or mouse events: "OpenCraft needs the
+Accessibility permission to send keys and mouse events." Then that action
+does nothing. The same text can show below "Mac system function". Launchpad,
+Screenshot, Lock, and Show desktop do nothing until you give the permission.
+Mission Control, Screen saver, and Sleep operate with no permission. When
+you do an action that needs the permission on the device, the window shows
+the message "OpenCraft did not send the keys or mouse events, because it
+does not have the Accessibility permission." above the status bar.
 
-When you add the first action of these kinds to a control, and OpenCraft
+When you add the first action of these four kinds to a control, and OpenCraft
 does not have the permission, the window asks for it. It also asks after
 **Start** with a starter profile that has such an action, for example
 **Media and sound**. The window asks one time each time that OpenCraft

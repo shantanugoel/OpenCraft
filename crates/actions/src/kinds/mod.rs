@@ -36,6 +36,10 @@ mod shell_command;
 mod type_text;
 mod volume;
 
+/// The macOS call table checks this, so a key call and the permission stay together.
+#[cfg(all(test, target_os = "macos"))]
+pub(crate) use mac_function::needs_permission as mac_function_needs_permission;
+
 #[cfg(test)]
 mod recording;
 

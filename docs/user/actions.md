@@ -15,7 +15,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | System | [Run a shell command](#run-a-shell-command) | No |
 | System | [Send a hotkey](#send-a-hotkey) | Yes |
 | System | [Mouse event](#mouse-event) | Yes |
-| System | [Mac system function](#mac-system-function) | Yes |
+| System | [Mac system function](#mac-system-function) | Only for Launchpad, Screenshot, Lock and Show desktop |
 | System | [Type text](#type-text) | Yes |
 | Media | [Media key](#media-key) | Yes |
 | Media | [Sound volume](#sound-volume) | No |
@@ -345,11 +345,17 @@ Save your work before you test Sleep, Lock or Screen saver. These choices
 take effect at once; there is no confirmation in OpenCraft. Do not test
 them while another person or process needs this session.
 
-This kind uses the existing Accessibility permission. It asks for no
-Automation or Screen Recording permission. Some choices use the default
-system shortcuts. If you changed those shortcuts, use **Send a hotkey**
-with your own combination instead. Do Not Disturb is not available.
-The calls and their verification limits are in the
+Launchpad, Screenshot, Lock and Show desktop send a key. They need the
+Accessibility permission. Mission Control, Screen saver and Sleep do not
+send a key. They need no permission. The inspector can still show the
+permission text for this kind. OpenCraft checks this permission one time
+for these action kinds. Mission Control, Screen saver and Sleep still
+operate.
+
+This kind asks for no Automation or Screen Recording permission. Some
+choices use the default system shortcuts. If you changed those shortcuts,
+use **Send a hotkey** with your own combination instead. Do Not Disturb is
+not available. The calls and their verification limits are in the
 [knowledge base](../kb/macos-system-functions.md).
 
 ![The Mac system function choices.](images/mac-system-functions.png)

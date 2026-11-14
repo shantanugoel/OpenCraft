@@ -30,7 +30,12 @@ fn mac_function_checks_settings_permission_and_system_errors_without_real_calls(
         rig.problem("Function");
         assert!(rig.system.calls().is_empty());
     }
-    for function in MacFunction::ALL {
+    for function in [
+        MacFunction::Launchpad,
+        MacFunction::Screenshot,
+        MacFunction::Lock,
+        MacFunction::ShowDesktop,
+    ] {
         let mut rig = Rig::new("mac-function", false);
         rig.invoke(text_action("mac-function", "function", function.name()));
         statuses(
@@ -47,6 +52,24 @@ fn mac_function_checks_settings_permission_and_system_errors_without_real_calls(
             true,
         );
         rig.problem("42");
+    }
+}
+
+#[test]
+fn sleep_operates_with_no_permission() {
+    for function in [
+        MacFunction::MissionControl,
+        MacFunction::ScreenSaver,
+        MacFunction::Sleep,
+    ] {
+        let mut rig = Rig::new("mac-function", false);
+        rig.invoke(text_action("mac-function", "function", function.name()));
+        statuses(
+            (0..super::key_kind_count()).map(|_| rig.recv()).collect(),
+            false,
+        );
+        assert_eq!(rig.system.calls(), [Call::MacFunction(function)]);
+        assert!(rig.messages.try_recv().is_err());
     }
 }
 
@@ -71,7 +94,7 @@ fn a_sleep_that_macos_refuses_gives_a_message_with_the_cause() {
 fn mac_function_description_has_all_choices_and_its_library_group() {
     let description = crate::descriptions::description("opencraft.mac-function");
     assert_eq!(description.group, "System");
-    assert!(description.needs_accessibility);
+    assert!(!description.needs_accessibility);
     assert!(description.direction.is_none());
     assert_eq!(description.fields.len(), 1);
     assert_eq!(description.fields[0].key, "function");

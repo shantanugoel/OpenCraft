@@ -8,7 +8,7 @@ you need them.
 
 | Chapter | Contents |
 |---|---|
-| 1. [Install and first start](install.md) | Install OpenCraft, start it for the first time with a starter profile and ready profiles, the parts of the window, give the Accessibility permission (only for three action kinds), remove OpenCraft |
+| 1. [Install and first start](install.md) | Install OpenCraft, start it for the first time with a starter profile and ready profiles, the parts of the window, give the Accessibility permission for actions that send keys or mouse events, remove OpenCraft |
 | 2. [Configure a key](first-key.md) | The main procedure: select a key, set its title, fill, icon, and action, and push the key. Also undo, copy and paste, the command palette (Command-K), and the keyboard. |
 | 3. [Actions](actions.md) | The library, drag and drop, the test of an action, each action kind and its settings, the toggle, and the sequence |
 | 4. [Knobs, touch bar, pages, and profiles](controls.md) | The other controls, more pages, folders of keys, the background of a page, more profiles, the profile settings, export and import, and the device settings |

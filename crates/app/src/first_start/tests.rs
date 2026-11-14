@@ -536,3 +536,28 @@ fn start_adds_the_ready_profiles_that_are_on_before_the_starter(cx: &mut TestApp
     click(&mut visual, "first-start-start");
     assert_eq!(started(&f.sent), ["Safari", "Zoom", "Everyday Mac"]);
 }
+
+#[test]
+fn the_note_names_only_kinds_that_need_the_permission_for_every_use() {
+    let kinds: Vec<String> = opencraft_actions::handlers()
+        .into_iter()
+        .flat_map(|handler| handler.kinds())
+        .filter(|kind| kind.needs_accessibility)
+        .map(|kind| kind.name)
+        .collect();
+    assert!(
+        !kinds.iter().any(|name| name == "Mac system function"),
+        "{kinds:?}"
+    );
+    assert_eq!(
+        permission_note(&Permission {
+            given: false,
+            kinds,
+        })
+        .as_deref(),
+        Some(
+            "Four actions need the Accessibility permission: Send a hotkey, Type text, Media key \
+             and Mouse event. OpenCraft asks for it when you add the first one."
+        )
+    );
+}

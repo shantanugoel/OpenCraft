@@ -12,7 +12,7 @@ gets each message. See [The log file](background.md#the-log-file).
 | Message starts with | Cause | Correction |
 |---|---|---|
 | The name of an action kind and a colon, for example "Open a URL:" | An action has a setting that is missing or not correct. The message gives the field. | Select the control, and correct the field of the action. See [Actions](actions.md). |
-| "OpenCraft did not send the keys, because it does not have the Accessibility permission" | An action "Send a hotkey", "Type text", or "Media key" occurred, and OpenCraft does not have the permission | See [Give the Accessibility permission](install.md#give-the-accessibility-permission) |
+| "OpenCraft did not send the keys or mouse events, because it does not have the Accessibility permission" | An action that sends keys or mouse events occurred, and OpenCraft does not have the permission. Mission Control, Screen saver, and Sleep do not send this message. | See [Give the Accessibility permission](install.md#give-the-accessibility-permission) |
 | "Cannot open the application" | macOS cannot find the application | Use the full name of the application, or click **Choose…** and select it from the list |
 | "The shell command ends with code" | The command of "Run a shell command" stopped with an error | Run the command in Terminal to find the error. Give the full path of each program. |
 | "OpenCraft did not change the profile, because no profile has the identity or the name" | The action "Select a profile" names a profile that does not exist | Select the profile again in the action |
