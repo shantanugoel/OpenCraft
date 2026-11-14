@@ -347,6 +347,27 @@ fn a_profile_shows_its_application_and_the_default_mark(cx: &mut TestAppContext)
 }
 
 #[gpui_kit::test]
+fn a_control_with_no_surface_has_the_name_as_its_label(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    let mut layout =
+        cx.update(|_, cx| (*view.read(cx).state.layout.clone().expect("layout")).clone());
+    layout.controls.push(opencraft_engine::ControlLayout {
+        id: ControlId::new(ControlKind::Key, 7),
+        row: 3,
+        column: 1,
+        surface: None,
+        feedback_surface: None,
+    });
+    tx.try_send(Event::Layout(std::sync::Arc::new(layout)))
+        .unwrap();
+    cx.run_until_parked();
+    assert_has(&frame(cx), Role::Button, "Key 7");
+    click(cx, "control-key 7");
+    assert_has(&frame(cx), Role::Group, "Key 7");
+    assert_has(&frame(cx), Role::Button, "More for Key 7");
+}
+
+#[gpui_kit::test]
 fn each_control_with_a_role_has_a_label(cx: &mut TestAppContext) {
     let (_view, cx, _tx, _sent) = named_window(cx);
     click(cx, "surface-key face 2");

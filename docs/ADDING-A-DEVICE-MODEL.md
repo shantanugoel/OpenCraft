@@ -214,7 +214,7 @@ N4 Pro entry as the example. Do not write a check for the model in other code.
 | `controls[].number` | The number among the controls of the same kind, from 1 | knob 1 is the left knob |
 | `controls[].codes` | The input codes from step 2. The kind of the control comes from the codes. | knob 1: `0xA0`, `0xA1`, `0x37` |
 | `controls[].position` | The row and the column among the controls of the same kind. Row 1 is the top row. | key 6: row 2, column 1 |
-| `controls[].surface` | The surface of the control, if it has a display | key 1: key face 1 |
+| `controls[].surface` | The surface of the control, if it has a display. With no surface, the window still shows the control. See [decision 0029](decisions/0029-window-layout.md), section 8.2. | key 1: key face 1 |
 | `controls[].feedback_surface` | The surface that shows feedback for a control with no display. See [decision 0013](decisions/0013-action-feedback-on-a-surface.md). | knob 1: bar panel 1 |
 | `settings.lowest_brightness` | The lowest brightness value that changes the light | `15` |
 | `settings.knob_lights` | The number of knob lights, knob 1 first. 0: none. | `4` |
@@ -307,7 +307,7 @@ tests do not find them. Each limit has an issue, or it says when to make one.
 | Limit | Where | Issue |
 |---|---|---|
 | Before a device connects, the engine shows the layout and the profiles of the first descriptor, the N4 Pro. When the device connects, the engine changes to the correct model. | `crates/engine/src/runtime.rs` | [#156](https://github.com/shantanugoel/OpenCraft/issues/156) |
-| The window shows no element for a control that has no surface, other than a knob and the touch bar. The window puts the knobs in one row below the display. | `crates/app/src/view.rs` | [#158](https://github.com/shantanugoel/OpenCraft/issues/158) |
+| The window puts each knob in one row below the display. The descriptor has no place of a knob relative to the display. | `knob_centre` in `crates/app/src/view/canvas.rs` | Make an issue if a model has a knob that is not below the display. Measure the place first, and write it in `docs/kb/`. |
 | Only protocol version 3 (512 bytes in, 1024 bytes out) is known. A device with other report sizes possibly has other commands and another report format. | `crates/core/src/protocol.rs`, `events.rs` | Make an issue with the sizes of step 1 |
 | A surface can turn by 0° or 180° only. | `Rotation` in `crates/core/src/device.rs` | Make an issue if a device needs a different turn |
 | The JPEG quality (90 for a slot image, 60 for the background) and the largest slot image come from the N4 Pro. A larger surface can give a slot image that the device does not show. | `crates/core/src/image.rs`, [decision 0007](decisions/0007-jpeg-for-key-faces-and-bar-panels.md) | Make an issue if the check in step 3, item 5, fails |

@@ -170,6 +170,7 @@ The font is the system font. The window has no font file.
 | `BORDER`, `OUTLINE_WIDTH`, `HOVER_OUTLINE_WIDTH` | 1, 2, 1 | A border; the selection outline; the hover outline |
 | `LINK_FOCUS_PADDING`, `SLIDER_FOCUS_PADDING_X`, `_Y` | 2; 8, 4 | The space between a link or a slider and its focus ring |
 | `FIRST_START_READY_WIDTH`, `FIRST_START_READY_MAX_HEIGHT` | 360, 420 | The list of ready profiles on the first start window |
+| `DEVICE_PLAIN_SIZE`, `DEVICE_PLAIN_GAP`, `DEVICE_PLAIN_TOP` | 96, 16, 22 | A control with no surface, below the display. The values are pixels of the display (decision 0029, section 8.2). |
 
 ### 2.7 Icons
 
@@ -310,6 +311,7 @@ an element with no role are not in the accessibility tree
 | The sidebar, its rows | `Navigation`, `Tree` with `TreeItem` rows | "Devices, profiles and pages"; the name of the row |
 | The toolbar, the right panel, the status bar | `Toolbar`, `Complementary`, `Status` | None, the tab name, none |
 | A key face, a bar panel, a knob, the touch bar | `Button` with `aria_selected` | The control name and the title: "Key 2, “Mail”" |
+| A control with no surface, other than a knob or the touch bar | `Button` with `aria_selected` | The control name, for example "Key 7" |
 
 ## 4. Layout rules
 

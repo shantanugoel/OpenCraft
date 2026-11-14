@@ -3,7 +3,9 @@
 //!
 //! The drawing has one scale for all its parts. Each key face and bar panel
 //! is at its position in the layout of the engine, and each knob is below
-//! its feedback surface. The shell does not check for a model (rule 4).
+//! its feedback surface. A control with no surface, other than a knob or
+//! the touch bar, is below the display in the order of its row and its
+//! column. The shell does not check for a model (rule 4).
 
 use super::{controls::square_button, library::KindDrag, pages::in_profile, *};
 use crate::settings::RightPanelTab;
@@ -29,20 +31,33 @@ const TOUCH_BAR_LABEL: &str = "Touch bar: swipe gestures";
 const DISPLAY: &str = "Display";
 
 fn body_below_display(layout: &DeviceLayout) -> (f32, f32) {
-    if layout
+    let knobs = layout
         .controls
         .iter()
-        .any(|c| c.id.kind == ControlKind::Knob)
-    {
-        (
+        .any(|c| c.id.kind == ControlKind::Knob);
+    let plain = plain_block(layout).map(|block| block.height);
+    match (knobs, plain) {
+        (true, Some(height)) => (
+            theme::DEVICE_KNOB_TOP
+                + theme::DEVICE_KNOB_DIAMETER
+                + theme::DEVICE_KNOB_LABEL_GAP
+                + theme::DEVICE_PLAIN_TOP
+                + height
+                + theme::DEVICE_BODY_BOTTOM,
+            theme::DEVICE_KNOB_LABEL_HEIGHT,
+        ),
+        (true, None) => (
             theme::DEVICE_KNOB_TOP
                 + theme::DEVICE_KNOB_DIAMETER
                 + theme::DEVICE_KNOB_LABEL_GAP
                 + theme::DEVICE_BODY_BOTTOM,
             theme::DEVICE_KNOB_LABEL_HEIGHT,
-        )
-    } else {
-        (theme::DEVICE_BODY_MARGIN, 0.)
+        ),
+        (false, Some(height)) => (
+            theme::DEVICE_PLAIN_TOP + height + theme::DEVICE_BODY_BOTTOM,
+            0.,
+        ),
+        (false, None) => (theme::DEVICE_BODY_MARGIN, 0.),
     }
 }
 
@@ -85,6 +100,101 @@ pub(super) fn knob_centre(layout: &DeviceLayout, knob: &opencraft_engine::Contro
         .unwrap_or(1)
         .max(1);
     f32::from(layout.display_width) * (f32::from(knob.column.max(1)) - 0.5) / f32::from(columns)
+}
+
+/// One control that has no surface, other than a knob or the touch bar.
+/// `x` and `y` are the top-left corner: `x` from the left of the display,
+/// `y` from the top of the block. `size` is the side of the square. All
+/// three are pixels of the display.
+#[derive(Clone, Copy)]
+struct PlainPlace {
+    id: ControlId,
+    x: f32,
+    y: f32,
+    size: f32,
+}
+
+struct PlainBlock {
+    /// The height of the block, in pixels of the display.
+    height: f32,
+    places: Vec<PlainPlace>,
+}
+
+/// The controls with no surface, other than a knob or the touch bar, in
+/// row and column order. Row 1 is the top row. In one row, column 1 is the
+/// left control. The controls of one row share the width of the display.
+///
+/// A knob and the touch bar have their own elements (section 8.2). The
+/// shell does not check for a model (rule 4).
+fn plain_block(layout: &DeviceLayout) -> Option<PlainBlock> {
+    let mut controls: Vec<_> = layout
+        .controls
+        .iter()
+        .filter(|control| {
+            control.surface.is_none()
+                && !matches!(control.id.kind, ControlKind::Knob | ControlKind::TouchBar)
+        })
+        .collect();
+    if controls.is_empty() {
+        return None;
+    }
+    controls.sort_by_key(|control| (control.row, control.column, control.id));
+    let mut rows: Vec<Vec<&opencraft_engine::ControlLayout>> = Vec::new();
+    for control in controls {
+        match rows.last_mut() {
+            Some(row) if row[0].row == control.row => row.push(control),
+            _ => rows.push(vec![control]),
+        }
+    }
+    let max_n = rows.iter().map(|row| row.len()).max().unwrap_or(1).max(1) as f32;
+    let gap = theme::DEVICE_PLAIN_GAP;
+    let width = f32::from(layout.display_width.max(1));
+    let fitted = (width - gap * (max_n - 1.)).max(0.) / max_n;
+    let size = fitted.min(theme::DEVICE_PLAIN_SIZE);
+    let mut places = Vec::new();
+    for (index, row) in rows.iter().enumerate() {
+        let count = row.len() as f32;
+        let y = index as f32 * (size + gap);
+        for (column, control) in row.iter().enumerate() {
+            let centre = width * (column as f32 + 0.5) / count;
+            places.push(PlainPlace {
+                id: control.id,
+                x: centre - size / 2.,
+                y,
+                size,
+            });
+        }
+    }
+    let row_count = rows.len() as f32;
+    let height = row_count * size + (row_count - 1.).max(0.) * gap;
+    Some(PlainBlock { height, places })
+}
+
+/// The top of the block of [`plain_block`], in points from the top of the
+/// body.
+fn plain_origin(layout: &DeviceLayout, scale: f32) -> f32 {
+    let display_bottom =
+        theme::DEVICE_BODY_MARGIN * scale + f32::from(layout.display_height) * scale;
+    let knobs = layout
+        .controls
+        .iter()
+        .any(|control| control.id.kind == ControlKind::Knob);
+    if knobs {
+        let label_top = display_bottom
+            + (theme::DEVICE_KNOB_TOP + theme::DEVICE_KNOB_DIAMETER + theme::DEVICE_KNOB_LABEL_GAP)
+                * scale;
+        label_top + theme::DEVICE_KNOB_LABEL_HEIGHT + theme::DEVICE_PLAIN_TOP * scale
+    } else {
+        display_bottom + theme::DEVICE_PLAIN_TOP * scale
+    }
+}
+
+fn plain_radius(kind: ControlKind) -> f32 {
+    if kind == ControlKind::BarPanel {
+        theme::DEVICE_PANEL_RADIUS
+    } else {
+        theme::DEVICE_KEY_RADIUS
+    }
 }
 
 /// The vertical centre of the "◀ Touch bar ▶" control, in pixels of the
@@ -709,7 +819,8 @@ impl DeviceView {
     }
 
     /// The device drawing (section 8.2): the body, the display with the
-    /// surfaces and the touch bar control, and the knobs.
+    /// surfaces and the touch bar control, the knobs, and each other
+    /// control that has no surface.
     fn device(&self, width: f32, height: f32, cx: &mut Context<Self>) -> Option<AnyElement> {
         let Some(layout) = &self.state.layout else {
             return Some(
@@ -786,6 +897,16 @@ impl DeviceView {
             .filter(|c| c.id.kind == ControlKind::Knob)
             .map(|knob| self.knob(layout, knob, scale, cx))
             .collect::<Vec<_>>();
+        let origin = plain_origin(layout, scale);
+        let plain = plain_block(layout)
+            .map(|block| {
+                block
+                    .places
+                    .into_iter()
+                    .map(|place| self.plain_control(place, origin, scale, cx))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         Some(
             div()
                 .id("device-body")
@@ -827,7 +948,8 @@ impl DeviceView {
                         .top_0()
                         .left_0()
                         .size_full()
-                        .children(knobs),
+                        .children(knobs)
+                        .children(plain),
                 )
                 // The selected device: the outline of section 8.3.
                 .when(self.device.open, |d| {
@@ -842,6 +964,108 @@ impl DeviceView {
                 })
                 .into_any_element(),
         )
+    }
+
+    /// A control that has no surface, other than a knob or the touch bar.
+    /// It is below the display, so the user can select it and give it a
+    /// binding. The name is the accessible label (section 3.4).
+    fn plain_control(
+        &self,
+        place: PlainPlace,
+        origin: f32,
+        scale: f32,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let id = place.id;
+        let size = place.size * scale;
+        let left = theme::DEVICE_BODY_MARGIN * scale + place.x * scale;
+        let top = origin + place.y * scale;
+        let radius = plain_radius(id.kind) * scale;
+        let selected = self.framed_control() == Some(id);
+        let highlight = self.state.highlights.contains_key(&id);
+        let drag = self.kind_drag(cx);
+        let group: SharedString = format!("control-{id}").into();
+        let name = control_name(id);
+        div()
+            .id(format!("control-{id}"))
+            .debug_selector(move || format!("control-{id}"))
+            .accessible(Role::Button, name.clone())
+            .aria_selected(selected)
+            .group(group.clone())
+            .absolute()
+            .left(px(left))
+            .top(px(top))
+            .size(px(size))
+            .rounded(px(radius))
+            .bg(theme::DEVICE_DISPLAY)
+            .cursor_pointer()
+            .when(highlight, |d| d.shadow(theme::input_glow_shadow()))
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .rounded(px(radius))
+                    .border_1()
+                    .when(highlight, |d| d.border_color(theme::INPUT_GLOW))
+                    .when(!highlight, |d| {
+                        d.border_dashed()
+                            .border_color(theme::DEVICE_KEY_EMPTY_BORDER)
+                    }),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .px(theme::SPACE_4)
+                    .text_center()
+                    .truncate()
+                    .text_size(theme::TEXT_CAPTION)
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(theme::TEXT_SECONDARY)
+                    .child(name),
+            )
+            .map(|d| {
+                if selected {
+                    d.child(
+                        outline(
+                            size,
+                            size,
+                            radius,
+                            theme::OUTLINE_GAP,
+                            theme::OUTLINE_WIDTH,
+                            theme::ACCENT_LINE,
+                        )
+                        .debug_selector(move || format!("selection-{id}")),
+                    )
+                } else if drag {
+                    d
+                } else {
+                    d.child(hover_outline(group, size, size, radius, theme::OUTLINE_GAP))
+                }
+            })
+            .when(drag, |d| {
+                d.child(drop_target(radius).debug_selector(move || format!("drop-{id}")))
+            })
+            .on_click(cx.listener(move |view, _, window, cx| {
+                cx.stop_propagation();
+                view.select_control(id, window, cx)
+            }))
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |view, event: &MouseDownEvent, window, cx| {
+                    cx.stop_propagation();
+                    view.right_click_control(id, event.position, window, cx);
+                }),
+            )
+            .on_drop(cx.listener(move |view, drag: &KindDrag, window, cx| {
+                view.select_control(id, window, cx);
+                view.drop_kind(id, &drag.kind, window, cx);
+            }))
+            .into_any_element()
     }
 
     /// One knob and its label, below its feedback surface.
@@ -1155,5 +1379,80 @@ mod tests {
         assert_eq!(knob_ring(None, knob(1)), theme::DEVICE_KNOB_RING);
         settings.knob_lights.mode = KnobLightMode::Effect;
         assert_eq!(knob_ring(Some(&settings), knob(1)), theme::DEVICE_KNOB_RING);
+    }
+
+    #[test]
+    fn a_control_with_no_surface_keeps_its_row_and_its_column() {
+        // The N4 Pro has no such control.
+        assert!(plain_block(&n4_size()).is_none());
+        let mut layout = n4_size();
+        layout.display_width = 300;
+        layout.display_height = 200;
+        layout.controls.clear();
+        let bare = |kind, number, row, column| opencraft_engine::ControlLayout {
+            id: ControlId::new(kind, number),
+            row,
+            column,
+            surface: None,
+            feedback_surface: None,
+        };
+        // The push order is not the row and column order. A knob, the touch
+        // bar, and a key that has a surface are not in the block.
+        layout.controls.extend([
+            bare(ControlKind::Key, 8, 3, 2),
+            bare(ControlKind::TouchBar, 1, 1, 1),
+            bare(ControlKind::Key, 9, 4, 1),
+            bare(ControlKind::Knob, 1, 1, 1),
+            bare(ControlKind::Key, 7, 3, 1),
+            bare(ControlKind::BarPanel, 1, 1, 1),
+            opencraft_engine::ControlLayout {
+                id: ControlId::new(ControlKind::Key, 1),
+                row: 1,
+                column: 1,
+                surface: Some(SurfaceId::new(SurfaceKind::KeyFace, 1)),
+                feedback_surface: None,
+            },
+        ]);
+        let block = plain_block(&layout).unwrap();
+        // Two controls in the widest row, so the square stays 96.
+        assert_eq!(block.height, 3. * 96. + 2. * 16.);
+        let ids: Vec<_> = block.places.iter().map(|place| place.id).collect();
+        assert_eq!(
+            ids,
+            [
+                ControlId::new(ControlKind::BarPanel, 1),
+                ControlId::new(ControlKind::Key, 7),
+                ControlId::new(ControlKind::Key, 8),
+                ControlId::new(ControlKind::Key, 9),
+            ]
+        );
+        // One control in a row is centred. Two controls share the width.
+        // Column 1 is to the left of column 2. A higher row is lower.
+        assert_eq!(block.places[0].x, 150. - 48.);
+        assert_eq!(block.places[0].y, 0.);
+        assert_eq!(block.places[1].x, 75. - 48.);
+        assert_eq!(block.places[2].x, 225. - 48.);
+        assert_eq!(block.places[1].y, 112.);
+        assert_eq!(block.places[2].y, 112.);
+        assert_eq!(block.places[3].x, 150. - 48.);
+        assert_eq!(block.places[3].y, 224.);
+        assert!(block.places.iter().all(|place| place.size == 96.));
+        // No knob: the block is below the display, and the margin stays.
+        let mut no_knob = layout.clone();
+        no_knob.controls.retain(|c| c.id.kind != ControlKind::Knob);
+        assert_eq!(
+            body_size(&no_knob, 1.).1,
+            28. + 200. + 22. + block.height + 44.
+        );
+        assert_eq!(plain_origin(&no_knob, 1.), 28. + 200. + 22.);
+        // A knob keeps its place. The block is below the knob label.
+        assert_eq!(
+            body_size(&layout, 1.).1,
+            28. + 200. + 22. + 90. + 8. + 14. + 22. + block.height + 44.
+        );
+        assert_eq!(
+            plain_origin(&layout, 1.),
+            28. + 200. + 22. + 90. + 8. + 14. + 22.
+        );
     }
 }
