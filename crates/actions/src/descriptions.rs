@@ -4,14 +4,9 @@
 //! that module. The tables in this file serve only a kind that has not moved.
 
 use opencraft_engine::{
-    ChoiceOption, Direction, Field, InputType, KindDescription, PathKind, ShownWhen, TwoStates,
-    Value,
+    ChoiceOption, Direction, Field, InputType, KindDescription, ShownWhen, TwoStates, Value,
 };
 
-pub(crate) const MICROPHONE: &str = "opencraft.microphone-mute";
-pub(crate) const OUTPUT: &str = "opencraft.sound-output";
-pub(crate) const PLAY_SOUND: &str = "opencraft.play-sound";
-pub(crate) const STOP_SOUND: &str = "opencraft.stop-sound";
 pub(crate) const PAGE: &str = "opencraft.page";
 pub(crate) const PROFILE: &str = "opencraft.profile";
 pub(crate) const OPEN_FOLDER: &str = "opencraft.open-folder";
@@ -100,46 +95,6 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             ("Device brightness", vec![operation, value, step])
         }
         SCREEN_OFF => ("Screen off", vec![]),
-        MICROPHONE => ("Microphone mute", vec![]),
-        OUTPUT => {
-            let mut operation = field(
-                "operation",
-                "Operation",
-                choice(&[("set", "Set device"), ("next", "Next device")]),
-            );
-            operation.default = Some(Value::Text("set".into()));
-            let mut devices = field("devices", "Cycle list", InputType::RuntimeChoiceList);
-            devices.default = Some(Value::List(Vec::new()));
-            (
-                "Sound output",
-                vec![
-                    operation,
-                    field("device", "Device", InputType::RuntimeChoice),
-                    devices,
-                ],
-            )
-        }
-        PLAY_SOUND => {
-            let mut volume = field("volume", "Volume", InputType::Integer { min: 0, max: 100 });
-            volume.default = Some(Value::Integer(100));
-            let mut device = field("device", "Output", InputType::RuntimeChoice);
-            device.default = Some(Value::Text(String::new()));
-            (
-                "Play a sound",
-                vec![
-                    field(
-                        "file",
-                        "File",
-                        InputType::Path {
-                            kind: PathKind::File,
-                        },
-                    ),
-                    volume,
-                    device,
-                ],
-            )
-        }
-        STOP_SOUND => ("Stop all sound", vec![]),
         PAGE => {
             let mut target = field(
                 "target",
@@ -268,10 +223,6 @@ fn shown_when(kind: &str) -> Vec<ShownWhen> {
 /// the engine (decision 0029, section 20, and decision 0033).
 fn icon(kind: &str) -> &'static str {
     match kind {
-        MICROPHONE => "mic",
-        OUTPUT => "speaker",
-        PLAY_SOUND => "music",
-        STOP_SOUND => "circle-stop",
         PAGE => "arrow-right",
         PROFILE => "layers",
         OPEN_FOLDER => "folder",
@@ -304,7 +255,6 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
         SCREEN_OFF => ("Device", Some("Computer wake")),
         DEVICE_BRIGHTNESS => ("Device", Some("Knob")),
-        MICROPHONE | OUTPUT | PLAY_SOUND | STOP_SOUND => (GROUP_MEDIA, None),
         PAGE | PROFILE | OPEN_FOLDER | CLOSE_FOLDER => (NAVIGATION, None),
         TOGGLE | SEQUENCE => (LOGIC, None),
         _ => ("", None),

@@ -1,10 +1,10 @@
 //! Audio actions. The System port owns platform work and property listeners.
 
 use crate::backend::System;
-use crate::descriptions::{description, MICROPHONE};
 use crate::handlers::{problem, send};
+use crate::kinds::{find_in, kinds_of, microphone_mute, Group, Work};
 use opencraft_engine::{
-    BindingId, Feedback, FeedbackState, Handler, KindDescription, Message, MessageSender, Request,
+    BindingId, Feedback, Handler, KindDescription, Message, MessageSender, Request,
 };
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,7 +30,7 @@ impl InputState {
                 value
             }
             Err(error) => {
-                let text = format!("Cannot read the microphone mute: {error}.");
+                let text = microphone_mute::read_problem(error);
                 if self.problem.as_ref() != Some(&text) {
                     send(sender, Message::Problem(text.clone()));
                     self.problem = Some(text);
@@ -38,24 +38,7 @@ impl InputState {
                 None
             }
         };
-        let feedback = Feedback {
-            label: Some(
-                match muted {
-                    Some(true) => "Microphone muted",
-                    Some(false) => "Microphone on",
-                    None => "Not supported",
-                }
-                .into(),
-            ),
-            state: muted.map(|muted| {
-                if muted {
-                    FeedbackState::On
-                } else {
-                    FeedbackState::Off
-                }
-            }),
-            ..Default::default()
-        };
+        let feedback = microphone_mute::feedback(muted);
         for (binding, previous) in &mut self.bindings {
             if previous.as_ref() != Some(&feedback) || force == Some(*binding) {
                 send(
@@ -147,7 +130,7 @@ impl MicrophoneHandler {
             Err(error) => {
                 send(
                     &self.sender,
-                    Message::Problem(format!("Cannot follow the microphone mute: {error}.")),
+                    Message::Problem(microphone_mute::follow_problem(error)),
                 );
                 return;
             }
@@ -166,7 +149,7 @@ impl MicrophoneHandler {
                 if let Err(error) = result {
                     send(
                         &sender,
-                        Message::Problem(format!("Cannot follow the microphone mute: {error}.")),
+                        Message::Problem(microphone_mute::follow_problem(error)),
                     );
                 }
                 state.lock().unwrap_or_else(|e| e.into_inner()).refresh(
@@ -179,21 +162,25 @@ impl MicrophoneHandler {
             Ok(worker) => self.worker = Some(worker),
             Err(error) => send(
                 &self.sender,
-                Message::Problem(format!("Cannot follow the microphone mute: {error}.")),
+                Message::Problem(microphone_mute::follow_problem(error)),
             ),
         }
     }
 }
 impl Handler for MicrophoneHandler {
     fn kinds(&self) -> Vec<KindDescription> {
-        vec![description(MICROPHONE)]
+        kinds_of(Group::Microphone)
+            .map(|kind| kind.description())
+            .collect()
     }
     fn start(&mut self, sender: MessageSender) {
         self.sender = Some(sender);
     }
     fn handle(&mut self, request: Request) {
         match request {
-            Request::Appear { binding, action } if action.kind == MICROPHONE => {
+            Request::Appear { binding, action }
+                if find_in(Group::Microphone, &action.kind).is_some() =>
+            {
                 self.state
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
@@ -215,15 +202,12 @@ impl Handler for MicrophoneHandler {
                     self.worker = None;
                 }
             }
-            Request::Invoke { binding, action } if action.kind == MICROPHONE => {
-                let result = self
-                    .system
-                    .microphone_muted()
-                    .and_then(|muted| match muted {
-                        Some(muted) => self.system.set_microphone_muted(!muted),
-                        None => Err(crate::system::Error::NoInputMute),
-                    })
-                    .map_err(|e| format!("Cannot set the microphone mute: {e}."));
+            Request::Invoke { binding, action } => {
+                let Some(kind) = find_in(Group::Microphone, &action.kind) else {
+                    return;
+                };
+                let work = Work::new(self.system.as_ref(), &self.sender);
+                let result = kind.invoke(&action.settings, &work);
                 problem(&self.sender, result);
                 self.state
                     .lock()
