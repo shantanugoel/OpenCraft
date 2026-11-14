@@ -38,7 +38,7 @@ the probe sends the stop sequence of OpenCraft, and the displays become dark
 | `clear [slot]` | Send the clear command for one slot, or for all slots |
 | `background` | Draw a test pattern or an image file on the 800×480 background |
 | `raw` | Hexdump raw input reports. Can save the full reports to a file. |
-| `record` | Record each gesture to a file, one prompt at a time. Options: `--out <dir>`, `--from <step>`. |
+| `record` | Record each gesture of the connected device to a file, one prompt at a time. The steps come from its descriptor. Options: `--out <dir>`, `--from <step>`. |
 | `send <name> [args]` | Send one protocol command and nothing else. Print the first 16 bytes that go out. |
 | `bars` | Draw the 4 bar panels with a pattern that shows their edges |
 | `wide <slot>` | Send to one slot an image that is wider than the surface |

@@ -11,7 +11,7 @@ This directory holds the scripts for work on the computer of a developer.
 | `lucide-icons.sh` | Makes the icon data of the engine from one Lucide release. See [decision 0033](../docs/decisions/0033-surface-icons.md). |
 | `homebrew-cask.sh` | Writes the Homebrew cask file for one release. See [decision 0027](../docs/decisions/0027-homebrew-cask.md). |
 | `make-icon.swift` | Draws the application icon `assets/macos/OpenCraft.icns` |
-| `record-input.sh` | Records the input reports of each control of the N4 Pro. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
+| `record-input.sh` | Records the input reports of each control of the connected device. The steps come from its descriptor. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
 
 ## measure-footprint.sh
 

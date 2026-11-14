@@ -103,7 +103,41 @@ The input report format is the protocol. Only the input codes are model
 data. The format is in
 [kb/streamdock-protocol.md](kb/streamdock-protocol.md#input-reports).
 
-1. For each gesture of each control, record one file:
+1. Connect the device and run:
+
+   ```sh
+   opencraft-probe record --out <directory>
+   ```
+
+   The command reads the descriptor of the connected device. It shows one
+   line for each gesture. Do the gesture, then wait. The command goes to the
+   next line when the device sends no more reports. Do not use the keyboard,
+   except when a line says to push Enter.
+
+   The command adds these steps from the descriptor:
+
+   - one press of each key, by row and by column;
+   - two keys pressed together, when one row has two keys, and one key held
+     for 3 seconds, when the model has a key;
+   - for each knob: a turn to the left of 5 clicks, a turn to the right of 5
+     clicks, and one push, then one fast turn of the first knob;
+   - one tap on each bar panel;
+   - for a model with a touch bar: a slow move from the left end to the right
+     end, a slow move from the top edge to the bottom edge, one finger held
+     for 2 seconds, one swipe to the left, one swipe to the right, and 20
+     swipes to the left and to the right.
+
+   A step with 20 swipes ends when you push a knob. That push is not in the
+   file. When the model has no knob, the line says to push Enter. The Enter
+   key is not in the file. Each step also ends after 120 seconds.
+
+   Each gesture goes to one file. The file name is the step number and a
+   short name, for example `01-key-row1-col1.txt`. For the N4 Pro, the names
+   and the lines are the same as the files in
+   `crates/core/tests/fixtures/input/`. To continue after a stop, add
+   `--from <step>`.
+
+2. To record one gesture with no list, use `raw`:
 
    ```sh
    opencraft-probe raw --save key-row1-col1.txt \
@@ -111,25 +145,15 @@ data. The format is in
    ```
 
    Do the gesture, then push Enter. The time limit is 10 seconds. For a long
-   gesture, add `--seconds 60`. If no report comes, add `--draw`: then the
-   probe sends the start sequence and draws the slot numbers first.
-2. Record each gesture that a control can have:
-   - a key: one press, a key held for 3 seconds, and 2 keys together;
-   - a knob: turn left 5 clicks, turn right 5 clicks, one push, and a fast
-     turn;
-   - a touch bar: a tap on each part, a slow move from the left end to the
-     right end, a move from the top edge to the bottom edge, a held finger,
-     and swipes to the left and to the right, 1 time and 20 times.
+   gesture, add `--seconds 60`. If no report comes, add `--draw`. The probe
+   then sends the start sequence and draws the slot numbers first.
 3. Read the code at byte 9 and the state at byte 10 of each report. Compare
    them with the codes of the N4 Pro in
    [kb/n4-pro-hardware.md](kb/n4-pro-hardware.md#controls-and-input-codes).
 4. If a report does not agree with the protocol, write it in the issue. Do
    not change the decoder for one model.
 
-`opencraft-probe record` gives one prompt for each gesture, but its list of
-steps is for the N4 Pro only. See
-[issue #157](https://github.com/shantanugoel/OpenCraft/issues/157). The
-`raw` files have the same format as the files of `record`.
+The files of `raw` have the same format as the files of `record`.
 
 ## 3. Measure the surfaces
 
@@ -283,7 +307,6 @@ tests do not find them. Each limit has an issue, or it says when to make one.
 | Limit | Where | Issue |
 |---|---|---|
 | Before a device connects, the engine shows the layout and the profiles of the first descriptor, the N4 Pro. When the device connects, the engine changes to the correct model. | `crates/engine/src/runtime.rs` | [#156](https://github.com/shantanugoel/OpenCraft/issues/156) |
-| `opencraft-probe record` has the steps of the N4 Pro only. Use `raw`. | `crates/cli/src/record.rs`, `scripts/record-input.sh` | [#157](https://github.com/shantanugoel/OpenCraft/issues/157) |
 | The window shows no element for a control that has no surface, other than a knob and the touch bar. The window puts the knobs in one row below the display. | `crates/app/src/view.rs` | [#158](https://github.com/shantanugoel/OpenCraft/issues/158) |
 | Only protocol version 3 (512 bytes in, 1024 bytes out) is known. A device with other report sizes possibly has other commands and another report format. | `crates/core/src/protocol.rs`, `events.rs` | Make an issue with the sizes of step 1 |
 | A surface can turn by 0° or 180° only. | `Rotation` in `crates/core/src/device.rs` | Make an issue if a device needs a different turn |
