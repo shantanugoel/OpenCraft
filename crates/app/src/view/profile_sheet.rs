@@ -601,22 +601,9 @@ impl DeviceView {
     }
 }
 
-/// The name of the profile that keeps `bundle_id`. A link in `clashes` does
-/// not apply, so the first profile that links the application and has no
-/// clash for it is the owner.
+/// The name of the profile that keeps `bundle_id`.
 fn clash_owner(profiles: &[opencraft_engine::ProfileEntry], bundle_id: &str) -> Option<String> {
-    profiles
-        .iter()
-        .find(|entry| {
-            entry.applications.iter().any(|link| {
-                opencraft_engine::front::same_bundle(&link.bundle_id, bundle_id)
-                    && !entry
-                        .clashes
-                        .iter()
-                        .any(|clash| opencraft_engine::front::same_bundle(clash, bundle_id))
-            })
-        })
-        .map(|entry| entry.name.clone())
+    super::application_picker::link_owner(profiles, bundle_id).map(|entry| entry.name.clone())
 }
 
 #[cfg(test)]
