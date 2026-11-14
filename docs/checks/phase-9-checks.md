@@ -6,6 +6,25 @@ the answers in the issue of the check.
 The checks use the connected N4 Pro and the OpenCraft window. They use no
 personal data.
 
+## Make ready
+
+Release 0.2.0 does not read a profile of schema 5. A build of Phase 9
+changes the profiles that it opens to schema 5. Thus do these checks with a
+copy of the profiles, until you install a release with Phase 9.
+
+1. Quit the installed OpenCraft from its menu bar item. Only one process
+   can own the device.
+2. In the repository, run:
+
+   ```sh
+   cp -R "$HOME/Library/Application Support/OpenCraft/profiles" /tmp/opencraft-phase-9
+   OPENCRAFT_PROFILES_DIR=/tmp/opencraft-phase-9 cargo run --release -p opencraft-app
+   ```
+
+   If your profiles are in a different directory, copy that directory.
+3. After the checks, quit this build, and start the installed OpenCraft
+   again.
+
 ## Folders of keys
 
 Issue: [#339](https://github.com/shantanugoel/OpenCraft/issues/339).
@@ -82,3 +101,38 @@ your work before the screen lock.
     select **Remove…**, and click **Remove**. You cannot remove the last
     profile. If one of them is the default profile, move **Default profile**
     to a profile that you keep before you remove it.
+
+## A key selects a profile
+
+Issue: [#337](https://github.com/shantanugoel/OpenCraft/issues/337).
+
+1. Select one key of a page. Set its action to **Select a profile**. Select
+   a different profile from the list.
+2. Rename that different profile in its **Profile Settings…**.
+3. Go back to the first profile. Press the key on the device. Does the
+   device show the profile that you renamed? yes/no
+
+## Ready profiles
+
+Issue: [#340](https://github.com/shantanugoel/OpenCraft/issues/340).
+
+1. In the sidebar, click **+** at the right of **PROFILES**. Select the
+   ready profile **Finder**.
+2. Does the sidebar show the profile Finder, and does the device picture
+   show its keys? yes/no
+3. Click a Finder window. Does the device show the profile Finder? yes/no
+4. Press the key **Folder** on the device. Does Finder make a new folder?
+   yes/no
+
+## Look-ahead for Phase 10: the times of a key press
+
+This step gives the data for long press and double press
+([#202](https://github.com/shantanugoel/OpenCraft/issues/202)). Do it with
+no OpenCraft process in operation.
+
+1. Run `cargo run --release -p opencraft-cli -- raw --save /tmp/opencraft-press.txt`.
+2. Press key 1 short, one time. Wait 2 seconds.
+3. Press key 1 and hold it for approximately 1 second. Wait 2 seconds.
+4. Press key 1 two times fast. Wait 2 seconds.
+5. Stop the command with Control-C. Tell the agent that the file is ready.
+
