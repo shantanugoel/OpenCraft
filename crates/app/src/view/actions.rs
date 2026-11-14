@@ -20,8 +20,6 @@ use gpui_kit::{
     },
     KeyDownEvent, Pixels,
 };
-/// The help under a profile value that is not an identity (decision 0035).
-const PROFILE_AGAIN: &str = "Select the profile again, so that a rename does not break this key.";
 
 /// The setting that stores the bundle identifier of an application path.
 fn bundle_key_of(input: &InputType) -> Option<&str> {
@@ -1403,7 +1401,6 @@ impl DeviceView {
             None if stored.is_empty() => ("Select…".to_string(), false, None),
             None => (format!("{stored} (not found)"), false, None),
         };
-        let show_help = !found && !stored.is_empty();
         let menu = Menu::Choice(field_path.clone());
         let open = self.form.menu.as_ref() == Some(&menu);
         let toggle = menu.clone();
@@ -1456,7 +1453,6 @@ impl DeviceView {
                 }),
             )
         });
-        let help = show_help.then(|| form::help(PROFILE_AGAIN).test_text(PROFILE_AGAIN));
         div()
             .flex_1()
             .min_w_0()
@@ -1505,7 +1501,6 @@ impl DeviceView {
                     )
                     .children(menu_element),
             )
-            .children(help)
             .into_any_element()
     }
 
@@ -1718,7 +1713,7 @@ impl DeviceView {
                 };
                 let multiple = field.input == InputType::RuntimeChoiceList;
                 // A missing value shows the default. The handler uses that
-                // default, for example "A profile" on an old key.
+                // default.
                 let selected = choice_values(value.or(field.default.as_ref()), multiple);
                 let menu = Menu::Choice(field_path.clone());
                 let open = self.form.menu.as_ref() == Some(&menu);

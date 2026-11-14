@@ -100,7 +100,9 @@ Note (2026-11-14): issue
 Each built-in kind that has moved is one module in `opencraft-actions`.
 The module holds the kind name, the description, a typed read of the
 settings, and the work. A registry in that crate lists the modules. The
-order in the registry is the order of the kinds in the library. Kinds that
+order in the registry is the order of the kinds in the library. The kinds
+of one group are together, and the groups are in the order of the handlers.
+A test checks this. Kinds that
 share a handler keep one handler, one thread, and one queue. The handler
 interface does not change. The engine does not change. The first modules are the four
 kinds of the open handler: open an application, quit an application, open
@@ -115,7 +117,8 @@ its poll.
 The kinds that send only engine requests are modules too (issue
 [#369](https://github.com/shantanugoel/OpenCraft/issues/369)): change the
 page, select a profile, open a folder, close a folder, toggle, sequence,
-screen off, and device brightness. All 22 built-in kinds are modules now. One request handler serves each group of these kinds.
+screen off, and device brightness. Each built-in kind is a module now.
+One request handler serves each group of these kinds.
 The handler gives the kind the binding, the memory of the handler (the
 states of the toggles), and the shared system port. A kind that must show
 feedback at Appear uses a method of the kind with an empty default. Toggle

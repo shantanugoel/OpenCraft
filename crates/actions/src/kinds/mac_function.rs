@@ -40,24 +40,11 @@ impl Kind for MacFunctionKind {
     }
 }
 
-/// The functions in form order, with their labels. The first is the default.
-/// The description and [`read`] both use this table. The stored name is
-/// [`MacFunction::name`].
-const FUNCTIONS: [(MacFunction, &str); 7] = [
-    (MacFunction::MissionControl, "Mission Control"),
-    (MacFunction::Launchpad, "Launchpad"),
-    (MacFunction::Screenshot, "Screenshot"),
-    (MacFunction::ScreenSaver, "Screen saver"),
-    (MacFunction::Sleep, "Sleep"),
-    (MacFunction::Lock, "Lock"),
-    (MacFunction::ShowDesktop, "Show desktop"),
-];
-
 /// The description of this kind (decision 0014).
 pub(crate) fn description() -> KindDescription {
-    let options: Vec<(&str, &str)> = FUNCTIONS
+    let options: Vec<(&str, &str)> = MacFunction::ALL
         .iter()
-        .map(|(function, label)| (function.name(), *label))
+        .map(|function| (function.name(), function.label()))
         .collect();
     KindDescription {
         kind: ID.into(),
@@ -74,17 +61,17 @@ pub(crate) fn description() -> KindDescription {
         permission_when: Some(ShownWhen::new(
             "",
             "function",
-            &FUNCTIONS
+            &MacFunction::ALL
                 .into_iter()
-                .filter(|(function, _)| needs_permission(*function))
-                .map(|(function, _)| function.name())
+                .filter(|function| needs_permission(*function))
+                .map(MacFunction::name)
                 .collect::<Vec<_>>(),
         )),
         fields: vec![field_with_default(
             "function",
             "Function",
             choice(&options),
-            Value::Text(FUNCTIONS[0].0.name().into()),
+            Value::Text(MacFunction::ALL[0].name().into()),
         )],
         ..KindDescription::default()
     }
@@ -108,14 +95,13 @@ pub(crate) fn needs_permission(function: MacFunction) -> bool {
 /// text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<MacFunction, String> {
     let name = match settings.get("function") {
-        None => return Ok(FUNCTIONS[0].0),
+        None => return Ok(MacFunction::ALL[0]),
         Some(Value::Text(value)) => value.as_str(),
         Some(_) => return Err(crate::descriptions::setting_problem(ID, "function")),
     };
-    FUNCTIONS
-        .iter()
-        .find(|(function, _)| function.name() == name)
-        .map(|(function, _)| *function)
+    MacFunction::ALL
+        .into_iter()
+        .find(|function| function.name() == name)
         .ok_or_else(|| crate::descriptions::setting_problem(ID, "function"))
 }
 

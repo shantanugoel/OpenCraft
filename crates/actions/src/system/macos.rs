@@ -884,17 +884,16 @@ fn check_exists(path: &str) -> Result<()> {
 }
 
 /// The application of the call `open -a`: a name, or an existing path.
-fn application_name(application: &str) -> Result<String> {
-    let application = super::expand_home(application);
+fn application_name(application: &str) -> Result<&str> {
     if application.contains('/') {
-        check_exists(&application)?;
+        check_exists(application)?;
     }
     Ok(application)
 }
 
 pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
     let application = application_name(application)?;
-    let mut command = vec!["-a", application.as_str()];
+    let mut command = vec!["-a", application];
     if !arguments.is_empty() {
         command.push("--args");
         command.extend(arguments.iter().map(String::as_str));
@@ -903,18 +902,17 @@ pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
 }
 
 pub fn open_file(path: &str) -> Result<()> {
-    let path = super::expand_home(path);
-    check_exists(&path)?;
-    open(&["--", &path])
+    check_exists(path)?;
+    open(&["--", path])
 }
 
 pub fn quit_application(application: &str, force: bool) -> Result<()> {
-    super::macos_quit::quit(&super::expand_home(application), force)
+    super::macos_quit::quit(application, force)
 }
 
 pub fn open_url(url: &str, application: Option<&str>) -> Result<()> {
     match application {
-        Some(application) => open(&["-a", &application_name(application)?, "--", url]),
+        Some(application) => open(&["-a", application_name(application)?, "--", url]),
         None => open(&["--", url]),
     }
 }

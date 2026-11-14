@@ -9,8 +9,8 @@ use opencraft_core::{
     Clock, Connector, ControlId, ControlKind, Device, FakeTransport, Gesture, InputEvent, Link,
     SurfaceId, SurfaceKind, Transport,
 };
-use opencraft_engine::engine::SAVE_DELAY;
 use opencraft_engine::runtime::{self, POLL_INTERVAL};
+use opencraft_engine::saved::SAVE_DELAY;
 use opencraft_engine::store::{PROFILE_FILE, SCHEMA_VERSION};
 use opencraft_engine::{
     Action, BindingId, BindingState, Color, Command, Counters, DeviceSettings, Engine, Event,

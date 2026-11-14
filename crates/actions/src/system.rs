@@ -115,7 +115,9 @@ pub(crate) fn start_shell_command(command: &str) -> Result<Child> {
 
 /// The path with a leading `~` or `~/` replaced by the home folder. An export
 /// writes a path in the home folder with `~` (decision 0037), so each kind
-/// that has a Path field calls this function when it reads its settings. A
+/// that has a Path field calls this function when it reads its settings.
+/// This is the one place: the system port gets the full path, and a platform
+/// function does not expand it again. A
 /// name with no slash, a path that starts with `/`, and a text such as
 /// `~other/x` do not change.
 pub(crate) fn expand_home(path: &str) -> String {
@@ -194,6 +196,8 @@ pub enum MacFunction {
 }
 
 impl MacFunction {
+    /// All functions in form order. The first is the default. This is the
+    /// one list: the form, [`Self::name`], and [`Self::label`] use it.
     pub const ALL: [Self; 7] = [
         Self::MissionControl,
         Self::Launchpad,
@@ -216,9 +220,16 @@ impl MacFunction {
         }
     }
 
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|function| function.name() == name)
+    /// The label of the function in the form.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::MissionControl => "Mission Control",
+            Self::Launchpad => "Launchpad",
+            Self::Screenshot => "Screenshot",
+            Self::ScreenSaver => "Screen saver",
+            Self::Sleep => "Sleep",
+            Self::Lock => "Lock",
+            Self::ShowDesktop => "Show desktop",
+        }
     }
 }

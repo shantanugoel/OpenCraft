@@ -2,9 +2,9 @@
 //!
 //! The action asks the engine to select a profile and, if the user wants it,
 //! a page of that profile (decisions 0018 and 0035). The field `target` is
-//! `profile`, `next`, or `previous`. A missing target is `profile`, so a
-//! binding from a release up to 0.2.0 still sends the stored name. With
-//! `profile`, the field `profile` is the name. The field `page` is a page
+//! `profile`, `next`, or `previous`. A missing target is `profile`, the
+//! default of the field. With `profile`, the field `profile` is the identity
+//! of the profile. The field `page` is a page
 //! number from 1. The number 0 and a missing value select the first page of
 //! the profile. The request has the number from 0.
 
@@ -175,11 +175,11 @@ mod tests {
                 page: Some(1),
             }
         );
-        // A binding from a release up to 0.2.0 stores a name and no target.
+        // A missing target is the default: a profile.
         assert_eq!(
-            read(&values(&[("profile", text("Video calls"))])).unwrap(),
+            read(&values(&[("profile", text("work"))])).unwrap(),
             Selection {
-                target: ProfileTarget::Profile("Video calls".into()),
+                target: ProfileTarget::Profile("work".into()),
                 page: None,
             }
         );

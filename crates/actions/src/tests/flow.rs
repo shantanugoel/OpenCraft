@@ -201,12 +201,12 @@ fn a_profile_selection_asks_for_an_identity_a_neighbour_or_a_page() {
         })
     );
 
-    // A binding from a release up to 0.2.0 stores a name and no target.
-    rig.invoke(text_action("profile", "profile", "Video calls"));
+    // A missing target is the default: a profile.
+    rig.invoke(text_action("profile", "profile", "work"));
     assert_eq!(
         rig.recv(),
         engine(EngineRequest::SelectProfile {
-            target: ProfileTarget::Profile("Video calls".into()),
+            target: ProfileTarget::Profile("work".into()),
             page: None,
         })
     );

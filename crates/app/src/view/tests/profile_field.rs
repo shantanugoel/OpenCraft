@@ -93,10 +93,6 @@ fn the_profile_list_stores_the_identity_and_keeps_an_unknown_value(cx: &mut Test
     click(cx, "surface-key face 2");
     assert!(cx.debug_bounds("profile-0").is_some(), "the profile field");
     assert!(show(cx, "Work (not found)"), "{:?}", shown(cx));
-    assert!(show(
-        cx,
-        "Select the profile again, so that a rename does not break this key."
-    ));
 
     accessibility_log::take();
     cx.update(|window, _| window.refresh());
@@ -131,10 +127,6 @@ fn the_profile_list_stores_the_identity_and_keeps_an_unknown_value(cx: &mut Test
         "the menu closes"
     );
     assert!(!show(cx, "Work (not found)"), "{:?}", shown(cx));
-    assert!(!show(
-        cx,
-        "Select the profile again, so that a rename does not break this key."
-    ));
     let stored = sent
         .borrow()
         .iter()

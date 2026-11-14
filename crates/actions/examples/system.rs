@@ -49,7 +49,10 @@ fn main() {
             .map(|()| wait()),
         ["mac-function", name] => system
             .mac_function(
-                opencraft_actions::system::MacFunction::from_name(name).expect("a Mac function"),
+                opencraft_actions::system::MacFunction::ALL
+                    .into_iter()
+                    .find(|function| function.name() == *name)
+                    .expect("a Mac function"),
             )
             .map(|()| wait()),
         ["mouse-click", button] => system

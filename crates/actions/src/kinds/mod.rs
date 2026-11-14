@@ -6,8 +6,10 @@
 //! ([`crate::backend::System`]). The handler does not read the settings.
 //!
 //! [`REGISTERED`] lists the modules. The order is the order of the kinds in
-//! the library (decision 0029, section 11). Kinds with the same [`Group`]
-//! share one handler, one thread, and one queue (decision 0012).
+//! the library (decision 0029, section 11). The kinds of one [`Group`] are
+//! together, and the groups are in the order of the handlers in
+//! [`crate::handlers::build`]. A test checks this. Kinds with the same
+//! [`Group`] share one handler, one thread, and one queue (decision 0012).
 //!
 //! To add a kind, copy [`open_application`]: `ID`, `description`, `read`,
 //! `perform`, and a value that implements [`Kind`]. Then add one line to
@@ -255,7 +257,9 @@ struct Registered {
     kind: &'static dyn Kind,
 }
 
-/// The built-in kinds that have a module, in library order.
+/// The built-in kinds that have a module, in library order. A group is one
+/// block of the registry, and the groups are in the order of the handlers in
+/// [`crate::handlers::build`].
 const REGISTERED: &[Registered] = &[
     Registered {
         group: Group::Open,
@@ -298,6 +302,14 @@ const REGISTERED: &[Registered] = &[
         kind: &volume::KIND,
     },
     Registered {
+        group: Group::Device,
+        kind: &screen_off::KIND,
+    },
+    Registered {
+        group: Group::Device,
+        kind: &device_brightness::KIND,
+    },
+    Registered {
         group: Group::Microphone,
         kind: &microphone_mute::KIND,
     },
@@ -336,14 +348,6 @@ const REGISTERED: &[Registered] = &[
     Registered {
         group: Group::Sequence,
         kind: &sequence::KIND,
-    },
-    Registered {
-        group: Group::Device,
-        kind: &screen_off::KIND,
-    },
-    Registered {
-        group: Group::Device,
-        kind: &device_brightness::KIND,
     },
 ];
 
@@ -562,6 +566,24 @@ mod tests {
             }
         }
     }
+
+    /// The library shows the kinds in the order of the handlers, and then in
+    /// the order of each handler. Thus the registry is the one list of the
+    /// order only if the two orders are the same (review 3, L2).
+    #[test]
+    fn the_kinds_of_the_handlers_are_in_the_order_of_the_registry() {
+        let from_handlers: Vec<_> = handlers::build(
+            Arc::new(crate::tests::support::Fake::default()),
+            Intervals::default(),
+        )
+        .iter()
+        .flat_map(|handler| handler.kinds())
+        .map(|description| description.kind)
+        .collect();
+        let registered: Vec<_> = all().map(|kind| kind.id().to_string()).collect();
+        assert_eq!(from_handlers, registered);
+    }
+
     /// Run one action of a kind on a new fake system, with the keys allowed.
     /// Give the result, the calls, and the messages.
     fn run(

@@ -470,6 +470,12 @@ The field **Operation** has two values:
   list, the action sets the first available output of the list. If the list
   is empty, the action uses all current outputs.
 
+The form shows the field **Device** only for **Set device**, and the field
+**Cycle list** only for **Next device**. If you change the operation,
+OpenCraft removes the value of the other field. For example, a change from
+**Next device** to **Set device** removes the cycle list. Use Undo to get it
+back.
+
 An output that is not connected stays in the settings and shows "not
 available". **Next device** skips it. If no output of the list is
 available, or if the output of **Set device** is not available, the action
@@ -480,7 +486,7 @@ then select this control again.
 When another program changes the output, the key shows the new name. The
 action asks for no new permission.
 
-![The menu of the field "Cycle list", with a check on each output of the list](images/sound-output.png)
+![The form for Next device: the field "Cycle list" with its menu open, and a check on each output of the list](images/sound-output.png)
 
 ## Play a sound
 
@@ -568,11 +574,11 @@ The action selects a profile. The device then shows that profile.
 - If the profile is already active and Page is 0, the device does not change.
 - If the profile is already active and Page is 1 or more, the device shows
   that page.
-- A key from an older OpenCraft stores the name of the profile. The key
-  still selects that profile. The form shows the name and "(not found)".
-  Select the profile again. Then a new name does not break the key.
-- If no profile has the stored name, the window shows a message.
-- If two profiles have the same name, an old key selects the first of them.
+- The key stores the identity of the profile, and not its name. A new name
+  of the profile does not break the key.
+- If no profile has the stored identity, for example after you remove the
+  profile, the form shows the identity with "(not found)", and the window
+  shows a message. Select a profile again in the form.
 
 Profiles are in
 [Knobs, touch bar, pages, and profiles](controls.md#profiles).

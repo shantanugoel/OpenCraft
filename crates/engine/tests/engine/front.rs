@@ -347,6 +347,45 @@ fn the_engine_carries_out_the_selection_of_the_front_application() {
         .any(|event| matches!(event, Event::Pages { .. })));
 }
 
+/// A failed save of the active profile stops the automatic switch (decision
+/// 0035, section 8). The machine must forget the target, so that the next
+/// notice of the same application tries again. The table test of
+/// `front_switch.rs` calls `select_failed` on the machine only.
+#[test]
+fn a_failed_save_before_an_automatic_switch_keeps_the_profile_and_the_next_notice_tries_again() {
+    let mut rig = calls_and_home();
+    assert_eq!(rig.engine.active_profile(), "calls");
+    rig.set_color(KEY_3, RED);
+    // A directory in the place of the temporary file: the write fails.
+    let blocker = ProfilesDir::new(rig.dir.path())
+        .store("calls")
+        .dir()
+        .join("profile.toml.tmp");
+    fs::create_dir_all(&blocker).unwrap();
+    rig.take_events();
+
+    // Safari has no link, so its target is the default profile.
+    front(&mut rig, bundle("com.apple.Safari"));
+    let events = rig.take_events();
+    let texts = problems(&events);
+    assert_eq!(texts.len(), 1, "{texts:?}");
+    assert!(texts[0].contains("could not save"), "{texts:?}");
+    assert_eq!(rig.engine.active_profile(), "calls");
+    assert!(profiles_of(&events).is_empty());
+
+    // The save works now. The same application gives the same target, and
+    // the engine selects it. Without `select_failed`, the machine would give
+    // `Decision::Nothing`.
+    fs::remove_dir(&blocker).unwrap();
+    front(&mut rig, bundle("com.apple.Safari"));
+    assert!(problems(&rig.take_events()).is_empty());
+    assert_eq!(rig.engine.active_profile(), "home");
+    assert!(
+        text_of(&rig, "calls").contains("#C81E1E"),
+        "the change was saved before the switch"
+    );
+}
+
 /// The power state of the engine reaches the machine. The table test of
 /// `front_switch.rs` has the rule.
 #[test]

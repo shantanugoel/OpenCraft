@@ -98,7 +98,6 @@ impl<T> SavedDocument<T> {
     pub fn load(&mut self, value: T, writable: bool) {
         let last_call = self.last_call;
         *self = Self::new(value, writable, last_call);
-        self.last_call = last_call;
     }
 
     /// Change the value, and mark the document as changed.
@@ -119,11 +118,6 @@ impl<T> SavedDocument<T> {
             self.mark();
         }
         changed
-    }
-
-    /// True if the engine may write the file.
-    pub fn is_writable(&self) -> bool {
-        self.writable
     }
 
     /// Let the engine write the file again. The caller does this when the

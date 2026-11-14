@@ -296,7 +296,8 @@ identifier of the descriptor.
   connected. `state.toml` has its identifier in the key `last_model`. If the
   file has no such key, the engine uses the first descriptor. See
   [decision 0039](decisions/0039-start-with-the-last-connected-model.md).
-- The device settings of the model are in their own table of `state.toml`.
+- The device settings of the model are in their own file,
+  `device-settings.toml`, in the profiles directory.
   The engine sends only the setting commands that the model has. See
   [decision 0022](decisions/0022-device-settings-and-stop-state.md).
 - A binding names a control by its kind and number, for example `key-6` or

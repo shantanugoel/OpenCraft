@@ -26,8 +26,9 @@ example `n4-pro`.
 - The engine writes the key when a device connects, if the key has a
   different value. A device of the same model as the key causes no write.
 - At the start, the engine uses the descriptor of that model for the layout,
-  the profiles, and the device settings, as if a device of that model were
-  present. The function `runtime::start_descriptor` makes the choice.
+  the profiles, and the device settings, in the same way as for a
+  connected device of that model. The function `runtime::start_descriptor`
+  makes the choice.
 - If the file is missing, cannot be read, has no key, or names a model that
   is not in the table, the engine uses the first descriptor of the table.
 - The key is not a schema change. The other keys of the file stay as
