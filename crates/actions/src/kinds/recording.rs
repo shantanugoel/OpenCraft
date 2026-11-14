@@ -1,11 +1,10 @@
 //! A fake [`crate::backend::System`] for the tests of a kind module.
 //!
-//! It records the calls of the open-handler kinds. A call of another
-//! operation panics, so a test sees the mistake. Add an operation here when
-//! a new kind module needs it.
+//! It records each call that a kind module makes. A call that no kind uses
+//! panics, so a test sees the mistake.
 
 use crate::backend::{ShellChild, System as SystemPort};
-use crate::system::{Error, Result};
+use crate::system::{Error, MediaKey, Result, Volume};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -18,14 +17,26 @@ pub(crate) enum Call {
     Quit(String, bool),
     Url(String, Option<String>),
     Shell(String),
+    Hotkey(String),
+    Text(String),
+    Paste(String),
+    Media(MediaKey),
+    Mouse(crate::mouse::MouseEvent),
+    MacFunction(crate::mac_function::MacFunction),
+    Level(u8),
+    Muted(bool),
 }
 
 /// A failure of one operation. `Code` is [`Error::System`] with code 42.
-/// `operation` is `application`, `file`, `quit`, `url`, or `shell`.
+/// `operation` names the call: `application`, `file`, `quit`, `url`,
+/// `shell`, `hotkey`, `text`, `paste`, `media`, `mouse`, `mac-function`,
+/// `volume`, `level`, or `muted`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Fault {
     Code(&'static str),
     NotRunning,
+    /// Sleep fails because macOS does not allow it.
+    SleepNotAllowed,
 }
 
 /// The result of [`crate::backend::ShellChild::wait`] for the next command.
@@ -41,6 +52,7 @@ pub(crate) struct System {
     fault: Mutex<Option<Fault>>,
     shell_end: Mutex<ShellEnd>,
     waited: Arc<AtomicBool>,
+    volume: Mutex<Volume>,
 }
 
 impl Default for System {
@@ -50,6 +62,10 @@ impl Default for System {
             fault: Mutex::new(None),
             shell_end: Mutex::new(ShellEnd::Code(0)),
             waited: Arc::new(AtomicBool::new(false)),
+            volume: Mutex::new(Volume {
+                level: 50,
+                muted: false,
+            }),
         }
     }
 }
@@ -61,6 +77,11 @@ impl System {
 
     pub(crate) fn fail(&self, fault: Fault) {
         *self.fault.lock().unwrap() = Some(fault);
+    }
+
+    /// Set the level and the mute that [`SystemPort::volume`] returns.
+    pub(crate) fn set_volume(&self, level: u8, muted: bool) {
+        *self.volume.lock().unwrap() = Volume { level, muted };
     }
 
     pub(crate) fn set_end(&self, end: ShellEnd) {
@@ -94,7 +115,7 @@ impl System {
 }
 
 fn unused() -> ! {
-    panic!("the open-kind test system does not implement this operation");
+    panic!("this kind test system does not implement this operation");
 }
 
 struct ScriptedChild {
@@ -121,26 +142,43 @@ impl SystemPort for System {
     fn ask_to_send_keys(&self) {
         unused()
     }
-    fn send_hotkey(&self, _hotkey: &crate::hotkey::Hotkey) -> Result<()> {
-        unused()
+    fn send_hotkey(&self, hotkey: &crate::hotkey::Hotkey) -> Result<()> {
+        self.record(Call::Hotkey(hotkey.to_string()), "hotkey")
     }
-    fn type_text(&self, _text: &str) -> Result<()> {
-        unused()
+    fn mouse_event(&self, event: crate::mouse::MouseEvent) -> Result<()> {
+        self.record(Call::Mouse(event), "mouse")
     }
-    fn paste_text(&self, _text: &str) -> Result<()> {
-        unused()
+    fn mac_function(&self, function: crate::mac_function::MacFunction) -> Result<()> {
+        self.record(Call::MacFunction(function), "mac-function")?;
+        if function == crate::mac_function::MacFunction::Sleep
+            && *self.fault.lock().unwrap() == Some(Fault::SleepNotAllowed)
+        {
+            return Err(Error::SleepNotAllowed);
+        }
+        Ok(())
     }
-    fn media_key(&self, _key: crate::system::MediaKey) -> Result<()> {
-        unused()
+    fn type_text(&self, text: &str) -> Result<()> {
+        self.record(Call::Text(text.into()), "text")
     }
-    fn volume(&self) -> Result<crate::system::Volume> {
-        unused()
+    fn paste_text(&self, text: &str) -> Result<()> {
+        self.record(Call::Paste(text.into()), "paste")
     }
-    fn set_volume_level(&self, _level: u8) -> Result<()> {
-        unused()
+    fn media_key(&self, key: MediaKey) -> Result<()> {
+        self.record(Call::Media(key), "media")
     }
-    fn set_muted(&self, _muted: bool) -> Result<()> {
-        unused()
+    fn volume(&self) -> Result<Volume> {
+        self.check("volume")?;
+        Ok(*self.volume.lock().unwrap())
+    }
+    fn set_volume_level(&self, level: u8) -> Result<()> {
+        self.record(Call::Level(level), "level")?;
+        self.volume.lock().unwrap().level = level;
+        Ok(())
+    }
+    fn set_muted(&self, muted: bool) -> Result<()> {
+        self.record(Call::Muted(muted), "muted")?;
+        self.volume.lock().unwrap().muted = muted;
+        Ok(())
     }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()> {
         self.record(

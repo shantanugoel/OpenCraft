@@ -102,12 +102,12 @@ impl Rig {
     }
 }
 
+fn key_kind_count() -> usize {
+    crate::kinds::kinds_of(crate::kinds::Group::Key).count()
+}
+
 fn statuses(messages: Vec<Message>, ready: bool) {
-    assert_eq!(
-        messages.len(),
-        crate::descriptions::KEY_KINDS.len(),
-        "{messages:?}"
-    );
+    assert_eq!(messages.len(), key_kind_count(), "{messages:?}");
     let mut kinds = BTreeSet::new();
     for message in messages {
         match message {
@@ -128,15 +128,9 @@ fn statuses(messages: Vec<Message>, ready: bool) {
     }
     assert_eq!(
         kinds,
-        [
-            "opencraft.hotkey",
-            "opencraft.type-text",
-            "opencraft.media-key",
-            "opencraft.mouse",
-            "opencraft.mac-function"
-        ]
-        .map(str::to_string)
-        .into()
+        crate::kinds::kinds_of(crate::kinds::Group::Key)
+            .map(|kind| kind.id().to_string())
+            .collect::<BTreeSet<_>>()
     );
 }
 
@@ -311,12 +305,7 @@ fn extended_hotkeys_use_the_same_system_and_permission_boundary() {
         rig.system.permission.store(false, Ordering::SeqCst);
         rig.invoke(text_action("hotkey", "hotkey", value));
         assert_eq!(rig.system.calls().len(), 1);
-        statuses(
-            (0..crate::descriptions::KEY_KINDS.len())
-                .map(|_| rig.recv())
-                .collect(),
-            false,
-        );
+        statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), false);
         rig.problem("Accessibility");
     }
 }
@@ -558,12 +547,7 @@ fn permission_is_checked_at_each_invoke_and_missing_permission_sends_no_keys() {
         ("media-key", "key", "mute"),
     ] {
         rig.invoke(text_action(kind, key, value));
-        statuses(
-            (0..crate::descriptions::KEY_KINDS.len())
-                .map(|_| rig.recv())
-                .collect(),
-            false,
-        );
+        statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), false);
         // The user sees the cause at the time of the gesture. The three kinds
         // send one text, so that the shell shows it one time.
         assert_eq!(
@@ -574,21 +558,11 @@ fn permission_is_checked_at_each_invoke_and_missing_permission_sends_no_keys() {
     assert!(rig.system.calls().is_empty());
     rig.system.permission.store(true, Ordering::SeqCst);
     rig.invoke(text_action("hotkey", "hotkey", "cmd+a"));
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        true,
-    );
+    statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), true);
     assert_eq!(rig.system.calls(), [Call::Hotkey("cmd+a".into())]);
     rig.system.permission.store(false, Ordering::SeqCst);
     rig.invoke(text_action("hotkey", "hotkey", "cmd+a"));
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        false,
-    );
+    statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), false);
     rig.problem("Accessibility permission");
     assert_eq!(rig.system.calls().len(), 1);
     assert!(rig.messages.try_recv().is_err());
@@ -600,22 +574,12 @@ fn resolve_asks_and_the_helper_sends_ready_when_permission_arrives() {
     rig.handler.handle(Request::Resolve {
         kind: "opencraft.type-text".into(),
     });
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        false,
-    );
+    statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), false);
     assert_eq!(rig.system.asks.load(Ordering::SeqCst), 1);
     let reads = rig.system.permission_reads.load(Ordering::SeqCst);
     wait_until(|| rig.system.permission_reads.load(Ordering::SeqCst) > reads);
     rig.system.permission.store(true, Ordering::SeqCst);
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        true,
-    );
+    statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), true);
     let reads = rig.system.permission_reads.load(Ordering::SeqCst);
     wait_until(|| rig.system.permission_reads.load(Ordering::SeqCst) > reads);
     assert!(rig.messages.try_recv().is_err());
@@ -629,19 +593,9 @@ fn resolve_when_permission_is_already_present_keeps_watching_for_revocation() {
     rig.handler.handle(Request::Resolve {
         kind: "opencraft.hotkey".into(),
     });
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        true,
-    );
+    statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), true);
     rig.system.permission.store(false, Ordering::SeqCst);
-    statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
-        false,
-    );
+    statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), false);
 }
 
 #[test]
@@ -650,12 +604,7 @@ fn permission_changes_are_seen_without_resolve_invoke_or_bindings() {
     // No request, no ten-minute deadline, and no stop after a grant.
     for ready in [true, false, true] {
         rig.system.permission.store(ready, Ordering::SeqCst);
-        statuses(
-            (0..crate::descriptions::KEY_KINDS.len())
-                .map(|_| rig.recv())
-                .collect(),
-            ready,
-        );
+        statuses((0..key_kind_count()).map(|_| rig.recv()).collect(), ready);
     }
     assert_eq!(rig.system.asks.load(Ordering::SeqCst), 0);
 }

@@ -16,14 +16,25 @@
 //! the registry yet. A new [`Group`] also needs a handler that calls
 //! [`kinds_of`] and [`find_in`].
 //!
-//! [`Kind::invoke`] is `perform(&read(settings)?, work)`. A kind that must
-//! handle Appear, Disappear, Resolve, or Choices adds a method on [`Kind`]
-//! with an empty default, and its handler calls that method.
+//! [`Kind::invoke`] is `perform(&read(settings)?, work)`. A kind that sends
+//! keys reads the settings first. It then refuses the work when
+//! [`Work::keys_allowed`] is false. The key handler keeps one thread and one
+//! poll of the Accessibility permission, and it passes the result on `Work`.
+//! A Mac system function chooses, after the read, whether that function needs
+//! the permission. A kind that must handle Appear, Disappear, Resolve, or
+//! Choices adds a method on [`Kind`] with an empty default, and its handler
+//! calls that method.
 
+mod hotkey;
+mod mac_function;
+mod media_key;
+mod mouse;
 mod open_application;
 mod open_url;
 mod quit_application;
 mod shell_command;
+mod type_text;
+mod volume;
 
 #[cfg(test)]
 mod recording;
@@ -37,19 +48,61 @@ use opencraft_engine::{KindDescription, Message, MessageSender, Settings, Value}
 pub(crate) enum Group {
     /// Open an application, quit an application, open a URL, and a shell command.
     Open,
+    /// Send a hotkey, type text, a media key, a mouse event, and a Mac system
+    /// function. These kinds share one handler and its one poll of the
+    /// Accessibility permission.
+    Key,
+    /// Sound volume. This kind keeps the volume handler and its poll.
+    Volume,
 }
 
 /// One call of a kind: the system port, and the sender of its handler.
 ///
 /// A kind that finishes later (a shell command) sends a Problem on `sender`.
+/// The key handler also sets the Accessibility permission. A kind that sends
+/// keys reads it. Other kinds ignore it.
 pub(crate) struct Work<'a> {
     pub(crate) system: &'a dyn System,
     pub(crate) sender: &'a Option<MessageSender>,
+    /// True when the key handler has the Accessibility permission.
+    /// The default is true, so a kind test and an open kind do the work.
+    keys_allowed: bool,
+    /// The key handler sets this. After a failed key or mouse send, the kind
+    /// calls it. It returns true when the permission is still present, and
+    /// the handler sends the new status. None keeps the system error.
+    recheck_keys: Option<&'a dyn Fn() -> bool>,
 }
 
 impl<'a> Work<'a> {
     pub(crate) fn new(system: &'a dyn System, sender: &'a Option<MessageSender>) -> Self {
-        Self { system, sender }
+        Self {
+            system,
+            sender,
+            keys_allowed: true,
+            recheck_keys: None,
+        }
+    }
+
+    /// The permission from the one check of the key handler.
+    pub(crate) fn with_keys(mut self, allowed: bool, recheck: &'a dyn Fn() -> bool) -> Self {
+        self.keys_allowed = allowed;
+        self.recheck_keys = Some(recheck);
+        self
+    }
+
+    /// True when the key handler had the Accessibility permission.
+    pub(crate) fn keys_allowed(&self) -> bool {
+        self.keys_allowed
+    }
+
+    /// The text of a failed key or mouse send. A lost permission replaces the
+    /// system error. The handler then sends the new status.
+    pub(crate) fn input_error(&self, error: impl std::fmt::Display) -> String {
+        if self.recheck_keys.is_some_and(|recheck| !recheck()) {
+            crate::handlers::no_permission()
+        } else {
+            format!("Cannot send keys or mouse events: {error}.")
+        }
     }
 }
 
@@ -92,6 +145,30 @@ const REGISTERED: &[Registered] = &[
         group: Group::Open,
         kind: &shell_command::KIND,
     },
+    Registered {
+        group: Group::Key,
+        kind: &hotkey::KIND,
+    },
+    Registered {
+        group: Group::Key,
+        kind: &type_text::KIND,
+    },
+    Registered {
+        group: Group::Key,
+        kind: &media_key::KIND,
+    },
+    Registered {
+        group: Group::Key,
+        kind: &mouse::KIND,
+    },
+    Registered {
+        group: Group::Key,
+        kind: &mac_function::KIND,
+    },
+    Registered {
+        group: Group::Volume,
+        kind: &volume::KIND,
+    },
 ];
 
 /// The kinds of `group`, in library order.
@@ -122,6 +199,20 @@ pub(crate) fn problem(sender: &Option<MessageSender>, result: Result<(), String>
         if let Some(sender) = sender {
             let _ = sender.send(Message::Problem(text));
         }
+    }
+}
+
+/// The text of `key` when it is not empty. The returned text keeps its
+/// spaces. Empty text, a missing value, and a value that is not text are
+/// the same problem.
+pub(crate) fn required_text<'a>(
+    kind: &str,
+    settings: &'a Settings,
+    key: &str,
+) -> Result<&'a str, String> {
+    match settings.get(key) {
+        Some(Value::Text(value)) if !value.is_empty() => Ok(value),
+        _ => Err(setting_problem(kind, key)),
     }
 }
 
@@ -224,5 +315,38 @@ mod tests {
             .map(|kind| kind.description())
             .collect();
         assert_eq!(published, registered);
+    }
+
+    #[test]
+    fn the_key_and_volume_groups_list_their_kinds_in_library_order() {
+        let key_ids: Vec<_> = kinds_of(Group::Key).map(|kind| kind.id()).collect();
+        assert_eq!(
+            key_ids,
+            [
+                hotkey::ID,
+                type_text::ID,
+                media_key::ID,
+                mouse::ID,
+                mac_function::ID,
+            ]
+        );
+        let volume_ids: Vec<_> = kinds_of(Group::Volume).map(|kind| kind.id()).collect();
+        assert_eq!(volume_ids, [volume::ID]);
+        let handlers =
+            handlers::build(Arc::new(recording::System::default()), Intervals::default());
+        for (id, group) in [(hotkey::ID, Group::Key), (volume::ID, Group::Volume)] {
+            let handler = handlers
+                .iter()
+                .find(|handler| handler.kinds().iter().any(|kind| kind.kind == id))
+                .expect(id);
+            let registered: Vec<_> = kinds_of(group).map(|kind| kind.description()).collect();
+            assert_eq!(handler.kinds(), registered);
+            for id in kinds_of(group).map(|kind| kind.id()) {
+                assert_eq!(
+                    crate::descriptions::description(id),
+                    find_in(group, id).expect(id).description()
+                );
+            }
+        }
     }
 }

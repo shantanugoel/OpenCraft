@@ -97,9 +97,7 @@ fn mouse_rejects_bad_settings_checks_permission_and_reports_system_errors() {
     let mut rig = Rig::new("mouse", false);
     rig.invoke(action("mouse", &[]));
     statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
+        (0..super::key_kind_count()).map(|_| rig.recv()).collect(),
         false,
     );
     rig.problem("Accessibility");
@@ -108,9 +106,7 @@ fn mouse_rejects_bad_settings_checks_permission_and_reports_system_errors() {
     rig.system.fail(Some("mouse"));
     rig.invoke(action("mouse", &[]));
     statuses(
-        (0..crate::descriptions::KEY_KINDS.len())
-            .map(|_| rig.recv())
-            .collect(),
+        (0..super::key_kind_count()).map(|_| rig.recv()).collect(),
         true,
     );
     rig.problem("42");
@@ -118,7 +114,7 @@ fn mouse_rejects_bad_settings_checks_permission_and_reports_system_errors() {
 
 #[test]
 fn mouse_description_has_the_form_group_and_knob_scroll_directions() {
-    let description = crate::descriptions::description(crate::descriptions::MOUSE);
+    let description = crate::descriptions::description("opencraft.mouse");
     assert_eq!(description.group, "System");
     assert!(description.needs_accessibility);
     assert!(opencraft_engine::icons::icon_set()
