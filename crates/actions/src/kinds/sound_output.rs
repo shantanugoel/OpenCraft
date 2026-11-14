@@ -10,7 +10,7 @@
 
 use crate::descriptions::{choice, field, field_with_default, setting_problem, GROUP_MEDIA};
 use crate::kinds::{Choices, Kind, Work};
-use opencraft_engine::{ChoiceOption, InputType, KindDescription, Settings, Value};
+use opencraft_engine::{ChoiceOption, InputType, KindDescription, Settings, ShownWhen, Value};
 
 /// The kind name.
 pub(crate) const ID: &str = "opencraft.sound-output";
@@ -61,6 +61,11 @@ pub(crate) fn description() -> KindDescription {
                 InputType::RuntimeChoiceList,
                 Value::List(Vec::new()),
             ),
+        ],
+        // Each operation reads one field (decision 0038).
+        shown_when: vec![
+            ShownWhen::new("device", "operation", &["set"]),
+            ShownWhen::new("devices", "operation", &["next"]),
         ],
         ..KindDescription::default()
     }
@@ -232,7 +237,13 @@ mod tests {
         assert_eq!(description.fields[1].input, InputType::RuntimeChoice);
         assert_eq!(description.fields[2].input, InputType::RuntimeChoiceList);
         assert!(description.direction.is_none());
-        assert!(description.shown_when.is_empty());
+        assert_eq!(
+            description.shown_when,
+            [
+                ShownWhen::new("device", "operation", &["set"]),
+                ShownWhen::new("devices", "operation", &["next"]),
+            ]
+        );
         assert_eq!(crate::descriptions::description(ID), description);
     }
 

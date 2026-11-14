@@ -35,7 +35,7 @@ pub(super) struct Repaint {
     /// The number of frames that the view rendered.
     frames: u64,
     /// The check after an engine event, while it waits.
-    check: Option<Task<()>>,
+    pub(super) check: Option<Task<()>>,
     /// True after a forced frame, until the window draws a frame with no
     /// help. The log gets one line for each stall, not one for each frame.
     stalled: bool,

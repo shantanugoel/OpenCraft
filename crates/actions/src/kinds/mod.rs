@@ -59,6 +59,8 @@ mod volume;
 pub(crate) use mac_function::needs_permission as mac_function_needs_permission;
 
 #[cfg(test)]
+mod export_round_trip;
+#[cfg(test)]
 mod recording;
 
 use crate::backend::System;

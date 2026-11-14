@@ -578,6 +578,7 @@ impl DeviceView {
             self.sync_inspector_fields(window, cx);
             self.focus_workspace(window, cx);
             cx.notify();
+            self.expect_frame(window, cx);
         }
     }
 
@@ -596,6 +597,7 @@ impl DeviceView {
             self.sync_inspector_fields(window, cx);
             self.focus_workspace(window, cx);
             cx.notify();
+            self.expect_frame(window, cx);
         }
     }
 
@@ -609,6 +611,7 @@ impl DeviceView {
             self.sync_inspector_fields(window, cx);
             self.sync_page_name(window, cx);
             cx.notify();
+            self.expect_frame(window, cx);
         }
         self.focus_workspace(window, cx);
     }

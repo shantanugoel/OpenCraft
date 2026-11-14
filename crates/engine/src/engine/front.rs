@@ -9,42 +9,52 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// front, the next front application brings its profile back.
     pub(super) fn note_manual_selection(&mut self) {
         self.cause = ActiveCause::Selected;
-        self.front_switch.manual_selection();
+        if self.shell_in_front {
+            self.chosen_in_window = true;
+        }
     }
 
-    /// [`Command::FrontApplication`]. The state machine decides. This carries
-    /// out the decision.
+    /// [`Command::FrontApplication`].
     pub(super) fn front_application(&mut self, front: FrontApplication) {
-        let decision = self.front_switch.notice(
-            &front,
-            Situation {
-                list: &self.list,
-                active: &self.profile_id,
-                cause: &self.cause,
-                locked: self.power.locked,
-                sleeping: self.power.sleeping,
-            },
-        );
-        match decision {
-            Decision::Nothing => {}
-            Decision::SetCause(cause) => {
-                self.cause = cause;
-                self.send_profiles();
-            }
-            Decision::Select { profile, cause } => {
-                if !self.is_profile(&profile) || !self.save_before_leaving() {
-                    // The profile did not change. A later notice can try again.
-                    self.front_switch.select_failed();
-                    return;
+        if matches!(front, FrontApplication::Shell) {
+            self.shell_in_front = true;
+            return;
+        }
+        // A lock can bring loginwindow to the front. That must not change
+        // the profile. The same is true while the computer sleeps.
+        if !self.follow_front || self.power.locked || self.power.sleeping {
+            self.shell_in_front = false;
+            return;
+        }
+        let owner = match &front {
+            FrontApplication::Bundle(bundle_id) => self.list.owner_of(bundle_id),
+            FrontApplication::NoBundle | FrontApplication::Shell => None,
+        };
+        let (target, cause) = match owner {
+            Some(owner) => (
+                owner.profile,
+                ActiveCause::Linked {
+                    bundle_id: owner.bundle_id,
+                },
+            ),
+            None => (self.default_profile_id(), ActiveCause::Default),
+        };
+        let select = self.chosen_in_window || self.last_target.as_deref() != Some(target.as_str());
+        if select {
+            if target == self.profile_id {
+                if self.cause != cause {
+                    self.cause = cause;
+                    self.send_profiles();
                 }
-                self.cause = cause;
+            } else if self.is_profile(&target) && self.save_before_leaving() {
+                self.cause = cause.clone();
                 // The clock starts after the save of the old profile, and
                 // stops when the change of the profile returns: after the
                 // device writes, the events, and the write of `state.toml`.
                 // Only a measurement writes the line (`switch_trace`).
                 self.last_written = 0;
                 let started = std::time::Instant::now();
-                self.change_profile(profile, None);
+                self.change_profile(target.clone(), None);
                 if self.switch_trace
                     && self.link.is_connected()
                     && self.power.state == crate::power::DisplayState::Awake
@@ -56,8 +66,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         self.last_written
                     ));
                 }
+            } else {
+                // The profile did not change. A later notice can try again.
+                self.shell_in_front = false;
+                return;
             }
         }
+        self.last_target = Some(target);
+        self.shell_in_front = false;
+        self.chosen_in_window = false;
     }
 
     /// [`Command::LinkApplication`].
@@ -136,8 +153,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
 
     /// [`Command::SetFollowFrontApplication`].
     pub(super) fn set_follow_front(&mut self, follow: bool) {
-        if !self.front_switch.set_follow(follow) {
+        if self.follow_front == follow {
             return;
+        }
+        self.follow_front = follow;
+        if follow {
+            self.last_target = None;
         }
         if let Err(error) = self.profiles.set_follow(follow) {
             self.problem(format!("OpenCraft could not record the setting: {error}"));

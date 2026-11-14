@@ -1407,9 +1407,9 @@ At the first start (no profile file), a window shows before the main window.
 
   - A flexible space, then a box 16 above the buttons: padding 10 12,
     radius 9, background `bg-card`, border `line-pane`, gap 10, a shield
-    icon 16 in `text-secondary`, and "Three actions need the Accessibility
-    permission: Send a hotkey, Type text and Media key. OpenCraft asks for
-    it when you add the first one." (`label`, `text-secondary`, line height
+    icon 16 in `text-secondary`, and "Four actions need the Accessibility
+    permission: Send a hotkey, Type text, Media key and Mouse event.
+    OpenCraft asks for it when you add the first one." (`label`, `text-secondary`, line height
     1.45). The kind names come from data (section 20).
   - The main button "Start" at the end of the last row (height 30, padding
     0 16). Return does "Start".
@@ -1485,6 +1485,12 @@ Launchpad, Screenshot, Lock, and Show desktop send a key and need the
 permission. Mission Control, the screen saver, and Sleep do not. The facts
 are in
 [macos-system-functions.md](../kb/macos-system-functions.md#permissions-and-compatibility).
+
+Note (2026-11-14), from the review of #382. The kind has the rule
+`permission_when` ([decision 0038](0038-field-shown-for-the-values-that-use-it.md)).
+The inspector shows the permission text, and the Accessibility request opens,
+for Launchpad, Screenshot, Lock, and Show desktop only. The box on the first
+start has four actions: Send a hotkey, Type text, Media key and Mouse event.
 
 ### 19. The menu bar item (#194)
 

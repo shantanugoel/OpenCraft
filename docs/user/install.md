@@ -209,15 +209,17 @@ Monitoring permission.
 If OpenCraft does not have the permission, the inspector shows this text
 below an action that sends keys or mouse events: "OpenCraft needs the
 Accessibility permission to send keys and mouse events." Then that action
-does nothing. The same text can show below "Mac system function". Launchpad,
-Screenshot, Lock, and Show desktop do nothing until you give the permission.
-Mission Control, Screen saver, and Sleep operate with no permission. When
+does nothing. The same text shows below "Mac system function" when the
+function is Launchpad, Screenshot, Lock, or Show desktop. These functions do
+nothing until you give the permission. Mission Control, Screen saver, and
+Sleep operate with no permission, and the text does not show for them. When
 you do an action that needs the permission on the device, the window shows
 the message "OpenCraft did not send the keys or mouse events, because it
 does not have the Accessibility permission." above the status bar.
 
-When you add the first action of these four kinds to a control, and OpenCraft
-does not have the permission, the window asks for it. It also asks after
+When you add the first action of these four kinds to a control, or a Mac
+system function that sends a key, and OpenCraft does not have the permission,
+the window asks for it. It also asks after
 **Start** with a starter profile that has such an action, for example
 **Media and sound**. The window asks one time each time that OpenCraft
 starts.

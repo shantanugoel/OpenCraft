@@ -88,7 +88,8 @@ pub(crate) struct Sound {
 /// Read the settings. A missing volume is 100. A missing or empty output is
 /// the default output. The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<Sound, String> {
-    let file = nonblank(ID, settings, "file")?.to_string();
+    // An imported profile has `~` for the home folder (decision 0037).
+    let file = crate::system::expand_home(nonblank(ID, settings, "file")?);
     let volume = match settings.get("volume") {
         None => 100,
         Some(Value::Integer(volume)) => u8::try_from(*volume)

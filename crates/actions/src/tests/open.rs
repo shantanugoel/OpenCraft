@@ -54,7 +54,8 @@ fn a_file_or_a_folder_opens_through_the_file_call() {
         rig.system.calls(),
         [
             Call::File("/Users/Test/notes.txt".into()),
-            Call::File("~/Documents".into()),
+            // The kind expands `~` when it reads the settings.
+            Call::File(crate::system::expand_home("~/Documents")),
             Call::File("/Applications".into()),
         ]
     );

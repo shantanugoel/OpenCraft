@@ -36,8 +36,25 @@ impl Kind for MediaKeyKind {
     }
 }
 
+/// The keys in library order: the stored name, the label, and the key. The
+/// description and [`read`] both use this table.
+const KEYS: [(&str, &str, MediaKey); 8] = [
+    ("play-pause", "Play or pause", MediaKey::PlayPause),
+    ("next", "Next", MediaKey::Next),
+    ("previous", "Previous", MediaKey::Previous),
+    ("fast-forward", "Fast forward", MediaKey::FastForward),
+    ("rewind", "Rewind", MediaKey::Rewind),
+    ("volume-up", "Volume up", MediaKey::VolumeUp),
+    ("volume-down", "Volume down", MediaKey::VolumeDown),
+    ("mute", "Mute", MediaKey::Mute),
+];
+
 /// The description of this kind (decision 0014).
 pub(crate) fn description() -> KindDescription {
+    let options: Vec<(&str, &str)> = KEYS
+        .iter()
+        .map(|(name, label, _)| (*name, *label))
+        .collect();
     KindDescription {
         kind: ID.into(),
         name: NAME.into(),
@@ -45,38 +62,18 @@ pub(crate) fn description() -> KindDescription {
         icon: Some("play".into()),
         help: Some("Accessibility".into()),
         needs_accessibility: true,
-        fields: vec![field(
-            "key",
-            "Key",
-            choice(&[
-                ("play-pause", "Play or pause"),
-                ("next", "Next"),
-                ("previous", "Previous"),
-                ("fast-forward", "Fast forward"),
-                ("rewind", "Rewind"),
-                ("volume-up", "Volume up"),
-                ("volume-down", "Volume down"),
-                ("mute", "Mute"),
-            ]),
-        )],
+        fields: vec![field("key", "Key", choice(&options))],
         ..KindDescription::default()
     }
 }
 
 /// Read the settings. The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<MediaKey, String> {
-    let key = match required_text(ID, settings, "key")? {
-        "play-pause" => MediaKey::PlayPause,
-        "next" => MediaKey::Next,
-        "previous" => MediaKey::Previous,
-        "fast-forward" => MediaKey::FastForward,
-        "rewind" => MediaKey::Rewind,
-        "volume-up" => MediaKey::VolumeUp,
-        "volume-down" => MediaKey::VolumeDown,
-        "mute" => MediaKey::Mute,
-        _ => return Err(crate::descriptions::setting_problem(ID, "key")),
-    };
-    Ok(key)
+    let name = required_text(ID, settings, "key")?;
+    KEYS.iter()
+        .find(|(stored, _, _)| *stored == name)
+        .map(|(_, _, key)| *key)
+        .ok_or_else(|| crate::descriptions::setting_problem(ID, "key"))
 }
 
 /// Press and release the media key.

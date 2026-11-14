@@ -7,8 +7,8 @@
 
 Issue [#333](https://github.com/shantanugoel/OpenCraft/issues/333). The form
 of Sound volume shows Step when Operation is Mute. Mute does not use the
-step. Device brightness, Mouse event and Change the page have the same
-fault: the form shows a field that the selected operation does not use.
+step. Device brightness, Mouse event, Change the page, and Sound output
+have the same fault: the form shows a field that the selected operation does not use.
 
 [Decision 0014](0014-action-settings-description.md) says that the shell
 makes the form from the fields of the kind. Rule 12 says that the shell
@@ -33,6 +33,16 @@ hidden field does not make the action fail.
 
 The shell still has no list of kinds. A plug-in uses the same description.
 
+### The permission rule
+
+Note (2026-11-14), from the review of #382. A kind can need the Accessibility
+permission for some values of a choice only. "Mac system function" sends a
+key for four of its seven functions. The description has the field
+`permission_when`: one rule of the same form, with an empty field name. The
+shell shows the status row of the kind, and it opens the request for the
+permission, only for an action whose settings satisfy the rule. A kind with
+no rule shows its status for each action. The shell still compares no kind.
+
 ## Results
 
 - Mute does not show a step, and a change to Mute does not keep a step.
@@ -40,3 +50,7 @@ The shell still has no list of kinds. A plug-in uses the same description.
 - The same rule hides Brightness or Step, the mouse fields, and the page
   number, for an operation that does not use that field.
 - A field with no rule stays in the form for every value.
+- "Sound output" shows Device for Set device, and Cycle list for Next
+  device. A change of the operation removes the field that the new operation
+  does not use, with the saved devices of the cycle list. The change is one
+  step of the undo history, so an undo gives the list again.

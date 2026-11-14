@@ -350,10 +350,8 @@ them while another person or process needs this session.
 
 Launchpad, Screenshot, Lock and Show desktop send a key. They need the
 Accessibility permission. Mission Control, Screen saver and Sleep do not
-send a key. They need no permission. The inspector can still show the
-permission text for this kind. OpenCraft checks this permission one time
-for these action kinds. Mission Control, Screen saver and Sleep still
-operate.
+send a key. They need no permission. The inspector shows the permission
+text only when the selected function sends a key.
 
 This kind asks for no Automation or Screen Recording permission. Some
 choices use the default system shortcuts. If you changed those shortcuts,

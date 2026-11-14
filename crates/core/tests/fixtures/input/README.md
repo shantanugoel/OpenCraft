@@ -20,8 +20,8 @@ shows one line for each gesture. The list of gestures comes from the descriptor
 of the connected device. The files in this directory are the list for the N4
 Pro. Do the gesture on the device, then wait for the next line. The probe goes
 to the next line when the device sends no more reports. Do not use the
-keyboard, except to push Enter when a line says to push a knob. That Enter
-key is not in the file. Each gesture goes to one file. A gesture that gives
+keyboard. If a knob push does not end a step, push Enter. That Enter key is
+not in the file. Each gesture goes to one file. A gesture that gives
 no report has no file.
 
 The first argument of the script is the directory for the files. The command

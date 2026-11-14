@@ -42,7 +42,7 @@ for the same thing.
 | Page | One full set of bindings and surface content for a device. |
 | Folder | A set of key faces and key bindings in a profile, outside the cycle of the pages. A key opens it, and "Back" closes it. The knobs and the touch bar stay those of the page under it. The Location module of the engine holds the active page and the open folders, and it gives the page or the folder of a control. The engine sends the Location in the pages event. The shell uses it to name a binding, and it has no copy of the folder rule. See [decision 0036](decisions/0036-folders.md). |
 | Profile | A named set of pages and folders for one device model. It can be linked to applications. |
-| Front application | The application that macOS shows as active. The shell reports it, and the engine selects the profile that is linked to it, or the default profile. The profile list module of the engine (`profile_list`) holds the rules for the links, the clashes, and the default profile. It gives each profile entry the links that apply and the owner of each link. The front switch module (`front_switch`) is a state machine with no I/O: a front application notice and the power state go in, and a decision comes out (do nothing, change only the cause, or select a profile with a cause). The engine carries out the decision. The shell shows the result and does not do the rules again. See [decision 0035](decisions/0035-front-application-selects-the-profile.md). |
+| Front application | The application that macOS shows as active. The shell reports it, and the engine selects the profile that is linked to it, or the default profile. The profile list module of the engine (`profile_list`) holds the rules for the links, the clashes, and the default profile. It gives each profile entry the links that apply and the owner of each link. The shell shows the result and does not do the rules again. See [decision 0035](decisions/0035-front-application-selects-the-profile.md). |
 | Engine | The component that owns the device, the profile, and the actions. |
 | Shell | A user interface that is a client of the engine. The GUI application is a shell. |
 
@@ -149,7 +149,8 @@ These rules stay true in all phases.
    - An action has a kind and settings. The kind is an identifier with a
      namespace, for example `opencraft.hotkey`.
    - The engine sends the settings to the handler for that kind and does not
-     read them.
+     read them. The export is the one exception: it replaces the home
+     directory in a path setting (decision 0037).
    - If no handler exists for a kind, the engine keeps the binding and its
      settings in the profile. The shell shows that the action is not available.
    - A built-in action uses the same handler interface that a plug-in will

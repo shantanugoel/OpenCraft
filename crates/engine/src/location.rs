@@ -56,16 +56,23 @@ impl Location {
 
     /// The binding of `gesture` on `control` at this location.
     ///
-    /// `None` when the gesture has no binding. The page number of the
-    /// identity is the page under the folders. The folder of the identity
-    /// is the last open folder for a key, also when that folder does not
-    /// exist, and `None` for every other control.
+    /// `None` when the gesture has no binding. A key of a last open folder
+    /// that does not exist has no binding, as in [`Self::bindings`]. The
+    /// page number of the identity is the page under the folders. The folder
+    /// of the identity is the last open folder for a key, and `None` for
+    /// every other control.
     pub fn binding<'a>(
         &self,
         profile: &'a Profile,
         control: ControlId,
         gesture: GestureKind,
     ) -> Option<(BindingId, &'a Action)> {
+        if control.kind == ControlKind::Key
+            && self.last_folder().is_some()
+            && self.existing_folder(profile).is_none()
+        {
+            return None;
+        }
         let action = self.page_of(profile, control).binding(control, gesture)?;
         Some((self.binding_id(control, gesture), action))
     }
@@ -559,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_folder_keeps_the_read_of_a_key_on_the_page_and_drops_the_key_bindings() {
+    fn a_missing_folder_keeps_the_read_of_a_key_face_on_the_page_and_drops_the_key_bindings() {
         let (mut profile, _, _) = sample();
         let missing = FolderId::from_raw(99).expect("99 is a folder identity");
         let location = Location {
@@ -568,11 +575,15 @@ mod tests {
         };
 
         assert_eq!(location.holder(&profile, key(1)), Holder::Page(0));
-        let (id, action) = location
+        // A key has no binding, in `binding` and in `bindings`.
+        assert!(location
             .binding(&profile, key(1), GestureKind::Press)
-            .expect("the page has the key");
-        assert_eq!(action.kind, "page-key");
-        assert_eq!(id.folder, Some(missing));
+            .is_none());
+        let (id, action) = location
+            .binding(&profile, knob(1), GestureKind::TurnLeft)
+            .expect("the page has the knob");
+        assert_eq!(action.kind, "page-knob");
+        assert_eq!(id.folder, None);
         assert!(location.shows(id));
         assert!(location
             .bindings(&profile)

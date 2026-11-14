@@ -65,7 +65,9 @@ pub(crate) struct Url {
 pub(crate) fn read(settings: &Settings) -> Result<Url, String> {
     Ok(Url {
         url: nonblank(ID, settings, "url")?.to_string(),
-        browser: optional_text(ID, settings, "application")?,
+        // An imported profile has `~` for the home folder (decision 0037).
+        browser: optional_text(ID, settings, "application")?
+            .map(|browser| crate::system::expand_home(&browser)),
     })
 }
 

@@ -135,6 +135,14 @@ removal of unused images cover them.
 The engine keeps `active: usize`, the page under the folders, as now, and a
 new `open: Vec<FolderId>`. None of them is in a file.
 
+Note (2026-11-14), from issues
+[#358](https://github.com/shantanugoel/OpenCraft/issues/358) and
+[#360](https://github.com/shantanugoel/OpenCraft/issues/360). The two
+values are now the fields `page` and `open` of one `Location` value
+(`crates/engine/src/location.rs`). The engine and the window ask it for the
+holder of a control, the bindings, and the content of a surface. The window
+holds no copy of the folder rule.
+
 - **The page of a control.** For a key and a key face, it is the last open
   folder, or the active page if no folder is open. For each other control
   and surface (a knob, a bar panel, the touch bar, the background), it is
@@ -260,6 +268,10 @@ Pages {
 After it, the engine sends `Event::Binding` for each binding of the
 location: the keys of the last open folder, and the other controls of the
 active page.
+
+Note (2026-11-14), from issues #358 and #360. `Event::Pages` has the field
+`location: Location` in place of `active` and `open`. The fields `names`,
+`first`, and `folders` stay.
 
 ### 8. A new folder and its Back key
 

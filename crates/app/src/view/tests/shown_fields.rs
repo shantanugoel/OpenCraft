@@ -149,3 +149,74 @@ fn a_page_number_shows_only_for_that_choice(cx: &mut TestAppContext) {
     );
     assert!(cx.debug_bounds("field-1").is_some());
 }
+
+#[gpui_kit::test]
+fn sound_output_shows_the_device_or_the_cycle_list_for_its_operation(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = window(cx);
+    show(
+        cx,
+        &tx,
+        Action {
+            kind: "opencraft.sound-output".into(),
+            settings: Settings::from([
+                ("operation".into(), Value::Text("set".into())),
+                ("device".into(), Value::Text("a".into())),
+            ]),
+        },
+    );
+    assert!(cx.debug_bounds("field-1").is_some(), "Set shows Device");
+    assert!(cx.debug_bounds("field-2").is_none(), "Set hides Cycle list");
+    click(cx, "choice-0");
+    click(cx, "choice-0-1");
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&binding(Action {
+            kind: "opencraft.sound-output".into(),
+            settings: Settings::from([
+                ("operation".into(), Value::Text("next".into())),
+                ("devices".into(), Value::List(Vec::new())),
+            ]),
+        }))
+    );
+    assert!(cx.debug_bounds("field-1").is_none(), "Next hides Device");
+    assert!(
+        cx.debug_bounds("field-2").is_some(),
+        "Next shows Cycle list"
+    );
+}
+
+#[test]
+fn a_new_mouse_event_on_a_knob_stores_the_step_and_not_the_hidden_button() {
+    let kinds: Vec<_> = opencraft_actions::handlers()
+        .into_iter()
+        .flat_map(|handler| handler.kinds())
+        .collect();
+    let kind = kinds
+        .iter()
+        .find(|kind| kind.kind == "opencraft.mouse")
+        .expect("the kind Mouse event");
+    // The default action is a click: it has a button and no step.
+    let mut settings: Settings = kind
+        .fields
+        .iter()
+        .filter_map(|field| field.default.clone().map(|v| (field.key.clone(), v)))
+        .collect();
+    crate::view::actions::apply_shown(&kind.fields, &kind.shown_when, &mut settings);
+    assert!(settings.contains_key("button"));
+    assert!(!settings.contains_key("step"));
+    let click = Action {
+        kind: kind.kind.clone(),
+        settings,
+    };
+    let (right, left) = crate::view::knob::turn_actions(&click, &kinds, false);
+    for (action, operation) in [(&right, "scroll-down"), (&left, "scroll-up")] {
+        assert_eq!(
+            action.settings.get("operation"),
+            Some(&Value::Text(operation.into()))
+        );
+        assert_eq!(action.settings.get("step"), Some(&Value::Integer(3)));
+        for hidden in ["button", "x", "y"] {
+            assert!(!action.settings.contains_key(hidden), "{hidden}");
+        }
+    }
+}

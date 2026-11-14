@@ -768,3 +768,32 @@ fn a_folder_open_and_a_folder_close_write_the_same_device_reports_as_before() {
     );
     assert_eq!(image_slots(&close_sent), [KEY_3_SLOT]);
 }
+
+#[test]
+fn a_folder_change_makes_only_the_images_that_changed_and_not_the_background() {
+    let (mut rig, device, _) = painted();
+    add(&mut rig, A, Some("Clips"));
+    rig.set_color(KEY_3, GREEN);
+    back(&mut rig);
+    sent(&device);
+    rig.take_events();
+
+    for change in [open as fn(&mut Rig, FolderId), |rig, _| back(rig)] {
+        change(&mut rig, A);
+        let events = rig.take_events();
+        let surfaces: Vec<SurfaceId> = events
+            .iter()
+            .filter_map(|event| match event {
+                Event::Surface(state) => Some(state.id),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(surfaces, [KEY_3], "{events:?}");
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, Event::Background(_))),
+            "{events:?}"
+        );
+    }
+}

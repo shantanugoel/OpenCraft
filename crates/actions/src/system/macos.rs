@@ -870,17 +870,6 @@ unsafe fn ns_utf8(string: *mut AnyObject) -> String {
     CStr::from_ptr(bytes).to_string_lossy().into_owned()
 }
 
-/// The path with a leading `~/` replaced by the home folder. A name with no
-/// slash, and a path that starts with `/`, do not change.
-fn expand_home(path: &str) -> String {
-    match (path.strip_prefix("~/"), std::env::var_os("HOME")) {
-        (Some(rest), Some(home)) => {
-            format!("{}/{rest}", home.to_string_lossy().trim_end_matches('/'))
-        }
-        _ => path.to_string(),
-    }
-}
-
 /// An error if `path` names a place and nothing exists there. `open` gives
 /// only the code 1 for this case.
 fn check_exists(path: &str) -> Result<()> {
@@ -896,7 +885,7 @@ fn check_exists(path: &str) -> Result<()> {
 
 /// The application of the call `open -a`: a name, or an existing path.
 fn application_name(application: &str) -> Result<String> {
-    let application = expand_home(application);
+    let application = super::expand_home(application);
     if application.contains('/') {
         check_exists(&application)?;
     }
@@ -914,13 +903,13 @@ pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
 }
 
 pub fn open_file(path: &str) -> Result<()> {
-    let path = expand_home(path);
+    let path = super::expand_home(path);
     check_exists(&path)?;
     open(&["--", &path])
 }
 
 pub fn quit_application(application: &str, force: bool) -> Result<()> {
-    super::macos_quit::quit(&expand_home(application), force)
+    super::macos_quit::quit(&super::expand_home(application), force)
 }
 
 pub fn open_url(url: &str, application: Option<&str>) -> Result<()> {
@@ -1007,12 +996,7 @@ mod tests {
     }
 
     #[test]
-    fn a_leading_tilde_slash_is_the_home_folder_and_other_paths_do_not_change() {
-        let home = std::env::var("HOME").unwrap();
-        assert_eq!(expand_home("~/Documents"), format!("{home}/Documents"));
-        for same in ["Safari", "/Applications/A.app", "~", "~other/x", "a/~/b"] {
-            assert_eq!(expand_home(same), same);
-        }
+    fn check_exists_finds_a_path_and_does_not_find_a_missing_one() {
         assert!(check_exists("/").is_ok());
         assert!(check_exists("/this/path/does/not/exist").is_err());
     }
