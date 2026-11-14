@@ -39,6 +39,23 @@ impl Kind for DeviceBrightnessKind {
     }
 }
 
+/// The limits and the defaults of the fields "Brightness" and "Step".
+const VALUE_MIN: i64 = 0;
+const VALUE_MAX: i64 = 100;
+const VALUE_DEFAULT: i64 = 80;
+const STEP_MIN: i64 = 1;
+const STEP_MAX: i64 = 100;
+const STEP_DEFAULT: i64 = 5;
+
+/// The stored names of the operations.
+const UP: &str = "up";
+const DOWN: &str = "down";
+const SET: &str = "set";
+
+/// The operations in form order: the stored name and the label. The first is
+/// the default. The description and [`read`] both use this table.
+const OPERATIONS: [(&str, &str); 3] = [(UP, "Up"), (DOWN, "Down"), (SET, "Set value")];
+
 /// The description of this kind (decision 0014). A turn to the right goes up,
 /// and a turn to the left goes down.
 pub(crate) fn description() -> KindDescription {
@@ -52,30 +69,36 @@ pub(crate) fn description() -> KindDescription {
             field_with_default(
                 "operation",
                 "Operation",
-                choice(&[("up", "Up"), ("down", "Down"), ("set", "Set value")]),
-                Value::Text("up".into()),
+                choice(&OPERATIONS),
+                Value::Text(OPERATIONS[0].0.into()),
             ),
             field_with_default(
                 "value",
                 "Brightness",
-                InputType::Integer { min: 0, max: 100 },
-                Value::Integer(80),
+                InputType::Integer {
+                    min: VALUE_MIN,
+                    max: VALUE_MAX,
+                },
+                Value::Integer(VALUE_DEFAULT),
             ),
             field_with_default(
                 "step",
                 "Step",
-                InputType::Integer { min: 1, max: 100 },
-                Value::Integer(5),
+                InputType::Integer {
+                    min: STEP_MIN,
+                    max: STEP_MAX,
+                },
+                Value::Integer(STEP_DEFAULT),
             ),
         ],
         direction: Some(Direction {
             key: "operation".into(),
-            right: "up".into(),
-            left: "down".into(),
+            right: UP.into(),
+            left: DOWN.into(),
         }),
         shown_when: vec![
-            ShownWhen::new("value", "operation", &["set"]),
-            ShownWhen::new("step", "operation", &["up", "down"]),
+            ShownWhen::new("value", "operation", &[SET]),
+            ShownWhen::new("step", "operation", &[UP, DOWN]),
         ],
         ..KindDescription::default()
     }
@@ -83,21 +106,23 @@ pub(crate) fn description() -> KindDescription {
 
 /// Read the settings. The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<BrightnessChange, String> {
-    let integer = |key: &str, default: i64, min: i64| match settings.get(key) {
+    let integer = |key: &str, default: i64, min: i64, max: i64| match settings.get(key) {
         None => Ok(default),
-        Some(Value::Integer(n)) if (min..=100).contains(n) => Ok(*n),
+        Some(Value::Integer(n)) if (min..=max).contains(n) => Ok(*n),
         _ => Err(setting_problem(ID, key)),
     };
     let operation = match settings.get("operation") {
-        None => "up",
+        None => OPERATIONS[0].0,
         Some(Value::Text(value)) => value.as_str(),
         _ => return Err(setting_problem(ID, "operation")),
     };
     match operation {
-        "set" => Ok(BrightnessChange::Set(integer("value", 80, 0)? as u8)),
-        "up" | "down" => {
-            let step = integer("step", 5, 1)? as i16;
-            Ok(BrightnessChange::Step(if operation == "down" {
+        SET => Ok(BrightnessChange::Set(
+            integer("value", VALUE_DEFAULT, VALUE_MIN, VALUE_MAX)? as u8,
+        )),
+        UP | DOWN => {
+            let step = integer("step", STEP_DEFAULT, STEP_MIN, STEP_MAX)? as i16;
+            Ok(BrightnessChange::Step(if operation == DOWN {
                 -step
             } else {
                 step
@@ -115,8 +140,8 @@ pub(crate) fn perform(change: BrightnessChange, work: &Work<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::System;
     use crate::kinds::values;
+    use crate::tests::support::Fake;
     use opencraft_engine::Message;
     use std::sync::mpsc;
 
@@ -229,7 +254,7 @@ mod tests {
 
     #[test]
     fn a_push_asks_the_engine_and_a_bad_setting_asks_for_nothing() {
-        let system = System::default();
+        let system = Fake::default();
         let (sender, messages) = mpsc::channel();
         let sender = Some(sender);
         let work = Work::new(&system, &sender);

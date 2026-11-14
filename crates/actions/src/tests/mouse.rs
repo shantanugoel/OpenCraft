@@ -1,5 +1,5 @@
 use super::*;
-use crate::mouse::{Button, MouseEvent};
+use crate::system::{Button, MouseEvent};
 
 #[test]
 fn mouse_operations_are_checked_and_sent_through_the_fake_system() {

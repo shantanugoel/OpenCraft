@@ -3,8 +3,8 @@
 //! keeps one queue for both kinds, so a stop does not pass a play that came
 //! before it.
 use crate::backend::System;
-use crate::handlers::{problem, send};
 use crate::kinds::{find_in, kinds_of, Group, Work};
+use crate::kinds::{problem, send};
 use opencraft_engine::{Handler, KindDescription, Message, MessageSender, Request};
 use std::sync::Arc;
 

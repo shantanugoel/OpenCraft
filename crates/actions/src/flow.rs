@@ -15,7 +15,7 @@
 //! handler of their own, so a long sequence does not delay a toggle.
 
 use crate::backend::System;
-use crate::handlers::problem;
+use crate::kinds::problem;
 use crate::kinds::{find_in, kinds_of, Group, Memory, Work};
 use opencraft_engine::{Handler, KindDescription, MessageSender, Request};
 use std::cell::RefCell;

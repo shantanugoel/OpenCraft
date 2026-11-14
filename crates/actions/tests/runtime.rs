@@ -66,13 +66,13 @@ fn all_built_in_actions_use_only_the_handler_ports() {
             "mac-function",
             "function",
             "sleep",
-            Call::MacFunction(opencraft_actions::mac_function::MacFunction::Sleep),
+            Call::MacFunction(opencraft_actions::system::MacFunction::Sleep),
         ),
         (
             "mouse",
             "operation",
             "scroll-up",
-            Call::Mouse(opencraft_actions::mouse::MouseEvent::Scroll { x: 0, y: 3 }),
+            Call::Mouse(opencraft_actions::system::MouseEvent::Scroll { x: 0, y: 3 }),
         ),
         ("type-text", "text", "Test", Call::Text("Test".into())),
         (

@@ -49,23 +49,22 @@ fn main() {
             .map(|()| wait()),
         ["mac-function", name] => system
             .mac_function(
-                opencraft_actions::mac_function::MacFunction::from_name(name)
-                    .expect("a Mac function"),
+                opencraft_actions::system::MacFunction::from_name(name).expect("a Mac function"),
             )
             .map(|()| wait()),
         ["mouse-click", button] => system
-            .mouse_event(opencraft_actions::mouse::MouseEvent::Click {
+            .mouse_event(opencraft_actions::system::MouseEvent::Click {
                 button: match *button {
-                    "left" => opencraft_actions::mouse::Button::Left,
-                    "right" => opencraft_actions::mouse::Button::Right,
-                    "middle" => opencraft_actions::mouse::Button::Middle,
+                    "left" => opencraft_actions::system::Button::Left,
+                    "right" => opencraft_actions::system::Button::Right,
+                    "middle" => opencraft_actions::system::Button::Middle,
                     _ => panic!("unknown mouse button"),
                 },
                 count: 1,
             })
             .map(|()| wait()),
         ["mouse-scroll", x, y] => system
-            .mouse_event(opencraft_actions::mouse::MouseEvent::Scroll {
+            .mouse_event(opencraft_actions::system::MouseEvent::Scroll {
                 x: x.parse().expect("a number"),
                 y: y.parse().expect("a number"),
             })

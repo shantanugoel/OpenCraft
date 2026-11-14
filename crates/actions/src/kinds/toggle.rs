@@ -206,8 +206,8 @@ fn contains(settings: &Settings, inner: &Settings) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::System;
     use crate::kinds::{values, Memory};
+    use crate::tests::support::Fake;
     use opencraft_engine::{ControlId, ControlKind, GestureKind};
     use std::cell::RefCell;
     use std::sync::mpsc::{self, Receiver};
@@ -252,7 +252,7 @@ mod tests {
 
     /// The system, the memory of a handler, and the messages of its sender.
     struct Rig {
-        system: System,
+        system: Fake,
         memory: RefCell<Memory>,
         sender: Option<mpsc::Sender<Message>>,
         messages: Receiver<Message>,
@@ -262,7 +262,7 @@ mod tests {
         fn new() -> Self {
             let (sender, messages) = mpsc::channel();
             Self {
-                system: System::default(),
+                system: Fake::default(),
                 memory: RefCell::default(),
                 sender: Some(sender),
                 messages,

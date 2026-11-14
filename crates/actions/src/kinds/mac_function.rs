@@ -9,7 +9,7 @@
 
 use crate::descriptions::{choice, field_with_default, GROUP_SYSTEM};
 use crate::kinds::{Kind, Work};
-use crate::mac_function::MacFunction;
+use crate::system::MacFunction;
 use opencraft_engine::{KindDescription, Settings, ShownWhen, Value};
 
 /// The kind name.
@@ -40,8 +40,25 @@ impl Kind for MacFunctionKind {
     }
 }
 
+/// The functions in form order, with their labels. The first is the default.
+/// The description and [`read`] both use this table. The stored name is
+/// [`MacFunction::name`].
+const FUNCTIONS: [(MacFunction, &str); 7] = [
+    (MacFunction::MissionControl, "Mission Control"),
+    (MacFunction::Launchpad, "Launchpad"),
+    (MacFunction::Screenshot, "Screenshot"),
+    (MacFunction::ScreenSaver, "Screen saver"),
+    (MacFunction::Sleep, "Sleep"),
+    (MacFunction::Lock, "Lock"),
+    (MacFunction::ShowDesktop, "Show desktop"),
+];
+
 /// The description of this kind (decision 0014).
 pub(crate) fn description() -> KindDescription {
+    let options: Vec<(&str, &str)> = FUNCTIONS
+        .iter()
+        .map(|(function, label)| (function.name(), *label))
+        .collect();
     KindDescription {
         kind: ID.into(),
         name: NAME.into(),
@@ -57,25 +74,17 @@ pub(crate) fn description() -> KindDescription {
         permission_when: Some(ShownWhen::new(
             "",
             "function",
-            &MacFunction::ALL
+            &FUNCTIONS
                 .into_iter()
-                .filter(|function| needs_permission(*function))
-                .map(MacFunction::name)
+                .filter(|(function, _)| needs_permission(*function))
+                .map(|(function, _)| function.name())
                 .collect::<Vec<_>>(),
         )),
         fields: vec![field_with_default(
             "function",
             "Function",
-            choice(&[
-                ("mission-control", "Mission Control"),
-                ("launchpad", "Launchpad"),
-                ("screenshot", "Screenshot"),
-                ("screen-saver", "Screen saver"),
-                ("sleep", "Sleep"),
-                ("lock", "Lock"),
-                ("show-desktop", "Show desktop"),
-            ]),
-            Value::Text("mission-control".into()),
+            choice(&options),
+            Value::Text(FUNCTIONS[0].0.name().into()),
         )],
         ..KindDescription::default()
     }
@@ -99,11 +108,15 @@ pub(crate) fn needs_permission(function: MacFunction) -> bool {
 /// text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<MacFunction, String> {
     let name = match settings.get("function") {
-        None => "mission-control",
+        None => return Ok(FUNCTIONS[0].0),
         Some(Value::Text(value)) => value.as_str(),
         Some(_) => return Err(crate::descriptions::setting_problem(ID, "function")),
     };
-    MacFunction::from_name(name).ok_or_else(|| crate::descriptions::setting_problem(ID, "function"))
+    FUNCTIONS
+        .iter()
+        .find(|(function, _)| function.name() == name)
+        .map(|(function, _)| *function)
+        .ok_or_else(|| crate::descriptions::setting_problem(ID, "function"))
 }
 
 /// Do the function. A system error keeps its own cause.
@@ -117,11 +130,11 @@ pub(crate) fn perform(function: MacFunction, work: &Work<'_>) -> Result<(), Stri
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::{InputType, Settings};
 
-    fn run(function: MacFunction, system: &System) -> Result<(), String> {
+    fn run(function: MacFunction, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(function, &Work::new(system, &sender))
     }
@@ -224,7 +237,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_does_no_work_and_sleep_runs_with_no_permission() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(
@@ -274,12 +287,14 @@ mod tests {
 
     #[test]
     fn perform_does_each_function_and_keeps_the_cause_of_a_system_error() {
-        let system = System::default();
+        let system = Fake::default();
         for function in MacFunction::ALL {
             run(function, &system).unwrap();
         }
         assert_eq!(system.calls(), MacFunction::ALL.map(Call::MacFunction));
-        system.fail(Fault::SleepNotAllowed);
+        system
+            .sleep_disabled
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         assert_eq!(
             run(MacFunction::Sleep, &system).unwrap_err(),
             format!(
@@ -287,7 +302,7 @@ mod tests {
                 crate::system::Error::SleepNotAllowed
             )
         );
-        system.fail(Fault::Code("mac-function"));
+        system.fail(Some("mac-function"));
         let sender = None;
         let gone = || false;
         let work = Work::new(&system, &sender).with_keys(true, &gone);

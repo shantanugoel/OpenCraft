@@ -87,11 +87,11 @@ pub(crate) fn perform(key: MediaKey, work: &Work<'_>) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::{InputType, Settings, Value};
 
-    fn run(key: MediaKey, system: &System) -> Result<(), String> {
+    fn run(key: MediaKey, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(key, &Work::new(system, &sender))
     }
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_and_a_missing_permission_do_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(&Settings::new(), &Work::new(&system, &sender))
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn perform_sends_the_key_and_reports_a_system_error() {
-        let system = System::default();
+        let system = Fake::default();
         run(MediaKey::Mute, &system).unwrap();
         run(MediaKey::FastForward, &system).unwrap();
         assert_eq!(
@@ -192,7 +192,7 @@ mod tests {
                 Call::Media(MediaKey::FastForward)
             ]
         );
-        system.fail(Fault::Code("media"));
+        system.fail(Some("media"));
         assert_eq!(
             run(MediaKey::Mute, &system).unwrap_err(),
             "Cannot send keys or mouse events: the system refused the operation (code 42)."

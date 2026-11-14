@@ -14,11 +14,11 @@ pub fn send_hotkey(_: &Hotkey) -> Result<()> {
     Err(Error::NotSupported)
 }
 
-pub fn mouse_event(_: crate::mouse::MouseEvent) -> Result<()> {
+pub fn mouse_event(_: crate::system::MouseEvent) -> Result<()> {
     Err(Error::NotSupported)
 }
 
-pub fn mac_function(_: crate::mac_function::MacFunction) -> Result<()> {
+pub fn mac_function(_: crate::system::MacFunction) -> Result<()> {
     Err(Error::NotSupported)
 }
 

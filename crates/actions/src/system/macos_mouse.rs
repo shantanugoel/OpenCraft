@@ -1,7 +1,7 @@
 //! Quartz mouse events. No event monitor or Automation permission is used.
 
 use super::{Error, Result};
-use crate::mouse::{Button, MouseEvent};
+use crate::system::{Button, MouseEvent};
 use core_graphics::event::{
     CGEvent, CGEventFlags, CGEventTapLocation, CGEventType, CGMouseButton, EventField,
     ScrollEventUnit,

@@ -22,11 +22,11 @@ pub trait System: Send + Sync + 'static {
     fn can_send_keys(&self) -> bool;
     fn ask_to_send_keys(&self);
     fn send_hotkey(&self, hotkey: &Hotkey) -> Result<()>;
-    fn mouse_event(&self, event: crate::mouse::MouseEvent) -> Result<()> {
+    fn mouse_event(&self, event: crate::system::MouseEvent) -> Result<()> {
         let _ = event;
         Err(crate::system::Error::NotSupported)
     }
-    fn mac_function(&self, _function: crate::mac_function::MacFunction) -> Result<()> {
+    fn mac_function(&self, _function: crate::system::MacFunction) -> Result<()> {
         Err(crate::system::Error::NotSupported)
     }
     fn type_text(&self, text: &str) -> Result<()>;
@@ -112,10 +112,10 @@ impl System for RealSystem {
     fn type_text(&self, text: &str) -> Result<()> {
         platform::type_text(text)
     }
-    fn mouse_event(&self, event: crate::mouse::MouseEvent) -> Result<()> {
+    fn mouse_event(&self, event: crate::system::MouseEvent) -> Result<()> {
         platform::mouse_event(event)
     }
-    fn mac_function(&self, function: crate::mac_function::MacFunction) -> Result<()> {
+    fn mac_function(&self, function: crate::system::MacFunction) -> Result<()> {
         platform::mac_function(function)
     }
     fn paste_text(&self, text: &str) -> Result<()> {

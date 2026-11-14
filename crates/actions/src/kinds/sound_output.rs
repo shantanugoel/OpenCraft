@@ -40,6 +40,14 @@ impl Kind for SoundOutputKind {
     }
 }
 
+/// The stored names of the operations.
+const SET: &str = "set";
+const NEXT: &str = "next";
+
+/// The operations in form order: the stored name and the label. The first is
+/// the default. The description and [`read`] both use this table.
+const OPERATIONS: [(&str, &str); 2] = [(SET, "Set device"), (NEXT, "Next device")];
+
 /// The description of this kind (decision 0014).
 pub(crate) fn description() -> KindDescription {
     KindDescription {
@@ -51,8 +59,8 @@ pub(crate) fn description() -> KindDescription {
             field_with_default(
                 "operation",
                 "Operation",
-                choice(&[("set", "Set device"), ("next", "Next device")]),
-                Value::Text("set".into()),
+                choice(&OPERATIONS),
+                Value::Text(OPERATIONS[0].0.into()),
             ),
             field("device", "Device", InputType::RuntimeChoice),
             field_with_default(
@@ -64,8 +72,8 @@ pub(crate) fn description() -> KindDescription {
         ],
         // Each operation reads one field (decision 0038).
         shown_when: vec![
-            ShownWhen::new("device", "operation", &["set"]),
-            ShownWhen::new("devices", "operation", &["next"]),
+            ShownWhen::new("device", "operation", &[SET]),
+            ShownWhen::new("devices", "operation", &[NEXT]),
         ],
         ..KindDescription::default()
     }
@@ -84,18 +92,18 @@ pub(crate) enum Change {
 /// the user.
 pub(crate) fn read(settings: &Settings) -> Result<Change, String> {
     let operation = match settings.get("operation") {
-        None => "set",
+        None => OPERATIONS[0].0,
         Some(Value::Text(value)) => value.as_str(),
         Some(_) => return Err(setting_problem(ID, "operation")),
     };
     match operation {
-        "set" => match settings.get("device") {
+        SET => match settings.get("device") {
             Some(Value::Text(device)) if !device.is_empty() => Ok(Change::Set {
                 device: device.clone(),
             }),
             _ => Err(setting_problem(ID, "device")),
         },
-        "next" => {
+        NEXT => {
             let devices = match settings.get("devices") {
                 None => Vec::new(),
                 Some(Value::List(values)) => values
@@ -192,8 +200,8 @@ pub(crate) fn follow_problem(error: impl std::fmt::Display) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::values;
+    use crate::tests::support::{Call, Fake};
 
     fn text(value: &str) -> Value {
         Value::Text(value.into())
@@ -203,7 +211,7 @@ mod tests {
         Value::List(values.iter().map(|value| text(value)).collect())
     }
 
-    fn run(settings: &Settings, system: &System) -> Result<(), String> {
+    fn run(settings: &Settings, system: &Fake) -> Result<(), String> {
         let sender = None;
         KIND.invoke(settings, &Work::new(system, &sender))
     }
@@ -309,7 +317,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_does_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         assert_eq!(
             run(&Settings::new(), &system).unwrap_err(),
             setting_problem(ID, "device")
@@ -319,7 +327,7 @@ mod tests {
 
     #[test]
     fn set_selects_a_connected_output_and_refuses_a_missing_one() {
-        let system = System::default();
+        let system = Fake::default();
         run(&values(&[("device", text("b"))]), &system).unwrap();
         assert_eq!(system.calls(), [Call::Output("b".into())]);
         assert_eq!(system.output(), "b");
@@ -332,7 +340,7 @@ mod tests {
 
     #[test]
     fn next_cycles_in_order_skips_a_missing_output_and_wraps() {
-        let system = System::default();
+        let system = Fake::default();
         let settings = next(&["b", "missing", "a"]);
         // The default output is "a". It is the last connected one in the list.
         run(&settings, &system).unwrap();
@@ -353,7 +361,7 @@ mod tests {
 
     #[test]
     fn next_starts_at_the_first_output_when_the_default_is_not_in_the_list() {
-        let system = System::default();
+        let system = Fake::default();
         system.select_output("b");
         run(&next(&["a", "missing"]), &system).unwrap();
         assert_eq!(system.calls(), [Call::Output("a".into())]);
@@ -361,7 +369,7 @@ mod tests {
 
     #[test]
     fn next_with_no_connected_output_is_a_problem() {
-        let system = System::default();
+        let system = Fake::default();
         assert_eq!(
             run(&next(&["missing"]), &system).unwrap_err(),
             "No selected sound output is available."
@@ -371,18 +379,18 @@ mod tests {
 
     #[test]
     fn a_failed_list_read_or_write_is_a_problem() {
-        let system = System::default();
-        system.fail(Fault::Code("outputs"));
+        let system = Fake::default();
+        system.fail(Some("outputs"));
         assert_eq!(
             run(&values(&[("device", text("b"))]), &system).unwrap_err(),
             "Cannot list the sound outputs: the system refused the operation (code 42)."
         );
-        system.fail(Fault::Code("output"));
+        system.fail(Some("output"));
         assert_eq!(
             run(&next(&["a", "b"]), &system).unwrap_err(),
             "Cannot read the sound output: the system refused the operation (code 42)."
         );
-        system.fail(Fault::Code("set-output"));
+        system.fail(Some("set-output"));
         assert_eq!(
             run(&values(&[("device", text("b"))]), &system).unwrap_err(),
             "Cannot set the sound output: the system refused the operation (code 42)."
@@ -394,7 +402,7 @@ mod tests {
 
     #[test]
     fn the_choices_are_the_outputs_for_the_two_fields_and_do_not_change_the_system() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let work = Work::new(&system, &sender);
         for field in ["device", "devices"] {
@@ -411,7 +419,7 @@ mod tests {
         }
         assert!(KIND.choices("operation", &work).is_none());
         assert!(system.calls().is_empty());
-        system.fail(Fault::Code("outputs"));
+        system.fail(Some("outputs"));
         let choices = KIND.choices("device", &work).unwrap();
         assert!(choices.options.is_empty());
         assert_eq!(

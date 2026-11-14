@@ -49,8 +49,6 @@ mod flow;
 mod handlers;
 pub mod hotkey;
 mod kinds;
-pub mod mac_function;
-pub mod mouse;
 mod sound;
 pub mod system;
 

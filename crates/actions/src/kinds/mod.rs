@@ -60,8 +60,6 @@ pub(crate) use mac_function::needs_permission as mac_function_needs_permission;
 
 #[cfg(test)]
 mod export_round_trip;
-#[cfg(test)]
-mod recording;
 
 use crate::backend::System;
 use crate::descriptions::setting_problem;
@@ -184,7 +182,7 @@ impl<'a> Work<'a> {
     /// Send a message to the engine. A closed channel is not an error: the
     /// shell may already have stopped.
     pub(crate) fn send(&self, message: Message) {
-        crate::handlers::send(self.sender, message);
+        send(self.sender, message);
     }
 
     /// Ask the engine for work (decision 0016).
@@ -380,9 +378,14 @@ pub(crate) fn find_in(group: Group, id: &str) -> Option<&'static dyn Kind> {
 /// for the handler: the shell may already have stopped.
 pub(crate) fn problem(sender: &Option<MessageSender>, result: Result<(), String>) {
     if let Err(text) = result {
-        if let Some(sender) = sender {
-            let _ = sender.send(Message::Problem(text));
-        }
+        send(sender, Message::Problem(text));
+    }
+}
+
+/// Send a message. A closed channel or no channel is not an error.
+pub(crate) fn send(sender: &Option<MessageSender>, message: Message) {
+    if let Some(sender) = sender {
+        let _ = sender.send(message);
     }
 }
 
@@ -464,6 +467,7 @@ pub(crate) fn assert_system_kind(description: &KindDescription, name: &str, icon
 mod tests {
     use super::*;
     use crate::handlers::{self, Intervals};
+    use opencraft_engine::{InputType, Message};
     use std::sync::Arc;
 
     #[test]
@@ -485,15 +489,18 @@ mod tests {
             assert_eq!(crate::descriptions::description(id), kind.description());
             assert!(find_in(Group::Open, id).is_some());
         }
-        let open = handlers::build(Arc::new(recording::System::default()), Intervals::default())
-            .into_iter()
-            .find(|handler| {
-                handler
-                    .kinds()
-                    .iter()
-                    .any(|kind| kind.kind == open_application::ID)
-            })
-            .expect("the open handler");
+        let open = handlers::build(
+            Arc::new(crate::tests::support::Fake::default()),
+            Intervals::default(),
+        )
+        .into_iter()
+        .find(|handler| {
+            handler
+                .kinds()
+                .iter()
+                .any(|kind| kind.kind == open_application::ID)
+        })
+        .expect("the open handler");
         let published = open.kinds();
         let registered: Vec<_> = kinds_of(Group::Open)
             .map(|kind| kind.description())
@@ -526,8 +533,10 @@ mod tests {
         assert_eq!(ids(Group::Toggle), [toggle::ID]);
         assert_eq!(ids(Group::Sequence), [sequence::ID]);
         assert_eq!(ids(Group::Device), [screen_off::ID, device_brightness::ID]);
-        let handlers =
-            handlers::build(Arc::new(recording::System::default()), Intervals::default());
+        let handlers = handlers::build(
+            Arc::new(crate::tests::support::Fake::default()),
+            Intervals::default(),
+        );
         for (id, group) in [
             (hotkey::ID, Group::Key),
             (volume::ID, Group::Volume),
@@ -551,6 +560,70 @@ mod tests {
                     find_in(group, id).expect(id).description()
                 );
             }
+        }
+    }
+    /// Run one action of a kind on a new fake system, with the keys allowed.
+    /// Give the result, the calls, and the messages.
+    fn run(
+        kind: &dyn Kind,
+        settings: &Settings,
+    ) -> (
+        Result<(), String>,
+        Vec<crate::tests::support::Call>,
+        Vec<Message>,
+    ) {
+        let system = crate::tests::support::Fake::default();
+        let (sender, messages) = std::sync::mpsc::channel();
+        let sender = Some(sender);
+        let recheck = || true;
+        let work = Work::new(&system, &sender).with_keys(true, &recheck);
+        let result = kind.invoke(settings, &work);
+        (result, system.calls(), messages.try_iter().collect())
+    }
+
+    /// The form and the read of each kind use the same limits, choices, and
+    /// defaults (review 2, L6). A value that the form offers is never a
+    /// setting problem for its own field, and a missing field works like a
+    /// field that has its default.
+    #[test]
+    fn the_form_of_each_kind_offers_only_values_that_the_read_accepts() {
+        for entry in REGISTERED {
+            let kind = entry.kind;
+            let description = kind.description();
+            for field in &description.fields {
+                let own_problem = Err(setting_problem(kind.id(), &field.key));
+                let offered: Vec<Value> = match &field.input {
+                    InputType::Integer { min, max } => {
+                        vec![Value::Integer(*min), Value::Integer(*max)]
+                    }
+                    InputType::Choice { options } => options
+                        .iter()
+                        .map(|option| Value::Text(option.value.clone()))
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                for value in offered {
+                    let settings = values(&[(field.key.as_str(), value.clone())]);
+                    assert_ne!(
+                        run(kind, &settings).0,
+                        own_problem,
+                        "{}: the field {} does not accept {value:?}",
+                        kind.id(),
+                        field.key
+                    );
+                }
+            }
+            let defaults: Settings = description
+                .fields
+                .iter()
+                .filter_map(|field| Some((field.key.clone(), field.default.clone()?)))
+                .collect();
+            assert_eq!(
+                run(kind, &Settings::new()),
+                run(kind, &defaults),
+                "{}: a missing field is not the same as its default",
+                kind.id()
+            );
         }
     }
 }

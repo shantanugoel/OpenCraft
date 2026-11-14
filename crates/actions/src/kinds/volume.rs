@@ -155,11 +155,11 @@ pub(crate) fn perform(change: &Change, work: &Work<'_>) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::Settings;
 
-    fn run(change: Change, system: &System) -> Result<(), String> {
+    fn run(change: Change, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(&change, &Work::new(system, &sender))
     }
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_does_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn perform_clamps_clears_mute_and_switches_mute() {
-        let system = System::default();
+        let system = Fake::default();
         system.set_volume(98, true);
         run(
             Change {
@@ -322,8 +322,8 @@ mod tests {
 
     #[test]
     fn perform_reports_a_read_error_and_a_write_error() {
-        let system = System::default();
-        system.fail(Fault::Code("volume"));
+        let system = Fake::default();
+        system.fail(Some("volume"));
         assert_eq!(
             run(
                 Change {
@@ -336,7 +336,7 @@ mod tests {
             "Cannot read the sound volume: the system refused the operation (code 42)."
         );
         assert!(system.calls().is_empty());
-        system.fail(Fault::Code("level"));
+        system.fail(Some("level"));
         assert_eq!(
             run(
                 Change {
@@ -348,7 +348,7 @@ mod tests {
             .unwrap_err(),
             "Cannot set the sound volume: the system refused the operation (code 42)."
         );
-        system.fail(Fault::Code("muted"));
+        system.fail(Some("muted"));
         assert_eq!(
             run(
                 Change {

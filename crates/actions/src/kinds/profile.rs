@@ -11,10 +11,28 @@
 use crate::descriptions::{choice, field, field_with_default, setting_problem, GROUP_NAVIGATION};
 use crate::kinds::page::PAGE_LIMIT;
 use crate::kinds::{nonblank, Kind, Work};
-use opencraft_engine::{EngineRequest, InputType, KindDescription, ProfileTarget, Settings, Value};
+use opencraft_engine::{
+    EngineRequest, InputType, KindDescription, ProfileTarget, Settings, ShownWhen, Value,
+};
 
 /// The kind name.
 pub(crate) const ID: &str = "opencraft.profile";
+
+/// The stored names of the targets.
+const PROFILE: &str = "profile";
+const NEXT: &str = "next";
+const PREVIOUS: &str = "previous";
+
+/// The targets in form order: the stored name and the label. The first is
+/// the default. The description and [`read`] both use this table.
+const TARGETS: [(&str, &str); 3] = [
+    (PROFILE, "A profile"),
+    (NEXT, "Next profile"),
+    (PREVIOUS, "Previous profile"),
+];
+
+/// The page number of the default: the first page of the profile.
+const PAGE_DEFAULT: i64 = 0;
 
 const NAME: &str = "Select a profile";
 
@@ -49,24 +67,22 @@ pub(crate) fn description() -> KindDescription {
             field_with_default(
                 "target",
                 "Select",
-                choice(&[
-                    ("profile", "A profile"),
-                    ("next", "Next profile"),
-                    ("previous", "Previous profile"),
-                ]),
-                Value::Text("profile".into()),
+                choice(&TARGETS),
+                Value::Text(TARGETS[0].0.into()),
             ),
             field("profile", "Profile", InputType::Profile),
             field_with_default(
                 "page",
                 "Page",
                 InputType::Integer {
-                    min: 0,
+                    min: PAGE_DEFAULT,
                     max: PAGE_LIMIT,
                 },
-                Value::Integer(0),
+                Value::Integer(PAGE_DEFAULT),
             ),
         ],
+        // The profile name is for the target "A profile" only.
+        shown_when: vec![ShownWhen::new("profile", "target", &[PROFILE])],
         ..KindDescription::default()
     }
 }
@@ -82,18 +98,18 @@ pub(crate) struct Selection {
 /// Read the settings. The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<Selection, String> {
     let target = match settings.get("target") {
-        None => "profile",
+        None => TARGETS[0].0,
         Some(Value::Text(target)) => target.as_str(),
         Some(_) => "",
     };
     let target = match target {
-        "next" => ProfileTarget::Next,
-        "previous" => ProfileTarget::Previous,
-        "profile" => ProfileTarget::Profile(nonblank(ID, settings, "profile")?.trim().to_string()),
+        NEXT => ProfileTarget::Next,
+        PREVIOUS => ProfileTarget::Previous,
+        PROFILE => ProfileTarget::Profile(nonblank(ID, settings, "profile")?.trim().to_string()),
         _ => return Err(setting_problem(ID, "target")),
     };
     let page = match settings.get("page") {
-        None | Some(Value::Integer(0)) => None,
+        None | Some(Value::Integer(PAGE_DEFAULT)) => None,
         Some(Value::Integer(page)) if (1..=PAGE_LIMIT).contains(page) => Some(*page as usize - 1),
         Some(_) => return Err(setting_problem(ID, "page")),
     };
@@ -111,8 +127,8 @@ pub(crate) fn perform(selection: Selection, work: &Work<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::System;
     use crate::kinds::values;
+    use crate::tests::support::Fake;
     use opencraft_engine::Message;
     use std::sync::mpsc;
 
@@ -132,7 +148,10 @@ mod tests {
         assert!(description.direction.is_none());
         assert!(description.states.is_none());
         assert!(!description.folder_back);
-        assert!(description.shown_when.is_empty());
+        assert_eq!(
+            description.shown_when,
+            [ShownWhen::new("profile", "target", &["profile"])]
+        );
         let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
         assert_eq!(keys, ["target", "profile", "page"]);
         assert_eq!(description.fields[0].default, Some(text("profile")));
@@ -225,7 +244,7 @@ mod tests {
 
     #[test]
     fn a_push_asks_the_engine_and_a_bad_setting_asks_for_nothing() {
-        let system = System::default();
+        let system = Fake::default();
         let (sender, messages) = mpsc::channel();
         let sender = Some(sender);
         let work = Work::new(&system, &sender);

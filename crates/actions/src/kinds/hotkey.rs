@@ -68,11 +68,11 @@ pub(crate) fn perform(hotkey: &Hotkey, work: &Work<'_>) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::{Settings, Value};
 
-    fn run(hotkey: &Hotkey, system: &System) -> Result<(), String> {
+    fn run(hotkey: &Hotkey, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(hotkey, &Work::new(system, &sender))
     }
@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_and_a_missing_permission_do_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(&Settings::new(), &Work::new(&system, &sender))
@@ -158,11 +158,11 @@ mod tests {
 
     #[test]
     fn perform_sends_the_hotkey_and_a_lost_permission_replaces_the_system_error() {
-        let system = System::default();
+        let system = Fake::default();
         let hotkey = "cmd+a".parse().unwrap();
         run(&hotkey, &system).unwrap();
         assert_eq!(system.calls(), [Call::Hotkey("cmd+a".into())]);
-        system.fail(Fault::Code("hotkey"));
+        system.fail(Some("hotkey"));
         assert_eq!(
             run(&hotkey, &system).unwrap_err(),
             "Cannot send keys or mouse events: the system refused the operation (code 42)."

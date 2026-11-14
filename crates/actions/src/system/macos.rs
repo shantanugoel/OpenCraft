@@ -41,11 +41,11 @@ pub fn ask_to_send_keys() {
     unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef().cast()) };
 }
 
-pub fn mouse_event(event: crate::mouse::MouseEvent) -> Result<()> {
+pub fn mouse_event(event: crate::system::MouseEvent) -> Result<()> {
     super::macos_mouse::send(event)
 }
 
-pub fn mac_function(function: crate::mac_function::MacFunction) -> Result<()> {
+pub fn mac_function(function: crate::system::MacFunction) -> Result<()> {
     super::macos_functions::run(function)
 }
 

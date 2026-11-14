@@ -82,11 +82,11 @@ pub(crate) fn perform(url: &Url, work: &Work<'_>) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{assert_system_kind, values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::{Settings, Value};
 
-    fn run(url: &Url, system: &System) -> Result<(), String> {
+    fn run(url: &Url, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(url, &Work::new(system, &sender))
     }
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_does_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(&Settings::new(), &Work::new(&system, &sender))
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn perform_opens_the_url_and_reports_a_system_error() {
-        let system = System::default();
+        let system = Fake::default();
         run(
             &Url {
                 url: "https://example.test".into(),
@@ -202,7 +202,7 @@ mod tests {
                 Call::Url("https://example.test".into(), Some("Safari".into())),
             ]
         );
-        system.fail(Fault::Code("url"));
+        system.fail(Some("url"));
         assert_eq!(
             run(
                 &Url {

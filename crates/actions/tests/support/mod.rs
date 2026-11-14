@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Call {
     Hotkey(String),
-    Mouse(opencraft_actions::mouse::MouseEvent),
-    MacFunction(opencraft_actions::mac_function::MacFunction),
+    Mouse(opencraft_actions::system::MouseEvent),
+    MacFunction(opencraft_actions::system::MacFunction),
     Text(String),
     Paste(String),
     Media(MediaKey),
@@ -61,6 +61,12 @@ pub struct Fake {
     /// The waits that started, and the waits that may end. See
     /// [`Fake::hold_sleeps`].
     pub sleeps_started: AtomicUsize,
+    /// True: the call `quit` fails with [`Error::NotRunning`].
+    pub not_running: AtomicBool,
+    /// True after the waiter of the last shell command returned from `wait`.
+    finished: Arc<AtomicBool>,
+    /// Paths that `application_copies` returns.
+    copies: Mutex<Vec<String>>,
     /// True: the Mac system function Sleep fails as macOS refuses it when
     /// a setting turns off all sleep.
     pub sleep_disabled: AtomicBool,
@@ -99,6 +105,9 @@ impl Default for Fake {
             calls: Mutex::new(vec![]),
             gate: Arc::new((Mutex::new(Some(Exit::Code(0))), Condvar::new())),
             sleeps_started: AtomicUsize::new(0),
+            not_running: AtomicBool::new(false),
+            finished: Arc::new(AtomicBool::new(false)),
+            copies: Mutex::new(Vec::new()),
             sleep_disabled: AtomicBool::new(false),
             sleep_gate: Arc::new((Mutex::new(None), Condvar::new())),
         }
@@ -117,9 +126,39 @@ impl Fake {
     }
     pub fn fail(&self, operation: Option<&'static str>) {
         *self.failure.lock().unwrap() = operation;
+        self.not_running.store(false, Ordering::SeqCst);
+    }
+    /// Set the mute that `microphone_muted` returns.
+    pub fn set_microphone(&self, muted: Option<bool>) {
+        *self.microphone.lock().unwrap() = muted;
+    }
+    /// Make the output with this UID the default, with no recorded call.
+    pub fn select_output(&self, id: &str) {
+        *self.output.lock().unwrap() = id.into();
+    }
+    /// The UID of the default output.
+    pub fn output(&self) -> String {
+        self.output.lock().unwrap().clone()
+    }
+    /// The registered copies of a bundle identifier, for the next open.
+    pub fn set_copies(&self, copies: Vec<String>) {
+        *self.copies.lock().unwrap() = copies;
+    }
+    /// True after the waiter of the last shell command has returned from `wait`.
+    pub fn wait_until_finished(&self) -> bool {
+        let start = Instant::now();
+        while !self.finished.load(Ordering::SeqCst) {
+            if start.elapsed() > Duration::from_secs(2) {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        true
     }
     fn check(&self, operation: &str) -> Result<()> {
-        if *self.failure.lock().unwrap() == Some(operation) {
+        if operation == "quit" && self.not_running.load(Ordering::SeqCst) {
+            Err(Error::NotRunning)
+        } else if *self.failure.lock().unwrap() == Some(operation) {
             Err(Error::System(42))
         } else {
             Ok(())
@@ -157,6 +196,7 @@ impl opencraft_actions::system::AudioWatch for FakeWatch {}
 struct FakeChild {
     gate: Gate,
     waiting: Arc<AtomicBool>,
+    finished: Arc<AtomicBool>,
 }
 
 impl ShellChild for FakeChild {
@@ -169,11 +209,13 @@ impl ShellChild for FakeChild {
                 exit.is_none()
             })
             .unwrap();
-        match exit.unwrap_or(Exit::Error) {
+        let result = match exit.unwrap_or(Exit::Error) {
             Exit::Code(code) => Ok(Some(code)),
             Exit::Signal => Ok(None),
             Exit::Error => Err(Error::System(42)),
-        }
+        };
+        self.finished.store(true, Ordering::SeqCst);
+        result
     }
 }
 
@@ -188,12 +230,12 @@ impl System for Fake {
     fn send_hotkey(&self, hotkey: &Hotkey) -> Result<()> {
         self.record(Call::Hotkey(hotkey.to_string()), "hotkey")
     }
-    fn mouse_event(&self, event: opencraft_actions::mouse::MouseEvent) -> Result<()> {
+    fn mouse_event(&self, event: opencraft_actions::system::MouseEvent) -> Result<()> {
         self.record(Call::Mouse(event), "mouse")
     }
-    fn mac_function(&self, function: opencraft_actions::mac_function::MacFunction) -> Result<()> {
+    fn mac_function(&self, function: opencraft_actions::system::MacFunction) -> Result<()> {
         self.record(Call::MacFunction(function), "mac-function")?;
-        if function == opencraft_actions::mac_function::MacFunction::Sleep
+        if function == opencraft_actions::system::MacFunction::Sleep
             && self.sleep_disabled.load(Ordering::SeqCst)
         {
             return Err(Error::SleepNotAllowed);
@@ -282,6 +324,9 @@ impl System for Fake {
     fn stop_sounds(&self) -> Result<()> {
         self.record(Call::StopSounds, "stop-sounds")
     }
+    fn application_copies(&self, _bundle_id: &str) -> Vec<String> {
+        self.copies.lock().unwrap().clone()
+    }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()> {
         self.record(
             Call::Application(application.into(), arguments.to_vec()),
@@ -319,9 +364,11 @@ impl System for Fake {
     }
     fn start_shell_command(&self, command: &str) -> Result<Box<dyn ShellChild>> {
         self.record(Call::Shell(command.into()), "shell")?;
+        self.finished.store(false, Ordering::SeqCst);
         Ok(Box::new(FakeChild {
             gate: self.gate.clone(),
             waiting: self.waiting.clone(),
+            finished: self.finished.clone(),
         }))
     }
 }

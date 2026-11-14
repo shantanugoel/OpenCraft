@@ -131,7 +131,7 @@ pub(crate) fn perform(steps: Steps, work: &Work<'_>) -> Result<(), String> {
                 if !delay.is_zero() {
                     system.sleep(delay);
                 }
-                crate::handlers::send(
+                crate::kinds::send(
                     &sender,
                     Message::Engine(EngineRequest::Invoke { binding, action }),
                 );
@@ -145,8 +145,8 @@ pub(crate) fn perform(steps: Steps, work: &Work<'_>) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::backend::System as SystemPort;
-    use crate::kinds::recording::{Call, System};
     use crate::kinds::values;
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::{BindingId, ControlId, ControlKind, GestureKind};
     use std::sync::{mpsc, Arc};
 
@@ -185,7 +185,7 @@ mod tests {
 
     /// Run the sequence, and wait for the end of its thread: the thread
     /// drops its sender when it ends.
-    fn run(settings: &Settings, system: &Arc<System>) -> Result<Vec<Message>, String> {
+    fn run(settings: &Settings, system: &Arc<Fake>) -> Result<Vec<Message>, String> {
         let (sender, messages) = mpsc::channel();
         let sender = Some(sender);
         let shared: Arc<dyn SystemPort> = system.clone();
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn a_push_asks_for_each_action_in_order_and_waits_before_each_later_action() {
-        let system = Arc::new(System::default());
+        let system = Arc::new(Fake::default());
         let messages = run(
             &sequence(&[nested(1), nested(2), nested(3)], Some(250)),
             &system,
@@ -328,7 +328,7 @@ mod tests {
 
     #[test]
     fn a_step_waits_before_its_request_and_the_child_gets_no_timing() {
-        let system = Arc::new(System::default());
+        let system = Arc::new(Fake::default());
         let steps: Vec<_> = [30, 0, 90]
             .into_iter()
             .enumerate()
@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn a_sequence_with_no_action_or_a_bad_setting_starts_nothing() {
-        let system = Arc::new(System::default());
+        let system = Arc::new(Fake::default());
         assert_eq!(run(&Settings::new(), &system).unwrap(), []);
         assert_eq!(run(&sequence(&[], Some(5)), &system).unwrap(), []);
         run(&values(&[("delay_ms", Value::Integer(-1))]), &system).unwrap_err();
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn a_sequence_needs_a_binding_and_a_shared_system() {
-        let system = Arc::new(System::default());
+        let system = Arc::new(Fake::default());
         let sender = None;
         let settings = sequence(&[nested(1)], None);
         KIND.invoke(&settings, &Work::new(system.as_ref(), &sender))

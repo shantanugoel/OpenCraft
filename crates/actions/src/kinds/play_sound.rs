@@ -43,6 +43,11 @@ impl Kind for PlaySoundKind {
     }
 }
 
+/// The limits and the default of the field "Volume", in percent.
+const VOLUME_MIN: i64 = 0;
+const VOLUME_MAX: i64 = 100;
+const VOLUME_DEFAULT: i64 = 100;
+
 /// The description of this kind (decision 0014).
 pub(crate) fn description() -> KindDescription {
     KindDescription {
@@ -61,8 +66,11 @@ pub(crate) fn description() -> KindDescription {
             field_with_default(
                 "volume",
                 "Volume",
-                InputType::Integer { min: 0, max: 100 },
-                Value::Integer(100),
+                InputType::Integer {
+                    min: VOLUME_MIN,
+                    max: VOLUME_MAX,
+                },
+                Value::Integer(VOLUME_DEFAULT),
             ),
             field_with_default(
                 "device",
@@ -91,11 +99,8 @@ pub(crate) fn read(settings: &Settings) -> Result<Sound, String> {
     // An imported profile has `~` for the home folder (decision 0037).
     let file = crate::system::expand_home(nonblank(ID, settings, "file")?);
     let volume = match settings.get("volume") {
-        None => 100,
-        Some(Value::Integer(volume)) => u8::try_from(*volume)
-            .ok()
-            .filter(|volume| *volume <= 100)
-            .ok_or_else(|| setting_problem(ID, "volume"))?,
+        None => VOLUME_DEFAULT as u8,
+        Some(Value::Integer(volume)) if (VOLUME_MIN..=VOLUME_MAX).contains(volume) => *volume as u8,
         Some(_) => return Err(setting_problem(ID, "volume")),
     };
     let device = match settings.get("device") {
@@ -155,14 +160,14 @@ pub(crate) fn choices(field: &str, work: &Work<'_>) -> Option<Choices> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::values;
+    use crate::tests::support::{Call, Fake};
 
     fn text(value: &str) -> Value {
         Value::Text(value.into())
     }
 
-    fn run(settings: &Settings, system: &System) -> Result<(), String> {
+    fn run(settings: &Settings, system: &Fake) -> Result<(), String> {
         let sender = None;
         KIND.invoke(settings, &Work::new(system, &sender))
     }
@@ -253,7 +258,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_plays_nothing() {
-        let system = System::default();
+        let system = Fake::default();
         assert_eq!(
             run(&values(&[("volume", Value::Integer(5))]), &system).unwrap_err(),
             setting_problem(ID, "file")
@@ -263,7 +268,7 @@ mod tests {
 
     #[test]
     fn perform_sends_the_file_the_volume_and_the_output_to_the_system() {
-        let system = System::default();
+        let system = Fake::default();
         run(&values(&[file()]), &system).unwrap();
         run(
             &values(&[
@@ -285,12 +290,12 @@ mod tests {
 
     #[test]
     fn a_missing_output_plays_nothing() {
-        let system = System::default();
+        let system = Fake::default();
         assert_eq!(
             run(&values(&[file(), ("device", text("gone"))]), &system).unwrap_err(),
             "The selected sound output is not available."
         );
-        system.fail(Fault::Code("outputs"));
+        system.fail(Some("outputs"));
         assert_eq!(
             run(&values(&[file(), ("device", text("b"))]), &system).unwrap_err(),
             "Cannot list the sound outputs: the system refused the operation (code 42)."
@@ -300,8 +305,8 @@ mod tests {
 
     #[test]
     fn a_failed_play_is_a_problem() {
-        let system = System::default();
-        system.fail(Fault::Code("play-sound"));
+        let system = Fake::default();
+        system.fail(Some("play-sound"));
         assert_eq!(
             run(&values(&[file()]), &system).unwrap_err(),
             "Cannot play the sound file: the system refused the operation (code 42)."
@@ -310,7 +315,7 @@ mod tests {
 
     #[test]
     fn the_output_choices_start_with_the_default_output() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let work = Work::new(&system, &sender);
         let choices = KIND.choices("device", &work).unwrap();
@@ -329,7 +334,7 @@ mod tests {
         );
         assert!(KIND.choices("file", &work).is_none());
         assert!(system.calls().is_empty());
-        system.fail(Fault::Code("outputs"));
+        system.fail(Some("outputs"));
         let choices = KIND.choices("device", &work).unwrap();
         assert_eq!(choices.options.len(), 1);
         assert_eq!(

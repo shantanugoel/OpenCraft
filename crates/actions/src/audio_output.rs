@@ -1,8 +1,8 @@
 //! Set one sound output or cycle an ordered list of stable output UIDs.
 use crate::audio::AudioWorker;
 use crate::backend::System;
-use crate::handlers::{problem, send};
 use crate::kinds::{find_in, kinds_of, sound_output, Group, Work};
+use crate::kinds::{problem, send};
 use opencraft_engine::{
     BindingId, Feedback, Handler, KindDescription, Message, MessageSender, Request,
 };

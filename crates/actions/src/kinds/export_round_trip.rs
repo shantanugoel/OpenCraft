@@ -2,15 +2,15 @@
 //! 0037). The export writes `~`. Each kind that has a Path field must then
 //! give the full path to the system.
 
-use super::recording::{Call, System};
 use super::{Work, REGISTERED};
+use crate::tests::support::{Call, Fake};
 use opencraft_engine::share::{export, import};
 use opencraft_engine::{
     Action, ControlId, ControlKind, GestureKind, InputType, Page, Profile, ProfileStore, Settings,
     Value,
 };
 
-fn invoke(action: &Action, system: &System) -> Result<(), String> {
+fn invoke(action: &Action, system: &Fake) -> Result<(), String> {
     let sender = None;
     let kind = super::find(&action.kind).expect("a registered kind");
     kind.invoke(&action.settings, &Work::new(system, &sender))
@@ -80,7 +80,7 @@ fn each_kind_with_a_path_field_gives_the_full_path_after_an_export_and_an_import
             kind: description.kind.clone(),
             settings,
         };
-        let before = System::default();
+        let before = Fake::default();
         invoke(&action, &before).unwrap();
         let imported = round_trip(&action, &kinds);
         assert!(
@@ -91,7 +91,7 @@ fn each_kind_with_a_path_field_gives_the_full_path_after_an_export_and_an_import
             "{}: the import keeps the `~`",
             description.kind
         );
-        let after = System::default();
+        let after = Fake::default();
         invoke(&imported, &after).unwrap();
         assert_eq!(after.calls(), before.calls(), "{}", description.kind);
         assert!(
@@ -127,7 +127,7 @@ fn the_home_folder_alone_is_a_folder_to_open_and_not_an_application_name() {
         imported.settings.get("application"),
         Some(&Value::Text("~".into()))
     );
-    let system = System::default();
+    let system = Fake::default();
     invoke(&imported, &system).unwrap();
     assert_eq!(system.calls(), [Call::File(home)]);
 }

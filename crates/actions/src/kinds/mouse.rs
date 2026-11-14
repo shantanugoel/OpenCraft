@@ -6,7 +6,7 @@
 
 use crate::descriptions::{choice, field_with_default, GROUP_SYSTEM};
 use crate::kinds::{Kind, Work};
-use crate::mouse::{Button, MouseEvent};
+use crate::system::{Button, MouseEvent};
 use opencraft_engine::{Direction, KindDescription, Settings, ShownWhen, Value};
 
 /// The kind name.
@@ -228,11 +228,11 @@ pub(crate) fn perform(event: MouseEvent, work: &Work<'_>) -> Result<(), String> 
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::Settings;
 
-    fn run(event: MouseEvent, system: &System) -> Result<(), String> {
+    fn run(event: MouseEvent, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(event, &Work::new(system, &sender))
     }
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_and_a_missing_permission_do_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(
@@ -396,11 +396,11 @@ mod tests {
 
     #[test]
     fn perform_sends_the_event_and_reports_a_system_error() {
-        let system = System::default();
+        let system = Fake::default();
         let event = MouseEvent::Scroll { x: 0, y: 3 };
         run(event, &system).unwrap();
         assert_eq!(system.calls(), [Call::Mouse(event)]);
-        system.fail(Fault::Code("mouse"));
+        system.fail(Some("mouse"));
         assert_eq!(
             run(event, &system).unwrap_err(),
             "Cannot send keys or mouse events: the system refused the operation (code 42)."
