@@ -631,14 +631,14 @@ fn the_profile_kind_selects_a_profile_through_the_engine() {
     });
     world.bind_key_3(built_in(
         "profile",
-        vec![("profile", Value::Text("Video calls".into()))],
+        vec![("profile", Value::Text("video-calls".into()))],
     ));
     world.take_events();
 
     world.press_key_3();
     assert_eq!(world.engine.active_profile(), "video-calls");
 
-    // A name that no profile has is a problem for the shell.
+    // An identity that no profile has is a problem for the shell. A name is not an identity.
     world.command(Command::SelectProfile {
         profile: "default".into(),
     });

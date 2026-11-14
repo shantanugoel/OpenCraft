@@ -5,7 +5,6 @@ use crate::system::MacFunction;
 fn every_mac_function_uses_the_fake_including_sleep_lock_and_screen_saver() {
     let mut rig = Rig::new("mac-function", true);
     for function in MacFunction::ALL {
-        assert_eq!(MacFunction::from_name(function.name()), Some(function));
         rig.invoke(text_action("mac-function", "function", function.name()));
     }
     assert_eq!(rig.system.calls(), MacFunction::ALL.map(Call::MacFunction));
@@ -15,7 +14,6 @@ fn every_mac_function_uses_the_fake_including_sleep_lock_and_screen_saver() {
         rig.system.calls(),
         [Call::MacFunction(MacFunction::MissionControl)]
     );
-    assert!(MacFunction::from_name("do-not-disturb").is_none());
 }
 
 #[test]

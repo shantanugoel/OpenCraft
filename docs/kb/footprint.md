@@ -67,6 +67,29 @@ not used, so the installed application stayed stopped a short time.
 | Processor use when idle: less than 0.5 % of one core | 0.13 % in one interval of 60 seconds, with `--login` and no window | Met for this interval. The interval is a short check, not a run of 300 seconds. |
 | Time from an application change to the new profile on the device | 32 ms to 43 ms from the activation notice to the return of `change_profile_at`, after the device writes | Measured. The VSD Craft camera range is 0.47 s to 1.10 s, and that range includes the activation and the time until the device shows the scene. |
 
+## Time of the automatic switch after the state machine (2026-11-15)
+
+The state machine of the automatic switch (`front_switch.rs`) replaced code
+of the engine. This check shows that the time from the notice to the device
+writes did not increase (acceptance item 4 of
+[#363](https://github.com/shantanugoel/OpenCraft/issues/363)).
+
+The method of the Phase 9 measurement needs a real change of the front
+application. That change moves the focus of the owner, so this check did not
+use it. A scratch program started the engine on a connected N4 Pro and sent
+`Command::FrontApplication` with the bundle identifier of Calculator,
+TextEdit, or Preview. It ran in release mode with `OPENCRAFT_SWITCH_TRACE=1`,
+a scratch profiles directory, and four profiles that wrote 14 images each.
+The same program ran on the commit before the pull requests #388 and #390
+(`d544c1a`). Each variant ran three times with six switches each. The two
+variants ran in turn.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The engine line of the trace (the end of the save to the return of `change_profile_at`) had a median of 25 ms for 15 switches of the old code, and 25 ms for 15 switches of the new code. Each switch wrote 14 images. | Measured | The log lines of the scratch program, real N4 Pro, display awake, 2026-11-15 |
+| The time from the send of the command to the engine line had a median of 36 ms (old code, range 26 ms to 50 ms) and 40 ms (new code, range 24 ms to 55 ms). The difference is in the range of one poll of the engine (20 ms). | Measured | Same run |
+| The check leaves out the observer of the shell and the delivery of the notice by macOS. They did not change. | Source | `crates/app/src/front_app.rs`, no change in the pull requests #388 to #397 |
+
 ## Screen-off timer spot check (2026-11-13)
 
 | Fact | Confidence | Source |

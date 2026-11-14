@@ -159,12 +159,6 @@ impl ProfileList {
             .collect()
     }
 
-    /// The default mark, if it is set. It can name a profile that is not in
-    /// the list: see [`Self::default_id`].
-    pub fn default_mark(&self) -> Option<&str> {
-        self.default_mark.as_deref()
-    }
-
     /// Set the default mark to the profile `id`. Return false, and change
     /// nothing, if the list has no such profile or the mark is `id` already.
     pub fn set_default_mark(&mut self, id: &str) -> bool {
@@ -453,7 +447,7 @@ mod tests {
         assert!(!list.set_default_mark("gone"));
         assert!(list.set_default_mark("b"));
         assert!(!list.set_default_mark("b"), "no change");
-        assert_eq!(list.default_mark(), Some("b"));
+        assert_eq!(list.default_id(), Some("b"));
         assert_eq!(
             list.remove("b"),
             Some(Removal {
@@ -461,7 +455,7 @@ mod tests {
                 was_default: true
             })
         );
-        assert_eq!(list.default_mark(), None);
+        assert_eq!(list.default_id(), Some("a"));
         assert_eq!(list.remove("b"), None);
         assert_eq!(
             list.remove("a"),

@@ -339,6 +339,19 @@ fn the_engine_starts_with_the_layout_of_the_last_model_that_connected() {
         )))
     );
 
+    // A device of the same model as the key causes no write of `state.toml`
+    // (decision 0039).
+    let state = rig.dir.path().join("state.toml");
+    let before = (
+        fs::read_to_string(&state).unwrap(),
+        fs::metadata(&state).unwrap().modified().unwrap(),
+    );
+    std::thread::sleep(Duration::from_millis(50));
+    connect_test_model(&mut rig);
+    assert_eq!(fs::read_to_string(&state).unwrap(), before.0);
+    assert_eq!(fs::metadata(&state).unwrap().modified().unwrap(), before.1);
+    assert!(problems(&rig.take_events()).is_empty());
+
     // A change before a device connects goes to a profile of the test model.
     rig.set_color(face(1), RED);
     rig.poll_for(Duration::from_secs(1));

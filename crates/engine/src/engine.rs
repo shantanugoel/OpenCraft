@@ -79,8 +79,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub use crate::saved::SAVE_DELAY;
-
 /// Write one line about the device to standard error, with the time of the
 /// system clock in seconds since 1970. The engine writes a line only for an
 /// event that is not frequent: a connection, a disconnection, a wake of the
@@ -970,7 +968,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     ///    `LBLIG`, or `QUCMD`. A setting that the model does not have sends
     ///    nothing. With no device, the next start sequence sends the new
     ///    settings.
-    /// 3. It writes the settings file after [`SAVE_DELAY`], also if the file
+    /// 3. It writes the settings file after [`crate::saved::SAVE_DELAY`], also if the file
     ///    had an error before.
     pub fn set_device_settings(&mut self, settings: DeviceSettings) {
         let support = self.descriptor.settings;
@@ -1967,12 +1965,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 if let Some(entry) = self.list.get(&text) {
                     return Some(entry.id.clone());
                 }
-                if let Some(entry) = self.list.entries().iter().find(|entry| entry.name == text) {
-                    return Some(entry.id.clone());
-                }
                 self.problem(format!(
                     "OpenCraft did not change the profile, because no profile has the \
-                     identity or the name “{text}”."
+                     identity “{text}”."
                 ));
                 None
             }
@@ -2663,7 +2658,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// that was active before the step the active page. It does this with
     /// the steps of a page change of [`Self::select_page`], thus the device
     /// and the shell show the result. The file is written after
-    /// [`SAVE_DELAY`], as after each change.
+    /// [`crate::saved::SAVE_DELAY`], as after each change.
     pub fn undo(&mut self) {
         let mut history = std::mem::take(&mut self.history);
         let done = history.undo(|saved, place| {
@@ -3247,7 +3242,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     /// Write the profile and the device settings, each if it changed and no
-    /// change came for [`SAVE_DELAY`].
+    /// change came for [`crate::saved::SAVE_DELAY`].
     fn save_if_due(&mut self) {
         let now = self.now();
         if let Some(e) = self.profile.save_if_due(now, &self.store) {

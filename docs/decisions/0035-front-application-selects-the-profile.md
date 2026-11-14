@@ -273,6 +273,16 @@ and gives back the history of the new profile
 ([decision 0030](0030-undo-and-redo-in-the-engine.md#a-change-of-the-active-profile)).
 A selection of the active profile does nothing.
 
+Note (2026-11-15), from issues
+[#362](https://github.com/shantanugoel/OpenCraft/issues/362) and
+[#363](https://github.com/shantanugoel/OpenCraft/issues/363). The three
+values of this section are fields of `FrontSwitch`
+(`crates/engine/src/front_switch.rs`), not fields of the engine. The type
+holds `shell_in_front`, `last_target`, `chosen_in_window`, and the setting.
+`FrontSwitch::notice` has the steps of this section and gives a `Decision`.
+It reads no file and no device. The engine carries out the decision, and it
+calls `FrontSwitch::select_failed` if it cannot leave the active profile.
+
 The text for the user (the user guide and the help text of the Settings
 window) is:
 
@@ -343,6 +353,13 @@ The engine keeps the links of all profiles of the model in `entries`, thus
 the rule of section 8 reads no file. Only the selection reads the file of
 the new profile.
 
+Note (2026-11-15), from issue
+[#362](https://github.com/shantanugoel/OpenCraft/issues/362). The links of
+all profiles of the model are in `ProfileList`
+(`crates/engine/src/profile_list.rs`), the field `list` of the engine, and
+not in `entries`. The type holds the clash rule, the default profile, and
+the changes of a link. It does no I/O.
+
 ### 10. The action "Select a profile" (ACT-26)
 
 The kind stays `opencraft.profile`. Its settings:
@@ -400,6 +417,15 @@ pub enum ProfileTarget {
 - **A selection by the key is a manual selection** (section 8). When the
   target is the active profile and `page` is given, the engine selects the
   page. Else a selection of the active profile does nothing.
+
+Note (2026-11-15), from review 3 (L4). The owner said on 2026-11-14 that no
+backward compatibility is necessary. Thus the engine finds a profile only by
+its identity, and the two bullets "How the engine finds `Profile(text)`" and
+"An old binding" do not apply. A key of a release up to 0.2.0 that stores a
+name and no `target` does not select a profile. The engine sends the
+problem "OpenCraft did not change the profile, because no profile has the
+identity “*text*”.". The popup shows the stored value with "(not found)",
+and the form has no help text. The user selects the profile again.
 
 ### 11. The window
 

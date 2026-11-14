@@ -235,9 +235,8 @@ pub enum EngineRequest {
     DeviceBrightness(BrightnessChange),
     /// Select a profile (decision 0035, section 10).
     ///
-    /// [`ProfileTarget::Profile`] is an identity, or the name of a binding
-    /// from a release up to 0.2.0. The engine uses the identity first, then
-    /// the first profile with that name. `page` is the page number from 0.
+    /// [`ProfileTarget::Profile`] is an identity. `page` is the page number
+    /// from 0.
     /// `None` selects the first page of the profile. A selection of the
     /// active profile with no `page` does nothing. With `page`, the engine
     /// selects that page. A page that the profile does not have selects the
@@ -273,8 +272,7 @@ pub enum BrightnessChange {
 /// The reasons are in decision 0035, section 10.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProfileTarget {
-    /// An identity, or the name of an old binding. The engine uses the
-    /// identity first, then the name.
+    /// An identity. If no profile has it, the engine tells the shell.
     Profile(String),
     /// The profile after the active profile, in the order of the identities.
     /// After the last profile, the first profile.

@@ -11,6 +11,8 @@
 //!   and the active profile of each device model.
 //! - [`profile_list`]: the rules for the links, the clashes, and the default
 //!   profile of the profile list.
+//! - [`front_switch`]: the state machine of the automatic switch. It decides
+//!   what the engine does after a front application notice.
 //! - [`store`]: one profile directory: the profile file and the image files.
 //! - [`share`]: the profile file for export and import, with the images.
 //! - [`render`] and [`label`]: the image of a surface, made from its content.

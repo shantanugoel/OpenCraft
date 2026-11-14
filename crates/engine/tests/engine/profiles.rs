@@ -995,7 +995,7 @@ fn named(text: &str) -> ProfileTarget {
 }
 
 #[test]
-fn a_handler_uses_the_identity_before_the_name_and_keeps_an_old_name() {
+fn a_handler_selects_a_profile_by_its_identity_and_not_by_its_name() {
     let (mut rig, requests) = rig_with(&[
         ("alpha", profile(MODEL, "Other", RED)),
         ("beta", profile(MODEL, "Alpha", BLUE)),
@@ -1003,15 +1003,12 @@ fn a_handler_uses_the_identity_before_the_name_and_keeps_an_old_name() {
     ]);
     assert_eq!(rig.engine.active_profile(), "alpha");
 
-    // The name selects the first profile with that name.
-    select_request(&mut rig, named("Alpha"), None);
+    select_request(&mut rig, named("beta"), None);
     assert_eq!(rig.engine.active_profile(), "beta");
     assert_eq!(
         requests.try_iter().collect::<Vec<_>>(),
         [disappear(), appear()]
     );
-
-    // The identity wins, also when an earlier profile has that name.
     select_request(&mut rig, named("gamma"), None);
     assert_eq!(rig.engine.active_profile(), "gamma");
 
@@ -1020,14 +1017,19 @@ fn a_handler_uses_the_identity_before_the_name_and_keeps_an_old_name() {
     select_request(&mut rig, named("gamma"), None);
     assert!(rig.take_events().is_empty());
 
-    select_request(&mut rig, named("missing"), None);
-    assert_eq!(rig.engine.active_profile(), "gamma");
-    assert_eq!(
-        problems(&rig.take_events()),
-        ["OpenCraft did not change the profile, because no profile has the identity or the name “missing”."]
-    );
+    // A name is not an identity (decision 0035, section 10).
+    for text in ["missing", "Alpha", "Other"] {
+        select_request(&mut rig, named(text), None);
+        assert_eq!(rig.engine.active_profile(), "gamma");
+        assert_eq!(
+            problems(&rig.take_events()),
+            [format!(
+                "OpenCraft did not change the profile, because no profile has the identity “{text}”."
+            )]
+        );
+    }
 
-    // A rename changes the name. The identity stays, and the old name does not.
+    // A rename changes the name. The identity stays.
     command(
         &mut rig,
         Command::RenameProfile {
@@ -1035,16 +1037,13 @@ fn a_handler_uses_the_identity_before_the_name_and_keeps_an_old_name() {
             name: "Calls".into(),
         },
     );
+    select_request(&mut rig, named("alpha"), None);
     select_request(&mut rig, named("gamma"), None);
     assert_eq!(rig.engine.active_profile(), "gamma");
-    select_request(&mut rig, named("Alpha"), None);
-    assert_eq!(rig.engine.active_profile(), "beta");
+    rig.take_events();
     select_request(&mut rig, named("Calls"), None);
     assert_eq!(rig.engine.active_profile(), "gamma");
-    rig.take_events();
-    select_request(&mut rig, named("Alpha"), None);
-    assert!(problems(&rig.take_events()).is_empty());
-    assert_eq!(rig.engine.active_profile(), "beta");
+    assert_eq!(problems(&rig.take_events()).len(), 1);
 }
 
 #[test]
