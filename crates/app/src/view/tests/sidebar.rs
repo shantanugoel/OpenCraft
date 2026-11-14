@@ -475,6 +475,20 @@ fn the_profile_add_menu_imports_without_a_settings_sheet(cx: &mut TestAppContext
 }
 
 #[gpui_kit::test]
+fn the_ready_profile_command_sends_that_profile(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, sent) = sidebar_window(cx);
+    cx.dispatch_action(crate::app_menu::AddReadyProfile { index: 1 });
+    cx.run_until_parked();
+    let Some(Command::AddStarterProfile { profile }) = last(&sent) else {
+        panic!("the menu did not send the ready profile");
+    };
+    assert_eq!(profile.name, "Finder");
+    assert_eq!(profile.applications.len(), 1);
+    assert_eq!(profile.applications[0].bundle_id, "com.apple.finder");
+    assert_eq!(profile.applications[0].name, "Finder");
+}
+
+#[gpui_kit::test]
 fn removal_of_the_active_larger_profile_replaces_its_pages(cx: &mut TestAppContext) {
     let (view, cx, tx, sent) = sidebar_window(cx);
     send(cx, &tx, pages(&["Main", "Meetings", "Media"], 2));

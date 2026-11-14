@@ -95,6 +95,39 @@ OpenCraft makes the profile, closes this window, and opens its main window.
   OpenCraft continues in the menu bar, and **Open OpenCraft** shows the
   window again.
 
+### Ready profiles
+
+The same window has the button **Ready profiles…**, on the row of
+**Start**. Click it to open a list of six profiles. Each profile is for
+one Mac application, and OpenCraft links the profile to that application.
+Turn a switch on to add that profile when you click **Start**. The
+switches are off when the window opens. With every switch off, **Start**
+adds only the starter profile that you selected.
+
+You can add the same profiles later from the menu **+** at the right of
+**PROFILES**. See [Profiles](controls.md#profiles).
+
+![The ready profile list, with Safari and Zoom turned on](images/ready-profiles.png)
+
+| Ready profile | Application | What it contains |
+|---|---|---|
+| **Safari** | Safari | Tabs, the address field, find, Reader, and reload. A folder **Tabs** has the next tab and the previous tab. Knob 1 changes the page zoom. |
+| **Finder** | Finder | A new window, a new folder, Get Info, Quick Look, and the four Finder views. Knob 1 changes the sound volume of the Mac. It is not a Finder shortcut. |
+| **Zoom** | zoom.us | Mute, video, share, people, chat, raise hand, record, and full screen. Knob 1 changes the sound volume of the Mac. It is not a Zoom shortcut. |
+| **Keynote** | Keynote | Play, the next and the previous slide, a black screen, a white screen, and the presenter notes. Knob 1 sends the Right Arrow and the Left Arrow. |
+| **Xcode** | Xcode | Run, Test, Stop, Build, and Clean. A folder **Navigators** opens the navigators. Knob 1 changes the sound volume of the Mac. It is not an Xcode shortcut. |
+| **Final Cut Pro** | Final Cut Pro | Play, play forward, play reverse, and the edit commands in a folder **Edit**. Knob 1 changes the clip volume. |
+
+- The keys send shortcuts of that application. The sources of the shortcuts
+  are in the [knowledge base](../kb/ready-profiles.md).
+- OpenCraft adds the ready profiles that you turn on, and then the starter
+  profile. The starter profile is the active profile.
+- If a profile on this computer already links to the same application, that
+  profile keeps the link. The new profile still has its keys. The window
+  shows "*application* stays linked to *profile*."
+- You do not need the application on this Mac to add its profile. The link
+  operates when you open the application later.
+
 ### The main window
 
 ![The main window after a start with "Everyday Mac". Key 1 is selected.](images/first-start.png)

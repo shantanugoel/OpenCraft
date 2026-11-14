@@ -1,0 +1,213 @@
+# Finder: files, views, and the sound volume.
+# A ready profile (issue #340). It links to one application.
+# It uses built-in icons and no image file.
+schema_version = 5
+name = "Finder"
+model = "n4-pro"
+color = "#356AB6"
+
+[[applications]]
+bundle_id = "com.apple.finder"
+name = "Finder"
+
+[[pages]]
+name = "Files"
+
+[pages.surfaces.key-face-1]
+label = "Window"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "app-window"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Folder"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "folder-plus"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Info"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "info"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Look"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "eye"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-5]
+label = "Copy"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "copy"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Trash"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "trash"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "Back"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-left"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Up"
+color = "#CC7135"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "folder-up"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Downloads"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "download"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "Home"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "house"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Icons"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "layout-grid"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "List"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "list"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Columns"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "columns-3"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Gallery"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "gallery-horizontal"
+icon_color = "#FFFFFF"
+
+
+[pages.bindings.key-1.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings]
+hotkey = "cmd+n"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings]
+hotkey = "shift+cmd+n"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-3.press.settings]
+hotkey = "cmd+i"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-4.press.settings]
+hotkey = "cmd+y"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-5.press.settings]
+hotkey = "cmd+d"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-6.press.settings]
+hotkey = "cmd+delete"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-7.press.settings]
+hotkey = "cmd+leftbracket"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-8.press.settings]
+hotkey = "cmd+up"
+
+[pages.bindings.key-9.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-9.press.settings]
+hotkey = "alt+cmd+l"
+
+[pages.bindings.key-10.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-10.press.settings]
+hotkey = "shift+cmd+h"
+
+[pages.bindings.bar-panel-1.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-1.tap.settings]
+hotkey = "cmd+1"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-2.tap.settings]
+hotkey = "cmd+2"
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-3.tap.settings]
+hotkey = "cmd+3"
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-4.tap.settings]
+hotkey = "cmd+4"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-left.settings]
+operation = "down"
+step = 5
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.turn-right.settings]
+operation = "up"
+step = 5
+[pages.bindings.knob-1.push]
+kind = "opencraft.volume"
+[pages.bindings.knob-1.push.settings]
+operation = "mute"
+step = 5

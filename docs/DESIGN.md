@@ -169,6 +169,7 @@ The font is the system font. The window has no font file.
 | `WIDTH_SQUARE_BUTTON`, `SAMPLE`, `COLOUR_CIRCLE` | 28, 22, 20 | A square button; a fill sample; a colour circle |
 | `BORDER`, `OUTLINE_WIDTH`, `HOVER_OUTLINE_WIDTH` | 1, 2, 1 | A border; the selection outline; the hover outline |
 | `LINK_FOCUS_PADDING`, `SLIDER_FOCUS_PADDING_X`, `_Y` | 2; 8, 4 | The space between a link or a slider and its focus ring |
+| `FIRST_START_READY_WIDTH`, `FIRST_START_READY_MAX_HEIGHT` | 360, 420 | The list of ready profiles on the first start window |
 
 ### 2.7 Icons
 

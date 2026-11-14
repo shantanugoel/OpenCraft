@@ -785,12 +785,14 @@ impl Shell {
         cx.activate(true);
     }
 
-    /// Start with the starter profile `index` of [`STARTERS`]: the engine
-    /// adds it and makes it the active profile, and the main window opens.
-    /// The first start window closes itself. If the starter profile has an
-    /// action that needs the Accessibility permission, and the permission
+    /// Start with the starter profile `index` of [`STARTERS`], and with each
+    /// ready profile in `ready` (indexes of [`crate::ready::READY`]). The
+    /// engine adds the ready profiles first, then the starter profile, so
+    /// the starter profile is the active profile. The main window opens.
+    /// The first start window closes itself. If one of those profiles has
+    /// an action that needs the Accessibility permission, and the permission
     /// is not given, the main window shows the request (section 18).
-    pub fn start_with(&mut self, index: usize, cx: &mut Context<Self>) {
+    pub fn start_with(&mut self, index: usize, ready: &[usize], cx: &mut Context<Self>) {
         let Some(starter) = STARTERS.get(index) else {
             return;
         };
@@ -807,9 +809,31 @@ impl Shell {
                 return;
             }
         };
-        let actions = starters::actions(&profile);
+        let mut selected = Vec::new();
+        for index in ready {
+            let Some(ready) = crate::ready::READY.get(*index) else {
+                continue;
+            };
+            match ready.profile() {
+                Ok(profile) => selected.push(profile),
+                Err(error) => self.problem(
+                    format!(
+                        "OpenCraft cannot read the ready profile “{}”: {error}.",
+                        ready.name
+                    ),
+                    cx,
+                ),
+            }
+        }
+        let mut actions = starters::actions(&profile);
+        for profile in &selected {
+            actions.extend(starters::actions(profile));
+        }
         if let Some(kind) = kind_waiting_for_permission(&actions, &self.state) {
             self.request_permission(kind);
+        }
+        for profile in selected {
+            (self.send)(Command::AddStarterProfile { profile });
         }
         (self.send)(Command::AddStarterProfile { profile });
         self.first_start = false;

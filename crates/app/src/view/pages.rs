@@ -397,6 +397,46 @@ impl DeviceView {
         cx.notify();
     }
 
+    /// Add the ready profile at `index` of [`crate::ready::READY`]. The
+    /// engine writes it and drops a link that another profile already has
+    /// (decision 0035, section 5). If the profile has an action that needs
+    /// the Accessibility permission, and the permission is not given, the
+    /// window shows the request.
+    pub(super) fn add_ready_profile(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(ready) = crate::ready::READY.get(index) else {
+            return;
+        };
+        let profile = match ready.profile() {
+            Ok(profile) => profile,
+            Err(error) => {
+                self.state.problems.push(format!(
+                    "OpenCraft cannot read the ready profile “{}”: {error}.",
+                    ready.name
+                ));
+                cx.notify();
+                return;
+            }
+        };
+        let actions = crate::starters::actions(&profile);
+        if let Some(kind) =
+            crate::settings_window::kind_waiting_for_permission(&actions, &self.state)
+        {
+            let shows = self
+                .shell
+                .update(cx, |shell, _| shell.request_permission(kind.clone()));
+            if shows {
+                self.open_permission_request(kind, window, cx);
+            }
+        }
+        (self.send)(Command::AddStarterProfile { profile });
+        cx.notify();
+    }
+
     /// Ask for a profile file, and send the import.
     pub(super) fn import_profile(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.end_text_edit(cx);

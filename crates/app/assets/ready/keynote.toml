@@ -1,0 +1,212 @@
+# Keynote: play, slides, and the arrow keys.
+# A ready profile (issue #340). It links to one application.
+# It uses built-in icons and no image file.
+schema_version = 5
+name = "Keynote"
+model = "n4-pro"
+color = "#C4A53E"
+
+[[applications]]
+bundle_id = "com.apple.iWork.Keynote"
+name = "Keynote"
+
+[[pages]]
+name = "Play"
+
+[pages.surfaces.key-face-1]
+label = "Play"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "play"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Next"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-right"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Previous"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-left"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Black"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "moon"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-5]
+label = "White"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "sun"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Notes"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "sticky-note"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "Slide"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "plus"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Skip"
+color = "#CC7135"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "eye-off"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Undo"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "undo"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "End"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "log-out"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Play"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "play"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Next"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-right"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Previous"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "arrow-left"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Notes"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "sticky-note"
+icon_color = "#FFFFFF"
+
+
+[pages.bindings.key-1.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings]
+hotkey = "alt+cmd+p"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings]
+hotkey = "right"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-3.press.settings]
+hotkey = "left"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-4.press.settings]
+hotkey = "b"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-5.press.settings]
+hotkey = "w"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-6.press.settings]
+hotkey = "shift+cmd+p"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-7.press.settings]
+hotkey = "shift+cmd+n"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-8.press.settings]
+hotkey = "shift+cmd+h"
+
+[pages.bindings.key-9.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-9.press.settings]
+hotkey = "cmd+z"
+
+[pages.bindings.key-10.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-10.press.settings]
+hotkey = "escape"
+
+[pages.bindings.bar-panel-1.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-1.tap.settings]
+hotkey = "alt+cmd+p"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-2.tap.settings]
+hotkey = "right"
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-3.tap.settings]
+hotkey = "left"
+
+[pages.bindings.bar-panel-4.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-4.tap.settings]
+hotkey = "shift+cmd+p"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.turn-left.settings]
+hotkey = "left"
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.turn-right.settings]
+hotkey = "right"
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.push.settings]
+hotkey = "alt+cmd+p"

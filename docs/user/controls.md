@@ -301,6 +301,7 @@ If the two marks apply, the row shows both.
 | Select a different profile | Click the name of the profile |
 | Add an empty profile | Click **+** at the right of **PROFILES**, then **New Profile**. Type a name in the new row, and push Return. |
 | Add a profile from a file | Click **+** at the right of **PROFILES**, then **Import a Profile…**. Select the file, and click **Import**. |
+| Add a ready profile | Click **+** at the right of **PROFILES**, then **Ready Profiles**, then the application. OpenCraft adds that profile and makes it the active profile. |
 | Copy a profile | Right-click the profile, and select **Duplicate**. The copy has the name "*name* copy". |
 | Give a profile a different name | Double-click the profile. Or right-click the profile, and select **Rename**. Type the name, and push Return. |
 | Remove a profile | Right-click the profile, and select **Remove…**. Then click **Remove**. You cannot remove the last profile. |
@@ -314,7 +315,16 @@ If the two marks apply, the row shows both.
 - To change the profile from the device, set the action "Select a profile"
   on a control. See [Select a profile](actions.md#select-a-profile).
 
-![The menu of the plus button, with New Profile and Import a Profile…](images/profile-add-menu.png)
+![The menu of the plus button, with New Profile, Import a Profile…, and Ready Profiles](images/profile-add-menu.png)
+
+The submenu **Ready Profiles** has Safari, Finder, Zoom, Keynote, Xcode,
+and Final Cut Pro. Each profile links to its application. The keys and the
+knobs are the same as at the first start. See
+[Ready profiles](install.md#ready-profiles).
+
+If a profile on this computer already links to that application, that
+profile keeps the link. The new profile still has its keys. The window
+shows "*application* stays linked to *profile*."
 
 ### Profile settings
 
@@ -377,6 +387,7 @@ default-profile mark. That mark stays on this computer.
 |---|---|
 | Put a profile in a file | Open its **Profile Settings…**, and click **Export as a file…**. Select a folder and a name, and click **Save**. The status bar shows the name of the file. |
 | Add a profile from a file | In the sidebar, click **+** at the right of **PROFILES**, then **Import a Profile…**. Select the file, and click **Import**. Or push ⌘K, type "Import a profile", and push Return. |
+| Add a ready profile | In the sidebar, click **+** at the right of **PROFILES**, then **Ready Profiles**, then the application. |
 
 - An import adds a new profile and makes it the active profile. The device
   then shows its first page. You do not need to open the settings of a

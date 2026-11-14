@@ -47,6 +47,13 @@ actions!(
     ]
 );
 
+/// Add the ready profile at `index` of [`crate::ready::READY`].
+#[derive(Clone, PartialEq, Eq, Debug, Action)]
+#[action(namespace = opencraft, no_json)]
+pub struct AddReadyProfile {
+    pub index: usize,
+}
+
 /// The key context of the root element of the window. The key commands of
 /// the window operate only when the focus is in this element, so that a
 /// focused text field keeps its own keys (`docs/kb/gpui.md`, "Key commands
@@ -143,6 +150,8 @@ pub struct AppCommand {
     pub palette: Option<u8>,
     /// The title in the native menu of the sidebar's profile add button.
     pub profile_add_menu: Option<&'static str>,
+    /// The submenu of that menu. `None`: the item is at the top of the menu.
+    pub profile_add_submenu: Option<&'static str>,
 }
 
 impl AppCommand {
@@ -155,6 +164,7 @@ impl AppCommand {
             shortcut: None,
             palette: None,
             profile_add_menu: None,
+            profile_add_submenu: None,
         }
     }
 
@@ -173,6 +183,11 @@ impl AppCommand {
         self
     }
 
+    fn profile_add_submenu(mut self, title: &'static str) -> Self {
+        self.profile_add_submenu = Some(title);
+        self
+    }
+
     fn palette(mut self, place: u8) -> Self {
         self.palette = Some(place);
         self
@@ -188,7 +203,7 @@ impl AppCommand {
 pub fn commands(panes: &Panes, edit: &EditMenu) -> Vec<AppCommand> {
     use IconName as I;
     use MenuName::{App as AppMenu, Edit, View};
-    vec![
+    let mut commands = vec![
         AppCommand::new("Add a page", I::Plus, AddPage).palette(0),
         AppCommand::new("Page settings", I::Settings, PageSettings).palette(1),
         AppCommand::new("Device settings", I::Grid3x2, DeviceSettings).palette(2),
@@ -249,7 +264,19 @@ pub fn commands(panes: &Panes, edit: &EditMenu) -> Vec<AppCommand> {
             .menu(AppMenu, 2)
             .shortcut("Quit OpenCraft")
             .palette(14),
-    ]
+    ];
+    for (index, ready) in crate::ready::READY.iter().enumerate() {
+        commands.push(
+            AppCommand::new(
+                format!("Add the {} profile", ready.name),
+                I::Layers,
+                AddReadyProfile { index },
+            )
+            .profile_add_menu(ready.menu_title)
+            .profile_add_submenu(crate::ready::MENU_TITLE),
+        );
+    }
+    commands
 }
 
 /// The key commands that the Settings window lists, in the order of the
@@ -373,11 +400,31 @@ mod tests {
             .filter_map(|c| Some((c.profile_add_menu?, c.action)))
             .collect();
         assert_eq!(
-            items.iter().map(|(title, _)| *title).collect::<Vec<_>>(),
+            items
+                .iter()
+                .map(|(title, _)| *title)
+                .take(2)
+                .collect::<Vec<_>>(),
             ["New Profile", "Import a Profile…"]
         );
         assert!(items[0].1.as_any().is::<AddProfile>());
         assert!(items[1].1.as_any().is::<ImportProfile>());
+        let ready: Vec<_> = commands(&Panes::default(), &EditMenu::default())
+            .into_iter()
+            .filter(|command| command.profile_add_submenu.is_some())
+            .map(|command| command.profile_add_menu.unwrap())
+            .collect();
+        assert_eq!(
+            ready,
+            [
+                "Safari",
+                "Finder",
+                "Zoom",
+                "Keynote",
+                "Xcode",
+                "Final Cut Pro"
+            ]
+        );
     }
 
     #[test]

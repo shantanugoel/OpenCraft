@@ -952,7 +952,7 @@ pub(super) fn popup_menu(
 ///   not take it.
 /// - When the popover closes, the focus goes back to the control that
 ///   opened it, if a key opened it (`focus_return`).
-pub(super) fn popover_focus(
+pub(crate) fn popover_focus(
     popover: Stateful<Div>,
     id: SharedString,
     focus: &FocusHandle,

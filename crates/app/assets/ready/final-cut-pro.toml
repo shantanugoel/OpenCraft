@@ -1,0 +1,301 @@
+# Final Cut Pro: play, edit, and clip volume.
+# A ready profile (issue #340). It links to one application.
+# It uses built-in icons and no image file.
+schema_version = 5
+name = "Final Cut Pro"
+model = "n4-pro"
+color = "#B83F4C"
+
+[[applications]]
+bundle_id = "com.apple.FinalCut"
+name = "Final Cut Pro"
+
+[[pages]]
+name = "Play"
+
+[pages.surfaces.key-face-1]
+label = "Play"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "play"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-2]
+label = "Forward"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "fast-forward"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-3]
+label = "Reverse"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "rewind"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-4]
+label = "Full"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "maximize"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-5]
+label = "Loop"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "rotate-cw"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-6]
+label = "Selection"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "skip-forward"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-7]
+label = "Around"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "circle"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-8]
+label = "Start"
+color = "#CC7135"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "skip-back"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-9]
+label = "Half"
+color = "#596273"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "gauge"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.key-face-10]
+label = "Edit"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "folder"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-1]
+label = "Play"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "play"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-2]
+label = "Forward"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "fast-forward"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-3]
+label = "Reverse"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "rewind"
+icon_color = "#FFFFFF"
+
+[pages.surfaces.bar-panel-4]
+label = "Volume"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "volume-2"
+icon_color = "#FFFFFF"
+
+
+[pages.bindings.key-1.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-1.press.settings]
+hotkey = "space"
+
+[pages.bindings.key-2.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-2.press.settings]
+hotkey = "l"
+
+[pages.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-3.press.settings]
+hotkey = "j"
+
+[pages.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-4.press.settings]
+hotkey = "shift+cmd+f"
+
+[pages.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-5.press.settings]
+hotkey = "cmd+l"
+
+[pages.bindings.key-6.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-6.press.settings]
+hotkey = "slash"
+
+[pages.bindings.key-7.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-7.press.settings]
+hotkey = "shift+slash"
+
+[pages.bindings.key-8.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-8.press.settings]
+hotkey = "alt+space"
+
+[pages.bindings.key-9.press]
+kind = "opencraft.hotkey"
+[pages.bindings.key-9.press.settings]
+hotkey = "alt+l"
+
+[pages.bindings.key-10.press]
+kind = "opencraft.open-folder"
+[pages.bindings.key-10.press.settings]
+folder = "d1e6a4c8b2f90753"
+
+[pages.bindings.bar-panel-1.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-1.tap.settings]
+hotkey = "space"
+
+[pages.bindings.bar-panel-2.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-2.tap.settings]
+hotkey = "l"
+
+[pages.bindings.bar-panel-3.tap]
+kind = "opencraft.hotkey"
+[pages.bindings.bar-panel-3.tap.settings]
+hotkey = "j"
+
+[pages.bindings.knob-1.turn-left]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.turn-left.settings]
+hotkey = "ctrl+minus"
+
+[pages.bindings.knob-1.turn-right]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.turn-right.settings]
+hotkey = "ctrl+equal"
+
+[pages.bindings.knob-1.push]
+kind = "opencraft.hotkey"
+[pages.bindings.knob-1.push.settings]
+hotkey = "space"
+
+[[folders]]
+id = "d1e6a4c8b2f90753"
+name = "Edit"
+
+[folders.surfaces.key-face-1]
+label = "Back"
+color = "#356AB6"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "corner-up-left"
+icon_color = "#FFFFFF"
+
+[folders.surfaces.key-face-2]
+label = "Blade"
+color = "#298886"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "scissors"
+icon_color = "#FFFFFF"
+
+[folders.surfaces.key-face-3]
+label = "Blade all"
+color = "#6454AC"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "scissors"
+icon_color = "#FFFFFF"
+
+[folders.surfaces.key-face-4]
+label = "Trim start"
+color = "#B83F4C"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "skip-back"
+icon_color = "#FFFFFF"
+
+[folders.surfaces.key-face-5]
+label = "Trim end"
+color = "#C4A53E"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "skip-forward"
+icon_color = "#FFFFFF"
+
+[folders.surfaces.key-face-6]
+label = "Marker"
+color = "#3D875A"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "bookmark"
+icon_color = "#FFFFFF"
+
+[folders.surfaces.key-face-7]
+label = "Undo"
+color = "#B65C86"
+label_size = 18
+label_color = "#FFFFFF"
+icon = "undo"
+icon_color = "#FFFFFF"
+
+
+[folders.bindings.key-1.press]
+kind = "opencraft.close-folder"
+
+[folders.bindings.key-2.press]
+kind = "opencraft.hotkey"
+[folders.bindings.key-2.press.settings]
+hotkey = "cmd+b"
+
+[folders.bindings.key-3.press]
+kind = "opencraft.hotkey"
+[folders.bindings.key-3.press.settings]
+hotkey = "shift+cmd+b"
+
+[folders.bindings.key-4.press]
+kind = "opencraft.hotkey"
+[folders.bindings.key-4.press.settings]
+hotkey = "alt+leftbracket"
+
+[folders.bindings.key-5.press]
+kind = "opencraft.hotkey"
+[folders.bindings.key-5.press.settings]
+hotkey = "alt+rightbracket"
+
+[folders.bindings.key-6.press]
+kind = "opencraft.hotkey"
+[folders.bindings.key-6.press.settings]
+hotkey = "m"
+
+[folders.bindings.key-7.press]
+kind = "opencraft.hotkey"
+[folders.bindings.key-7.press.settings]
+hotkey = "cmd+z"

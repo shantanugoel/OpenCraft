@@ -61,17 +61,25 @@ impl Starter {
 }
 
 /// Each action of `profile`, also each action that a different action
-/// contains, for example the actions of a toggle or of a sequence. The
-/// function reads only the form of decision 0017, and compares no kind
-/// (rule 8).
+/// contains, for example the actions of a toggle or of a sequence, and the
+/// actions of a folder. The function reads only the form of decision 0017,
+/// and compares no kind (rule 8).
 pub fn actions(profile: &Profile) -> Vec<Action> {
     let mut all = Vec::new();
     for page in profile.pages() {
-        for (_, action) in page.bindings() {
-            add_with_contained(action, &mut all);
-        }
+        collect_page(page, &mut all);
+    }
+    for folder in profile.folders() {
+        collect_page(&folder.page, &mut all);
     }
     all
+}
+
+/// Each action of `page` into `all`.
+fn collect_page(page: &opencraft_engine::Page, all: &mut Vec<Action>) {
+    for (_, action) in page.bindings() {
+        add_with_contained(action, all);
+    }
 }
 
 /// `action`, and each action in its settings, into `all`.
