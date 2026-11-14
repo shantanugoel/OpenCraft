@@ -4,7 +4,8 @@
 
 use super::pages::image_slots;
 use super::*;
-use opencraft_engine::{EngineRequest, FolderId, PageTarget};
+use opencraft_engine::{EngineRequest, FolderId, Location, PageTarget};
+use std::collections::BTreeMap;
 
 const KIND: &str = "test.folders";
 const A: FolderId = FolderId::from_raw(1).unwrap();
@@ -605,4 +606,165 @@ fn a_title_on_the_page_and_a_title_in_a_folder_are_two_steps() {
     assert_eq!(profile.folder(A).unwrap().page.content(KEY_1).label, None);
     command(&mut rig, Command::Undo);
     assert_eq!(rig.engine.profile().pages()[0].content(KEY_1).label, None);
+}
+
+/// The bindings that the handler holds, from Appear and Disappear.
+fn hold(held: &mut BTreeMap<BindingId, Action>, batch: &[Request]) {
+    for request in batch {
+        match request {
+            Request::Appear { binding, action } => {
+                held.insert(*binding, action.clone());
+            }
+            Request::Disappear { binding } => {
+                held.remove(binding);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The handler holds each binding that the location shows, and no other
+/// binding.
+fn assert_handler_matches_location(rig: &Rig, held: &BTreeMap<BindingId, Action>) {
+    let location = Location {
+        page: rig.engine.active_page(),
+        open: rig.engine.open_folders().to_vec(),
+    };
+    let shown = location.bindings(rig.engine.profile());
+    for (binding, action) in held {
+        assert!(
+            shown
+                .iter()
+                .any(|(id, shown_action)| id == binding && shown_action == action),
+            "the handler holds {binding:?}, and the location does not show it"
+        );
+    }
+    assert_eq!(held.len(), shown.len(), "held {held:?}\nshown {shown:?}");
+}
+
+fn sync_handler(rig: &mut Rig, held: &mut BTreeMap<BindingId, Action>, requests: &[Request]) {
+    hold(held, requests);
+    let events = rig.take_events();
+    assert!(problems(&events).is_empty(), "{events:?}");
+    assert_handler_matches_location(rig, held);
+}
+
+#[test]
+fn after_each_change_of_location_no_handler_holds_a_binding_the_location_does_not_show() {
+    let (port, requests) = port(KIND);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let mut held = BTreeMap::new();
+    let pull = |requests: &mpsc::Receiver<Request>| requests.try_iter().collect::<Vec<_>>();
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+
+    let key = key_binding(None);
+    let knob = binding(ControlKind::Knob, 1, GestureKind::Push);
+    command(
+        &mut rig,
+        Command::SetBinding {
+            binding: key,
+            action: Some(action(KIND)),
+        },
+    );
+    command(
+        &mut rig,
+        Command::SetBinding {
+            binding: knob,
+            action: Some(action(KIND)),
+        },
+    );
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+
+    // A page change.
+    command(&mut rig, Command::AddPage { copy_of: None });
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+    command(&mut rig, Command::SelectPage { page: 0 });
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+
+    // An open and a close of a folder. The knob stays.
+    add(&mut rig, A, Some("Clips"));
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+    command(
+        &mut rig,
+        Command::SetBinding {
+            binding: key_binding(Some(A)),
+            action: Some(action(KIND)),
+        },
+    );
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+    command(&mut rig, Command::CloseFolder);
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+    command(&mut rig, Command::OpenFolder { folder: A });
+    let opened = pull(&requests);
+    assert!(
+        opened.iter().all(|request| match request {
+            Request::Appear { binding, .. } | Request::Disappear { binding } => {
+                binding.control.kind == ControlKind::Key
+            }
+            _ => true,
+        }),
+        "a knob gets no Disappear and no Appear: {opened:?}"
+    );
+    sync_handler(&mut rig, &mut held, &opened);
+    assert!(held.contains_key(&knob), "the knob stays through the open");
+
+    // Removal of the open folder, then undo and redo.
+    command(&mut rig, Command::RemoveFolder { folder: A });
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+    command(&mut rig, Command::Undo);
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+    command(&mut rig, Command::Redo);
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+
+    // A profile change.
+    let original = rig.engine.active_profile().to_string();
+    command(
+        &mut rig,
+        Command::AddProfile {
+            name: "Other".into(),
+            copy_of: None,
+        },
+    );
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+    assert_ne!(rig.engine.active_profile(), original);
+    command(&mut rig, Command::SelectProfile { profile: original });
+    sync_handler(&mut rig, &mut held, &pull(&requests));
+}
+
+#[test]
+fn a_folder_open_and_a_folder_close_write_the_same_device_reports_as_before() {
+    let (mut rig, device, _) = painted();
+    add(&mut rig, A, Some("Clips"));
+    rig.set_color(KEY_3, GREEN);
+    back(&mut rig);
+    // Feedback on the knob. A folder change must not write the bar panel.
+    rig.engine.handler_message(Message::Feedback {
+        binding: binding(ControlKind::Knob, 1, GestureKind::Push),
+        feedback: Some(Feedback {
+            label: Some("Volume".into()),
+            level: Some(40),
+            state: None,
+            other_state: None,
+        }),
+    });
+    sent(&device);
+    rig.take_events();
+
+    open(&mut rig, A);
+    let open_writes = device.borrow().writes().len();
+    let open_sent = sent(&device);
+    assert_eq!(
+        open_writes, 3,
+        "a folder open writes one key image and the commit: {open_sent:?}"
+    );
+    assert_eq!(image_slots(&open_sent), [KEY_3_SLOT]);
+
+    back(&mut rig);
+    let close_writes = device.borrow().writes().len();
+    let close_sent = sent(&device);
+    assert_eq!(
+        close_writes, 3,
+        "a folder close writes one key image and the commit: {close_sent:?}"
+    );
+    assert_eq!(image_slots(&close_sent), [KEY_3_SLOT]);
 }
