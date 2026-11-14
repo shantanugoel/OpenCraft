@@ -29,7 +29,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0011](0011-engine-thread-model.md) | The engine has one thread, and the shell uses messages | Accepted |
 | [0012](0012-action-handler-interface.md) | An action handler gets requests and sends messages, on its own thread | Accepted. A note of 2026-11-14 gives the registry of kind modules. |
 | [0013](0013-action-feedback-on-a-surface.md) | An action changes a surface with feedback data, and the engine makes the image | Accepted |
-| [0014](0014-action-settings-description.md) | An action kind describes its settings as a list of fields | Accepted |
+| [0014](0014-action-settings-description.md) | An action kind describes its settings as a list of fields | Accepted. 0038 says when the shell shows a field. |
 | [0015](0015-four-bar-panels-and-touch-gestures.md) | The touch bar shows four bar panels, and the device identifies the touch gestures | Accepted |
 | [0016](0016-pages-and-engine-requests-from-a-handler.md) | The engine holds the active page, and a handler asks the engine with a message | Accepted. 0036 adds the open folders to the active page. |
 | [0017](0017-toggle-and-sequence-actions.md) | An action can contain actions, and the engine draws the state of a toggle | Accepted |
@@ -53,6 +53,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0035](0035-front-application-selects-the-profile.md) | The shell reports the front application, and the engine selects the linked profile | Accepted |
 | [0036](0036-folders.md) | A folder is a page of keys outside the page cycle, with the actions "Open a folder" and "Back" | Accepted |
 | [0037](0037-application-bundle-and-export-path.md) | An application action stores the bundle identifier, and an export hides a home path | Accepted |
+| [0038](0038-field-shown-for-the-values-that-use-it.md) | The shell shows a field only for the values that use it | Accepted |
 
 ## Template
 

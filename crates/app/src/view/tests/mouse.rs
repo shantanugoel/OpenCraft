@@ -36,7 +36,11 @@ fn mouse_form_comes_from_its_description(cx: &mut TestAppContext) {
     .unwrap();
     cx.run_until_parked();
     click(cx, "surface-key face 2");
-    for id in ["choice-0", "choice-1", "field-2", "field-3", "field-4"] {
+    // Click uses the button. It does not use X, Y, or the scroll step.
+    for id in ["choice-0", "choice-1"] {
         assert!(cx.debug_bounds(id).is_some(), "{id}");
+    }
+    for id in ["field-2", "field-3", "field-4"] {
+        assert!(cx.debug_bounds(id).is_none(), "{id} is hidden");
     }
 }

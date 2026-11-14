@@ -344,6 +344,33 @@ pub struct KindDescription {
     /// text of a folder with no Back key. The shell compares no kind
     /// identifier (decision 0036).
     pub folder_back: bool,
+    /// Fields that the shell shows only for some values of a choice
+    /// (decision 0038). A field with no rule is always shown.
+    pub shown_when: Vec<ShownWhen>,
+}
+
+/// The shell shows [`ShownWhen::field`] only when the choice
+/// [`ShownWhen::key`] has one of [`ShownWhen::values`]. It does not store
+/// the field for a different value (decision 0038).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShownWhen {
+    /// The key of the field that the shell shows or hides.
+    pub field: String,
+    /// The key of the choice field that controls [`Self::field`].
+    pub key: String,
+    /// The values of [`Self::key`] for which the shell shows [`Self::field`].
+    pub values: Vec<String>,
+}
+
+impl ShownWhen {
+    /// One rule: show `field` when `key` has one of `values`.
+    pub fn new(field: &str, key: &str, values: &[&str]) -> Self {
+        Self {
+            field: field.into(),
+            key: key.into(),
+            values: values.iter().map(|value| (*value).to_string()).collect(),
+        }
+    }
 }
 
 /// The direction field of a kind: a choice field, and its values for a turn
