@@ -40,8 +40,8 @@ const FALLBACK_ID: &str = "profile";
 /// One profile in the list for a shell.
 ///
 /// [`ProfilesDir::list`] gives entries that have only the values of the file.
-/// The entries of [`crate::profile_list::ProfileList`] also have `applied`
-/// and `link_owners`.
+/// The entries of [`crate::profile_list::ProfileList`] also have `clashes`,
+/// `applied`, and `link_owners`.
 ///
 /// The pages and the first page let a shell show the profile settings of a
 /// profile that is not active. For the active profile, they are the values
@@ -61,11 +61,13 @@ pub struct ProfileEntry {
     pub first_page: usize,
     /// The links of the profile, in their order (decision 0035).
     pub applications: Vec<ApplicationLink>,
+    /// The bundle identifiers of this profile that a profile before it, in
+    /// the order of the identities, also links. Those links do not apply.
+    pub clashes: Vec<String>,
     /// The links of this profile that apply: the links in `applications`
-    /// that no profile before it, in the order of the identities, also links.
+    /// that are not in `clashes`.
     pub applied: Vec<ApplicationLink>,
-    /// The owner of each link in `applications`, in the same order. A link
-    /// does not apply if its owner is a different profile.
+    /// The owner of each link in `applications`, in the same order.
     pub link_owners: Vec<LinkOwner>,
 }
 

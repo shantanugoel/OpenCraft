@@ -42,7 +42,7 @@ enum End {
     Enter,
 }
 
-/// When Enter cannot arrive, a step that waits for it ends after this time
+/// When Enter cannot arrive, a step whose only end is Enter ends after this time
 /// with no report, or after this time from the last report.
 const ENTER_CLOSED_QUIET: Duration = Duration::from_millis(2000);
 
@@ -405,8 +405,9 @@ fn key_ends_step(end: End, enter_pressed: bool, knob_push: bool) -> bool {
     (waits_for_enter(end) && enter_pressed) || (end == End::KnobPush && knob_push)
 }
 
-/// A quiet gap ends the step. When Enter cannot arrive, a step that waits
-/// for Enter uses [`ENTER_CLOSED_QUIET`] instead of [`STEP_LIMIT`].
+/// A quiet gap ends the step. When Enter cannot arrive, a step whose only end
+/// is Enter uses [`ENTER_CLOSED_QUIET`] instead of [`STEP_LIMIT`]. A step that
+/// a knob push ends does not use it, because the push can still arrive.
 fn quiet_done(
     end: End,
     enter_closed: bool,
@@ -417,7 +418,8 @@ fn quiet_done(
     let limit = match end {
         End::Quiet(ms) if has_report => Duration::from_millis(ms),
         End::Quiet(_) => FIRST_REPORT_LIMIT,
-        End::Enter | End::KnobPush if enter_closed => ENTER_CLOSED_QUIET,
+        End::Enter if enter_closed => ENTER_CLOSED_QUIET,
+        // A knob push still ends the step when Enter cannot arrive.
         End::Enter | End::KnobPush => return false,
     };
     let waited = if has_report { since_last } else { since_start };
@@ -491,6 +493,8 @@ pub fn cmd_record(rest: &[String]) -> AnyResult {
             if let Some(lines) = enter.as_ref() {
                 lines.discard_pending();
             }
+        }
+        if step.end == End::Enter {
             say_enter_closed(enter.as_ref(), &mut told_enter);
         }
         print!("[{n:>2}/{}] {}  ", steps.len(), step.prompt);
@@ -537,7 +541,7 @@ fn run_step(
     let started = Instant::now();
     let mut first: Option<Instant> = None;
     let mut last = Instant::now();
-    if waits_for_enter(end) {
+    if end == End::Enter {
         say_enter_closed(enter, told_enter);
     }
 
@@ -578,7 +582,7 @@ fn run_step(
         if started.elapsed() >= STEP_LIMIT {
             return Ok(reports);
         }
-        if waits_for_enter(end) {
+        if end == End::Enter {
             say_enter_closed(enter, told_enter);
         }
         if quiet_done(
@@ -981,8 +985,17 @@ mod tests {
         let almost = quiet - Duration::from_millis(1);
         assert!(!quiet_done(End::Enter, true, false, almost, quiet));
         assert!(quiet_done(End::Enter, true, false, quiet, Duration::ZERO));
-        assert!(!quiet_done(End::KnobPush, true, true, quiet, almost));
-        assert!(quiet_done(End::KnobPush, true, true, Duration::ZERO, quiet));
+        assert!(quiet_done(End::Enter, true, true, Duration::ZERO, quiet));
+        // A knob push can still arrive, so the step waits for it.
+        assert!(!quiet_done(End::KnobPush, true, true, quiet, quiet));
+        assert!(!quiet_done(End::KnobPush, true, false, quiet, quiet));
+        assert!(!quiet_done(
+            End::KnobPush,
+            true,
+            true,
+            STEP_LIMIT,
+            STEP_LIMIT
+        ));
         // Standard input is still open, so the step waits for the key.
         // The time limit of the step is outside this check.
         assert!(!quiet_done(End::Enter, false, true, STEP_LIMIT, STEP_LIMIT));

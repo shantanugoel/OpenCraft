@@ -347,6 +347,52 @@ pub struct KindDescription {
     /// Fields that the shell shows only for some values of a choice
     /// (decision 0038). A field with no rule is always shown.
     pub shown_when: Vec<ShownWhen>,
+    /// For a kind that needs the permission only for some values of a
+    /// choice: the rule that names those values. The field of the rule
+    /// is empty. The shell shows the status row, and it asks for the
+    /// permission, only for an action whose settings satisfy the rule
+    /// (decision 0038). `None` is no rule: [`Self::needs_accessibility`]
+    /// decides.
+    pub permission_when: Option<ShownWhen>,
+}
+
+impl KindDescription {
+    /// The text of the choice field `key` in `settings`. A missing value uses
+    /// the default of that field. A value that is not text has no choice.
+    pub fn choice_text(&self, settings: &Settings, key: &str) -> Option<String> {
+        match settings.get(key) {
+            Some(Value::Text(text)) => return Some(text.clone()),
+            Some(_) => return None,
+            None => {}
+        }
+        self.fields
+            .iter()
+            .find(|field| field.key == key)
+            .and_then(|field| match &field.default {
+                Some(Value::Text(text)) => Some(text.clone()),
+                _ => None,
+            })
+    }
+
+    /// True when an action of this kind with `settings` needs the
+    /// Accessibility permission: the kind always needs it, or the rule
+    /// [`Self::permission_when`] holds for the settings.
+    pub fn needs_permission_for(&self, settings: &Settings) -> bool {
+        self.needs_accessibility || self.permission_rule_holds(settings)
+    }
+
+    /// True when the status "needs the user" of this kind applies to an
+    /// action with `settings`. A kind with no rule always shows its status.
+    pub fn status_applies_to(&self, settings: &Settings) -> bool {
+        self.permission_when.is_none() || self.permission_rule_holds(settings)
+    }
+
+    fn permission_rule_holds(&self, settings: &Settings) -> bool {
+        self.permission_when.as_ref().is_some_and(|rule| {
+            self.choice_text(settings, &rule.key)
+                .is_some_and(|value| rule.values.contains(&value))
+        })
+    }
 }
 
 /// The shell shows [`ShownWhen::field`] only when the choice
@@ -540,6 +586,40 @@ mod tests {
 
     fn text(value: &str) -> Value {
         Value::Text(value.into())
+    }
+
+    #[test]
+    fn a_permission_rule_decides_for_the_settings_and_the_default_of_the_choice() {
+        let kind = KindDescription {
+            fields: vec![Field {
+                key: "function".into(),
+                label: "Function".into(),
+                input: InputType::Text,
+                default: Some(text("sleep")),
+            }],
+            permission_when: Some(ShownWhen::new("", "function", &["lock"])),
+            ..Default::default()
+        };
+        let with = |value: Value| Settings::from([("function".to_string(), value)]);
+        // A missing choice uses its default. A value that is not text has no
+        // choice.
+        assert!(!kind.needs_permission_for(&Settings::new()));
+        assert!(!kind.needs_permission_for(&with(text("sleep"))));
+        assert!(kind.needs_permission_for(&with(text("lock"))));
+        assert!(!kind.needs_permission_for(&with(Value::Integer(1))));
+        assert!(!kind.status_applies_to(&with(text("sleep"))));
+        assert!(kind.status_applies_to(&with(text("lock"))));
+        // A kind with no rule shows its status, and `needs_accessibility`
+        // decides the permission.
+        let always = KindDescription {
+            needs_accessibility: true,
+            ..Default::default()
+        };
+        assert!(always.needs_permission_for(&Settings::new()));
+        assert!(always.status_applies_to(&Settings::new()));
+        let none = KindDescription::default();
+        assert!(!none.needs_permission_for(&Settings::new()));
+        assert!(none.status_applies_to(&Settings::new()));
     }
 
     #[test]

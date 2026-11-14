@@ -10,7 +10,7 @@
 use crate::descriptions::{choice, field_with_default, GROUP_SYSTEM};
 use crate::kinds::{Kind, Work};
 use crate::mac_function::MacFunction;
-use opencraft_engine::{KindDescription, Settings, Value};
+use opencraft_engine::{KindDescription, Settings, ShownWhen, Value};
 
 /// The kind name.
 pub(crate) const ID: &str = "opencraft.mac-function";
@@ -49,9 +49,20 @@ pub(crate) fn description() -> KindDescription {
         icon: Some("monitor".into()),
         // Some functions send a key. The library names the permission.
         // The kind does not need it for every function, so the shell does
-        // not count it with the kinds that always need the permission.
+        // not count it with the kinds that always need the permission. The
+        // rule names the functions that need it, and the shell shows the
+        // status and asks for the permission only for those (decision 0038).
         help: Some("Accessibility".into()),
         needs_accessibility: false,
+        permission_when: Some(ShownWhen::new(
+            "",
+            "function",
+            &MacFunction::ALL
+                .into_iter()
+                .filter(|function| needs_permission(*function))
+                .map(MacFunction::name)
+                .collect::<Vec<_>>(),
+        )),
         fields: vec![field_with_default(
             "function",
             "Function",
@@ -143,6 +154,28 @@ mod tests {
                 .collect::<Vec<_>>(),
             MacFunction::ALL.map(MacFunction::name)
         );
+    }
+
+    #[test]
+    fn the_description_names_the_functions_that_need_the_permission() {
+        let description = description();
+        for function in MacFunction::ALL {
+            let settings = values(&[("function", Value::Text(function.name().into()))]);
+            assert_eq!(
+                description.needs_permission_for(&settings),
+                needs_permission(function),
+                "{}",
+                function.name()
+            );
+            assert_eq!(
+                description.status_applies_to(&settings),
+                needs_permission(function),
+                "{}",
+                function.name()
+            );
+        }
+        // No function is Mission Control, which needs no permission.
+        assert!(!description.needs_permission_for(&Settings::new()));
     }
 
     #[test]

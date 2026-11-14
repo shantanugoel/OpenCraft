@@ -112,3 +112,52 @@ pub(crate) fn start_shell_command(command: &str) -> Result<Child> {
         .stderr(Stdio::null())
         .spawn()?)
 }
+
+/// The path with a leading `~` or `~/` replaced by the home folder. An export
+/// writes a path in the home folder with `~` (decision 0037), so each kind
+/// that has a Path field calls this function when it reads its settings. A
+/// name with no slash, a path that starts with `/`, and a text such as
+/// `~other/x` do not change.
+pub(crate) fn expand_home(path: &str) -> String {
+    expand_with(path, std::env::var("HOME").ok().as_deref())
+}
+
+/// [`expand_home`] with the home folder as an argument. A missing or empty
+/// home folder changes nothing.
+pub(crate) fn expand_with(path: &str, home: Option<&str>) -> String {
+    let Some(home) = home
+        .map(|home| home.trim_end_matches('/'))
+        .filter(|home| !home.is_empty())
+    else {
+        return path.to_string();
+    };
+    match path {
+        "~" => home.to_string(),
+        _ => match path.strip_prefix("~/") {
+            Some(rest) => format!("{home}/{rest}"),
+            None => path.to_string(),
+        },
+    }
+}
+
+#[cfg(test)]
+mod expand_tests {
+    use super::*;
+
+    #[test]
+    fn a_leading_tilde_is_the_home_folder_and_other_text_does_not_change() {
+        assert_eq!(expand_with("~/Music/a.wav", Some("/h")), "/h/Music/a.wav");
+        assert_eq!(expand_with("~/Music", Some("/h/")), "/h/Music");
+        assert_eq!(expand_with("~", Some("/h")), "/h");
+        for same in ["Safari", "/Applications/A.app", "~other/x", "a/~/b", ""] {
+            assert_eq!(expand_with(same, Some("/h")), same);
+        }
+        assert_eq!(expand_with("~/x", None), "~/x");
+        assert_eq!(expand_with("~", Some("")), "~");
+        let home = std::env::var("HOME").unwrap();
+        assert_eq!(
+            expand_home("~/Documents"),
+            format!("{}/Documents", home.trim_end_matches('/'))
+        );
+    }
+}

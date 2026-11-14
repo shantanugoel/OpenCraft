@@ -53,11 +53,10 @@ mod power;
 
 use crate::device_settings::{self, DeviceSettings, SettingCommands};
 use crate::front::{ActiveCause, FrontApplication};
-use crate::front_switch::{Decision, FrontSwitch, Situation};
 use crate::history::{History, SavedProfile, Target};
 use crate::icons;
 use crate::layout::DeviceLayout;
-use crate::location::Location;
+use crate::location::{Holder, Location};
 use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
     image_uses_of, ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry,
@@ -73,7 +72,7 @@ use opencraft_core::{
     decode, Clock, Connector, ControlId, ControlKind, Decoded, Descriptor, Error as DeviceError,
     InputEvent, Link, LinkEvent, Surface, SurfaceId, SystemClock,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -780,12 +779,19 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// The device settings of the model of the device.
     settings: DeviceSettings,
     power: Power,
-    /// The state machine of the automatic switch, and the setting of section
-    /// 7 (decision 0035). It does no I/O: the engine carries out its
-    /// decisions.
-    front_switch: FrontSwitch,
+    /// True if the last front application was this process (decision 0035).
+    shell_in_front: bool,
+    /// The profile that the switch rule gave for the last front application
+    /// that is not OpenCraft. Empty at the start, and after the setting
+    /// goes on.
+    last_target: Option<String>,
+    /// True after a manual selection while OpenCraft is in front, until the
+    /// next front application that is not OpenCraft.
+    chosen_in_window: bool,
     /// Why the active profile is active.
     cause: ActiveCause,
+    /// The setting of section 7. A missing key in `state.toml` is true.
+    follow_front: bool,
     /// False if the settings file has an error or a newer schema version.
     /// Then the engine does not write the file until the user changes a
     /// setting.
@@ -807,30 +813,45 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     sink: S,
 }
 
-/// The profile and the pages that give the bindings of one location.
+/// The profile and the pages that give the bindings of one location. The
+/// holder of each kind of control comes from [`Location::holder`], so this
+/// code has no copy of the folder rule.
 struct BindingSources {
     profile_id: String,
-    /// The page under the folders.
-    page: Page,
-    /// The last open folder and its page, when that folder exists.
-    folder: Option<(FolderId, Page)>,
+    /// The holder of each kind of control.
+    holders: Vec<(ControlKind, Holder)>,
+    /// A copy of each holder page.
+    pages: Vec<(Holder, Page)>,
+}
+
+impl BindingSources {
+    fn holder(&self, kind: ControlKind) -> Option<Holder> {
+        self.holders
+            .iter()
+            .find(|(held, _)| *held == kind)
+            .map(|(_, holder)| *holder)
+    }
+
+    fn page(&self, holder: Holder) -> Option<&Page> {
+        self.pages
+            .iter()
+            .find(|(held, _)| *held == holder)
+            .map(|(_, page)| page)
+    }
 }
 
 /// True when `binding` comes from the same profile and the same page in
-/// `left` and `right`. A folder page is the page of a key. The page under
-/// the folders is the page of every other control.
+/// `left` and `right`. [`Location::holder`] gives the page of a control.
 fn same_holder(binding: BindingId, left: &BindingSources, right: &BindingSources) -> bool {
     if left.profile_id != right.profile_id {
         return false;
     }
-    match binding.folder {
-        Some(id) => match (&left.folder, &right.folder) {
-            (Some((left_id, left_page)), Some((right_id, right_page))) => {
-                *left_id == id && *right_id == id && left_page == right_page
-            }
-            _ => false,
-        },
-        None => left.page == right.page,
+    let kind = binding.control.kind;
+    match (left.holder(kind), right.holder(kind)) {
+        (Some(left_holder), Some(right_holder)) if left_holder == right_holder => {
+            left.page(left_holder) == right.page(right_holder)
+        }
+        _ => false,
     }
 }
 
@@ -905,8 +926,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             link_problem: None,
             settings: DeviceSettings::defaults(default_model.settings),
             power: Power::default(),
-            front_switch: FrontSwitch::new(true),
+            shell_in_front: false,
+            last_target: None,
+            chosen_in_window: false,
             cause: ActiveCause::Selected,
+            follow_front: true,
             settings_can_save: true,
             settings_changed_at: None,
             settings_save_failed: false,
@@ -1167,14 +1191,28 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
 
     /// The profile and the pages that give the bindings now.
     fn binding_sources(&self) -> BindingSources {
+        let mut holders = Vec::new();
+        let mut pages: Vec<(Holder, Page)> = Vec::new();
+        for kind in [
+            ControlKind::Key,
+            ControlKind::Knob,
+            ControlKind::BarPanel,
+            ControlKind::TouchBar,
+        ] {
+            let control = ControlId::new(kind, 0);
+            let holder = self.location.holder(&self.profile, control);
+            if !pages.iter().any(|(held, _)| *held == holder) {
+                pages.push((
+                    holder,
+                    self.location.page_of(&self.profile, control).clone(),
+                ));
+            }
+            holders.push((kind, holder));
+        }
         BindingSources {
             profile_id: self.profile_id.clone(),
-            page: self.page().clone(),
-            folder: self.location.open.last().copied().and_then(|id| {
-                self.profile
-                    .folder(id)
-                    .map(|folder| (id, folder.page.clone()))
-            }),
+            holders,
+            pages,
         }
     }
 
@@ -1187,6 +1225,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     ) -> R {
         let before_at = self.binding_sources();
         let before = self.location.bindings(&self.profile);
+        let before_look = self.surface_look();
+        let before_page = self.location.page;
         let result = change(self);
         let after_at = self.binding_sources();
         let after = self.location.bindings(&self.profile);
@@ -1196,7 +1236,24 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         for (binding, _) in &gone {
             self.feedback.remove(binding);
         }
-        self.redraw();
+        // The same profile and the same page under the folders: the
+        // background and the surfaces of the page do not change. Only a
+        // surface with a new content, or with feedback, needs a new image.
+        // A change of the page number is a page change: all surfaces.
+        if before_at.profile_id == after_at.profile_id
+            && before_page == self.location.page
+            && before_at.page(Holder::Page(before_page)) == after_at.page(Holder::Page(before_page))
+        {
+            let after_look = self.surface_look();
+            let surfaces = before_look
+                .iter()
+                .filter(|(id, look)| after_look.get(id) != Some(look))
+                .map(|(id, _)| *id)
+                .collect();
+            self.redraw_surfaces(Some(surfaces));
+        } else {
+            self.redraw();
+        }
         after_images(self);
         self.send_pages();
         self.appear_bindings(&arrived);
@@ -1242,10 +1299,49 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// device only the images that are different from the images before.
     /// These are steps 2 and 3 of a page change.
     fn redraw(&mut self) {
-        let before = std::mem::take(&mut self.images);
-        let background_before = self.background.take();
-        self.render_background();
-        let surfaces: Vec<&'static Surface> = self.descriptor.slot_surfaces().collect();
+        self.redraw_surfaces(None);
+    }
+
+    /// What decides the image of each surface now, apart from the background:
+    /// the content, and whether feedback shows on it.
+    fn surface_look(&self) -> BTreeMap<SurfaceId, (SurfaceContent, bool)> {
+        let with_feedback: Vec<_> = self
+            .feedback
+            .keys()
+            .filter_map(|binding| self.feedback_surface(binding.control))
+            .collect();
+        self.descriptor
+            .slot_surfaces()
+            .map(|surface| {
+                (
+                    surface.id,
+                    (
+                        self.location.content(&self.profile, surface.id),
+                        with_feedback.contains(&surface.id),
+                    ),
+                )
+            })
+            .collect()
+    }
+
+    /// [`Self::redraw`], for the surfaces in `only`. `None` is all surfaces,
+    /// with the background. `Some` keeps the background and the images of
+    /// the other surfaces as they are.
+    fn redraw_surfaces(&mut self, only: Option<BTreeSet<SurfaceId>>) {
+        let before = match &only {
+            None => std::mem::take(&mut self.images),
+            Some(_) => self.images.clone(),
+        };
+        let background_before = self.background.clone();
+        if only.is_none() {
+            self.background = None;
+            self.render_background();
+        }
+        let surfaces: Vec<&'static Surface> = self
+            .descriptor
+            .slot_surfaces()
+            .filter(|surface| only.as_ref().is_none_or(|only| only.contains(&surface.id)))
+            .collect();
         for surface in &surfaces {
             self.render(surface);
         }
@@ -1709,7 +1805,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// it.
     fn open_profiles(&mut self) {
         let model = self.descriptor.model;
-        self.front_switch.restart(self.profiles.follow_front());
+        self.follow_front = self.profiles.follow_front();
+        self.last_target = None;
+        self.chosen_in_window = false;
         self.cause = ActiveCause::Selected;
         let entries = match self.profiles.list(model) {
             Ok(entries) => entries,
@@ -1832,7 +1930,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
 
     /// Tell the shell the setting of the automatic switch.
     fn send_follow(&mut self) {
-        (self.sink)(Event::FollowFrontApplication(self.front_switch.follow()));
+        (self.sink)(Event::FollowFrontApplication(self.follow_front));
     }
 
     /// Make the profile `id` the active profile. This is

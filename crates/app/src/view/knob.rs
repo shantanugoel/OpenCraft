@@ -10,6 +10,7 @@
 
 use super::*;
 use crate::state::gestures;
+use crate::view::actions::apply_shown;
 use opencraft_engine::{
     Action, BindingId, DeviceLayout, Direction, GestureKind, InputType, KindDescription, Value,
 };
@@ -97,6 +98,11 @@ pub(super) fn turn_actions(
         right
             .settings
             .insert(d.key.clone(), Value::Text(value.clone()));
+    }
+    // The new direction can show other fields (decision 0038). The mirror
+    // copies the result, so the two bindings stay a pair.
+    if let Some(kind) = kinds.iter().find(|kind| kind.kind == right.kind) {
+        apply_shown(&kind.fields, &kind.shown_when, &mut right.settings);
     }
     let left = mirror(&right, kinds);
     (right, left)

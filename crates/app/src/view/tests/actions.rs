@@ -1126,3 +1126,52 @@ fn with_bundle(path: &str, bundle_id: Option<&str>) -> Action {
     }
     action
 }
+
+#[gpui_kit::test]
+fn the_permission_status_shows_only_for_the_choice_that_needs_it(cx: &mut TestAppContext) {
+    let (_view, cx, tx, _sent) = window(cx);
+    let function = KindDescription {
+        kind: "test.function".into(),
+        name: "Test function".into(),
+        fields: vec![Field {
+            key: "function".into(),
+            label: "Function".into(),
+            input: InputType::Choice {
+                options: ["sleep", "lock"]
+                    .map(|value| ChoiceOption {
+                        value: value.into(),
+                        label: value.into(),
+                    })
+                    .into(),
+            },
+            default: Some(Value::Text("sleep".into())),
+        }],
+        permission_when: Some(opencraft_engine::ShownWhen::new("", "function", &["lock"])),
+        ..Default::default()
+    };
+    let with = |value: &str| Action {
+        kind: "test.function".into(),
+        settings: Settings::from([("function".into(), Value::Text(value.into()))]),
+    };
+    tx.try_send(Event::Kinds(vec![function])).unwrap();
+    tx.try_send(event(binding(GestureKind::Press), with("sleep"), true))
+        .unwrap();
+    tx.try_send(Event::Status {
+        kind: "test.function".into(),
+        status: Status::NeedsUser {
+            text: "Needs the permission.".into(),
+            button: "Give the permission".into(),
+        },
+    })
+    .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    // The status of the kind is "needs the user", and Sleep does not need
+    // the permission.
+    assert!(cx.debug_bounds("gesture-Press-head").is_some());
+    assert!(cx.debug_bounds("resolve-kind").is_none());
+    tx.try_send(event(binding(GestureKind::Press), with("lock"), true))
+        .unwrap();
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("resolve-kind").is_some());
+}

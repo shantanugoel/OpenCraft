@@ -658,3 +658,67 @@ fn a_kind_with_two_states_shows_the_appearance_of_each_state(cx: &mut TestAppCon
     assert!(cx.debug_bounds("state-on").is_none());
     assert!(cx.debug_bounds("title-field").is_some());
 }
+
+#[gpui_kit::test]
+fn a_folder_that_is_open_shows_the_knob_card_and_the_states_and_a_close_lets_a_click_select(
+    cx: &mut TestAppContext,
+) {
+    use opencraft_engine::{FolderEntry, FolderId, Location};
+    let folder = FolderId::from_raw(1).unwrap();
+    let (view, cx, tx, _sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(3200.)));
+    let pages = |open: Vec<FolderId>| Event::Pages {
+        names: vec!["Page 1".into()],
+        location: Location { page: 0, open },
+        first: 0,
+        folders: vec![FolderEntry {
+            id: folder,
+            name: "Clips".into(),
+        }],
+    };
+    tx.try_send(kinds()).unwrap();
+    tx.try_send(pages(vec![folder])).unwrap();
+    // The key of the folder has two states. The knob is on the page under
+    // the folders.
+    let key = BindingId {
+        folder: Some(folder),
+        ..press()
+    };
+    tx.try_send(Event::Binding(BindingState {
+        binding: key,
+        action: Some(act("test.toggle", vec![])),
+        available: true,
+    }))
+    .unwrap();
+    tx.try_send(Event::Binding(BindingState {
+        binding: BindingId {
+            page: 0,
+            control: ControlId::new(ControlKind::Knob, 2),
+            gesture: GestureKind::Push,
+            folder: None,
+        },
+        action: Some(leaf_action("push")),
+        available: true,
+    }))
+    .unwrap();
+    tx.try_send(surface_with_states(FeedbackState::Off))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    assert!(cx.debug_bounds("state-off").is_some(), "the states editor");
+    assert!(cx.debug_bounds("state-on").is_some());
+    click(cx, "control-knob 2");
+    assert!(cx.debug_bounds("gesture-Push").is_some(), "the knob card");
+    // The close of the folder does not stop the next click: a click on the
+    // key selects it. The state changes, and the window expects a frame.
+    tx.try_send(pages(Vec::new())).unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    cx.update(|_, cx| {
+        assert_eq!(
+            view.read(cx).state.selected,
+            Some(crate::state::tests::key())
+        );
+        assert!(view.read(cx).repaint.check.is_some());
+    });
+}

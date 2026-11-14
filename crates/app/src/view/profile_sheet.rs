@@ -513,18 +513,11 @@ impl DeviceView {
     ) -> AnyElement {
         let profile = entry.id.clone();
         let bundle_id = link.bundle_id.clone();
-        // The engine gives the owner of each link, in the order of the links.
-        let owner = entry
-            .link_owners
-            .get(index)
-            .filter(|owner| owner.profile != entry.id)
-            .and_then(|owner| {
-                self.state
-                    .profiles
-                    .iter()
-                    .find(|profile| profile.id == owner.profile)
-            })
-            .map(|profile| profile.name.clone());
+        let clash = entry
+            .clashes
+            .iter()
+            .any(|clash| opencraft_engine::front::same_bundle(clash, &link.bundle_id));
+        let owner = clash.then(|| clash_owner(&self.state.profiles, &link.bundle_id));
         div()
             .flex()
             .items_center()
@@ -538,7 +531,7 @@ impl DeviceView {
                     .flex_col()
                     .gap(theme::SPACE_2)
                     .child(div().truncate().child(link.name.clone()))
-                    .when_some(owner, |column, name| {
+                    .when_some(owner.flatten(), |column, name| {
                         let text = format!("Linked to “{name}”. That link applies.");
                         column.child(
                             div()
@@ -606,6 +599,11 @@ impl DeviceView {
                 "The device shows this profile when the front application has no linked profile.",
             ))
     }
+}
+
+/// The name of the profile that keeps `bundle_id`.
+fn clash_owner(profiles: &[opencraft_engine::ProfileEntry], bundle_id: &str) -> Option<String> {
+    super::application_picker::link_owner(profiles, bundle_id).map(|entry| entry.name.clone())
 }
 
 #[cfg(test)]

@@ -33,8 +33,25 @@ impl Kind for VolumeKind {
     }
 }
 
+/// The limits and the default of the field "Step".
+const STEP_MIN: i64 = 1;
+const STEP_MAX: i64 = 25;
+const STEP_DEFAULT: i64 = 5;
+
+/// The operations in form order: the stored name, the label, and the value.
+/// The description and [`read`] both use this table.
+const OPERATIONS: [(&str, &str, Operation); 3] = [
+    ("up", "Up", Operation::Up),
+    ("down", "Down", Operation::Down),
+    ("mute", "Mute", Operation::Mute),
+];
+
 /// The description of this kind (decision 0014).
 pub(crate) fn description() -> KindDescription {
+    let options: Vec<(&str, &str)> = OPERATIONS
+        .iter()
+        .map(|(name, label, _)| (*name, *label))
+        .collect();
     KindDescription {
         kind: ID.into(),
         name: NAME.into(),
@@ -46,14 +63,17 @@ pub(crate) fn description() -> KindDescription {
             field_with_default(
                 "operation",
                 "Operation",
-                choice(&[("up", "Up"), ("down", "Down"), ("mute", "Mute")]),
-                Value::Text("up".into()),
+                choice(&options),
+                Value::Text(OPERATIONS[0].0.into()),
             ),
             field_with_default(
                 "step",
                 "Step",
-                opencraft_engine::InputType::Integer { min: 1, max: 25 },
-                Value::Integer(5),
+                opencraft_engine::InputType::Integer {
+                    min: STEP_MIN,
+                    max: STEP_MAX,
+                },
+                Value::Integer(STEP_DEFAULT),
             ),
         ],
         direction: Some(Direction {
@@ -85,13 +105,12 @@ pub(crate) struct Change {
 /// The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<Change, String> {
     let operation = match settings.get("operation") {
-        None => Operation::Up,
-        Some(Value::Text(value)) => match value.as_str() {
-            "up" => Operation::Up,
-            "down" => Operation::Down,
-            "mute" => Operation::Mute,
-            _ => return Err(crate::descriptions::setting_problem(ID, "operation")),
-        },
+        None => OPERATIONS[0].2,
+        Some(Value::Text(value)) => OPERATIONS
+            .iter()
+            .find(|(name, _, _)| name == value)
+            .map(|(_, _, operation)| *operation)
+            .ok_or_else(|| crate::descriptions::setting_problem(ID, "operation"))?,
         Some(_) => return Err(crate::descriptions::setting_problem(ID, "operation")),
     };
     // Mute does not use the step. A stored step, also a bad one, is ignored.
@@ -99,8 +118,8 @@ pub(crate) fn read(settings: &Settings) -> Result<Change, String> {
         0
     } else {
         match settings.get("step") {
-            None => 5,
-            Some(Value::Integer(step)) if (1..=25).contains(step) => *step as u8,
+            None => STEP_DEFAULT as u8,
+            Some(Value::Integer(step)) if (STEP_MIN..=STEP_MAX).contains(step) => *step as u8,
             Some(_) => return Err(crate::descriptions::setting_problem(ID, "step")),
         }
     };

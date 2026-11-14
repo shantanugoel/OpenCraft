@@ -218,7 +218,7 @@ fn field_shown(fields: &[Field], rules: &[ShownWhen], settings: &Settings, key: 
 
 /// Remove each hidden field. When a rule shows a field that has a default
 /// and no stored value, store that default.
-fn apply_shown(fields: &[Field], rules: &[ShownWhen], settings: &mut Settings) {
+pub(super) fn apply_shown(fields: &[Field], rules: &[ShownWhen], settings: &mut Settings) {
     let hidden: Vec<String> = fields
         .iter()
         .filter(|field| !field_shown(fields, rules, settings, &field.key))
@@ -1337,10 +1337,18 @@ impl DeviceView {
                 ));
             }
         }
-        if let Some(Status::NeedsUser {
-            text,
-            button: label,
-        }) = self.state.statuses.get(&action.kind)
+        // A kind with a permission rule shows its status only for the
+        // settings that need the permission (decision 0038).
+        let status_applies = self
+            .kind(&action.kind)
+            .is_none_or(|kind| kind.status_applies_to(&action.settings));
+        if let (
+            true,
+            Some(Status::NeedsUser {
+                text,
+                button: label,
+            }),
+        ) = (status_applies, self.state.statuses.get(&action.kind))
         {
             let kind = action.kind.clone();
             rows.push(

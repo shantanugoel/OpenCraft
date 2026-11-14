@@ -245,6 +245,45 @@ fn the_names_are_joined_with_commas_and_and() {
 }
 
 #[test]
+fn a_kind_with_a_permission_rule_asks_for_the_permission_only_when_the_rule_holds() {
+    use opencraft_engine::{Action, ShownWhen, Value};
+    let function = KindDescription {
+        kind: "test.function".into(),
+        name: "Test function".into(),
+        permission_when: Some(ShownWhen::new("", "function", &["lock"])),
+        ..Default::default()
+    };
+    let mut state = ViewState {
+        kinds: vec![key_kind("test.hotkey", "Send a hotkey"), function],
+        ..ViewState::default()
+    };
+    let with = |value: &str| Action {
+        kind: "test.function".into(),
+        settings: [("function".to_string(), Value::Text(value.into()))].into(),
+    };
+    state.apply(
+        Event::Status {
+            kind: "test.hotkey".into(),
+            status: opencraft_engine::Status::NeedsUser {
+                text: String::new(),
+                button: String::new(),
+            },
+        },
+        std::time::Instant::now(),
+    );
+    assert_eq!(kind_waiting_for_permission(&[with("sleep")], &state), None);
+    assert_eq!(
+        kind_waiting_for_permission(&[with("sleep"), with("lock")], &state),
+        Some("Test function".into())
+    );
+    // The kind is not in the names of the kinds that always need it.
+    assert_eq!(
+        permission_texts(&permission(&state)).1,
+        "Necessary for Send a hotkey"
+    );
+}
+
+#[test]
 fn the_permission_texts_follow_the_statuses_of_the_engine() {
     // With no kinds, no kind needs the permission.
     assert_eq!(

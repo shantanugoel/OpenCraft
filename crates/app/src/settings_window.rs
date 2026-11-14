@@ -157,7 +157,7 @@ pub fn kind_waiting_for_permission(actions: &[Action], state: &ViewState) -> Opt
         state
             .kinds
             .iter()
-            .find(|kind| kind.kind == action.kind && kind.needs_accessibility)
+            .find(|kind| kind.kind == action.kind && kind.needs_permission_for(&action.settings))
             .map(|kind| kind.name.clone())
     })
 }

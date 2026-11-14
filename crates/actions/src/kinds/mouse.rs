@@ -37,8 +37,38 @@ impl Kind for MouseKind {
     }
 }
 
+/// The limits of the fields X and Y, and the default of each.
+const COORDINATE_MIN: i32 = -100_000;
+const COORDINATE_MAX: i32 = 100_000;
+const COORDINATE_DEFAULT: i32 = 0;
+/// The limits and the default of the field "Scroll step".
+const STEP_MIN: i32 = 1;
+const STEP_MAX: i32 = 1000;
+const STEP_DEFAULT: i32 = 3;
+
+/// The operations that use the field "Button", "X" and "Y", and "Scroll
+/// step". The description and [`read`] both use these lists.
+const BUTTON_OPERATIONS: [&str; 3] = ["click", "double-click", "drag"];
+const POINT_OPERATIONS: [&str; 3] = ["move", "move-relative", "drag"];
+const SCROLL_OPERATIONS: [&str; 4] = ["scroll-up", "scroll-down", "scroll-left", "scroll-right"];
+
+/// The buttons: the stored name, the label, and the button.
+const BUTTONS: [(&str, &str, Button); 3] = [
+    ("left", "Left", Button::Left),
+    ("right", "Right", Button::Right),
+    ("middle", "Middle", Button::Middle),
+];
+
 /// The description of this kind (decision 0014).
 pub(crate) fn description() -> KindDescription {
+    let buttons: Vec<(&str, &str)> = BUTTONS
+        .iter()
+        .map(|(name, label, _)| (*name, *label))
+        .collect();
+    let coordinate = opencraft_engine::InputType::Integer {
+        min: i64::from(COORDINATE_MIN),
+        max: i64::from(COORDINATE_MAX),
+    };
     KindDescription {
         kind: ID.into(),
         name: NAME.into(),
@@ -66,32 +96,29 @@ pub(crate) fn description() -> KindDescription {
             field_with_default(
                 "button",
                 "Button",
-                choice(&[("left", "Left"), ("right", "Right"), ("middle", "Middle")]),
-                Value::Text("left".into()),
+                choice(&buttons),
+                Value::Text(BUTTONS[0].0.into()),
             ),
             field_with_default(
                 "x",
                 "X",
-                opencraft_engine::InputType::Integer {
-                    min: -100_000,
-                    max: 100_000,
-                },
-                Value::Integer(0),
+                coordinate.clone(),
+                Value::Integer(i64::from(COORDINATE_DEFAULT)),
             ),
             field_with_default(
                 "y",
                 "Y",
-                opencraft_engine::InputType::Integer {
-                    min: -100_000,
-                    max: 100_000,
-                },
-                Value::Integer(0),
+                coordinate,
+                Value::Integer(i64::from(COORDINATE_DEFAULT)),
             ),
             field_with_default(
                 "step",
                 "Scroll step",
-                opencraft_engine::InputType::Integer { min: 1, max: 1000 },
-                Value::Integer(3),
+                opencraft_engine::InputType::Integer {
+                    min: i64::from(STEP_MIN),
+                    max: i64::from(STEP_MAX),
+                },
+                Value::Integer(i64::from(STEP_DEFAULT)),
             ),
         ],
         direction: Some(Direction {
@@ -100,14 +127,10 @@ pub(crate) fn description() -> KindDescription {
             left: "scroll-up".into(),
         }),
         shown_when: vec![
-            ShownWhen::new("button", "operation", &["click", "double-click", "drag"]),
-            ShownWhen::new("x", "operation", &["move", "move-relative", "drag"]),
-            ShownWhen::new("y", "operation", &["move", "move-relative", "drag"]),
-            ShownWhen::new(
-                "step",
-                "operation",
-                &["scroll-up", "scroll-down", "scroll-left", "scroll-right"],
-            ),
+            ShownWhen::new("button", "operation", &BUTTON_OPERATIONS),
+            ShownWhen::new("x", "operation", &POINT_OPERATIONS),
+            ShownWhen::new("y", "operation", &POINT_OPERATIONS),
+            ShownWhen::new("step", "operation", &SCROLL_OPERATIONS),
         ],
         ..KindDescription::default()
     }
@@ -133,16 +156,30 @@ fn number(settings: &Settings, key: &str, default: i32, min: i32, max: i32) -> R
 
 /// Read the settings. The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<MouseEvent, String> {
-    let button = || match text(settings, "button", "left")? {
-        "left" => Ok(Button::Left),
-        "right" => Ok(Button::Right),
-        "middle" => Ok(Button::Middle),
-        _ => Err(crate::descriptions::setting_problem(ID, "button")),
+    let button = || {
+        let name = text(settings, "button", BUTTONS[0].0)?;
+        BUTTONS
+            .iter()
+            .find(|(stored, _, _)| *stored == name)
+            .map(|(_, _, button)| *button)
+            .ok_or_else(|| crate::descriptions::setting_problem(ID, "button"))
     };
     let point = || -> Result<(i32, i32), String> {
         Ok((
-            number(settings, "x", 0, -100_000, 100_000)?,
-            number(settings, "y", 0, -100_000, 100_000)?,
+            number(
+                settings,
+                "x",
+                COORDINATE_DEFAULT,
+                COORDINATE_MIN,
+                COORDINATE_MAX,
+            )?,
+            number(
+                settings,
+                "y",
+                COORDINATE_DEFAULT,
+                COORDINATE_MIN,
+                COORDINATE_MAX,
+            )?,
         ))
     };
     Ok(match text(settings, "operation", "click")? {
@@ -166,8 +203,8 @@ pub(crate) fn read(settings: &Settings) -> Result<MouseEvent, String> {
                 y,
             }
         }
-        operation @ ("scroll-up" | "scroll-down" | "scroll-left" | "scroll-right") => {
-            let step = number(settings, "step", 3, 1, 1000)?;
+        operation if SCROLL_OPERATIONS.contains(&operation) => {
+            let step = number(settings, "step", STEP_DEFAULT, STEP_MIN, STEP_MAX)?;
             let (x, y) = match operation {
                 "scroll-up" => (0, step),
                 "scroll-down" => (0, -step),

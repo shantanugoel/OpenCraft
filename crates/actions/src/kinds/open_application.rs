@@ -132,7 +132,9 @@ pub(crate) enum Target {
 
 /// Read the settings. The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<Target, String> {
-    let raw = nonblank(ID, settings, "application")?;
+    // An imported profile has `~` for the home folder (decision 0037).
+    let expanded = crate::system::expand_home(nonblank(ID, settings, "application")?);
+    let raw = expanded.as_str();
     let arguments = match settings.get("arguments") {
         None => Vec::new(),
         Some(Value::Text(text)) => split_arguments(text)
@@ -199,25 +201,12 @@ fn choose_with(stored: &str, copies: &[String], home: Option<&str>) -> String {
 /// letters does not count.
 fn same_path(stored: &str, copy: &str, home: Option<&str>) -> bool {
     let norm = |path: &str| {
-        expand_prefix(path.trim(), home)
+        crate::system::expand_with(path.trim(), home)
             .trim_end_matches('/')
             .to_ascii_lowercase()
     };
     let stored = norm(stored);
     !stored.is_empty() && stored == norm(copy)
-}
-
-/// `path` with a leading `~/` replaced by `home`. A name, and a path that
-/// starts with `/`, do not change. This matches `expand_home` in the macOS
-/// system code.
-fn expand_prefix(path: &str, home: Option<&str>) -> String {
-    let Some(rest) = path.strip_prefix("~/") else {
-        return path.to_string();
-    };
-    match home.map(|home| home.trim_end_matches('/')) {
-        Some(home) if !home.is_empty() => format!("{home}/{rest}"),
-        _ => path.to_string(),
-    }
 }
 
 /// Open the target. The system brings a running application to the front.
@@ -549,15 +538,6 @@ mod tests {
         assert_eq!(
             choose_with("~/copy/Demo.app", &two, Some("/tmp")),
             "/tmp/copy/Demo.app"
-        );
-        assert_eq!(
-            expand_prefix("~/Applications/Demo.app", Some("/tmp/copy")),
-            "/tmp/copy/Applications/Demo.app"
-        );
-        assert_eq!(expand_prefix("Safari", Some("/tmp/copy")), "Safari");
-        assert_eq!(
-            expand_prefix("~/Applications/Demo.app", None),
-            "~/Applications/Demo.app"
         );
     }
 

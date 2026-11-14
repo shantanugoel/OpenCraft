@@ -49,7 +49,11 @@ type Path in the kind description, including a path inside a contained
 action and a path in a folder. The engine does not change any other
 setting. A command stays as the user typed it. The profile file does not
 change. An imported profile keeps `~`. The action expands a path that
-starts with `~/`.
+is `~` alone or starts with `~/`. Each kind that has a Path field does this
+when it reads its settings: Open an application, Quit an application,
+Open a URL (the browser), and Play a sound. The function is
+`system::expand_home` in `crates/actions`. A test exports and imports each
+such kind, and checks the call that the kind makes.
 
 This is the one place where the engine reads action settings. It reads
 them only to find path text. It does not decide what the action does.

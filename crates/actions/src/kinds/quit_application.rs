@@ -63,7 +63,8 @@ pub(crate) struct Quit {
 /// Read the settings. The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<Quit, String> {
     Ok(Quit {
-        application: nonblank(ID, settings, "application")?.trim().to_string(),
+        // An imported profile has `~` for the home folder (decision 0037).
+        application: crate::system::expand_home(nonblank(ID, settings, "application")?.trim()),
         force: toggle(ID, settings, "force")?,
     })
 }
