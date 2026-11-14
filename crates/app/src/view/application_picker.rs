@@ -1002,22 +1002,19 @@ impl DeviceView {
     }
 }
 
-/// The profile whose link of `bundle_id` applies. A link in `clashes` does
-/// not apply, so the first profile that links the application and has no
-/// clash for it is the owner (decision 0035, section 5).
+/// The profile whose link of `bundle_id` applies (decision 0035, section 5).
+/// The engine gives the links that apply in each entry: this function only
+/// looks for the entry.
 pub(super) fn link_owner<'a>(
     profiles: &'a [opencraft_engine::ProfileEntry],
     bundle_id: &str,
 ) -> Option<&'a opencraft_engine::ProfileEntry> {
     use opencraft_engine::front::same_bundle;
     profiles.iter().find(|entry| {
-        entry.applications.iter().any(|link| {
-            same_bundle(&link.bundle_id, bundle_id)
-                && !entry
-                    .clashes
-                    .iter()
-                    .any(|clash| same_bundle(clash, bundle_id))
-        })
+        entry
+            .applied
+            .iter()
+            .any(|link| same_bundle(&link.bundle_id, bundle_id))
     })
 }
 

@@ -20,6 +20,15 @@ fn entry(id: &str, name: &str, pages: &[&str], first_page: usize) -> ProfileEntr
     }
 }
 
+/// The entries with the links that apply and the owner of each link, as
+/// the engine gives them. The entries come out in the order of their
+/// identities.
+fn listed(entries: Vec<ProfileEntry>) -> Vec<ProfileEntry> {
+    opencraft_engine::profile_list::ProfileList::new(entries, None)
+        .entries()
+        .to_vec()
+}
+
 fn profiles(list: Vec<ProfileEntry>, active: &str) -> Event {
     Event::Profiles {
         profiles: list,
@@ -444,7 +453,7 @@ fn the_application_list_names_the_profile_that_already_has_the_link(cx: &mut Tes
         cx,
         &tx,
         profiles(
-            vec![home, entry("work", "Work", &["Mail", "Calls"], 1)],
+            listed(vec![home, entry("work", "Work", &["Mail", "Calls"], 1)]),
             "default",
         ),
     );
@@ -508,8 +517,7 @@ fn the_list_shows_the_profile_that_has_the_link_of_an_application(cx: &mut TestA
         link("com.apple.Safari", "Safari"),
         link("com.apple.mail", "Mail"),
     ];
-    work.clashes = vec!["com.apple.Safari".into()];
-    send(cx, &tx, profiles(vec![default, work], "default"));
+    send(cx, &tx, profiles(listed(vec![default, work]), "default"));
     let application =
         |name: &str, bundle_identifier: &str| crate::applications::InstalledApplication {
             name: name.into(),
