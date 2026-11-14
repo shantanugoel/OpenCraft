@@ -62,6 +62,7 @@ use crate::profile::{
     image_uses_of, ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry,
     FolderId, LabelChange, Page, Profile, SurfaceContent, SurfaceIcon, DEFAULT_PROFILE_NAME,
 };
+use crate::profile_list::ProfileList;
 use crate::profiles::{ProfileEntry, ProfilesDir};
 use crate::render::{self, Size};
 use crate::store::ProfileStore;
@@ -732,8 +733,10 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     link: Link<C, K>,
     profiles: ProfilesDir,
     /// The profiles of the model of the device, in the order of their
-    /// identities. It always contains the active profile.
-    entries: Vec<ProfileEntry>,
+    /// identities, and the default mark. It always contains the active
+    /// profile. It holds the rules for the links and the default profile
+    /// (decision 0035).
+    list: ProfileList,
     /// The identity of the active profile.
     profile_id: String,
     /// The directory of the active profile.
@@ -789,8 +792,6 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     cause: ActiveCause,
     /// The setting of section 7. A missing key in `state.toml` is true.
     follow_front: bool,
-    /// The default mark of the model of the device, if `state.toml` has one.
-    default_mark: Option<String>,
     /// False if the settings file has an error or a newer schema version.
     /// Then the engine does not write the file until the user changes a
     /// setting.
@@ -893,7 +894,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             // `open_profiles` sets the active profile below.
             store: profiles.store(""),
             profiles,
-            entries: Vec::new(),
+            list: ProfileList::default(),
             profile_id: String::new(),
             profile: Profile::default(),
             location: Location::default(),
@@ -915,7 +916,6 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             chosen_in_window: false,
             cause: ActiveCause::Selected,
             follow_front: true,
-            default_mark: None,
             settings_can_save: true,
             settings_changed_at: None,
             settings_save_failed: false,
@@ -1719,22 +1719,22 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     fn open_profiles(&mut self) {
         let model = self.descriptor.model;
         self.follow_front = self.profiles.follow_front();
-        self.default_mark = self.profiles.default_of(model);
         self.last_target = None;
         self.chosen_in_window = false;
         self.cause = ActiveCause::Selected;
-        self.entries = match self.profiles.list(model) {
+        let entries = match self.profiles.list(model) {
             Ok(entries) => entries,
             Err(e) => {
                 self.problem(format!("OpenCraft could not read the profiles: {e}"));
                 Vec::new()
             }
         };
+        self.list = ProfileList::new(entries, self.profiles.default_of(model));
         let recorded = self
             .profiles
             .active(model)
-            .filter(|id| self.entries.iter().any(|e| &e.id == id));
-        match recorded.or_else(|| self.entries.first().map(|e| e.id.clone())) {
+            .filter(|id| self.list.contains(id));
+        match recorded.or_else(|| self.list.entries().first().map(|e| e.id.clone())) {
             Some(id) => self.load_profile(id),
             None => self.make_profile(),
         }
@@ -1825,20 +1825,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Put the name of the active profile in the list of profiles. Add the
     /// entry if the list does not have it.
     fn update_entry(&mut self) {
-        let entry = ProfileEntry::of(self.profile_id.clone(), &self.profile);
-        match self.entries.binary_search_by(|e| e.id.cmp(&entry.id)) {
-            Ok(at) => self.entries[at] = entry,
-            Err(at) => self.entries.insert(at, entry),
-        }
+        self.list
+            .upsert(ProfileEntry::of(self.profile_id.clone(), &self.profile));
     }
 
     /// Send the list of profiles and the identity of the active profile. See
     /// [`Event::Profiles`].
     fn send_profiles(&mut self) {
-        self.assign_clashes();
         let default = self.default_profile_id();
         (self.sink)(Event::Profiles {
-            profiles: self.entries.clone(),
+            profiles: self.list.entries().to_vec(),
             active: self.profile_id.clone(),
             default,
             cause: self.cause.clone(),
@@ -1930,10 +1926,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     fn resolve_profile_target(&mut self, target: ProfileTarget) -> Option<String> {
         match target {
             ProfileTarget::Profile(text) => {
-                if let Some(entry) = self.entries.iter().find(|entry| entry.id == text) {
+                if let Some(entry) = self.list.get(&text) {
                     return Some(entry.id.clone());
                 }
-                if let Some(entry) = self.entries.iter().find(|entry| entry.name == text) {
+                if let Some(entry) = self.list.entries().iter().find(|entry| entry.name == text) {
                     return Some(entry.id.clone());
                 }
                 self.problem(format!(
@@ -1943,21 +1939,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 None
             }
             other => {
-                let count = self.entries.len();
+                let count = self.list.len();
                 if count == 0 {
                     return None;
                 }
-                let index = self
-                    .entries
-                    .iter()
-                    .position(|entry| entry.id == self.profile_id)
-                    .unwrap_or(0);
+                let index = self.list.position(&self.profile_id).unwrap_or(0);
                 let step = if other == ProfileTarget::Next {
                     1
                 } else {
                     count - 1
                 };
-                Some(self.entries[(index + step) % count].id.clone())
+                Some(self.list.entries()[(index + step) % count].id.clone())
             }
         }
     }
@@ -1971,7 +1963,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.profile.first_page(),
             );
         }
-        match self.entries.iter().find(|entry| entry.id == id) {
+        match self.list.get(id) {
             Some(entry) => (entry.name.clone(), entry.pages.len(), entry.first_page),
             None => (id.to_string(), 0, 0),
         }
@@ -1979,7 +1971,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
 
     /// True if `id` is a profile of the model. If it is not, tell the shell.
     fn is_profile(&mut self, id: &str) -> bool {
-        let found = self.entries.iter().any(|e| e.id == id);
+        let found = self.list.contains(id);
         if !found {
             self.problem(format!("The device model has no profile '{id}'."));
         }
@@ -2141,13 +2133,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.problem(format!("OpenCraft could not rename the profile: {e}"));
                 return;
             }
-            let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) else {
-                return;
-            };
-            if entry.name == name {
+            if !self.list.rename(&id, &name) {
                 return;
             }
-            entry.name = name;
         }
         self.send_profiles();
     }
@@ -2182,8 +2170,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             });
             match changed {
                 Ok(Some(profile)) => {
-                    if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
-                        *entry = ProfileEntry::of(id, &profile);
+                    if self.list.contains(&id) {
+                        self.list.upsert(ProfileEntry::of(id, &profile));
                     }
                 }
                 Ok(None) => return,
@@ -2259,7 +2247,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             } else {
                 &name
             },
-            &self.entries,
+            self.list.entries(),
         );
         if !self.save_before_leaving() {
             return;
@@ -2311,12 +2299,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         // and the user did not change it.
         let replace =
             self.can_save && self.changed_at.is_none() && !self.store.profile_path().exists();
-        let others: Vec<ProfileEntry> = self
-            .entries
-            .iter()
-            .filter(|e| !replace || e.id != self.profile_id)
-            .cloned()
-            .collect();
+        let others: Vec<ProfileEntry> = if replace {
+            self.list.entries_without(&self.profile_id)
+        } else {
+            self.list.entries().to_vec()
+        };
         let name = profile.name.trim().to_string();
         profile.name = free_profile_name(
             if name.is_empty() {
@@ -2346,7 +2333,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             return self.problem(failed(&e));
         }
         if replace {
-            self.entries = others;
+            self.list.remove(&self.profile_id);
         }
         self.note_manual_selection();
         self.change_profile(id, Some(profile));
@@ -2356,15 +2343,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !self.is_profile(&id) {
             return;
         }
-        if self.entries.len() == 1 {
+        if self.list.len() == 1 {
             self.problem("One profile for the device model stays at the minimum.".to_string());
             return;
         }
-        let at = self
-            .entries
-            .iter()
-            .position(|e| e.id == id)
-            .expect("the profile is in the list");
         let active = id == self.profile_id;
         // The removed directory keeps the last state of the profile.
         if active && !self.save_before_leaving() {
@@ -2374,17 +2356,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem(format!("OpenCraft could not remove the profile: {e}"));
             return;
         }
-        if self.default_mark.as_deref() == Some(id.as_str()) {
-            self.default_mark = None;
+        let removal = self.list.remove(&id).expect("the profile is in the list");
+        if removal.was_default {
             if let Err(e) = self.profiles.clear_default(self.descriptor.model) {
                 self.problem(format!(
                     "OpenCraft could not record the default profile: {e}"
                 ));
             }
         }
-        self.entries.remove(at);
         if active {
-            let next = self.entries[at.min(self.entries.len() - 1)].id.clone();
+            let entries = self.list.entries();
+            let next = entries[removal.at.min(entries.len() - 1)].id.clone();
             self.note_manual_selection();
             self.change_profile(next, None);
         } else {

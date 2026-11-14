@@ -42,7 +42,7 @@ for the same thing.
 | Page | One full set of bindings and surface content for a device. |
 | Folder | A set of key faces and key bindings in a profile, outside the cycle of the pages. A key opens it, and "Back" closes it. The knobs and the touch bar stay those of the page under it. The Location module of the engine holds the active page and the open folders, and it gives the page or the folder of a control. The engine sends the Location in the pages event. The shell uses it to name a binding, and it has no copy of the folder rule. See [decision 0036](decisions/0036-folders.md). |
 | Profile | A named set of pages and folders for one device model. It can be linked to applications. |
-| Front application | The application that macOS shows as active. The shell reports it, and the engine selects the profile that is linked to it, or the default profile. See [decision 0035](decisions/0035-front-application-selects-the-profile.md). |
+| Front application | The application that macOS shows as active. The shell reports it, and the engine selects the profile that is linked to it, or the default profile. The profile list module of the engine (`profile_list`) holds the rules for the links, the clashes, and the default profile. It gives each profile entry the links that apply and the owner of each link. The shell shows the result and does not do the rules again. See [decision 0035](decisions/0035-front-application-selects-the-profile.md). |
 | Engine | The component that owns the device, the profile, and the actions. |
 | Shell | A user interface that is a client of the engine. The GUI application is a shell. |
 

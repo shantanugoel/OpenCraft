@@ -1,7 +1,8 @@
 //! The switch by the front application (decision 0035).
 
 use super::*;
-use crate::front::{same_bundle, valid_bundle_id, MAX_LINKS};
+use crate::front::valid_bundle_id;
+use crate::profile_list::LinkError;
 
 impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// A manual selection of the active profile. While OpenCraft is in
@@ -25,15 +26,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.shell_in_front = false;
             return;
         }
-        self.assign_clashes();
-        let linked = match &front {
-            FrontApplication::Bundle(bundle_id) => self
-                .linked_profile(bundle_id)
-                .map(|(profile, bundle)| (profile.to_string(), bundle.to_string())),
+        let owner = match &front {
+            FrontApplication::Bundle(bundle_id) => self.list.owner_of(bundle_id),
             FrontApplication::NoBundle | FrontApplication::Shell => None,
         };
-        let (target, cause) = match linked {
-            Some((profile, bundle_id)) => (profile, ActiveCause::Linked { bundle_id }),
+        let (target, cause) = match owner {
+            Some(owner) => (
+                owner.profile,
+                ActiveCause::Linked {
+                    bundle_id: owner.bundle_id,
+                },
+            ),
             None => (self.default_profile_id(), ActiveCause::Default),
         };
         let select = self.chosen_in_window || self.last_target.as_deref() != Some(target.as_str());
@@ -92,53 +95,26 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             bundle_id: link.bundle_id,
             name,
         };
-        self.assign_clashes();
-        let has = self
-            .profile_links(&profile)
-            .iter()
-            .any(|each| same_bundle(&each.bundle_id, &link.bundle_id));
-        // A link of the profile in `clashes` does not apply: a profile before
-        // it has the same application. The command moves the link to the
-        // profile that the user names, as for a link that it does not have.
-        let clashing = self.entries.iter().any(|entry| {
-            entry.id == profile
-                && entry
-                    .clashes
-                    .iter()
-                    .any(|clash| same_bundle(clash, &link.bundle_id))
-        });
-        if has && !clashing {
+        let change = match self.list.link(&profile, &link) {
+            Ok(change) => change,
+            Err(LinkError::TooMany) => {
+                self.problem(
+                    "OpenCraft did not add the link, because a profile can have 32 links."
+                        .to_string(),
+                );
+                return;
+            }
+        };
+        if change.is_empty() {
             return;
         }
-        if !has && self.profile_links(&profile).len() >= MAX_LINKS {
-            self.problem(
-                "OpenCraft did not add the link, because a profile can have 32 links.".to_string(),
-            );
-            return;
-        }
-        let owners: Vec<String> = self
-            .entries
-            .iter()
-            .filter(|entry| {
-                entry.id != profile
-                    && entry
-                        .applications
-                        .iter()
-                        .any(|each| same_bundle(&each.bundle_id, &link.bundle_id))
-            })
-            .map(|entry| entry.id.clone())
-            .collect();
-        if !has {
-            let mut links = self.profile_links(&profile);
-            links.push(link.clone());
-            if !self.write_links(&profile, links) {
+        if let Some(add) = change.add {
+            if !self.write_links(&add.profile, add.links) {
                 return;
             }
         }
-        for owner in owners {
-            let mut links = self.profile_links(&owner);
-            links.retain(|each| !same_bundle(&each.bundle_id, &link.bundle_id));
-            let _ = self.write_links(&owner, links);
+        for release in change.release {
+            let _ = self.write_links(&release.profile, release.links);
         }
         self.send_profiles();
     }
@@ -148,30 +124,25 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !self.is_profile(&profile) {
             return;
         }
-        let mut links = self.profile_links(&profile);
-        let before = links.len();
-        links.retain(|link| !same_bundle(&link.bundle_id, &bundle_id));
-        if links.len() == before {
-            return;
-        }
-        if self.write_links(&profile, links) {
-            self.send_profiles();
+        if let Some(write) = self.list.unlink(&profile, &bundle_id) {
+            if self.write_links(&write.profile, write.links) {
+                self.send_profiles();
+            }
         }
     }
 
     /// [`Command::SetDefaultProfile`].
     pub(super) fn set_default_profile(&mut self, profile: String) {
-        if !self.entries.iter().any(|entry| entry.id == profile) {
+        if !self.list.contains(&profile) {
             self.problem(format!(
                 "OpenCraft did not change the default profile, because no profile has the \
                  identity “{profile}”."
             ));
             return;
         }
-        if self.default_mark.as_deref() == Some(profile.as_str()) {
+        if !self.list.set_default_mark(&profile) {
             return;
         }
-        self.default_mark = Some(profile.clone());
         if let Err(error) = self.profiles.set_default(self.descriptor.model, &profile) {
             self.problem(format!(
                 "OpenCraft could not record the default profile: {error}"
@@ -198,17 +169,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Remove each link of `profile` that a profile of this model already
     /// has, and tell the shell. `profile` is not in the list yet.
     pub(super) fn drop_clashing_links(&mut self, profile: &mut Profile) {
-        self.assign_clashes();
         let mut keep = Vec::new();
         for link in profile.applications.drain(..) {
-            let owner = self
-                .linked_profile(&link.bundle_id)
-                .map(|(id, _)| id.to_string());
-            if let Some(id) = owner {
+            if let Some(owner) = self.list.owner_of(&link.bundle_id) {
+                let id = owner.profile;
                 let name = self
-                    .entries
-                    .iter()
-                    .find(|entry| entry.id == id)
+                    .list
+                    .get(&id)
                     .map(|entry| entry.name.clone())
                     .unwrap_or(id);
                 self.problem(format!("“{}” stays linked to “{name}”.", link.name));
@@ -219,84 +186,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         profile.applications = keep;
     }
 
-    /// The bundle identifiers that do not apply, from the order of the
-    /// identities. The first profile that links an application keeps it.
-    pub(super) fn assign_clashes(&mut self) {
-        let mut seen: Vec<(String, String)> = Vec::new();
-        for entry in &mut self.entries {
-            let mut clashes = Vec::new();
-            for link in &entry.applications {
-                let key = link.bundle_id.to_ascii_lowercase();
-                let earlier = seen
-                    .iter()
-                    .any(|(seen_key, owner)| seen_key == &key && owner != &entry.id);
-                if earlier {
-                    clashes.push(link.bundle_id.clone());
-                } else if !seen.iter().any(|(seen_key, _)| seen_key == &key) {
-                    seen.push((key, entry.id.clone()));
-                }
-            }
-            entry.clashes = clashes;
-        }
-    }
-
     /// The identity of the default profile (decision 0035, section 6).
     pub(super) fn default_profile_id(&self) -> String {
-        if let Some(id) = &self.default_mark {
-            if self.entries.iter().any(|entry| &entry.id == id) {
-                return id.clone();
-            }
-        }
-        if let Some(entry) = self
-            .entries
-            .iter()
-            .find(|entry| !self.has_applicable_link(entry))
-        {
-            return entry.id.clone();
-        }
-        self.entries
-            .first()
-            .map(|entry| entry.id.clone())
+        self.list
+            .default_id()
+            .map(str::to_string)
             .unwrap_or_else(|| self.profile_id.clone())
-    }
-
-    /// The profile that links `bundle_id`, and the bundle identifier as that
-    /// profile stores it. A link in `clashes` does not apply.
-    fn linked_profile(&self, bundle_id: &str) -> Option<(&str, &str)> {
-        for entry in &self.entries {
-            for link in &entry.applications {
-                if same_bundle(&link.bundle_id, bundle_id)
-                    && !entry
-                        .clashes
-                        .iter()
-                        .any(|clash| same_bundle(clash, bundle_id))
-                {
-                    return Some((entry.id.as_str(), link.bundle_id.as_str()));
-                }
-            }
-        }
-        None
-    }
-
-    fn has_applicable_link(&self, entry: &ProfileEntry) -> bool {
-        entry.applications.iter().any(|link| {
-            !entry
-                .clashes
-                .iter()
-                .any(|clash| same_bundle(clash, &link.bundle_id))
-        })
-    }
-
-    fn profile_links(&self, id: &str) -> Vec<ApplicationLink> {
-        if id == self.profile_id {
-            self.profile.applications.clone()
-        } else {
-            self.entries
-                .iter()
-                .find(|entry| entry.id == id)
-                .map(|entry| entry.applications.clone())
-                .unwrap_or_default()
-        }
     }
 
     /// Put `applications` on the profile `id`. An inactive profile is
@@ -318,8 +213,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Ok(profile)
         }) {
             Ok(profile) => {
-                if let Some(entry) = self.entries.iter_mut().find(|entry| entry.id == id) {
-                    *entry = ProfileEntry::of(id, &profile);
+                if self.list.contains(id) {
+                    self.list.upsert(ProfileEntry::of(id, &profile));
                 }
                 true
             }
