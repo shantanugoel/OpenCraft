@@ -354,6 +354,9 @@ The section **Applications** is below the settings above, and above
 - One application uses one profile. If you add an application that another
   profile already has, the link moves to this profile. Before you add it,
   the list shows "Linked to “*profile*”" at the right of that application.
+
+  ![The application list of the profile "Default". The row of Notes shows "Linked to “Work”".](images/application-link.png)
+
 - A profile can have 32 applications.
 - A line "Linked to “*profile*”. That link applies." means a profile above
   this one in the sidebar also has that application. That profile keeps the
