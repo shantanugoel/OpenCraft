@@ -43,15 +43,28 @@ impl Observer {
     }
 }
 
-/// The time of a front-application notice. The engine writes a second line
-/// after the device writes. The difference is the time of the switch
+/// True if the environment variable `OPENCRAFT_SWITCH_TRACE` is set, for a
+/// measurement of the switch time. Else the shell writes no line for a
+/// notice: the log file must not grow with each change of the front
+/// application.
+fn switch_trace() -> bool {
+    static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TRACE.get_or_init(|| std::env::var_os(opencraft_engine::engine::SWITCH_TRACE).is_some())
+}
+
+/// The time of a front-application notice, only for a measurement (see
+/// [`switch_trace`]). The engine writes a second line after the change of
+/// the profile. The difference is the time of the switch
 /// (`docs/kb/footprint.md`).
 fn note_notice() {
+    if !switch_trace() {
+        return;
+    }
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     eprintln!(
-        "opencraft-shell {:.3} front-application notice",
+        "opencraft-shell {:.3} switch-trace front-application notice",
         now.as_secs_f64()
     );
 }

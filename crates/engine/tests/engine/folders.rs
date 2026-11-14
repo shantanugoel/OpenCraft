@@ -568,3 +568,41 @@ fn an_export_keeps_the_folder_and_its_key() {
     );
     assert!(rig.engine.open_folders().is_empty());
 }
+
+/// In one text edit, a title change on the page and a title change of the
+/// same key face in a folder are two steps: they change two different
+/// surfaces (decision 0030).
+#[test]
+fn a_title_on_the_page_and_a_title_in_a_folder_are_two_steps() {
+    let mut rig = Rig::new();
+    rig.take_events();
+    add(&mut rig, A, Some("F"));
+    command(&mut rig, Command::CloseFolder);
+    command(&mut rig, Command::StartTextEdit);
+    command(
+        &mut rig,
+        Command::SetLabel {
+            surface: KEY_1,
+            label: Some("Page".into()),
+        },
+    );
+    open(&mut rig, A);
+    command(
+        &mut rig,
+        Command::SetLabel {
+            surface: KEY_1,
+            label: Some("Folder".into()),
+        },
+    );
+    command(&mut rig, Command::EndTextEdit);
+    command(&mut rig, Command::Undo);
+    let profile = rig.engine.profile();
+    assert_eq!(
+        profile.pages()[0].content(KEY_1).label.as_deref(),
+        Some("Page"),
+        "one undo removes only the title in the folder"
+    );
+    assert_eq!(profile.folder(A).unwrap().page.content(KEY_1).label, None);
+    command(&mut rig, Command::Undo);
+    assert_eq!(rig.engine.profile().pages()[0].content(KEY_1).label, None);
+}

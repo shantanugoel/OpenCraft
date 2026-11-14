@@ -503,7 +503,22 @@ impl ProfileStore {
     /// The method removes only files that have the name form of an image
     /// copy. It does not touch a different file in the image directory.
     pub fn remove_unused_images(&self, profile: &Profile) -> Result<usize> {
-        let used: HashSet<&str> = profile.image_paths().filter_map(image_name).collect();
+        self.remove_unused_images_but(profile, std::iter::empty())
+    }
+
+    /// [`Self::remove_unused_images`], but also keep each image copy that
+    /// `also` names. The engine gives the images of the undo history that it
+    /// keeps for the profile (decision 0030).
+    pub fn remove_unused_images_but<'a>(
+        &self,
+        profile: &'a Profile,
+        also: impl Iterator<Item = &'a str>,
+    ) -> Result<usize> {
+        let used: HashSet<&str> = profile
+            .image_paths()
+            .chain(also)
+            .filter_map(image_name)
+            .collect();
         let dir = self.dir.join(IMAGE_DIR);
         let entries = match fs::read_dir(&dir) {
             Ok(entries) => entries,

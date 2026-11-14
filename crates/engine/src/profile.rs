@@ -763,24 +763,7 @@ impl Profile {
     /// the surfaces, then the backgrounds of the pages, then the images of
     /// the folder key faces.
     pub fn image_uses(&self) -> impl Iterator<Item = (&str, ImageUse)> {
-        let surfaces = self
-            .pages
-            .iter()
-            .flat_map(|p| p.surfaces.values())
-            .filter_map(|c| c.image.as_deref())
-            .map(|p| (p, ImageUse::Surface));
-        let backgrounds = self
-            .pages
-            .iter()
-            .filter_map(|p| p.background.as_ref().and_then(Background::image))
-            .map(|p| (p, ImageUse::Background));
-        let folders = self
-            .folders
-            .iter()
-            .flat_map(|folder| folder.page.surfaces())
-            .filter_map(|(_, content)| content.image.as_deref())
-            .map(|p| (p, ImageUse::Surface));
-        surfaces.chain(backgrounds).chain(folders)
+        image_uses_of(&self.pages, &self.folders)
     }
 }
 
@@ -838,6 +821,31 @@ fn kind_key(kind: SurfaceKind) -> &'static str {
         SurfaceKind::BarPanel => "bar-panel",
         SurfaceKind::Background => "background",
     }
+}
+
+/// Each image path that `pages` and `folders` use, with its use: the images
+/// of the surfaces, then the backgrounds of the pages, then the images of
+/// the folder key faces. See [`Profile::image_uses`]. The engine also uses
+/// it for the copies of the undo history.
+pub(crate) fn image_uses_of<'a>(
+    pages: &'a [Page],
+    folders: &'a [Folder],
+) -> impl Iterator<Item = (&'a str, ImageUse)> {
+    let surfaces = pages
+        .iter()
+        .flat_map(|p| p.surfaces.values())
+        .filter_map(|c| c.image.as_deref())
+        .map(|p| (p, ImageUse::Surface));
+    let backgrounds = pages
+        .iter()
+        .filter_map(|p| p.background.as_ref().and_then(Background::image))
+        .map(|p| (p, ImageUse::Background));
+    let folders = folders
+        .iter()
+        .flat_map(|folder| folder.page.surfaces())
+        .filter_map(|(_, content)| content.image.as_deref())
+        .map(|p| (p, ImageUse::Surface));
+    surfaces.chain(backgrounds).chain(folders)
 }
 
 #[cfg(test)]

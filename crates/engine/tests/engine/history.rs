@@ -516,8 +516,10 @@ fn undo_and_redo_with_an_empty_list_do_nothing() {
     assert_eq!(store_in(rig.dir.path()).read().unwrap().pages().len(), 2);
 }
 
+/// A manual change of the active profile keeps the history of each profile
+/// for the session (decision 0030). A new profile has no history.
 #[test]
-fn a_change_of_the_active_profile_empties_the_history() {
+fn a_change_of_the_active_profile_keeps_the_history_of_each_profile() {
     let (mut rig, _requests) = rig();
     command(&mut rig, label("a"));
     command(
@@ -528,22 +530,25 @@ fn a_change_of_the_active_profile_empties_the_history() {
         },
     );
     assert_eq!(last_names(&mut rig), Some(names(None, None)));
+    command(&mut rig, Command::Undo);
+    assert!(rig.take_events().is_empty(), "Work has nothing to undo");
     command(
         &mut rig,
         Command::SelectProfile {
             profile: "default".into(),
         },
     );
-    assert_eq!(last_names(&mut rig), Some(names(None, None)));
+    assert_eq!(last_names(&mut rig), Some(names(Some("Set Title"), None)));
     command(&mut rig, Command::Undo);
-    assert!(rig.take_events().is_empty());
+    assert_eq!(last_names(&mut rig), Some(names(None, Some("Set Title"))));
     assert_eq!(
         rig.engine.profile().pages()[0]
             .content(KEY_3)
             .label
             .as_deref(),
-        Some("a")
+        None
     );
+    assert_eq!(saved(&mut rig).pages()[0].content(KEY_3).label, None);
 }
 
 #[test]
