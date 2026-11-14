@@ -295,9 +295,12 @@ do not accept a synthetic Fn event.
 | Setting | What to give |
 |---|---|
 | Operation | Click, double click, move to position, move by offset, scroll in one of four directions or drag to position |
-| Button | Left, right or middle; for click, double click and drag only |
-| X, Y | Position or offset in screen points; for move and drag only |
-| Scroll step | 1 to 1000 lines for each input; for scroll only. The default is 3. |
+| Button | Left, right or middle. The form shows Button for click, double click and drag only. |
+| X, Y | Position or offset in screen points. The form shows X and Y for move and drag only. |
+| Scroll step | 1 to 1000 lines for each input. The form shows Scroll step for scroll only. The default is 3. |
+
+A change to an operation that does not use a field removes that field. The
+field then starts at its default.
 
 Click and double click operate at the pointer. Drag starts at the pointer,
 moves to X, Y and releases the button. An absolute position uses the top
@@ -391,11 +394,12 @@ OpenCraft sends the media key, as the media keys of a keyboard do.
 | Setting | What to give |
 |---|---|
 | Operation | Up, Down, or Mute. The default is Up. |
-| Step | The change for each operation, from 1 to 25 percent. The default is 5. |
+| Step | The change for Up or Down, from 1 to 25 percent. The default is 5. The form shows Step only for Up and Down. |
 
 - This action changes the volume of the default sound output directly. It
   does not need the Accessibility permission.
 - Mute changes between muted and not muted. Up and Down also stop the mute.
+- Mute does not keep a step. Up or Down then uses 5 until you set a step.
 - The key face or the bar panel of the binding shows the volume as a bar
   at the bottom. When the sound is muted, it shows "Muted". OpenCraft reads
   the volume again each 2 seconds, thus the bar also shows a change that you
@@ -415,6 +419,9 @@ It is in the **Device** group. No Accessibility permission is necessary.
 - **Set value** uses **Brightness**. Values below the lowest brightness of
   the model use that lowest brightness. On the N4 Pro it is 15 %. Brightness
   0 does not switch off the display: use **Screen off** for that.
+- The form shows **Step** only for Up and Down. It shows **Brightness** only
+  for Set value. A change to an operation that does not use a field removes
+  that field. The field then starts at its default.
 - On a knob, assign this kind to **Turn**. Right goes up and left goes down.
   On a key, select Up, Down or Set value.
 
@@ -520,11 +527,12 @@ again to put the previous mute state back.
 | Setting | What to give |
 |---|---|
 | Page | Next page, Previous page, or Page number. The default is Next page. |
-| Page number | The number of the page, from 1. OpenCraft uses it only for "Page number". |
+| Page number | The number of the page, from 1. The form shows this field only when Page is Page number. |
 | Show the page number | On to show the number of the active page on the key. Off, the default, keeps the title of the key. |
 
 - After the last page, "Next page" goes to the first page. Before the first
   page, "Previous page" goes to the last page.
+- A different choice removes the page number. Page number then starts at 1.
 - If the profile has no page with that number, the window shows a message.
 - With **Show the page number** On, the key shows the number of the page that
   it is on, for example `2`, in place of its title. A knob shows it on its

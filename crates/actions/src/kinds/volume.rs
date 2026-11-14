@@ -1,13 +1,13 @@
 //! The action "Sound volume".
 //!
-//! A missing operation is Up, and a missing step is 5. The level stays in
-//! the range 0 to 100. Up and Down clear mute. Mute switches mute. The
-//! volume handler keeps the poll and the feedback. This module reads the
-//! settings and changes the volume.
+//! A missing operation is Up, and a missing step is 5. Mute does not read
+//! the step. The level stays in the range 0 to 100. Up and Down clear mute.
+//! Mute switches mute. The volume handler keeps the poll and the feedback.
+//! This module reads the settings and changes the volume.
 
 use crate::descriptions::{choice, field_with_default, GROUP_MEDIA};
 use crate::kinds::{Kind, Work};
-use opencraft_engine::{Direction, KindDescription, Settings, Value};
+use opencraft_engine::{Direction, KindDescription, Settings, ShownWhen, Value};
 
 /// The kind name.
 pub(crate) const ID: &str = "opencraft.volume";
@@ -61,6 +61,7 @@ pub(crate) fn description() -> KindDescription {
             right: "up".into(),
             left: "down".into(),
         }),
+        shown_when: vec![ShownWhen::new("step", "operation", &["up", "down"])],
         ..KindDescription::default()
     }
 }
@@ -93,10 +94,15 @@ pub(crate) fn read(settings: &Settings) -> Result<Change, String> {
         },
         Some(_) => return Err(crate::descriptions::setting_problem(ID, "operation")),
     };
-    let step = match settings.get("step") {
-        None => 5,
-        Some(Value::Integer(step)) if (1..=25).contains(step) => *step as u8,
-        Some(_) => return Err(crate::descriptions::setting_problem(ID, "step")),
+    // Mute does not use the step. A stored step, also a bad one, is ignored.
+    let step = if operation == Operation::Mute {
+        0
+    } else {
+        match settings.get("step") {
+            None => 5,
+            Some(Value::Integer(step)) if (1..=25).contains(step) => *step as u8,
+            Some(_) => return Err(crate::descriptions::setting_problem(ID, "step")),
+        }
     };
     Ok(Change { operation, step })
 }
@@ -157,6 +163,10 @@ mod tests {
         );
         assert_eq!(description.fields[1].key, "step");
         assert_eq!(description.fields[1].default, Some(Value::Integer(5)));
+        assert_eq!(
+            description.shown_when,
+            vec![ShownWhen::new("step", "operation", &["up", "down"])]
+        );
         let direction = description.direction.expect("a direction");
         assert_eq!(
             (
@@ -192,7 +202,18 @@ mod tests {
             read(&values(&[("operation", Value::Text("mute".into()))])).unwrap(),
             Change {
                 operation: Operation::Mute,
-                step: 5,
+                step: 0,
+            }
+        );
+        assert_eq!(
+            read(&values(&[
+                ("operation", Value::Text("mute".into())),
+                ("step", Value::Text("no".into())),
+            ]))
+            .unwrap(),
+            Change {
+                operation: Operation::Mute,
+                step: 0,
             }
         );
         assert_eq!(

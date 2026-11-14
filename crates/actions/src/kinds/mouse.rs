@@ -7,7 +7,7 @@
 use crate::descriptions::{choice, field_with_default, GROUP_SYSTEM};
 use crate::kinds::{Kind, Work};
 use crate::mouse::{Button, MouseEvent};
-use opencraft_engine::{Direction, KindDescription, Settings, Value};
+use opencraft_engine::{Direction, KindDescription, Settings, ShownWhen, Value};
 
 /// The kind name.
 pub(crate) const ID: &str = "opencraft.mouse";
@@ -99,6 +99,16 @@ pub(crate) fn description() -> KindDescription {
             right: "scroll-down".into(),
             left: "scroll-up".into(),
         }),
+        shown_when: vec![
+            ShownWhen::new("button", "operation", &["click", "double-click", "drag"]),
+            ShownWhen::new("x", "operation", &["move", "move-relative", "drag"]),
+            ShownWhen::new("y", "operation", &["move", "move-relative", "drag"]),
+            ShownWhen::new(
+                "step",
+                "operation",
+                &["scroll-up", "scroll-down", "scroll-left", "scroll-right"],
+            ),
+        ],
         ..KindDescription::default()
     }
 }
@@ -207,6 +217,19 @@ mod tests {
                 .map(|field| field.key.as_str())
                 .collect::<Vec<_>>(),
             ["operation", "button", "x", "y", "step"]
+        );
+        assert_eq!(
+            description.shown_when,
+            vec![
+                ShownWhen::new("button", "operation", &["click", "double-click", "drag"]),
+                ShownWhen::new("x", "operation", &["move", "move-relative", "drag"]),
+                ShownWhen::new("y", "operation", &["move", "move-relative", "drag"]),
+                ShownWhen::new(
+                    "step",
+                    "operation",
+                    &["scroll-up", "scroll-down", "scroll-left", "scroll-right"],
+                ),
+            ]
         );
         assert_eq!(
             description.fields[0].default,

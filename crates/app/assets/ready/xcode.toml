@@ -205,7 +205,6 @@ step = 5
 kind = "opencraft.volume"
 [pages.bindings.knob-1.push.settings]
 operation = "mute"
-step = 5
 
 [[folders]]
 id = "8c3d5e7f1a9b2046"

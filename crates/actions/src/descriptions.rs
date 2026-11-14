@@ -4,7 +4,8 @@
 //! that module. The tables in this file serve only a kind that has not moved.
 
 use opencraft_engine::{
-    ChoiceOption, Direction, Field, InputType, KindDescription, PathKind, TwoStates, Value,
+    ChoiceOption, Direction, Field, InputType, KindDescription, PathKind, ShownWhen, TwoStates,
+    Value,
 };
 
 pub(crate) const MICROPHONE: &str = "opencraft.microphone-mute";
@@ -246,6 +247,20 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             on_label: Some("on_label".into()),
         }),
         folder_back: kind == CLOSE_FOLDER,
+        shown_when: shown_when(kind),
+    }
+}
+
+/// The fields that the shell shows only for some values of a choice
+/// (decision 0038).
+fn shown_when(kind: &str) -> Vec<ShownWhen> {
+    match kind {
+        DEVICE_BRIGHTNESS => vec![
+            ShownWhen::new("value", "operation", &["set"]),
+            ShownWhen::new("step", "operation", &["up", "down"]),
+        ],
+        PAGE => vec![ShownWhen::new("page", "target", &["number"])],
+        _ => Vec::new(),
     }
 }
 

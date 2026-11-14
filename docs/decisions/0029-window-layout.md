@@ -771,7 +771,9 @@ background `bg-card`. One head row: padding 8 10, gap 8.
 `line-pane` at the top, padding 10 at the top and the sides, 12 at the
 bottom. The body is a form (section 10.2) with the label column 64 and a gap
 of 8. Its rows are the fields of the `KindDescription` of the kind, in their
-order, with the field labels:
+order, with the field labels. A field that
+[decision 0038](0038-field-shown-for-the-values-that-use-it.md) hides is not
+a row:
 
 | Input type (decision 0014) | Control in the value column |
 |---|---|
