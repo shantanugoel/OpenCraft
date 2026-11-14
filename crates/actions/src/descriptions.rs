@@ -1,12 +1,12 @@
 //! The descriptions that the shell uses to make the settings form.
+//!
+//! A kind that has a module in [`crate::kinds`] gives its description from
+//! that module. The tables in this file serve only a kind that has not moved.
 
 use opencraft_engine::{
     ChoiceOption, Direction, Field, InputType, KindDescription, PathKind, TwoStates, Value,
 };
 
-pub(crate) const APPLICATION: &str = "opencraft.open-application";
-pub(crate) const QUIT: &str = "opencraft.quit-application";
-pub(crate) const URL: &str = "opencraft.open-url";
 pub(crate) const HOTKEY: &str = "opencraft.hotkey";
 pub(crate) const TEXT: &str = "opencraft.type-text";
 pub(crate) const MEDIA: &str = "opencraft.media-key";
@@ -15,7 +15,6 @@ pub(crate) const MICROPHONE: &str = "opencraft.microphone-mute";
 pub(crate) const OUTPUT: &str = "opencraft.sound-output";
 pub(crate) const PLAY_SOUND: &str = "opencraft.play-sound";
 pub(crate) const STOP_SOUND: &str = "opencraft.stop-sound";
-pub(crate) const SHELL: &str = "opencraft.shell-command";
 pub(crate) const MOUSE: &str = "opencraft.mouse";
 pub(crate) const MAC_FUNCTION: &str = "opencraft.mac-function";
 pub(crate) const KEY_KINDS: [&str; 5] = [HOTKEY, TEXT, MEDIA, MOUSE, MAC_FUNCTION];
@@ -30,7 +29,7 @@ pub(crate) const DEVICE_BRIGHTNESS: &str = "opencraft.device-brightness";
 
 /// The groups of the built-in kinds in the library (decision 0029, section
 /// 11). The shell shows the groups in the order of their first kind.
-const SYSTEM: &str = "System";
+pub(crate) const GROUP_SYSTEM: &str = "System";
 const MEDIA_GROUP: &str = "Media";
 const NAVIGATION: &str = "Navigation";
 const LOGIC: &str = "Logic";
@@ -48,7 +47,7 @@ pub(crate) const DEFAULT_DELAY: i64 = 100;
 /// The label of the button that asks for the Accessibility permission.
 pub(crate) const PERMISSION_BUTTON: &str = "Give the permission";
 
-fn field(key: &str, label: &str, input: InputType) -> Field {
+pub(crate) fn field(key: &str, label: &str, input: InputType) -> Field {
     Field {
         key: key.into(),
         label: label.into(),
@@ -70,23 +69,12 @@ fn choice(options: &[(&str, &str)]) -> InputType {
 }
 
 pub(crate) fn description(kind: &str) -> KindDescription {
+    // A kind module owns its description. This match is only for a kind
+    // that has not moved into [`crate::kinds`].
+    if let Some(kind) = crate::kinds::find(kind) {
+        return kind.description();
+    }
     let (name, fields) = match kind {
-        APPLICATION => (
-            "Open an application",
-            vec![
-                // The key keeps its name, so that an old profile loads.
-                // Kind Application asks the shell for the list of installed
-                // applications. The stored text is still a name or a path.
-                field(
-                    "application",
-                    "Application, file or folder",
-                    InputType::Path {
-                        kind: PathKind::Application,
-                    },
-                ),
-                field("arguments", "Arguments", InputType::Text),
-            ],
-        ),
         DEVICE_BRIGHTNESS => {
             let mut operation = field(
                 "operation",
@@ -105,33 +93,6 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             ("Device brightness", vec![operation, value, step])
         }
         SCREEN_OFF => ("Screen off", vec![]),
-        QUIT => (
-            "Quit an application",
-            vec![
-                field(
-                    "application",
-                    "Application",
-                    InputType::Path {
-                        kind: PathKind::File,
-                    },
-                ),
-                field("force", "Force quit", InputType::Toggle),
-            ],
-        ),
-        URL => (
-            "Open a URL",
-            vec![
-                field("url", "URL", InputType::Text),
-                // Optional. No browser is the default browser.
-                field(
-                    "application",
-                    "Browser",
-                    InputType::Path {
-                        kind: PathKind::File,
-                    },
-                ),
-            ],
-        ),
         HOTKEY => (
             "Send a hotkey",
             vec![field("hotkey", "Hotkey", InputType::Hotkey)],
@@ -278,10 +239,6 @@ pub(crate) fn description(kind: &str) -> KindDescription {
             step.default = Some(Value::Integer(5));
             ("Sound volume", vec![operation, step])
         }
-        SHELL => (
-            "Run a shell command",
-            vec![field("command", "Command", InputType::LongText)],
-        ),
         PAGE => {
             let mut target = field(
                 "target",
@@ -395,10 +352,6 @@ pub(crate) fn description(kind: &str) -> KindDescription {
 /// the engine (decision 0029, section 20, and decision 0033).
 fn icon(kind: &str) -> &'static str {
     match kind {
-        APPLICATION => "app-window",
-        QUIT => "circle-x",
-        URL => "globe",
-        SHELL => "terminal",
         HOTKEY => "keyboard",
         MOUSE => "mouse-pointer-2",
         MAC_FUNCTION => "monitor",
@@ -447,13 +400,12 @@ fn library_place(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
         SCREEN_OFF => ("Device", Some("Computer wake")),
         DEVICE_BRIGHTNESS => ("Device", Some("Knob")),
-        HOTKEY | TEXT | MOUSE | MAC_FUNCTION => (SYSTEM, Some(ACCESSIBILITY)),
+        HOTKEY | TEXT | MOUSE | MAC_FUNCTION => (GROUP_SYSTEM, Some(ACCESSIBILITY)),
         MEDIA => (MEDIA_GROUP, Some(ACCESSIBILITY)),
         VOLUME => (MEDIA_GROUP, Some("Knob")),
         MICROPHONE | OUTPUT | PLAY_SOUND | STOP_SOUND => (MEDIA_GROUP, None),
         PAGE | PROFILE | OPEN_FOLDER | CLOSE_FOLDER => (NAVIGATION, None),
         TOGGLE | SEQUENCE => (LOGIC, None),
-        APPLICATION | QUIT | URL | SHELL => (SYSTEM, None),
         _ => ("", None),
     }
 }

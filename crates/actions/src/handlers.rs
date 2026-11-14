@@ -1,6 +1,6 @@
 //! Request handling and helper threads. No handler has access to the device.
 
-use crate::backend::{RealSystem, ShellChild, System};
+use crate::backend::{RealSystem, System};
 use crate::descriptions::*;
 use crate::flow::{NavigationHandler, SequenceHandler, ToggleHandler};
 use crate::hotkey::Hotkey;
@@ -119,115 +119,32 @@ impl Worker {
     }
 }
 
+/// The handler for [`crate::kinds::Group::Open`].
+/// It does not read the settings. Each kind module reads its settings and
+/// does its work. These kinds share this handler, its thread, and its queue.
 struct OpenHandler {
     system: Arc<dyn System>,
     sender: Option<MessageSender>,
 }
 
-impl OpenHandler {
-    /// An application, a file, or a folder, with the arguments of the action.
-    fn open_target(&self, action: &Action) -> Result<()> {
-        let target = nonblank(action, "application")?;
-        let arguments = match action.settings.get("arguments") {
-            None => Vec::new(),
-            Some(Value::Text(text)) => crate::open::split_arguments(text).ok_or_else(|| {
-                let name = description(&action.kind).name;
-                format!("{name}: close each quote in the field \"Arguments\".")
-            })?,
-            Some(_) => return Err(setting_problem(&action.kind, "arguments")),
-        };
-        if crate::open::is_application(target) {
-            self.system
-                .open_application(target.trim(), &arguments)
-                .map_err(|e| format!("Cannot open the application: {e}."))
-        } else if arguments.is_empty() {
-            self.system
-                .open_file(target.trim())
-                .map_err(|e| format!("Cannot open the file or folder: {e}."))
-        } else {
-            let name = description(&action.kind).name;
-            Err(format!(
-                "{name}: arguments work only with an application. \
-                 Clear the field \"Arguments\", or select an application."
-            ))
-        }
-    }
-
-    fn invoke(&self, action: Action) -> Result<()> {
-        match action.kind.as_str() {
-            APPLICATION => self.open_target(&action),
-            QUIT => {
-                let force = match action.settings.get("force") {
-                    None => false,
-                    Some(Value::Boolean(force)) => *force,
-                    Some(_) => return Err(setting_problem(&action.kind, "force")),
-                };
-                self.system
-                    .quit_application(nonblank(&action, "application")?.trim(), force)
-                    .map_err(|e| match e {
-                        crate::system::Error::NotRunning => {
-                            "Cannot quit the application: it does not run.".to_string()
-                        }
-                        e => format!("Cannot quit the application: {e}."),
-                    })
-            }
-            URL => {
-                let url = nonblank(&action, "url")?;
-                // No setting, and an empty setting, are the default browser.
-                let browser = match action.settings.get("application") {
-                    None => None,
-                    Some(Value::Text(text)) => Some(text.trim()).filter(|t| !t.is_empty()),
-                    Some(_) => return Err(setting_problem(&action.kind, "application")),
-                };
-                self.system
-                    .open_url(url, browser)
-                    .map_err(|e| format!("Cannot open the URL: {e}."))
-            }
-            SHELL => {
-                let command = nonblank(&action, "command")?.to_string();
-                // Make the waiter first. If its thread cannot start, no child
-                // exists that the system must remove.
-                let (children, child) = mpsc::channel::<Box<dyn ShellChild>>();
-                let sender = self.sender.clone();
-                thread::Builder::new()
-                    .name("opencraft-shell-command".into())
-                    .spawn(move || {
-                        let Ok(child) = child.recv() else { return };
-                        let result = (|| match child
-                            .wait()
-                            .map_err(|e| format!("Cannot wait for the shell command: {e}."))?
-                        {
-                            Some(0) => Ok(()),
-                            Some(code) => Err(format!("The shell command ends with code {code}.")),
-                            None => Err("A signal stops the shell command (no exit code).".into()),
-                        })();
-                        problem(&sender, result);
-                    })
-                    .map_err(|e| format!("Cannot start the shell command thread: {e}."))?;
-                let child = self
-                    .system
-                    .start_shell_command(&command)
-                    .map_err(|e| format!("Cannot start the shell command: {e}."))?;
-                children
-                    .send(child)
-                    .map_err(|_| "Cannot wait for the shell command.".into())
-            }
-            _ => Ok(()),
-        }
-    }
-}
-
 impl Handler for OpenHandler {
     fn kinds(&self) -> Vec<KindDescription> {
-        [APPLICATION, QUIT, URL, SHELL].map(description).into()
+        crate::kinds::kinds_of(crate::kinds::Group::Open)
+            .map(|kind| kind.description())
+            .collect()
     }
     fn start(&mut self, sender: MessageSender) {
         self.sender = Some(sender);
     }
     fn handle(&mut self, request: Request) {
-        if let Request::Invoke { action, .. } = request {
-            problem(&self.sender, self.invoke(action));
-        }
+        let Request::Invoke { action, .. } = request else {
+            return;
+        };
+        let Some(kind) = crate::kinds::find_in(crate::kinds::Group::Open, &action.kind) else {
+            return;
+        };
+        let work = crate::kinds::Work::new(self.system.as_ref(), &self.sender);
+        problem(&self.sender, kind.invoke(&action.settings, &work));
     }
 }
 

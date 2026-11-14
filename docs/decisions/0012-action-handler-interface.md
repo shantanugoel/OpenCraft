@@ -95,6 +95,18 @@ gives the list of handlers to the engine when it starts the engine. This
 replaces the sentence in decision 0008 that a built-in action starts as a
 module of the engine.
 
+Note (2026-11-14): issue
+[#366](https://github.com/shantanugoel/OpenCraft/issues/366).
+Each built-in kind that has moved is one module in `opencraft-actions`.
+The module holds the kind name, the description, a typed read of the
+settings, and the work. A registry in that crate lists the modules. The
+order in the registry is the order of the kinds in the library. Kinds that
+share a handler keep one handler, one thread, and one queue. The handler
+interface does not change. The engine does not change. A kind that is not
+in the registry stays in the old tables. The first modules are the four
+kinds of the open handler: open an application, quit an application, open
+a URL, and a shell command.
+
 ## Results
 
 - A new action kind is a new handler. The engine does not change (rule 8).
