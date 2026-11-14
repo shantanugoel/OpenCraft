@@ -13,8 +13,10 @@
 //! folders. [`crate::location::Location`] answers which page or folder holds
 //! a control. The device and the shell show that location, and the commands
 //! for a surface or a binding change it. At the start, the active page is
-//! the first page and no folder is open. The steps of a page change are in
-//! [`Engine::select_page`]. The reasons are in
+//! the first page and no folder is open. Each change of the location uses
+//! [`Engine::transition`]: a page change, an open or a close of a folder, an
+//! undo or a redo, and a change of the active profile. The steps that a
+//! shell can see are in [`Engine::select_page`]. The reasons are in
 //! `docs/decisions/0016-pages-and-engine-requests-from-a-handler.md` and
 //! `docs/decisions/0036-folders.md`.
 //!
@@ -67,7 +69,7 @@ use image::RgbImage;
 use opencraft_core::image::{encode_for, jpeg_quality_for};
 use opencraft_core::{
     decode, Clock, Connector, ControlId, ControlKind, Decoded, Descriptor, Error as DeviceError,
-    InputEvent, Link, LinkEvent, Surface, SurfaceId, SurfaceKind, SystemClock,
+    InputEvent, Link, LinkEvent, Surface, SurfaceId, SystemClock,
 };
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -809,6 +811,57 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     sink: S,
 }
 
+/// The profile and the pages that give the bindings of one location.
+struct BindingSources {
+    profile_id: String,
+    /// The page under the folders.
+    page: Page,
+    /// The last open folder and its page, when that folder exists.
+    folder: Option<(FolderId, Page)>,
+}
+
+/// True when `binding` comes from the same profile and the same page in
+/// `left` and `right`. A folder page is the page of a key. The page under
+/// the folders is the page of every other control.
+fn same_holder(binding: BindingId, left: &BindingSources, right: &BindingSources) -> bool {
+    if left.profile_id != right.profile_id {
+        return false;
+    }
+    match binding.folder {
+        Some(id) => match (&left.folder, &right.folder) {
+            (Some((left_id, left_page)), Some((right_id, right_page))) => {
+                *left_id == id && *right_id == id && left_page == right_page
+            }
+            _ => false,
+        },
+        None => left.page == right.page,
+    }
+}
+
+/// The bindings in `source` that the handler must hear about.
+///
+/// A binding stays silent when it is also in `other` with the same action
+/// and [`same_holder`] is true. The same identity on a new page, or in a
+/// new profile, is a different binding: the handler must let the old one
+/// go and take the new one.
+fn bindings_that_change(
+    source: &[(BindingId, Action)],
+    other: &[(BindingId, Action)],
+    source_at: &BindingSources,
+    other_at: &BindingSources,
+) -> Vec<(BindingId, Action)> {
+    source
+        .iter()
+        .filter(|(binding, action)| {
+            !same_holder(*binding, source_at, other_at)
+                || !other
+                    .iter()
+                    .any(|(kept, next)| kept == binding && next == action)
+        })
+        .cloned()
+        .collect()
+}
+
 impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Make the engine: load the active profile of `default_model` from
     /// `profiles`, and make the image of each surface. `default_model` is
@@ -1034,16 +1087,6 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         &self.profile.pages()[self.location.page]
     }
 
-    /// The key bindings of the location. A change of the open folders
-    /// sends Disappear and Appear for these bindings only (decision 0036).
-    fn key_bindings(&self) -> Vec<(BindingId, Action)> {
-        self.location
-            .bindings(&self.profile)
-            .into_iter()
-            .filter(|(binding, _)| binding.control.kind == ControlKind::Key)
-            .collect()
-    }
-
     fn disappear_bindings(&self, bindings: &[(BindingId, Action)]) {
         for (binding, action) in bindings {
             self.request(&action.kind, Request::Disappear { binding: *binding });
@@ -1102,55 +1145,107 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     /// Send Disappear for each binding of the location, and remove all
-    /// feedback. This is step 1 of a page change.
+    /// feedback. A change of the device model uses this. A change of the
+    /// location uses [`Self::transition`].
     fn disappear(&mut self) {
         self.disappear_bindings(&self.location.bindings(&self.profile));
         self.feedback.clear();
     }
 
-    /// Make `page` the active page with the steps of a page change: see
-    /// [`Self::select_page`]. `change` changes the pages, for example it adds
-    /// a page, after step 1. Thus a handler never holds a binding with an old
-    /// page number. With `close_folders`, the open folders close.
+    /// Apply one change of the location.
+    ///
+    /// `change` sets the profile and the location. It sends no Disappear,
+    /// no Appear, and no pages. The transition compares the bindings and
+    /// the images from before `change` with the bindings and the images
+    /// after it. It does the rest in this order (decision 0016):
+    ///
+    /// 1. Disappear for each binding that the location does not show after
+    ///    the change, and removal of the feedback of those bindings.
+    /// 2. The images. The device gets only the images that are different.
+    /// 3. The pages, for the shell.
+    /// 4. Appear for each binding that the location did not show before
+    ///    the change.
+    ///
+    /// A binding stays with its handler only when the profile, the action,
+    /// and the page that holds the binding stay the same. A folder change
+    /// is then for the keys only: the knobs, the touch bar, and the bar
+    /// panels get no Disappear and no Appear, and their feedback stays
+    /// (decision 0036).
+    fn transition<R>(&mut self, change: impl FnOnce(&mut Self) -> R) -> R {
+        self.transition_with(change, |_| {})
+    }
+
+    /// The profile and the pages that give the bindings now.
+    fn binding_sources(&self) -> BindingSources {
+        BindingSources {
+            profile_id: self.profile_id.clone(),
+            page: self.page().clone(),
+            folder: self.location.open.last().copied().and_then(|id| {
+                self.profile
+                    .folder(id)
+                    .map(|folder| (id, folder.page.clone()))
+            }),
+        }
+    }
+
+    /// [`Self::transition`]. `after_images` runs after the images and before
+    /// the pages. A profile change sends the profiles there.
+    fn transition_with<R>(
+        &mut self,
+        change: impl FnOnce(&mut Self) -> R,
+        after_images: impl FnOnce(&mut Self),
+    ) -> R {
+        let before_at = self.binding_sources();
+        let before = self.location.bindings(&self.profile);
+        let result = change(self);
+        let after_at = self.binding_sources();
+        let after = self.location.bindings(&self.profile);
+        let gone = bindings_that_change(&before, &after, &before_at, &after_at);
+        let arrived = bindings_that_change(&after, &before, &after_at, &before_at);
+        self.disappear_bindings(&gone);
+        for (binding, _) in &gone {
+            self.feedback.remove(binding);
+        }
+        self.redraw();
+        after_images(self);
+        self.send_pages();
+        self.appear_bindings(&arrived);
+        result
+    }
+
+    /// Make `page` the active page through [`Self::transition`]. `change`
+    /// changes the pages, for example it adds a page. With `close_folders`,
+    /// the open folders close. A handler never holds a binding with an old
+    /// page number.
     fn change_page<R>(
         &mut self,
         change: impl FnOnce(&mut Profile) -> R,
         page: usize,
         close_folders: bool,
     ) -> R {
-        self.disappear();
-        let result = change(&mut self.profile);
-        let count = self.profile.pages().len();
-        self.location.page = page.min(count.saturating_sub(1));
-        if close_folders {
-            self.location.open.clear();
-        } else {
-            let open = std::mem::take(&mut self.location.open);
-            self.location.open = Location::restored_open(&self.profile, &open);
-        }
-        self.redraw();
-        self.send_pages();
-        self.appear();
-        result
+        self.transition(|engine| {
+            let result = change(&mut engine.profile);
+            let count = engine.profile.pages().len();
+            engine.location.page = page.min(count.saturating_sub(1));
+            if close_folders {
+                engine.location.open.clear();
+            } else {
+                let open = std::mem::take(&mut engine.location.open);
+                engine.location.open = Location::restored_open(&engine.profile, &open);
+            }
+            result
+        })
     }
 
-    /// Change the open folders. Only the keys change: the knobs, the bar
-    /// panels, the touch bar, and the background stay (decision 0036).
+    /// Change the open folders through [`Self::transition`].
     fn set_open(&mut self, open: Vec<FolderId>) {
         let open = Location::restored_open(&self.profile, &open);
         if open == self.location.open {
             return;
         }
-        let old = self.key_bindings();
-        self.disappear_bindings(&old);
-        for (binding, _) in &old {
-            self.feedback.remove(binding);
-        }
-        self.location.open = open;
-        self.redraw_keys();
-        self.send_pages();
-        let now = self.key_bindings();
-        self.appear_bindings(&now);
+        self.transition(|engine| {
+            engine.location.open = open;
+        });
     }
 
     /// Make the image of each surface for the active page, and write to the
@@ -1174,42 +1269,6 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
-    /// Make the image of each key face for the location, and write only the
-    /// images that changed. The knobs, the bar panels, and the background
-    /// stay.
-    fn redraw_keys(&mut self) {
-        let surfaces: Vec<&'static Surface> = self
-            .descriptor
-            .slot_surfaces()
-            .filter(|surface| surface.id.kind == SurfaceKind::KeyFace)
-            .collect();
-        let before: Vec<(SurfaceId, Arc<RgbImage>)> = surfaces
-            .iter()
-            .filter_map(|surface| {
-                self.images
-                    .get(&surface.id)
-                    .cloned()
-                    .map(|image| (surface.id, image))
-            })
-            .collect();
-        for surface in &surfaces {
-            self.render(surface);
-        }
-        let changed: Vec<&Surface> = surfaces
-            .into_iter()
-            .filter(|surface| {
-                let previous = before
-                    .iter()
-                    .find(|(id, _)| *id == surface.id)
-                    .map(|(_, image)| image);
-                previous != self.images.get(&surface.id)
-            })
-            .collect();
-        if self.link.is_connected() && !self.needs_draw {
-            self.draw(false, &changed);
-        }
-    }
-
     /// Make `page` the active page. This is [`Command::SelectPage`]. The
     /// engine does the steps of a page change in the order of decision 0016:
     ///
@@ -1221,7 +1280,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     ///    sequence. If no image is different, it writes nothing.
     /// 4. It sends Appear for each binding of the new page.
     ///
-    /// The shell gets the state of each surface, then [`Event::Pages`], then
+    /// The steps are [`Self::transition`]. The shell gets the state of each
+    /// surface, then [`Event::Pages`], then
     /// the state of each binding of the new page. A move or a removal of a
     /// page that changes the number of the active page does the same steps.
     ///
@@ -1450,12 +1510,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Some(pos) => self.location.open[..pos].to_vec(),
             None => self.location.open.clone(),
         };
-        let location_changes = open != self.location.open;
-        self.profile.remove_folder(id);
         self.changed_at = Some(self.now());
-        if location_changes {
-            self.set_open(open);
+        if open != self.location.open {
+            // The removal is inside the transition. The comparison then
+            // sees the bindings of the folder, and the handler lets them go.
+            self.transition(|engine| {
+                engine.profile.remove_folder(id);
+                engine.location.open = Location::restored_open(&engine.profile, &open);
+            });
         } else {
+            self.profile.remove_folder(id);
             self.send_pages();
         }
     }
@@ -1960,26 +2024,28 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     /// [`Self::change_profile`]. `page` becomes the active page when it is a
-    /// page of the profile. `None` keeps the first page.
+    /// page of the profile. `None` keeps the first page. The location change
+    /// uses [`Self::transition`]. The profiles, the history, and the state
+    /// file stay extra steps of a profile change.
     fn change_profile_at(&mut self, id: String, profile: Option<Profile>, page: Option<usize>) {
-        self.disappear();
-        match profile {
-            Some(profile) => {
-                // A profile in memory is a new profile: an add, an import,
-                // or a starter profile. It has no history.
-                self.history.forget(&id);
-                self.use_profile(id, profile, true)
-            }
-            None => self.load_profile(id),
-        }
-        if let Some(page) = page.filter(|page| *page < self.profile.pages().len()) {
-            self.location.page = page;
-        }
-        self.redraw();
-        self.send_profiles();
-        self.send_pages();
+        self.transition_with(
+            |engine| {
+                match profile {
+                    Some(profile) => {
+                        // A profile in memory is a new profile: an add, an
+                        // import, or a starter profile. It has no history.
+                        engine.history.forget(&id);
+                        engine.use_profile(id, profile, true);
+                    }
+                    None => engine.load_profile(id),
+                }
+                if let Some(page) = page.filter(|page| *page < engine.profile.pages().len()) {
+                    engine.location.page = page;
+                }
+            },
+            |engine| engine.send_profiles(),
+        );
         self.send_history();
-        self.appear();
         if let Err(e) = self
             .profiles
             .set_active(self.descriptor.model, &self.profile_id)
@@ -2618,6 +2684,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
 
     /// Put `pages` and `folders` in place, with `page` and `open` as the
     /// location, and return the pages and the folders that were there.
+    /// The location change uses [`Self::transition`].
     fn swap_location(
         &mut self,
         pages: Vec<Page>,
@@ -2626,15 +2693,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         open: Vec<FolderId>,
     ) -> (Vec<Page>, Vec<Folder>) {
         self.changed_at = Some(self.now());
-        self.disappear();
-        let old_pages = self.profile.replace_pages(pages);
-        let old_folders = self.profile.replace_folders(folders);
-        let count = self.profile.pages().len();
-        self.location.page = page.min(count.saturating_sub(1));
-        self.location.open = Location::restored_open(&self.profile, &open);
-        self.redraw();
-        self.send_pages();
-        self.appear();
+        let mut old_pages = Vec::new();
+        let mut old_folders = Vec::new();
+        self.transition(|engine| {
+            old_pages = engine.profile.replace_pages(pages);
+            old_folders = engine.profile.replace_folders(folders);
+            let count = engine.profile.pages().len();
+            engine.location.page = page.min(count.saturating_sub(1));
+            engine.location.open = Location::restored_open(&engine.profile, &open);
+        });
         (old_pages, old_folders)
     }
 
