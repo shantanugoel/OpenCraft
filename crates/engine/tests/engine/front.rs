@@ -163,7 +163,7 @@ fn a_link_moves_and_a_duplicate_and_an_import_do_not_take_it() {
     opencraft_engine::share::export(&incoming, &store, &file).unwrap();
     assert!(rig.engine.command(Command::ImportProfile { path: file }));
     let events = rig.take_events();
-    assert_eq!(problems(&events), ["\"zoom.us\" stays linked to \"Home\"."]);
+    assert_eq!(problems(&events), ["“zoom.us” stays linked to “Home”."]);
     assert_eq!(
         rig.engine.profile().applications,
         [link("com.apple.calculator", "Calculator")]
@@ -179,10 +179,7 @@ fn a_link_moves_and_a_duplicate_and_an_import_do_not_take_it() {
         },
     }));
     let events = rig.take_events();
-    assert_eq!(
-        problems(&events),
-        ["\"Calculator\" stays linked to \"Guest\"."]
-    );
+    assert_eq!(problems(&events), ["“Calculator” stays linked to “Guest”."]);
     assert!(rig.engine.profile().applications.is_empty());
 }
 

@@ -1342,8 +1342,9 @@ impl DeviceView {
     }
 
     /// The popup of a folder field: the folders of the profile, and
-    /// "New Folder". A value that is not a folder stays, and the popup
-    /// shows "(not found)" (decision 0036).
+    /// "New folder". A value that is not a folder stays, and the popup
+    /// shows "(not found)" (decision 0036). The undo step keeps the title
+    /// case name "New Folder".
     fn folder_field(
         &self,
         id: String,
@@ -1421,7 +1422,7 @@ impl DeviceView {
             rows.push(
                 controls::menu_row(format!("{id}-new"))
                     .child(div().flex_shrink_0().w(theme::ICON_SMALL))
-                    .child("New Folder")
+                    .child("New folder")
                     .on_click(cx.listener(move |view, _, window, cx| {
                         view.form.menu = None;
                         view.create_folder_for_field(field_path.clone());

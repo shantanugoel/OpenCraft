@@ -193,7 +193,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     .find(|entry| entry.id == id)
                     .map(|entry| entry.name.clone())
                     .unwrap_or(id);
-                self.problem(format!("\"{}\" stays linked to \"{name}\".", link.name));
+                self.problem(format!("“{}” stays linked to “{name}”.", link.name));
             } else {
                 keep.push(link);
             }
