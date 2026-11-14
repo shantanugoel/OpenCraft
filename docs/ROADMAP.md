@@ -26,7 +26,7 @@ application that other persons can adopt.
 | — | UI overhaul, after Phase 6 | Complete, with owner checks open |
 | 7 | A reliable daily driver | Complete, with owner checks open |
 | 8 | Everyday actions | Complete |
-| 9 | Profiles that follow the work | In work |
+| 9 | Profiles that follow the work | Complete |
 
 ## Checks for each phase
 
@@ -552,13 +552,13 @@ list of the tasks.
 amendments of
 [decision 0014](decisions/0014-action-settings-description.md).
 
-## Phase 9: Profiles that follow the work (in work)
+## Phase 9: Profiles that follow the work (complete)
 
 **Goal.** The device shows the linked profile when its application comes to
 the front, and a key opens a folder of keys and goes back. The phase issue
 is [#201](https://github.com/shantanugoel/OpenCraft/issues/201). The umbrella
 issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198). The
-proposed release is 0.4.0.
+release is 0.4.0.
 
 **Scope.**
 
@@ -582,26 +582,46 @@ holds the corrections from the review of the phase.
 
 **Exit criteria.**
 
-- [ ] The device shows the linked profile when its application comes to the
+- [x] The device shows the linked profile when its application comes to the
   front, and the default profile when no link matches. The owner did this
   check with three applications.
 - [x] The observer of the front application does not poll. The idle
   processor use stays below 0.5 % of one core.
 - [x] A link and a "Select a profile" key stay correct after a rename of the
   profile and after a move of the application.
-- [ ] A folder key opens the folder, and Back returns to the page before it.
+- [x] A folder key opens the folder, and Back returns to the page before it.
   "Next page" does not go into a folder.
 - [x] Profiles of schema 3 and 4 load and change to the new schema 5. An
   engine test covers it.
 - [x] The ready per-application profiles install from the first-start
   window or from the profile settings sheet.
 
-**Result.** All task issues are merged. The time from the notice of the
-front application to the end of the device writes, and the idle processor
-use, are in [kb/footprint.md](kb/footprint.md). The ready profiles install
-from the **+** menu of **PROFILES** and from the first-start window. Two
-criteria wait for the checks of the owner on the device: see
-[checks/phase-9-checks.md](checks/phase-9-checks.md).
+**Result.** The phase is complete on 2026-11-14, and the
+[checks for each phase](#checks-for-each-phase) are done.
+[Issue #201](https://github.com/shantanugoel/OpenCraft/issues/201) has the
+record of the owner checks.
+
+- On 2026-11-14 the owner did the checks in
+  [checks/phase-9-checks.md](checks/phase-9-checks.md). Each answer was yes.
+  The owner accepted the decisions of the phase: the switch is on by
+  default, the default mark and the switch setting are in `state.toml`, the
+  switch rule of decision 0035, a folder holds keys only, and a new folder
+  gets a Back key on key 1.
+- The look-ahead for Phase 10 recorded no file. The steps stay in
+  [checks/phase-9-checks.md](checks/phase-9-checks.md). Phase 10 does that
+  step. [Issue #202](https://github.com/shantanugoel/OpenCraft/issues/202)
+  has the note.
+- [Issue #350](https://github.com/shantanugoel/OpenCraft/issues/350) stays
+  open. The owner chose the design in that issue. The choice blocks no
+  phase. A profile file can still contain a home path until that issue is
+  done.
+- The menu bar item lists every profile. A nested list is
+  [issue #355](https://github.com/shantanugoel/OpenCraft/issues/355). It
+  blocks no phase.
+- The time from the notice of the front application to the end of the
+  device writes, and the idle processor use, are in
+  [kb/footprint.md](kb/footprint.md). The ready profiles install from the
+  **+** menu of **PROFILES** and from the first-start window.
 
 **Decisions that this phase forces.** The front application and the
 selection of a profile: see

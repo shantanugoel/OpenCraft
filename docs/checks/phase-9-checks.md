@@ -130,6 +130,9 @@ This step gives the data for long press and double press
 ([#202](https://github.com/shantanugoel/OpenCraft/issues/202)). Do it with
 no OpenCraft process in operation.
 
+On 2026-11-14 the owner did not record a file. Phase 9 does not use this
+step. Phase 10 does these steps.
+
 1. Run `cargo run --release -p opencraft-cli -- raw --save /tmp/opencraft-press.txt`.
 2. Press key 1 short, one time. Wait 2 seconds.
 3. Press key 1 and hold it for approximately 1 second. Wait 2 seconds.

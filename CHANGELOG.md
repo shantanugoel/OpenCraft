@@ -4,6 +4,47 @@ This file lists the changes for each version. Its form follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-14
+
+This version changes the profile when its application comes to the front,
+and a key can open a folder of keys. Version 0.3.0 was not published.
+
+### Added
+
+- The device shows the profile that lists the front application. When no
+  profile lists that application, the device shows the default profile.
+  The setting is on until you turn it off. Settings and the menu bar item
+  can turn it off.
+- A profile can list one or more applications. You pick each one from the
+  applications on the Mac.
+- Select a profile by its identity, so a new name does not break the key.
+  The key can also select the next or the previous profile, and it can
+  open the profile at a page.
+- Open an application from a list of the installed applications.
+- Folders of keys. **Open a folder** shows the folder, and **Back** returns
+  to the page. **Next page** does not open a folder. A new folder has a
+  **Back** key on key 1.
+- Ready profiles for Safari, Finder, Zoom, Keynote, Xcode, and Final Cut
+  Pro. Each profile is linked to its application. You add one from the
+  first start window or from the **+** menu of **PROFILES**.
+
+### Changed
+
+- OpenCraft writes profile schema 5. It reads a profile from version 0.2.0
+  and changes it to schema 5. Version 0.2.0 cannot read a profile that
+  version 0.4.0 has saved.
+
+### Known limits
+
+- Only the N4 Pro is supported.
+- Only Mac computers with Apple silicon and macOS 12 or later. The project
+  tested OpenCraft on macOS 27 only.
+- Send a hotkey, Type text, Media key, Mouse event, and Mac system
+  function need the Accessibility permission.
+- The Sleep function does nothing when macOS does not allow sleep.
+  OpenCraft then names the cause.
+- OpenCraft has no plug-ins.
+
 ## [0.2.0] - 2026-11-14
 
 This version has the new window, and the actions for daily work on a Mac.
