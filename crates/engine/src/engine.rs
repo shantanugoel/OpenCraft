@@ -863,7 +863,8 @@ fn bindings_that_change(
 impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Make the engine: load the active profile of `default_model` from
     /// `profiles`, and make the image of each surface. `default_model` is
-    /// the model for the layout until a device connects.
+    /// the model for the layout until a device connects: see
+    /// [`crate::runtime::start_descriptor`].
     ///
     /// The engine sends the layout, the state of each surface, the profiles,
     /// the pages, and the bindings to `sink`. It does not connect to the
@@ -3005,6 +3006,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 if let Some(model) = model.filter(|m| !std::ptr::eq(*m, self.descriptor)) {
                     self.change_model(model);
                 }
+                self.remember_model();
                 log("connected");
                 // The idle time is the time with no input on a connected
                 // device. A device that connects late starts it again.
@@ -3039,6 +3041,18 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
         self.check_idle();
         self.save_if_due();
+    }
+
+    /// Record the model of the connected device in `state.toml`, if it is not
+    /// there yet. The next start uses it (decision 0039).
+    fn remember_model(&mut self) {
+        let model = self.descriptor.model;
+        if self.profiles.last_model().as_deref() == Some(model) {
+            return;
+        }
+        if let Err(e) = self.profiles.set_last_model(model) {
+            self.problem(format!("OpenCraft could not save the device model: {e}"));
+        }
     }
 
     /// Tell the shell that the device is ready, after the full draw. If the

@@ -11,6 +11,7 @@
 use super::test_model_data::{key_code, slot_of, FACE_SIZE, KNOB_CODES, TEST_MODEL};
 use super::*;
 use opencraft_core::protocol;
+use opencraft_engine::runtime::start_descriptor;
 use opencraft_engine::SettingsSupport;
 
 const KIND: &str = "test.test-model";
@@ -298,4 +299,86 @@ fn the_test_model_settings_differ_from_the_n4_pro_in_each_capability() {
     assert_ne!(n4.lowest_brightness, test.lowest_brightness);
     assert_ne!(n4.knob_lights, test.knob_lights);
     assert_ne!(n4.haptic, test.haptic);
+}
+
+/// The table of the application with the test model after the N4 Pro.
+static TABLE: [opencraft_core::Descriptor; 2] = [DESCRIPTORS[0], TEST_MODEL];
+
+#[test]
+fn the_engine_starts_with_the_layout_of_the_last_model_that_connected() {
+    // No file: the first descriptor.
+    let dir = TempDir::new().unwrap();
+    assert_eq!(
+        start_descriptor(&TABLE, &ProfilesDir::new(dir.path())).model,
+        DESCRIPTORS[0].model
+    );
+
+    // A device of the test model connects.
+    let mut rig = Rig::new();
+    connect_test_model(&mut rig);
+    assert_eq!(
+        ProfilesDir::new(rig.dir.path()).last_model().as_deref(),
+        Some(TEST_MODEL.model)
+    );
+    let Rig { engine, dir, .. } = rig;
+    drop(engine);
+
+    // The next start has no device, and shows the test model with its
+    // profile and settings.
+    let start = start_descriptor(&TABLE, &ProfilesDir::new(dir.path()));
+    assert_eq!(start.model, TEST_MODEL.model);
+    let mut rig = Rig::with_model(dir, Vec::new(), start);
+    let events = rig.take_events();
+    assert!(matches!(&events[0], Event::Layout(l) if l.name == TEST_MODEL.name));
+    assert_eq!(surfaces(&events).len(), 6);
+    assert_eq!(rig.engine.profile().model, TEST_MODEL.model);
+    assert_eq!(
+        events.last(),
+        Some(&Event::DeviceSettings(DeviceSettings::defaults(
+            TEST_MODEL.settings
+        )))
+    );
+
+    // A change before a device connects goes to a profile of the test model.
+    rig.set_color(face(1), RED);
+    rig.poll_for(Duration::from_secs(1));
+    let id = rig.engine.active_profile().to_string();
+    assert_ne!(id, "default", "the profile of the N4 Pro keeps its name");
+    let text = profile_file(&rig, &id).unwrap();
+    assert!(text.contains("model = \"opencraft-test-model\""), "{text}");
+    assert!(text.contains("#C81E1E"), "{text}");
+}
+
+#[test]
+fn a_model_that_is_not_in_the_table_gives_the_first_descriptor() {
+    let dir = TempDir::new().unwrap();
+    let profiles = ProfilesDir::new(dir.path());
+    profiles
+        .set_last_model("a-model-that-does-not-exist")
+        .unwrap();
+    assert_eq!(
+        start_descriptor(&TABLE, &profiles).model,
+        DESCRIPTORS[0].model
+    );
+    // A file with an error gives the first descriptor, too.
+    fs::write(dir.path().join("state.toml"), "last_model = [").unwrap();
+    assert_eq!(
+        start_descriptor(&TABLE, &profiles).model,
+        DESCRIPTORS[0].model
+    );
+}
+
+#[test]
+fn the_record_of_the_last_model_keeps_the_other_keys_of_the_state_file() {
+    let dir = TempDir::new().unwrap();
+    let profiles = ProfilesDir::new(dir.path());
+    profiles.set_active("n4-pro", "work").unwrap();
+    profiles.set_follow(false).unwrap();
+    profiles.set_last_model(TEST_MODEL.model).unwrap();
+    assert_eq!(profiles.active("n4-pro").as_deref(), Some("work"));
+    assert!(!profiles.follow_front());
+    assert_eq!(profiles.last_model().as_deref(), Some(TEST_MODEL.model));
+    // A new active profile keeps the model.
+    profiles.set_active(TEST_MODEL.model, "x").unwrap();
+    assert_eq!(profiles.last_model().as_deref(), Some(TEST_MODEL.model));
 }
