@@ -16,7 +16,7 @@
 //!   profile.
 //!
 //! The list gives the result of these rules in each [`ProfileEntry`]: the
-//! `clashes`, the links that apply (`applied`), and the owner of each link
+//! links that apply (`applied`), and the owner of each link
 //! (`link_owners`). The list computes them again after each change of an
 //! entry. Thus a reader does not find the rules again.
 //!
@@ -225,11 +225,11 @@ impl ProfileList {
             .applications
             .iter()
             .any(|each| same_bundle(&each.bundle_id, &link.bundle_id));
-        let clashing = entry
-            .clashes
+        let applies = entry
+            .applied
             .iter()
-            .any(|clash| same_bundle(clash, &link.bundle_id));
-        if has && !clashing {
+            .any(|each| same_bundle(&each.bundle_id, &link.bundle_id));
+        if has && applies {
             return Ok(LinkChange::default());
         }
         if !has && entry.applications.len() >= MAX_LINKS {
@@ -283,12 +283,11 @@ impl ProfileList {
         })
     }
 
-    /// Compute `clashes`, `applied`, and `link_owners` of each entry again.
+    /// Compute `applied` and `link_owners` of each entry again.
     fn refresh(&mut self) {
         // The first owner of each application, from the order of the entries.
         let mut owners: Vec<(String, String)> = Vec::new();
         for entry in &mut self.entries {
-            let mut clashes = Vec::new();
             let mut applied = Vec::new();
             let mut link_owners = Vec::new();
             for link in &entry.applications {
@@ -304,15 +303,12 @@ impl ProfileList {
                 };
                 if owner == entry.id {
                     applied.push(link.clone());
-                } else {
-                    clashes.push(link.bundle_id.clone());
                 }
                 link_owners.push(LinkOwner {
                     bundle_id: link.bundle_id.clone(),
                     profile: owner,
                 });
             }
-            entry.clashes = clashes;
             entry.applied = applied;
             entry.link_owners = link_owners;
         }
@@ -375,11 +371,8 @@ mod tests {
         let [calls, home, work] = list.entries() else {
             unreachable!()
         };
-        assert!(calls.clashes.is_empty());
         assert_eq!(bundles(&calls.applied), ["com.example.x"]);
-        assert_eq!(home.clashes, Vec::<String>::new());
         assert_eq!(bundles(&home.applied), ["com.example.y", "com.example.z"]);
-        assert_eq!(work.clashes, ["com.example.x", "com.example.y"]);
         assert!(work.applied.is_empty());
         let owners: Vec<(&str, &str)> = work
             .link_owners
@@ -398,9 +391,9 @@ mod tests {
         let [a, b] = list.entries() else {
             unreachable!()
         };
-        assert!(a.clashes.is_empty());
-        // The clash keeps the case of the link of the later profile.
-        assert_eq!(b.clashes, ["us.zoom.xos"]);
+        assert_eq!(a.applied.len(), 1);
+        assert!(b.applied.is_empty());
+        assert_eq!(b.link_owners[0].profile, "a");
         // The owner has the case that its profile stores.
         let owner = list.owner_of("Us.Zoom.Xos").unwrap();
         assert_eq!(owner.profile, "a");
@@ -410,7 +403,6 @@ mod tests {
     #[test]
     fn a_repeated_link_inside_one_profile_is_not_a_clash() {
         let list = list(&[("a", &["com.example.x", "COM.EXAMPLE.X"])], None);
-        assert!(list.entries()[0].clashes.is_empty());
         assert_eq!(list.entries()[0].applied.len(), 2);
     }
 
@@ -487,9 +479,9 @@ mod tests {
             &[("a", &["com.example.x"]), ("b", &["com.example.x"])],
             None,
         );
-        assert_eq!(list.get("b").unwrap().clashes, ["com.example.x"]);
+        assert!(list.get("b").unwrap().applied.is_empty());
         list.upsert(entry("a", &[]));
-        assert!(list.get("b").unwrap().clashes.is_empty());
+        assert_eq!(list.get("b").unwrap().applied.len(), 1);
         assert_eq!(list.owner_of("com.example.x").unwrap().profile, "b");
         // A new entry goes to its place in the order of the identities.
         list.upsert(entry("aa", &["com.example.x"]));
