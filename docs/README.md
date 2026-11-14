@@ -13,6 +13,7 @@ Each document has one job. Each fact is in one place only.
 | [kb/](kb/README.md) | Knowledge base: facts from research and from measurement | You learn a fact |
 | [checks/](checks/phase-7-8-checks.md) | Procedures and import files for checks that only the owner can do on the device. Phase 9 is in [phase-9-checks.md](checks/phase-9-checks.md). | A phase needs a new owner check |
 | [user/](user/README.md) | The user guide: install, configure, operate, and correct faults | The application changes in a way that a user can see |
+| [agents/](agents/domain.md) | The configuration of the engineering skills: issue tracker, triage labels, domain documents | The issue process or the place of a domain document changes |
 
 ## Where the status is
 

@@ -53,3 +53,21 @@ you to do that step in your task. The procedure is in
   transport and do not open the device.
 - Two processes must not operate one device at the same time. See rule 1 in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#ownership).
+
+## Agent skills
+
+### Issue tracker
+
+The issues are GitHub issues in this repository. Use the `gh` CLI. See
+[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+The five default triage labels: `needs-triage`, `needs-info`,
+`ready-for-agent`, `ready-for-human`, `wontfix`. See
+[docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+
+### Domain docs
+
+One context. The terms are in `docs/ARCHITECTURE.md` and the decision records
+are in `docs/decisions/`. See [docs/agents/domain.md](docs/agents/domain.md).
