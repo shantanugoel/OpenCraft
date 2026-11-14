@@ -90,7 +90,10 @@ pub fn keep_alive() -> Vec<u8> {
     cmd(b"CONNECT")
 }
 
-/// Force a firmware mode. Some rebrands need this before accepting commands.
+/// Mode command `MOD`: `0x00 0x00` and an ASCII digit.
+///
+/// `mirajazz` sends this command for the N1. The start sequence does not
+/// send it. See "Start sequence" in `docs/kb/streamdock-protocol.md`.
 pub fn set_mode(mode: u8) -> Vec<u8> {
     let mut v = cmd(b"MOD");
     v.extend_from_slice(&[0x00, 0x00, b'0' + mode]);

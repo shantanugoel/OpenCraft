@@ -104,7 +104,7 @@ COMMANDS:
 OPTIONS:
     --seconds <n>        How long to listen (default: 30 for test, 15 for listen)
     --brightness <0-100> Display brightness for 'test' (default: 80)
-    --mode <0-9>         Send a MODE command first (some rebrands need it)
+    --mode <0-9>         Send MOD before the start sequence
     --keep               For 'test': send nothing at the end. The test pattern
                          stays until the device stops the connection. Without
                          it, 'test' ends with the stop sequence of OpenCraft
@@ -353,7 +353,7 @@ fn cmd_test(rest: &[String]) -> AnyResult {
         link.set_keep_alive_interval(Some(interval));
     }
     if let Some(mode) = mode {
-        println!("  mode   : MODE {mode} before each draw");
+        println!("  mode   : MOD {mode} before each draw");
     }
     println!("  alive  : {}", measure::describe_keep_alive(keep_alive));
     println!("  light  : brightness {brightness}%\n");
