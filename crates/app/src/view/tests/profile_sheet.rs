@@ -5,7 +5,7 @@
 use super::pages::{pages, send};
 use super::*;
 use crate::view::sidebar::ProfileSettingsRow;
-use gpui_kit::{MouseButton, MouseDownEvent, Pixels};
+use gpui_kit::{MouseButton, MouseDownEvent, Pixels, Role};
 use opencraft_engine::ProfileEntry;
 use std::path::PathBuf;
 
@@ -428,4 +428,65 @@ fn a_link_and_the_default_mark_send_the_commands(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(cx.debug_bounds("application-picker").is_none());
     assert!(is_open(cx));
+}
+
+/// Decision 0035, section 5: before a link moves, the application list
+/// shows the profile that already has it.
+#[gpui_kit::test]
+fn the_application_list_names_the_profile_that_already_has_the_link(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = sheet_window(cx);
+    let mut home = entry("default", "Default", &["Main", "Meetings", "Media"], 0);
+    home.applications.push(opencraft_engine::ApplicationLink {
+        bundle_id: "com.apple.Safari".into(),
+        name: "Safari".into(),
+    });
+    send(
+        cx,
+        &tx,
+        profiles(
+            vec![home, entry("work", "Work", &["Mail", "Calls"], 1)],
+            "default",
+        ),
+    );
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.use_fixed_applications(
+                vec![
+                    crate::applications::InstalledApplication {
+                        name: "Mail".into(),
+                        bundle_identifier: "com.apple.mail".into(),
+                        path: PathBuf::from("/Applications/Mail.app"),
+                    },
+                    crate::applications::InstalledApplication {
+                        name: "Safari".into(),
+                        bundle_identifier: "com.apple.Safari".into(),
+                        path: PathBuf::from("/Applications/Safari.app"),
+                    },
+                ],
+                cx,
+            );
+        });
+    });
+    open_sheet(cx, "profile-work");
+    click(cx, "profile-add-application");
+    let nodes = picker_labels(cx);
+    assert!(
+        nodes
+            .iter()
+            .any(|(role, label)| *role == Role::MenuItem && label == "Mail"),
+        "an application with no link keeps its name: {nodes:#?}"
+    );
+    assert!(
+        nodes.iter().any(|(role, label)| {
+            *role == Role::MenuItem && label == "Safari, Linked to “Default”"
+        }),
+        "the row names the profile that has the link: {nodes:#?}"
+    );
+}
+
+fn picker_labels(cx: &mut VisualTestContext) -> Vec<(Role, String)> {
+    crate::view::controls::accessibility_log::take();
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    crate::view::controls::accessibility_log::take()
 }

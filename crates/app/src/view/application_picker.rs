@@ -13,7 +13,7 @@ use super::actions::{contained, FieldPath};
 use super::*;
 use crate::applications::{self, InstalledApplication};
 use gpui_kit::{
-    anchored, assets::IconName, canvas, component::Icon, deferred, list, point, Bounds,
+    anchored, assets::IconName, canvas, component::Icon, deferred, list, point, relative, Bounds,
     KeyDownEvent, ListAlignment, ListState, MouseButton, Pixels,
 };
 use opencraft_engine::{ApplicationLink, Command, Value};
@@ -753,6 +753,37 @@ impl DeviceView {
             )
     }
 
+    /// The caption "Linked to “Work”" when a profile already has this
+    /// application and the picker is adding a link. The first profile whose
+    /// link applies is the owner, as in the sheet (decision 0035, section 5).
+    fn linked_profile_note(&self, application: &InstalledApplication) -> Option<String> {
+        if !matches!(
+            self.application_picker.target,
+            Some(PickerTarget::Link { .. })
+        ) {
+            return None;
+        }
+        let bundle_id = application.bundle_identifier.as_str();
+        if bundle_id.is_empty() {
+            return None;
+        }
+        let name = self
+            .state
+            .profiles
+            .iter()
+            .find(|entry| {
+                entry.applications.iter().any(|link| {
+                    opencraft_engine::front::same_bundle(&link.bundle_id, bundle_id)
+                        && !entry
+                            .clashes
+                            .iter()
+                            .any(|clash| opencraft_engine::front::same_bundle(clash, bundle_id))
+                })
+            })
+            .map(|entry| entry.name.clone())?;
+        Some(format!("Linked to “{name}”"))
+    }
+
     fn application_empty_text(&self, cx: &App) -> String {
         let query = self.application_picker.search.read(cx).value();
         let query = query.trim();
@@ -775,6 +806,13 @@ impl DeviceView {
         let stored = self.stored_application_text().unwrap_or_default();
         let current = application.matches_stored(&stored);
         let name = application.name.clone();
+        // Before a link moves, the row names the profile that has it
+        // (decision 0035, section 5). A path field does not move a link.
+        let note = self.linked_profile_note(application);
+        let label = match &note {
+            Some(note) => format!("{name}, {note}"),
+            None => name.clone(),
+        };
         let row_id = format!("app-row-{index}");
         let selector = row_id.clone();
         div()
@@ -790,9 +828,20 @@ impl DeviceView {
             .rounded(theme::RADIUS_CONTROL)
             .cursor_pointer()
             .when(highlighted, |row| row.bg(theme::MENU_HIGHLIGHT))
-            .accessible(Role::MenuItem, name.clone())
+            .accessible(Role::MenuItem, label)
             .child(self.application_icon_tile(application))
             .child(div().flex_1().min_w_0().truncate().child(name))
+            .when_some(note, |row, note| {
+                row.child(
+                    div()
+                        .flex_shrink_0()
+                        .max_w(relative(0.55))
+                        .truncate()
+                        .text_size(theme::TEXT_CAPTION)
+                        .text_color(theme::TEXT_TERTIARY)
+                        .child(note),
+                )
+            })
             .child(self.application_check(current))
             .on_mouse_move(cx.listener(move |view, _, _, cx| {
                 if view.application_picker.highlight != index {
