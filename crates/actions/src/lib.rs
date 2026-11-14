@@ -26,6 +26,9 @@
 //!   [`backend::System::sleep`], so a test does not wait.
 //! - [`system`]: the work that an action does on the computer: keys, text,
 //!   media keys, sound volume, applications, URLs, and shell commands.
+//! - `kinds`: one module for each built-in kind that has moved, and the
+//!   registry that lists those modules. The open handler runs the kinds in
+//!   its group and does not read their settings.
 //!
 //! The handlers use only the handler interface of the engine (architecture
 //! rule 8, and `docs/decisions/0012-action-handler-interface.md`).
@@ -38,9 +41,9 @@ mod device;
 mod flow;
 mod handlers;
 pub mod hotkey;
+mod kinds;
 pub mod mac_function;
 pub mod mouse;
-mod open;
 mod sound;
 pub mod system;
 

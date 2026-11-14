@@ -1,5 +1,4 @@
 use super::*;
-use crate::open::{is_application, split_arguments};
 
 fn open_action(target: &str, arguments: Option<Value>) -> opencraft_engine::Action {
     let mut fields = vec![("application", Value::Text(target.into()))];
@@ -7,48 +6,6 @@ fn open_action(target: &str, arguments: Option<Value>) -> opencraft_engine::Acti
         fields.push(("arguments", arguments));
     }
     action("open-application", &fields)
-}
-
-fn words(text: &str) -> Vec<String> {
-    split_arguments(text).expect("closed quotes")
-}
-
-#[test]
-fn a_name_or_a_bundle_path_is_an_application_and_other_paths_are_not() {
-    for target in [
-        "Safari",
-        "Visual Studio Code",
-        "/Applications/Test.app",
-        "/Applications/Test.app/",
-        "~/Applications/Test.app",
-        " Test ",
-    ] {
-        assert!(is_application(target), "{target}");
-    }
-    for target in [
-        "/Users/Test/notes.txt",
-        "~/Documents",
-        "/Applications",
-        "/tmp/a.app/data",
-        "relative/folder",
-    ] {
-        assert!(!is_application(target), "{target}");
-    }
-}
-
-#[test]
-fn arguments_split_at_spaces_and_quotes_group_words() {
-    assert_eq!(words(""), Vec::<String>::new());
-    assert_eq!(words("  \t\n"), Vec::<String>::new());
-    assert_eq!(words("-a  --b=c\td"), ["-a", "--b=c", "d"]);
-    assert_eq!(words("\"a b\" 'c d' e"), ["a b", "c d", "e"]);
-    assert_eq!(words("x\"a b\"y"), ["xa by"]);
-    assert_eq!(words("\"\" ''"), ["", ""]);
-    assert_eq!(words("\"it's\" 'say \"hi\"'"), ["it's", "say \"hi\""]);
-    assert_eq!(words("a\\ b \\\"c\\\" \\\\"), ["a b", "\"c\"", "\\"]);
-    assert_eq!(words("C:\\path"), ["C:\\path"]);
-    assert_eq!(split_arguments("\"open"), None);
-    assert_eq!(split_arguments("a 'b"), None);
 }
 
 #[test]
@@ -132,18 +89,6 @@ fn a_system_error_of_an_application_or_a_file_becomes_a_problem() {
     }
 }
 
-#[test]
-fn the_open_form_has_a_path_field_and_an_optional_arguments_field() {
-    let description = crate::descriptions::description(crate::descriptions::APPLICATION);
-    assert_eq!(description.group, "System");
-    assert!(!description.needs_accessibility);
-    let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
-    assert_eq!(keys, ["application", "arguments"]);
-    assert_eq!(description.fields[0].label, "Application, file or folder");
-    assert_eq!(description.fields[1].input, InputType::Text);
-    assert_eq!(description.fields[1].default, None);
-}
-
 fn url_action(url: &str, browser: Option<Value>) -> opencraft_engine::Action {
     let mut fields = vec![("url", Value::Text(url.into()))];
     if let Some(browser) = browser {
@@ -209,20 +154,6 @@ fn a_wrong_browser_setting_or_a_system_error_is_a_problem() {
     rig.problem("Cannot open the URL");
 }
 
-#[test]
-fn the_url_form_has_an_optional_browser_field() {
-    let description = crate::descriptions::description(crate::descriptions::URL);
-    assert_eq!(description.group, "System");
-    let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
-    assert_eq!(keys, ["url", "application"]);
-    assert_eq!(description.fields[1].label, "Browser");
-    assert!(matches!(
-        description.fields[1].input,
-        InputType::Path { .. }
-    ));
-    assert_eq!(description.fields[1].default, None);
-}
-
 fn quit_action(application: &str, force: Option<Value>) -> opencraft_engine::Action {
     let mut fields = vec![("application", Value::Text(application.into()))];
     if let Some(force) = force {
@@ -272,22 +203,4 @@ fn a_quit_error_is_a_problem_and_an_application_that_does_not_run_has_its_own_te
     // The real system gives `NotRunning`. See the native test of `macos_quit`.
     let text = crate::system::Error::NotRunning.to_string();
     assert_eq!(text, "the application does not run");
-}
-
-#[test]
-fn the_quit_form_has_an_application_field_and_a_force_switch_in_the_system_group() {
-    let description = crate::descriptions::description(crate::descriptions::QUIT);
-    assert_eq!(description.name, "Quit an application");
-    assert_eq!(description.group, "System");
-    assert!(!description.needs_accessibility);
-    assert_eq!(description.icon.as_deref(), Some("circle-x"));
-    let keys: Vec<_> = description.fields.iter().map(|f| f.key.as_str()).collect();
-    assert_eq!(keys, ["application", "force"]);
-    assert!(matches!(
-        description.fields[0].input,
-        InputType::Path { .. }
-    ));
-    assert_eq!(description.fields[1].input, InputType::Toggle);
-    // Force is Off, unless the user turns it On.
-    assert_eq!(description.fields[1].default, None);
 }

@@ -27,7 +27,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0009](0009-profile-file-format.md) | The profile is a directory with a TOML file and its images | Accepted |
 | [0010](0010-core-text-for-surface-labels.md) | Use Core Text for surface labels on macOS | Accepted |
 | [0011](0011-engine-thread-model.md) | The engine has one thread, and the shell uses messages | Accepted |
-| [0012](0012-action-handler-interface.md) | An action handler gets requests and sends messages, on its own thread | Accepted |
+| [0012](0012-action-handler-interface.md) | An action handler gets requests and sends messages, on its own thread | Accepted. A note of 2026-11-14 gives the registry of kind modules. |
 | [0013](0013-action-feedback-on-a-surface.md) | An action changes a surface with feedback data, and the engine makes the image | Accepted |
 | [0014](0014-action-settings-description.md) | An action kind describes its settings as a list of fields | Accepted |
 | [0015](0015-four-bar-panels-and-touch-gestures.md) | The touch bar shows four bar panels, and the device identifies the touch gestures | Accepted |
