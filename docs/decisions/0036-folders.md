@@ -191,7 +191,7 @@ or a knob can have the action "Open a folder": it opens a folder of keys.
 
 ### 6. The actions
 
-Two new kinds in `crates/actions/src/flow.rs`, in the group "Navigation":
+Two new kinds in the group "Navigation". Each kind is a module of `crates/actions/src/kinds/`: `open_folder.rs` and `close_folder.rs`:
 
 | Kind | Name | Fields | Icon | Request |
 |---|---|---|---|---|

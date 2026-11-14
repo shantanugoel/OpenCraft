@@ -102,6 +102,12 @@ in [DESIGN.md](DESIGN.md). The GUI application does
 not depend on `crates/core`. The built-in action handlers are not a layer:
 they use only the handler interface of the engine (rule 8).
 
+To add a built-in action kind, add one module to `crates/actions/src/kinds/`
+and one line to the registry in `crates/actions/src/kinds/mod.rs`. The
+module gives the kind name, the description, the read of the settings, and
+the work. No other table or list names a kind. The steps are in
+[decision 0012](decisions/0012-action-handler-interface.md).
+
 ## 5. Rules
 
 These rules stay true in all phases.

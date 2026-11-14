@@ -1,5 +1,5 @@
-//! One module for each built-in action kind that has moved, and the registry
-//! of those modules.
+//! One module for each built-in action kind, and the registry of those
+//! modules. The registry is the only list of the kinds.
 //!
 //! A kind module holds the kind name, the description (decision 0014), a
 //! typed read of the settings, and the work. The work uses the system port
@@ -53,7 +53,8 @@ mod toggle;
 mod type_text;
 mod volume;
 
-/// The macOS call table checks this, so a key call and the permission stay together.
+/// The test of the macOS calls checks this, so a key call and the permission
+/// stay together.
 #[cfg(all(test, target_os = "macos"))]
 pub(crate) use mac_function::needs_permission as mac_function_needs_permission;
 
@@ -345,6 +346,12 @@ const REGISTERED: &[Registered] = &[
         kind: &device_brightness::KIND,
     },
 ];
+
+/// Each registered kind, in library order.
+#[cfg(test)]
+pub(crate) fn all() -> impl Iterator<Item = &'static dyn Kind> {
+    REGISTERED.iter().map(|entry| entry.kind)
+}
 
 /// The kinds of `group`, in library order.
 pub(crate) fn kinds_of(group: Group) -> impl Iterator<Item = &'static dyn Kind> {

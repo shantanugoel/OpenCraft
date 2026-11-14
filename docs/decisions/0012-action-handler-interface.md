@@ -102,8 +102,7 @@ The module holds the kind name, the description, a typed read of the
 settings, and the work. A registry in that crate lists the modules. The
 order in the registry is the order of the kinds in the library. Kinds that
 share a handler keep one handler, one thread, and one queue. The handler
-interface does not change. The engine does not change. A kind that was not
-in the registry stayed in the old tables, until the last kinds moved. The first modules are the four
+interface does not change. The engine does not change. The first modules are the four
 kinds of the open handler: open an application, quit an application, open
 a URL, and a shell command. The five kinds of the key handler are modules
 too: send a hotkey, type text, a media key, a mouse event, and a Mac
@@ -116,13 +115,25 @@ its poll.
 The kinds that send only engine requests are modules too (issue
 [#369](https://github.com/shantanugoel/OpenCraft/issues/369)): change the
 page, select a profile, open a folder, close a folder, toggle, sequence,
-screen off, and device brightness. No kind is in the old tables now, and
-the tables are gone. One request handler serves each group of these kinds.
+screen off, and device brightness. All 22 built-in kinds are modules now. One request handler serves each group of these kinds.
 The handler gives the kind the binding, the memory of the handler (the
 states of the toggles), and the shared system port. A kind that must show
 feedback at Appear uses a method of the kind with an empty default. Toggle
 and sequence keep the order of
 [decision 0017](0017-toggle-and-sequence-actions.md).
+
+The old forms are gone (issue
+[#370](https://github.com/shantanugoel/OpenCraft/issues/370)): the tables of
+the descriptions, the call tables of the handlers, the lists of kinds, and
+the functions of `system.rs` that only passed a call to the platform code.
+The system port calls the platform code directly. The registry in
+`crates/actions/src/kinds/mod.rs` is the only place that lists the kinds.
+
+**How to add a built-in kind.** Add one module to `crates/actions/src/kinds/`
+(copy `open_application.rs`): the kind name, `description`, `read`,
+`perform`, and a value that implements `Kind`. Add the module and one line
+to `REGISTERED` in `kinds/mod.rs`. The module needs no other edit. A kind in
+a new `Group` also needs a handler that uses `kinds_of` and `find_in`.
 
 ## Results
 
