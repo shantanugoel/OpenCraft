@@ -400,9 +400,11 @@ default-profile mark. That mark stays on this computer.
   different profile.
 - If a profile has the same name, the new profile gets a number after its
   name, for example "Work 2".
-- The file contains the settings of each action as they are, for example the
-  command of "Run a shell command" or the path of an application. Look at
-  your actions before you give the file to a different person.
+- The file contains the settings of each action. OpenCraft writes `~` in
+  place of your home folder in each path. A command and each other setting
+  stay as they are. Look at your actions before you give the file to a
+  different person. An imported path that starts with `~/` uses the home
+  folder of that Mac.
 - OpenCraft imports only a profile for the model of your device.
 - If the file links an application that a profile on this computer already
   has, the profile on this computer keeps the link. The window shows

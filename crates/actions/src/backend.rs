@@ -78,6 +78,13 @@ pub trait System: Send + Sync + 'static {
     fn stop_sounds(&self) -> Result<()> {
         Err(system::Error::NotSupported)
     }
+    /// The paths of the applications registered for `bundle_id`. An empty
+    /// list means the caller opens the stored path. The default is empty,
+    /// so a test system does not need this operation.
+    fn application_copies(&self, bundle_id: &str) -> Vec<String> {
+        let _ = bundle_id;
+        Vec::new()
+    }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()>;
     fn open_file(&self, path: &str) -> Result<()>;
     fn quit_application(&self, application: &str, force: bool) -> Result<()>;
@@ -156,6 +163,9 @@ impl System for RealSystem {
     }
     fn stop_sounds(&self) -> Result<()> {
         system::stop_sounds()
+    }
+    fn application_copies(&self, bundle_id: &str) -> Vec<String> {
+        system::application_copies(bundle_id)
     }
     fn open_application(&self, application: &str, arguments: &[String]) -> Result<()> {
         system::open_application(application, arguments)

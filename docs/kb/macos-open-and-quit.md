@@ -18,6 +18,8 @@ calls. None of them needs a new permission prompt.
 | The program `open` does not expand `~`. OpenCraft replaces a leading `~/` with the home folder before the call. | Measured | Source of the code: `expand_home` |
 | `open -a <app> -- <url>` opens the URL in that application. With no `-a`, the system uses the default application for the URL. | Source | `open(1)` |
 | `open` sends no Apple event, so macOS asks for no Automation permission. | Inference | [macos-permissions.md](macos-permissions.md); no prompt in the runs above |
+| `NSWorkspace.URLsForApplicationsWithBundleIdentifier` returns each application that Launch Services has registered for that bundle identifier. An identifier that no application has returns an empty list. | Measured | One call for `com.apple.calculator` returned `/System/Applications/Calculator.app`. One call for `com.opencraft.tests.missing-bundle` returned an empty list. Of 119 bundle identifiers in the scanned folders, 2 had two registered paths: one pair under `/Applications`, and one pair with one path under `/Applications` and one path in the home folder. The scanned path of each pair was one of the registered paths. 2026-11-14 |
+| The registered path can differ from a path in a scanned folder. The registered path of Safari was `/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app`. `/System/Applications/Safari.app` was not present. | Measured | The same session |
 
 ## Quit an application
 
@@ -38,3 +40,4 @@ calls. None of them needs a new permission prompt.
 ## Sources
 
 - macOS manual page `open(1)`.
+- Apple documentation for `NSWorkspace.URLsForApplicationsWithBundleIdentifier`.

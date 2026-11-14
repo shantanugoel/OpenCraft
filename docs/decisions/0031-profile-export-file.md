@@ -47,6 +47,11 @@ no path of the computer and not the identity of the profile. The engine does
 not read the settings of an action (rule 8), thus a setting that the user
 typed goes into the file as it is.
 
+Note (2026-11-14): [decision 0037](0037-application-bundle-and-export-path.md)
+replaces the sentence above for a path setting. The export writes `~` in
+place of the home directory in each path setting. Each other setting stays
+as it is.
+
 **The import.** The engine:
 
 1. Refuses a file that is larger than 64 MB, before it reads the file.

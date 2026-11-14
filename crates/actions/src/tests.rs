@@ -729,7 +729,9 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
             "Open an application",
             "application",
             InputType::Path {
-                kind: PathKind::Application,
+                kind: PathKind::Application {
+                    bundle_id: "bundle_id".into(),
+                },
             },
         ),
         ("open-url", "Open a URL", "url", InputType::Text),

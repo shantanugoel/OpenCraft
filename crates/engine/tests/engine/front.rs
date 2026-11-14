@@ -160,7 +160,7 @@ fn a_link_moves_and_a_duplicate_and_an_import_do_not_take_it() {
     let store = ProfilesDir::new(export_dir.path()).store("guest");
     store.save(&incoming).unwrap();
     let file = export_dir.path().join("guest.opencraft-profile");
-    opencraft_engine::share::export(&incoming, &store, &file).unwrap();
+    opencraft_engine::share::export(&incoming, &store, &file, &[]).unwrap();
     assert!(rig.engine.command(Command::ImportProfile { path: file }));
     let events = rig.take_events();
     assert_eq!(problems(&events), ["“zoom.us” stays linked to “Home”."]);

@@ -683,6 +683,22 @@ impl Profile {
         &self.folders
     }
 
+    /// Call `visit` for each action on a page and for each action in a
+    /// folder. The export uses this to replace a home path in a path
+    /// setting. It does not change the profile that the engine keeps.
+    pub(crate) fn for_each_action(&mut self, mut visit: impl FnMut(&mut Action)) {
+        for page in &mut self.pages {
+            for action in page.bindings.values_mut() {
+                visit(action);
+            }
+        }
+        for folder in &mut self.folders {
+            for action in folder.page.bindings.values_mut() {
+                visit(action);
+            }
+        }
+    }
+
     /// The folder with the identity `id`.
     pub fn folder(&self, id: FolderId) -> Option<&Folder> {
         self.folders.iter().find(|folder| folder.id == id)

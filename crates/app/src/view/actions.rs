@@ -23,6 +23,16 @@ use gpui_kit::{
 /// The help under a profile value that is not an identity (decision 0035).
 const PROFILE_AGAIN: &str = "Select the profile again, so that a rename does not break this key.";
 
+/// The setting that stores the bundle identifier of an application path.
+fn bundle_key_of(input: &InputType) -> Option<&str> {
+    match input {
+        InputType::Path {
+            kind: PathKind::Application { bundle_id },
+        } if !bundle_id.is_empty() => Some(bundle_id.as_str()),
+        _ => None,
+    }
+}
+
 use opencraft_engine::{
     Action, BindingId, ChoiceOption, Color, Field, FolderId, GestureKind, InputType,
     KindDescription, PathKind, Status, Value,
@@ -498,7 +508,8 @@ impl DeviceView {
                 .iter()
                 .find(|f| f.key == path.key)
         })?;
-        let value = match field.input {
+        let bundle_key = bundle_key_of(&field.input).map(str::to_string);
+        let value = match &field.input {
             InputType::Colour => {
                 let colour = super::inspector::parse_colour(&text)?;
                 Value::Text(super::inspector::colour_text(colour))
@@ -513,10 +524,27 @@ impl DeviceView {
                 } else {
                     i64::MAX
                 });
-                Value::Integer(number.clamp(min.min(max), min.max(max)))
+                Value::Integer(number.clamp((*min).min(*max), (*min).max(*max)))
             }
             _ => Value::Text(text),
         };
+        // The picker wrote this text and the bundle identifier together.
+        // A later keystroke that does not change the text must not remove
+        // the identifier. A typed path is a new target, so the identifier
+        // goes away.
+        if bundle_key.is_some() && action.settings.get(&path.key) == Some(&value) {
+            return Some(value);
+        }
+        if let Some(bundle_key) = bundle_key {
+            let key = path.key.clone();
+            self.edit(owner.1, |root| {
+                change(root, &path.action, |action| {
+                    action.settings.insert(key, value.clone());
+                    action.settings.remove(&bundle_key);
+                })
+            });
+            return Some(value);
+        }
         self.set_field(owner.1, path, value.clone());
         Some(value)
     }
@@ -600,6 +628,52 @@ impl DeviceView {
         for binding in bindings {
             self.form.pending.remove(binding);
         }
+    }
+
+    /// Store a path, and the bundle identifier when the field asks for one.
+    /// `bundle_identifier` of `None`, or an identifier that is not correct,
+    /// removes the setting. A file or a folder has no bundle identifier.
+    pub(super) fn set_path_value(
+        &mut self,
+        binding: BindingId,
+        path: &FieldPath,
+        text: String,
+        bundle_identifier: Option<String>,
+    ) {
+        let bundle_key = self.bundle_key(binding, path);
+        let key = path.key.clone();
+        self.edit(binding, |root| {
+            change(root, &path.action, |action| {
+                action.settings.insert(key, Value::Text(text));
+                if let Some(bundle_key) = &bundle_key {
+                    match bundle_identifier
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|id| opencraft_engine::front::valid_bundle_id(id))
+                    {
+                        Some(id) => {
+                            action
+                                .settings
+                                .insert(bundle_key.clone(), Value::Text(id.to_string()));
+                        }
+                        None => {
+                            action.settings.remove(bundle_key);
+                        }
+                    }
+                }
+            })
+        });
+    }
+
+    /// The setting name for the bundle identifier of this path field.
+    fn bundle_key(&self, binding: BindingId, path: &FieldPath) -> Option<String> {
+        let action = contained(&self.edit_action(binding)?, &path.action)?;
+        let field = self
+            .kind(&action.kind)?
+            .fields
+            .iter()
+            .find(|field| field.key == path.key)?;
+        bundle_key_of(&field.input).map(str::to_string)
     }
 
     pub(super) fn set_field(&mut self, binding: BindingId, path: &FieldPath, value: Value) {
@@ -811,10 +885,12 @@ impl DeviceView {
                                 .and_then(|a| contained(&a, &path.action))
                                 .is_some_and(|a| a.kind == kind);
                         if let Some(path_name) = paths.first().filter(|_| same) {
-                            view.set_field(
+                            let bundle = crate::applications::bundle_identifier_at(path_name);
+                            view.set_path_value(
                                 binding,
                                 &path,
-                                Value::Text(path_name.to_string_lossy().into_owned()),
+                                path_name.to_string_lossy().into_owned(),
+                                bundle,
                             );
                         }
                     }
@@ -1851,13 +1927,13 @@ impl DeviceView {
                             .into_any_element(),
                     ),
                     InputType::Path {
-                        kind: PathKind::Application,
+                        kind: PathKind::Application { .. },
                     } => Some(self.application_choose(&id, index, &field_path, window, cx)),
                     _ => None,
                 };
                 let application_icon = match input {
                     InputType::Path {
-                        kind: PathKind::Application,
+                        kind: PathKind::Application { .. },
                     } if !stored.is_empty() => self.application_field_icon(stored),
                     _ => None,
                 };

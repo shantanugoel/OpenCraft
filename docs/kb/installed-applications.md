@@ -4,8 +4,10 @@ Last update: 2026-11-14
 
 The shell builds this list for the application picker (issue 336). The
 scan is in `crates/app/src/applications.rs`. It does not run an action.
-The action "Open an application" still stores a name or a path. See
-[macos-open-and-quit.md](macos-open-and-quit.md).
+The action "Open an application" stores the bundle identifier and the
+path. The path tells two copies of one bundle identifier apart. See
+[decision 0037](../decisions/0037-application-bundle-and-export-path.md)
+and [macos-open-and-quit.md](macos-open-and-quit.md).
 
 ## Where the scan looks
 

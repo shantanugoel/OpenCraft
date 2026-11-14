@@ -2159,7 +2159,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         } else {
             store.read()
         };
-        match profile.and_then(|profile| crate::share::export(&profile, &store, &path)) {
+        let kinds: Vec<_> = self
+            .ports
+            .iter()
+            .flat_map(|port| port.kinds.clone())
+            .collect();
+        match profile.and_then(|profile| crate::share::export(&profile, &store, &path, &kinds)) {
             Ok(()) => (self.sink)(Event::ProfileExported { profile: id, path }),
             Err(e) => self.problem(format!("OpenCraft could not export the profile: {e}")),
         }

@@ -518,10 +518,11 @@ impl DeviceView {
                     return;
                 };
                 self.cache_application_icon(&application.path);
-                self.set_field(
+                self.set_path_value(
                     binding,
                     &field,
-                    Value::Text(application.path.to_string_lossy().into_owned()),
+                    application.path.to_string_lossy().into_owned(),
+                    Some(application.bundle_identifier),
                 );
                 self.sync_form(window, cx);
                 self.close_application_picker(window, cx);

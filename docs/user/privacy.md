@@ -21,7 +21,9 @@ When you turn on **Start at login**, OpenCraft writes the file
 [Start at login](background.md#start-at-login).
 
 When you export a profile, you choose the folder and the name of the file.
-See [Export and import a profile](controls.md#export-and-import-a-profile).
+OpenCraft writes `~` in place of your home folder in each path in that
+file. See
+[Export and import a profile](controls.md#export-and-import-a-profile).
 
 The **User guide** and **Report a fault** links in Settings > About ask
 macOS to open a fixed page in your browser. The browser uses the network

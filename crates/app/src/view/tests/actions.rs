@@ -260,7 +260,9 @@ fn kind() -> KindDescription {
             (
                 "application",
                 InputType::Path {
-                    kind: PathKind::Application,
+                    kind: PathKind::Application {
+                        bundle_id: "bundle_id".into(),
+                    },
                 },
                 Value::Text(String::new()),
             ),
@@ -419,6 +421,10 @@ fn all_field_types_send_full_settings_and_keep_unknown_keys(cx: &mut TestAppCont
     assert!(!cx.did_prompt_for_paths());
     assert!(cx.debug_bounds("application-picker").is_some());
     click(cx, "app-row-0");
+    expected.settings.insert(
+        "bundle_id".into(),
+        Value::Text("com.example.calendar".into()),
+    );
     expect_change(
         &sent,
         &mut expected,
@@ -983,7 +989,10 @@ fn the_keyboard_selects_an_application_and_escape_closes_the_picker(cx: &mut Tes
         sent.borrow().last(),
         Some(&Command::SetBinding {
             binding: binding(GestureKind::Press),
-            action: Some(with_application("/Applications/OpenCraftTestMail.app")),
+            action: Some(with_bundle(
+                "/Applications/OpenCraftTestMail.app",
+                Some("com.example.mail"),
+            )),
         })
     );
     click(cx, "path-7");
@@ -1017,19 +1026,48 @@ fn choose_a_different_application_opens_the_file_dialog(cx: &mut TestAppContext)
     click(cx, "path-7");
     click(cx, "choose-different-application");
     assert!(cx.did_prompt_for_paths());
-    cx.simulate_path_prompt_response(|options| {
+    let root = tempfile::tempdir().unwrap();
+    let app = root.path().join("Other.app");
+    std::fs::create_dir_all(app.join("Contents")).unwrap();
+    std::fs::write(
+        app.join("Contents/Info.plist"),
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.example.other</string>
+</dict></plist>"#,
+    )
+    .unwrap();
+    let path = app.clone();
+    cx.simulate_path_prompt_response(move |options| {
         assert!(options.files);
         assert!(options.directories);
         assert!(!options.multiple);
-        Some(vec!["/Applications/OpenCraftTestOther.app".into()])
+        Some(vec![path.clone()])
     });
     cx.run_until_parked();
     assert!(!view_open(&view, cx));
+    let stored = app.to_string_lossy().into_owned();
     assert_eq!(
         sent.borrow().last(),
         Some(&Command::SetBinding {
             binding: binding(GestureKind::Press),
-            action: Some(with_application("/Applications/OpenCraftTestOther.app")),
+            action: Some(with_bundle(&stored, Some("com.example.other"))),
+        })
+    );
+}
+
+#[gpui_kit::test]
+fn a_typed_path_removes_the_bundle_identifier(cx: &mut TestAppContext) {
+    let (view, cx, sent) = open_application_form(cx);
+    click(cx, "path-7");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    type_field(&view, cx, "application", "Safari");
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&Command::SetBinding {
+            binding: binding(GestureKind::Press),
+            action: Some(with_application("Safari")),
         })
     );
 }
@@ -1073,9 +1111,18 @@ fn view_open(view: &Entity<DeviceView>, cx: &mut VisualTestContext) -> bool {
 }
 
 fn with_application(path: &str) -> Action {
+    with_bundle(path, None)
+}
+
+fn with_bundle(path: &str, bundle_id: Option<&str>) -> Action {
     let mut action = action();
     action
         .settings
         .insert("application".into(), Value::Text(path.into()));
+    if let Some(bundle_id) = bundle_id {
+        action
+            .settings
+            .insert("bundle_id".into(), Value::Text(bundle_id.into()));
+    }
     action
 }
