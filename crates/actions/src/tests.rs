@@ -720,9 +720,11 @@ fn the_factory_has_unique_kinds_with_the_required_fields() {
         .flat_map(|h| h.kinds())
         .collect();
     assert_eq!(real, fake);
-    assert_eq!(real.len(), 22);
+    let registered: BTreeSet<_> = crate::kinds::all().map(|kind| kind.id()).collect();
+    assert!(!registered.is_empty());
     let kinds: BTreeSet<_> = real.iter().map(|k| k.kind.as_str()).collect();
-    assert_eq!(kinds.len(), 22);
+    assert_eq!(kinds.len(), real.len());
+    assert_eq!(kinds, registered);
     for (kind, name, key, input) in [
         (
             "open-application",

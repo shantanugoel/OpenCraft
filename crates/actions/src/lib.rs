@@ -26,9 +26,11 @@
 //!   the page, select a profile, open and close a folder, toggle, sequence,
 //!   screen off, and device brightness. A sequence waits with
 //!   [`backend::System::sleep`], so a test does not wait.
-//! - [`system`]: the work that an action does on the computer: keys, text,
-//!   media keys, sound volume, applications, URLs, and shell commands.
-//! - `kinds`: one module for each built-in kind that has moved, and the
+//! - [`system`]: the types of the system port, the Accessibility check, and
+//!   the platform code of the work that an action does on the computer: keys,
+//!   text, media keys, sound volume, applications, URLs, and shell commands.
+//!   [`backend::RealSystem`] calls the platform code.
+//! - `kinds`: one module for each built-in kind, and the
 //!   registry that lists those modules. A handler runs the kinds of its
 //!   group and does not read their settings. The key handler keeps one
 //!   poll of the Accessibility permission. The volume handler keeps its poll.

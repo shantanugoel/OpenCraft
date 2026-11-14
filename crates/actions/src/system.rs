@@ -1,18 +1,21 @@
 //! The work that an action does on the computer.
 //!
-//! Each function does one small thing and returns. The platform code is in
-//! one module for each operating system. On a system that has no code, each
-//! function gives [`Error::NotSupported`].
+//! The platform code is in one module for each operating system, and
+//! `platform` names the module of the system that runs the program. On a
+//! system that has no code, each function gives [`Error::NotSupported`].
+//! The system port ([`crate::backend::System`]) calls the platform functions
+//! with no layer between. This file has the types of the port, the
+//! Accessibility check that the application calls, and the start of a shell
+//! command.
 //!
 //! The permission that each function needs is in
 //! `docs/kb/macos-permissions.md`.
 
-use crate::hotkey::Hotkey;
 use std::io;
 use std::process::{Child, Command, Stdio};
 
 #[cfg(target_os = "macos")]
-mod macos;
+pub(crate) mod macos;
 #[cfg(target_os = "macos")]
 mod macos_functions;
 #[cfg(target_os = "macos")]
@@ -22,12 +25,12 @@ mod macos_quit;
 #[cfg(target_os = "macos")]
 mod macos_sound;
 #[cfg(target_os = "macos")]
-use macos as platform;
+pub(crate) use macos as platform;
 
 #[cfg(not(target_os = "macos"))]
-mod other;
+pub(crate) mod other;
 #[cfg(not(target_os = "macos"))]
-use other as platform;
+pub(crate) use other as platform;
 
 /// An action could not do its work.
 #[derive(Debug, thiserror::Error)]
@@ -83,87 +86,11 @@ pub fn can_send_keys() -> bool {
     platform::can_send_keys()
 }
 
-/// Ask the system to show its prompt for the permission to send keys. The
-/// call returns at once. The user gives the permission in the settings of
-/// the system.
-pub fn ask_to_send_keys() {
-    platform::ask_to_send_keys();
-}
-
-/// Press and release the key of `hotkey`, with its modifier keys.
-pub fn send_hotkey(hotkey: &Hotkey) -> Result<()> {
-    platform::send_hotkey(hotkey)
-}
-
-/// Send a complete mouse operation to the front application.
-pub fn mouse_event(event: crate::mouse::MouseEvent) -> Result<()> {
-    platform::mouse_event(event)
-}
-
-/// Do a Mac system function. Sleep, lock and screen saver interrupt the
-/// session. A caller must ask the user before testing those operations.
-pub fn mac_function(function: crate::mac_function::MacFunction) -> Result<()> {
-    platform::mac_function(function)
-}
-
-/// Type `text` into the application that has the keyboard focus.
-pub fn type_text(text: &str) -> Result<()> {
-    platform::type_text(text)
-}
-
-/// Paste text, then restore the clipboard if no other writer changed it.
-pub fn paste_text(text: &str) -> Result<()> {
-    platform::paste_text(text)
-}
-
-/// Press and release a media key.
-pub fn media_key(key: MediaKey) -> Result<()> {
-    platform::media_key(key)
-}
-
-/// The state of the default sound output.
-pub fn volume() -> Result<Volume> {
-    platform::volume()
-}
-
-/// Set the level of the default sound output, in percent. A value above 100
-/// is 100.
-pub fn set_volume_level(level: u8) -> Result<()> {
-    platform::set_volume_level(level.min(100))
-}
-
-/// Switch the mute of the default sound output on or off.
-pub fn set_muted(muted: bool) -> Result<()> {
-    platform::set_muted(muted)
-}
-
 /// A sound output with its stable Core Audio UID and its display name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutputDevice {
     pub id: String,
     pub name: String,
-}
-
-pub fn output_devices() -> Result<Vec<OutputDevice>> {
-    platform::output_devices()
-}
-pub fn default_output() -> Result<OutputDevice> {
-    platform::default_output()
-}
-pub fn set_output(id: &str) -> Result<()> {
-    platform::set_output(id)
-}
-pub fn watch_output(changed: std::sync::mpsc::Sender<()>) -> Result<Box<dyn AudioWatch>> {
-    platform::watch_output(changed)
-}
-
-/// Start to play a sound file. `volume` is a percent of the system volume.
-pub fn play_sound(file: &std::path::Path, volume: u8, device: Option<&str>) -> Result<()> {
-    platform::play_sound(file, volume, device)
-}
-/// Stop each sound that [`play_sound`] started.
-pub fn stop_sounds() -> Result<()> {
-    platform::stop_sounds()
 }
 
 /// A property listener. Refresh attaches to a changed default device.
@@ -173,53 +100,10 @@ pub trait AudioWatch: Send {
     }
 }
 
-pub fn microphone_muted() -> Result<Option<bool>> {
-    platform::microphone_muted()
-}
-pub fn set_microphone_muted(muted: bool) -> Result<()> {
-    platform::set_microphone_muted(muted)
-}
-pub fn watch_microphone(changed: std::sync::mpsc::Sender<()>) -> Result<Box<dyn AudioWatch>> {
-    platform::watch_microphone(changed)
-}
-
-/// The paths of the applications that the system has registered for
-/// `bundle_id`. An empty list means that no application is registered.
-pub fn application_copies(bundle_id: &str) -> Vec<String> {
-    platform::application_copies(bundle_id)
-}
-
-/// Open an application. `application` is a name, for example `Safari`, or
-/// the path of an application. If the application runs, the system brings it
-/// to the front. The system gives `arguments` to the application only when
-/// it starts the application.
-pub fn open_application(application: &str, arguments: &[String]) -> Result<()> {
-    platform::open_application(application, arguments)
-}
-
-/// Open a file or a folder in its default application. A leading `~/` is the
-/// home folder.
-pub fn open_file(path: &str) -> Result<()> {
-    platform::open_file(path)
-}
-
-/// Ask the running application that `application` names to quit. `force`
-/// stops it at once. `application` is a name, a bundle identifier, or the path
-/// of an application. The call does not wait for the end of the application.
-pub fn quit_application(application: &str, force: bool) -> Result<()> {
-    platform::quit_application(application, force)
-}
-
-/// Open a URL in `application` (a name, or the path of an application). With
-/// no application, the system uses the default application for the URL.
-pub fn open_url(url: &str, application: Option<&str>) -> Result<()> {
-    platform::open_url(url, application)
-}
-
 /// Start a shell command with `/bin/sh -c`. The call does not wait for the
 /// command. The caller must wait for the child, so that the system can
 /// remove it.
-pub fn start_shell_command(command: &str) -> Result<Child> {
+pub(crate) fn start_shell_command(command: &str) -> Result<Child> {
     Ok(Command::new("/bin/sh")
         .arg("-c")
         .arg(command)

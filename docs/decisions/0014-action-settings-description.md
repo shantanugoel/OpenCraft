@@ -173,6 +173,14 @@ and what to do for its input type. The text never shows the key
 (`setting_problem` in `crates/actions/src/descriptions.rs`, issue
 [#162](https://github.com/shantanugoel/OpenCraft/issues/162)).
 
+Note (2026-11-14): issue
+[#370](https://github.com/shantanugoel/OpenCraft/issues/370). Each built-in
+kind gives its own description: the function `description` in its module in
+`crates/actions/src/kinds/`. The registry in `kinds/mod.rs` is the only list
+of the kinds. `descriptions.rs` keeps only the helpers for a field, the
+names of the groups, and `setting_problem`. The four tables of the
+descriptions are gone.
+
 **Status of a kind.** A handler can send a Status message for a kind:
 
 | Status | Content | The shell |
