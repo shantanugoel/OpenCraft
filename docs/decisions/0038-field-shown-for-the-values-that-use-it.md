@@ -50,6 +50,9 @@ no rule shows its status for each action. The shell still compares no kind.
 - The same rule hides Brightness or Step, the mouse fields, and the page
   number, for an operation that does not use that field.
 - A field with no rule stays in the form for every value.
+- "Select a profile" shows Profile only for the target "A profile". A change
+  to "Next profile" or "Previous profile" removes the profile name.
+  (Note, 2026-11-15, from review 2.)
 - "Sound output" shows Device for Set device, and Cycle list for Next
   device. A change of the operation removes the field that the new operation
   does not use, with the saved devices of the cycle list. The change is one

@@ -92,11 +92,11 @@ pub(crate) fn follow_problem(error: impl std::fmt::Display) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::values;
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::Value;
 
-    fn run(system: &System) -> Result<(), String> {
+    fn run(system: &Fake) -> Result<(), String> {
         let sender = None;
         KIND.invoke(&Settings::new(), &Work::new(system, &sender))
     }
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn a_stored_setting_does_not_change_the_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         KIND.invoke(
             &values(&[("anything", Value::Integer(1))]),
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn each_push_switches_the_mute() {
-        let system = System::default();
+        let system = Fake::default();
         run(&system).unwrap();
         run(&system).unwrap();
         assert_eq!(
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn an_input_with_no_master_mute_is_a_problem_and_changes_nothing() {
-        let system = System::default();
+        let system = Fake::default();
         system.set_microphone(None);
         assert_eq!(
             run(&system).unwrap_err(),
@@ -153,14 +153,14 @@ mod tests {
 
     #[test]
     fn a_failed_read_or_write_is_a_problem() {
-        let system = System::default();
-        system.fail(Fault::Code("microphone"));
+        let system = Fake::default();
+        system.fail(Some("microphone"));
         assert_eq!(
             run(&system).unwrap_err(),
             "Cannot set the microphone mute: the system refused the operation (code 42)."
         );
         assert!(system.calls().is_empty());
-        system.fail(Fault::Code("set-microphone"));
+        system.fail(Some("set-microphone"));
         assert_eq!(
             run(&system).unwrap_err(),
             "Cannot set the microphone mute: the system refused the operation (code 42)."

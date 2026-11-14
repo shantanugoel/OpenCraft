@@ -1,5 +1,5 @@
 use super::*;
-use crate::mac_function::MacFunction;
+use crate::system::MacFunction;
 
 #[test]
 fn every_mac_function_uses_the_fake_including_sleep_lock_and_screen_saver() {

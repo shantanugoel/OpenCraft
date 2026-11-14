@@ -1,7 +1,7 @@
 //! Public macOS calls only. See docs/kb/macos-system-functions.md.
 
 use super::{Error, Result};
-use crate::mac_function::MacFunction;
+use crate::system::MacFunction;
 use std::process::{Command, Stdio};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

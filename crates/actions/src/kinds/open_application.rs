@@ -236,15 +236,15 @@ pub(crate) fn perform(target: &Target, work: &Work<'_>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{assert_system_kind, values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::Settings;
 
     fn words(text: &str) -> Vec<String> {
         split_arguments(text).expect("closed quotes")
     }
 
-    fn run(target: &Target, system: &System) -> Result<(), String> {
+    fn run(target: &Target, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(target, &Work::new(system, &sender))
     }
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_does_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(&Settings::new(), &Work::new(&system, &sender))
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn perform_opens_an_application_or_a_file_and_reports_a_system_error() {
-        let system = System::default();
+        let system = Fake::default();
         run(
             &Target::Application {
                 bundle_id: None,
@@ -444,7 +444,7 @@ mod tests {
                 Call::File("/tmp/notes.txt".into()),
             ]
         );
-        system.fail(Fault::Code("application"));
+        system.fail(Some("application"));
         assert_eq!(
             run(
                 &Target::Application {
@@ -457,7 +457,7 @@ mod tests {
             .unwrap_err(),
             "Cannot open the application: the system refused the operation (code 42)."
         );
-        system.fail(Fault::Code("file"));
+        system.fail(Some("file"));
         assert_eq!(
             run(
                 &Target::File {
@@ -543,7 +543,7 @@ mod tests {
 
     #[test]
     fn perform_opens_the_one_registered_copy() {
-        let system = System::default();
+        let system = Fake::default();
         system.set_copies(vec!["/Applications/Moved.app".into()]);
         run(
             &Target::Application {

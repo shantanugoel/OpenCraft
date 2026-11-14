@@ -55,8 +55,8 @@ pub(crate) fn perform(work: &Work<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::System;
     use crate::kinds::values;
+    use crate::tests::support::Fake;
     use opencraft_engine::{Message, Value};
     use std::sync::mpsc;
 
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn a_push_asks_the_engine_to_turn_off_the_screen_and_makes_no_system_call() {
-        let system = System::default();
+        let system = Fake::default();
         let (sender, messages) = mpsc::channel();
         let sender = Some(sender);
         let work = Work::new(&system, &sender);

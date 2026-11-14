@@ -3,7 +3,7 @@
 use crate::backend::{RealSystem, System};
 use crate::descriptions::*;
 use crate::flow::RequestHandler;
-use crate::kinds::Group;
+use crate::kinds::{problem, send, Group};
 use crate::system::Volume;
 use opencraft_engine::{
     Action, BindingId, Feedback, Handler, KindDescription, Message, MessageSender, Request, Status,
@@ -65,18 +65,6 @@ pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dy
         Box::new(RequestHandler::new(Group::Toggle, system.clone())),
         Box::new(RequestHandler::new(Group::Sequence, system)),
     ]
-}
-
-pub(crate) fn send(sender: &Option<MessageSender>, message: Message) {
-    if let Some(sender) = sender {
-        let _ = sender.send(message);
-    }
-}
-
-pub(crate) fn problem(sender: &Option<MessageSender>, result: Result<()>) {
-    if let Err(text) = result {
-        send(sender, Message::Problem(text));
-    }
 }
 
 /// A helper sleeps on a channel. Its owner stops and joins it on drop.

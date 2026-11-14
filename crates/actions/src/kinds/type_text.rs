@@ -95,11 +95,11 @@ pub(crate) fn perform(text: &Typed, work: &Work<'_>) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::{Settings, Value};
 
-    fn run(text: &Typed, system: &System) -> Result<(), String> {
+    fn run(text: &Typed, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(text, &Work::new(system, &sender))
     }
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_and_a_missing_permission_do_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(&Settings::new(), &Work::new(&system, &sender))
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn perform_types_or_pastes_and_presses_return_only_after_success() {
-        let system = System::default();
+        let system = Fake::default();
         run(&typed("Long text 😀", false, true), &system).unwrap();
         run(&typed("Long text 😀", true, false), &system).unwrap();
         assert_eq!(
@@ -218,7 +218,7 @@ mod tests {
                 Call::Paste("Long text 😀".into()),
             ]
         );
-        system.fail(Fault::Code("text"));
+        system.fail(Some("text"));
         assert_eq!(
             run(&typed("Text", false, true), &system).unwrap_err(),
             "Cannot send keys or mouse events: the system refused the operation (code 42)."

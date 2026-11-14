@@ -98,8 +98,8 @@ pub(crate) fn perform(command: &Command, work: &Work<'_>) -> Result<(), String> 
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, ShellEnd, System};
     use crate::kinds::{assert_system_kind, values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::{Message, MessageSender, Settings, Value};
     use std::sync::mpsc::Receiver;
     use std::time::Duration;
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_does_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(&Settings::new(), &Work::new(&system, &sender))
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn perform_starts_the_command_and_reports_the_exit_later() {
-        let system = System::default();
+        let system = Fake::default();
         let (sender, messages) = channel();
         perform(
             &Command {
@@ -170,7 +170,7 @@ mod tests {
         assert!(system.wait_until_finished());
         assert!(messages.recv_timeout(Duration::from_millis(200)).is_err());
 
-        system.set_end(ShellEnd::Code(7));
+        system.finish_shell(crate::tests::support::Exit::Code(7));
         let (sender, messages) = channel();
         perform(
             &Command {
@@ -184,7 +184,7 @@ mod tests {
             other => panic!("expected a Problem, got {other:?}"),
         }
 
-        system.set_end(ShellEnd::Signal);
+        system.finish_shell(crate::tests::support::Exit::Signal);
         let (sender, messages) = channel();
         perform(
             &Command {
@@ -198,7 +198,7 @@ mod tests {
             other => panic!("expected a Problem, got {other:?}"),
         }
 
-        system.set_end(ShellEnd::WaitFailed);
+        system.finish_shell(crate::tests::support::Exit::Error);
         let (sender, messages) = channel();
         perform(
             &Command {
@@ -218,8 +218,8 @@ mod tests {
 
     #[test]
     fn a_system_error_at_the_start_is_an_error_of_perform() {
-        let system = System::default();
-        system.fail(Fault::Code("shell"));
+        let system = Fake::default();
+        system.fail(Some("shell"));
         let sender = None;
         let error = perform(
             &Command {

@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 #[path = "../tests/support/mod.rs"]
-mod support;
+pub(crate) mod support;
 use support::*;
 
 mod audio;

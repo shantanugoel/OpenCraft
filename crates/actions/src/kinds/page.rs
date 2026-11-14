@@ -27,6 +27,22 @@ const NAME: &str = "Change the page";
 /// numbers from 1.
 pub(crate) const PAGE_LIMIT: i64 = 100;
 
+/// The lowest page number and the default of the field "Page number".
+const PAGE_MIN: i64 = 1;
+
+/// The stored names of the targets.
+const NEXT: &str = "next";
+const PREVIOUS: &str = "previous";
+const NUMBER: &str = "number";
+
+/// The targets in form order: the stored name and the label. The first is
+/// the default. The description and [`read`] both use this table.
+const TARGETS: [(&str, &str); 3] = [
+    (NEXT, "Next page"),
+    (PREVIOUS, "Previous page"),
+    (NUMBER, "Page number"),
+];
+
 /// The registry value for this kind.
 pub(crate) static KIND: PageKind = PageKind;
 
@@ -70,26 +86,22 @@ pub(crate) fn description() -> KindDescription {
             field_with_default(
                 "target",
                 "Page",
-                choice(&[
-                    ("next", "Next page"),
-                    ("previous", "Previous page"),
-                    ("number", "Page number"),
-                ]),
-                Value::Text("next".into()),
+                choice(&TARGETS),
+                Value::Text(TARGETS[0].0.into()),
             ),
             field_with_default(
                 "page",
                 "Page number",
                 InputType::Integer {
-                    min: 1,
+                    min: PAGE_MIN,
                     max: PAGE_LIMIT,
                 },
-                Value::Integer(1),
+                Value::Integer(PAGE_MIN),
             ),
             // Off in an old profile: the key keeps its own title.
             field("show_number", "Show the page number", InputType::Toggle),
         ],
-        shown_when: vec![ShownWhen::new("page", "target", &["number"])],
+        shown_when: vec![ShownWhen::new("page", "target", &[NUMBER])],
         ..KindDescription::default()
     }
 }
@@ -97,16 +109,16 @@ pub(crate) fn description() -> KindDescription {
 /// Read the settings. The error is the text for the user.
 pub(crate) fn read(settings: &Settings) -> Result<PageTarget, String> {
     let target = match settings.get("target") {
-        None => "next",
+        None => TARGETS[0].0,
         Some(Value::Text(target)) => target.as_str(),
         Some(_) => "",
     };
     match target {
-        "next" => Ok(PageTarget::Next),
-        "previous" => Ok(PageTarget::Previous),
-        "number" => match settings.get("page") {
-            None => Ok(PageTarget::Number(0)),
-            Some(Value::Integer(page)) if (1..=PAGE_LIMIT).contains(page) => {
+        NEXT => Ok(PageTarget::Next),
+        PREVIOUS => Ok(PageTarget::Previous),
+        NUMBER => match settings.get("page") {
+            None => Ok(PageTarget::Number(PAGE_MIN as usize - 1)),
+            Some(Value::Integer(page)) if (PAGE_MIN..=PAGE_LIMIT).contains(page) => {
                 Ok(PageTarget::Number(*page as usize - 1))
             }
             Some(_) => Err(setting_problem(ID, "page")),
@@ -131,8 +143,8 @@ fn label(page: usize) -> Feedback {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::System;
     use crate::kinds::values;
+    use crate::tests::support::Fake;
     use opencraft_engine::{BindingId, ControlId, ControlKind, GestureKind};
     use std::sync::mpsc;
 
@@ -237,7 +249,7 @@ mod tests {
 
     #[test]
     fn a_push_asks_the_engine_and_a_bad_setting_asks_for_nothing() {
-        let system = System::default();
+        let system = Fake::default();
         let (sender, messages) = mpsc::channel();
         let sender = Some(sender);
         let work = Work::new(&system, &sender);
@@ -261,7 +273,7 @@ mod tests {
 
     #[test]
     fn a_key_shows_its_page_number_from_one_only_when_the_setting_is_on() {
-        let system = System::default();
+        let system = Fake::default();
         let (sender, messages) = mpsc::channel();
         let sender = Some(sender);
         for page in [0, 1, 99] {

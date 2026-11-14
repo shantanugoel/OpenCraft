@@ -220,3 +220,38 @@ fn a_new_mouse_event_on_a_knob_stores_the_step_and_not_the_hidden_button() {
         }
     }
 }
+
+#[gpui_kit::test]
+fn select_a_profile_shows_the_profile_only_for_a_profile(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = window(cx);
+    show(
+        cx,
+        &tx,
+        Action {
+            kind: "opencraft.profile".into(),
+            settings: Settings::from([
+                ("target".into(), Value::Text("profile".into())),
+                ("profile".into(), Value::Text("Work".into())),
+            ]),
+        },
+    );
+    assert!(cx.debug_bounds("field-1").is_some(), "A profile shows it");
+    // The choices are "A profile", "Next profile", and "Previous profile".
+    click(cx, "choice-0");
+    click(cx, "choice-0-1");
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&binding(Action {
+            kind: "opencraft.profile".into(),
+            settings: Settings::from([("target".into(), Value::Text("next".into()))]),
+        }))
+    );
+    assert!(
+        cx.debug_bounds("field-1").is_none(),
+        "Next profile does not show the profile"
+    );
+    assert!(cx.debug_bounds("field-2").is_some(), "The page stays");
+    click(cx, "choice-0");
+    click(cx, "choice-0-0");
+    assert!(cx.debug_bounds("field-1").is_some());
+}

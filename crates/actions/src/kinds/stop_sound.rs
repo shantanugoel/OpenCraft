@@ -53,8 +53,8 @@ pub(crate) fn perform(work: &Work<'_>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::values;
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::Value;
 
     #[test]
@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn a_push_stops_the_sounds_and_ignores_a_stored_setting() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         KIND.invoke(
             &values(&[("file", Value::Integer(1))]),
@@ -85,8 +85,8 @@ mod tests {
 
     #[test]
     fn a_failed_stop_is_a_problem() {
-        let system = System::default();
-        system.fail(Fault::Code("stop-sounds"));
+        let system = Fake::default();
+        system.fail(Some("stop-sounds"));
         let sender = None;
         assert_eq!(
             KIND.invoke(&Settings::new(), &Work::new(&system, &sender))

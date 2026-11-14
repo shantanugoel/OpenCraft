@@ -554,7 +554,7 @@ The action selects a profile. The device then shows that profile.
 | Setting | What to give |
 |---|---|
 | Select | A profile, Next profile, or Previous profile. The default is A profile. |
-| Profile | The profile. OpenCraft shows your profiles. It keeps the profile, so a new name does not break the key. OpenCraft reads this setting when Select is A profile. |
+| Profile | The profile. OpenCraft shows your profiles. It keeps the profile, so a new name does not break the key. OpenCraft shows this setting only when Select is A profile. |
 | Page | 0, the default, shows the first page of the profile. A number from 1 shows that page. Page 1 is the first page in the list. |
 
 - Next profile selects the next profile in the list. After the last profile,

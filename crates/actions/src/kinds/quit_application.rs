@@ -83,11 +83,11 @@ pub(crate) fn perform(quit: &Quit, work: &Work<'_>) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::descriptions::setting_problem;
-    use crate::kinds::recording::{Call, Fault, System};
     use crate::kinds::{assert_system_kind, values, Work};
+    use crate::tests::support::{Call, Fake};
     use opencraft_engine::{Settings, Value};
 
-    fn run(quit: &Quit, system: &System) -> Result<(), String> {
+    fn run(quit: &Quit, system: &Fake) -> Result<(), String> {
         let sender = None;
         perform(quit, &Work::new(system, &sender))
     }
@@ -132,13 +132,13 @@ mod tests {
             read(&values(&[
                 (
                     "application",
-                    Value::Text(" /System/Applications/Calculator.app ".into()),
+                    Value::Text(" /Fake/Applications/Calculator.app ".into()),
                 ),
                 ("force", Value::Boolean(true)),
             ]))
             .unwrap(),
             Quit {
-                application: "/System/Applications/Calculator.app".into(),
+                application: "/Fake/Applications/Calculator.app".into(),
                 force: true,
             }
         );
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn a_bad_read_does_no_work() {
-        let system = System::default();
+        let system = Fake::default();
         let sender = None;
         let error = KIND
             .invoke(&Settings::new(), &Work::new(&system, &sender))
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn perform_quits_the_application_and_reports_a_system_error() {
-        let system = System::default();
+        let system = Fake::default();
         run(
             &Quit {
                 application: "Calculator".into(),
@@ -194,7 +194,7 @@ mod tests {
         .unwrap();
         run(
             &Quit {
-                application: "/System/Applications/Calculator.app".into(),
+                application: "/Fake/Applications/Calculator.app".into(),
                 force: true,
             },
             &system,
@@ -204,10 +204,12 @@ mod tests {
             system.calls(),
             [
                 Call::Quit("Calculator".into(), false),
-                Call::Quit("/System/Applications/Calculator.app".into(), true),
+                Call::Quit("/Fake/Applications/Calculator.app".into(), true),
             ]
         );
-        system.fail(Fault::NotRunning);
+        system
+            .not_running
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         assert_eq!(
             run(
                 &Quit {
@@ -219,7 +221,7 @@ mod tests {
             .unwrap_err(),
             "Cannot quit the application: it does not run."
         );
-        system.fail(Fault::Code("quit"));
+        system.fail(Some("quit"));
         assert_eq!(
             run(
                 &Quit {
