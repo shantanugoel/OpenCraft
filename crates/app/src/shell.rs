@@ -575,7 +575,7 @@ impl Shell {
             profiles: state.profiles.clone(),
             profile: state.profile.clone(),
             pages: state.pages.clone(),
-            page: state.page,
+            page: state.location.page,
             follow_front: state.follow_front,
             brightness: state.device_settings.as_ref().map(|s| Brightness {
                 value: s.brightness,
@@ -1243,10 +1243,12 @@ mod tests {
         f.events
             .try_send(Event::Pages {
                 names: vec!["Main".into(), "Mail".into()],
-                active: 1,
+                location: opencraft_engine::Location {
+                    page: 1,
+                    open: Vec::new(),
+                },
                 first: 0,
                 folders: Vec::new(),
-                open: Vec::new(),
             })
             .unwrap();
         f.events
@@ -1308,10 +1310,9 @@ mod tests {
         f.events
             .try_send(Event::Pages {
                 names: vec!["Main".into(), "Mail".into()],
-                active: 0,
+                location: opencraft_engine::Location::default(),
                 first: 0,
                 folders: Vec::new(),
-                open: Vec::new(),
             })
             .unwrap();
         cx.run_until_parked();

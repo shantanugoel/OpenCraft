@@ -112,7 +112,10 @@ impl DeviceView {
         // A folder is not a page of the cycle, so the copy cannot go to
         // every page (decision 0036).
         if all_pages {
-            items.push((ClipboardItem::CopyToAllPages, self.state.open.is_empty()));
+            items.push((
+                ClipboardItem::CopyToAllPages,
+                self.state.location.folder().is_none(),
+            ));
         }
         items
     }
@@ -154,11 +157,14 @@ impl DeviceView {
                 view.clipboard(ClipboardItem::Copy, window, cx)
             }))
         })
-        .when(control.is_some() && self.state.open.is_empty(), |d| {
-            d.on_action(cx.listener(|view, _: &CopyToAllPages, window, cx| {
-                view.clipboard(ClipboardItem::CopyToAllPages, window, cx)
-            }))
-        })
+        .when(
+            control.is_some() && self.state.location.folder().is_none(),
+            |d| {
+                d.on_action(cx.listener(|view, _: &CopyToAllPages, window, cx| {
+                    view.clipboard(ClipboardItem::CopyToAllPages, window, cx)
+                }))
+            },
+        )
         .when(control.is_some_and(|c| self.can_paste(c)), |d| {
             d.on_action(cx.listener(|view, _: &Paste, window, cx| {
                 view.clipboard(ClipboardItem::Paste, window, cx)

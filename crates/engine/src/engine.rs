@@ -633,11 +633,13 @@ pub enum Event {
     /// engine sends it after the first [`Event::Profiles`] at the start,
     /// and after each change of the setting.
     FollowFrontApplication(bool),
-    /// The names of the pages in their order, the number of the active
-    /// page, and the number of the first page of the profile (see
-    /// [`Profile::first_page`]). Page numbers start at 0. `folders` is the
-    /// folders of the profile, and `open` is the open folders (decision
-    /// 0036).
+    /// The names of the pages in their order, the location (the number of
+    /// the active page and the open folders), and the number of the first
+    /// page of the profile (see [`Profile::first_page`]). Page numbers start
+    /// at 0. `folders` is the folders of the profile (decision 0036).
+    ///
+    /// A shell uses `location` to name the binding of a control: see
+    /// [`Location::binding_id`]. A shell has no copy of the folder rule.
     ///
     /// The engine sends this event at the start and after each change of
     /// the pages, the folders, or the location. When a shell gets it, the
@@ -652,10 +654,9 @@ pub enum Event {
     /// [`Event::Profiles`] comes between the surfaces and this event.
     Pages {
         names: Vec<String>,
-        active: usize,
+        location: Location,
         first: usize,
         folders: Vec<FolderEntry>,
-        open: Vec<FolderId>,
     },
     /// A binding of the active page: after each [`Event::Pages`], and after
     /// a change of the binding. An unavailable kind stays. A state with no
@@ -1124,15 +1125,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 name: folder.page.name.clone(),
             })
             .collect();
-        let open = self.location.open.clone();
         // The entry of the active profile follows the pages.
         self.update_entry();
         (self.sink)(Event::Pages {
             names,
-            active: self.location.page,
+            location: self.location.clone(),
             first: self.profile.first_page(),
             folders,
-            open,
         });
         for (binding, action) in self.location.bindings(&self.profile) {
             self.binding_event(binding, Some(action));

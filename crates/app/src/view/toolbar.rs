@@ -134,7 +134,7 @@ impl DeviceView {
         let title = if pages.is_empty() {
             "OpenCraft".to_string()
         } else {
-            page_title(pages, self.state.page)
+            page_title(pages, self.state.location.page)
         };
         let line = profile
             .filter(|_| !pages.is_empty())

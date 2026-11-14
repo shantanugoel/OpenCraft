@@ -1125,12 +1125,7 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let binding = BindingId {
-            page: self.state.page,
-            control,
-            gesture,
-            folder: self.state.folder_of(control),
-        };
+        let binding = self.state.location.binding_id(control, gesture);
         let menu = Menu::Card(gesture);
         let current = self.state.bindings.get(&binding);
         let toggle = menu.clone();

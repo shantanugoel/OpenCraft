@@ -104,12 +104,7 @@ pub(super) fn turn_actions(
 
 impl DeviceView {
     fn turn_binding(&self, control: ControlId, gesture: GestureKind) -> BindingId {
-        BindingId {
-            page: self.state.page,
-            control,
-            gesture,
-            folder: self.state.folder_of(control),
-        }
+        self.state.location.binding_id(control, gesture)
     }
 
     /// The pair of the turn bindings of `control`, with the edits in

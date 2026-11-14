@@ -2,7 +2,7 @@
 //! handler to select a page. The tests use the fake transport and no thread.
 
 use super::*;
-use opencraft_engine::{EngineRequest, Page, PageTarget};
+use opencraft_engine::{EngineRequest, Location, Page, PageTarget};
 
 const KIND: &str = "test.pages";
 
@@ -40,10 +40,12 @@ fn rig_with(pages: Vec<Page>) -> (Rig, mpsc::Receiver<Request>) {
 fn pages(names: &[&str], active: usize) -> Event {
     Event::Pages {
         names: names.iter().map(|n| n.to_string()).collect(),
-        active,
+        location: Location {
+            page: active,
+            open: Vec::new(),
+        },
         first: 0,
         folders: Vec::new(),
-        open: Vec::new(),
     }
 }
 

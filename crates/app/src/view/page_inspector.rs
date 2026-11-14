@@ -115,15 +115,13 @@ impl DeviceView {
         let changed = match event {
             Event::Pages {
                 names,
-                active,
+                location,
                 folders,
-                open,
                 ..
             } => {
                 *names != self.state.pages
-                    || *active != self.state.page
+                    || *location != self.state.location
                     || folders != &self.state.folders
-                    || open != &self.state.open
             }
             Event::Profiles { active, .. } => self.state.profile.as_ref() != Some(active),
             _ => false,
@@ -141,21 +139,21 @@ impl DeviceView {
 
     /// The name the inspector field shows: the open folder, or the page.
     fn inspector_name(&self) -> String {
-        if let Some(id) = self.state.open.last().copied() {
+        if let Some(id) = self.state.location.folder() {
             return self.folder_name(id).unwrap_or("").to_string();
         }
         if self.state.pages.is_empty() {
             String::new()
         } else {
-            page_title(&self.state.pages, self.state.page)
+            page_title(&self.state.pages, self.state.location.page)
         }
     }
 
     /// The page or the folder that a focus of the name field edits.
     fn inspector_name_target(&self) -> NameTarget {
-        match self.state.open.last().copied() {
+        match self.state.location.folder() {
             Some(id) => NameTarget::Folder(id),
-            None => NameTarget::Page(self.state.page),
+            None => NameTarget::Page(self.state.location.page),
         }
     }
 
@@ -183,7 +181,7 @@ impl DeviceView {
         // shows its number: that text is no new name.
         match target {
             NameTarget::Page(page)
-                if page == self.state.page
+                if page == self.state.location.page
                     && !name.is_empty()
                     && name != page_title(&self.state.pages, page) =>
             {
@@ -226,7 +224,7 @@ impl DeviceView {
     ) {
         self.save_page_name(window, cx);
         self.focus_workspace(window, cx);
-        let page = self.state.page;
+        let page = self.state.location.page;
         if page < self.state.pages.len() {
             command(self, page, window, cx);
         }
@@ -242,11 +240,11 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        if self.state.open.last().is_some() {
+        if self.state.location.folder().is_some() {
             return self.folder_inspector(editor, window, cx);
         }
         let names = &self.state.pages;
-        let page = self.state.page;
+        let page = self.state.location.page;
         let title = page_title(names, page);
         let profile = self
             .state
@@ -348,7 +346,7 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        let Some(id) = self.state.open.last().copied() else {
+        let Some(id) = self.state.location.folder() else {
             return editor;
         };
         let name = self.folder_name(id).unwrap_or("").to_string();
@@ -359,7 +357,7 @@ impl DeviceView {
             .and_then(|profile| self.profile(profile))
             .map(|profile| profile.name.clone())
             .unwrap_or_default();
-        let page_name = page_title(&self.state.pages, self.state.page);
+        let page_name = page_title(&self.state.pages, self.state.location.page);
         let mut help =
             format!("The knobs, the touch bar and the background are those of page “{page_name}”.");
         if !self.location_has_back() {
@@ -393,7 +391,7 @@ impl DeviceView {
 
     /// The "Folder" section: the name, the order, "Duplicate", and "Remove…".
     fn folder_section(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let id = self.state.open.last().copied();
+        let id = self.state.location.folder();
         let index = id.and_then(|id| self.folder_index(id));
         let count = self.state.folders.len();
         let up = index.is_some_and(|index| index > 0);
@@ -526,7 +524,7 @@ impl DeviceView {
     ) {
         self.save_page_name(window, cx);
         self.focus_workspace(window, cx);
-        let Some(id) = self.state.open.last().copied() else {
+        let Some(id) = self.state.location.folder() else {
             return;
         };
         command(self, id, window, cx);
@@ -535,7 +533,7 @@ impl DeviceView {
 
     /// The "Page" section: the name, the order, "Duplicate", and "Remove…".
     fn page_section(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let page = self.state.page;
+        let page = self.state.location.page;
         let count = self.state.pages.len();
         let up = page > 0;
         let down = page + 1 < count;
@@ -681,7 +679,7 @@ impl DeviceView {
     /// Give the active page the background colour `color`. The "Colour"
     /// samples call this through `pick_colour`.
     pub(super) fn set_background_colour(&mut self, color: Color) {
-        let page = self.state.page;
+        let page = self.state.location.page;
         if page < self.state.pages.len() {
             (self.send)(Command::SetBackground {
                 page,
@@ -706,7 +704,7 @@ impl DeviceView {
             self.page_inspector.background_mode = None;
             if current != BackgroundMode::None {
                 (self.send)(Command::SetBackground {
-                    page: self.state.page,
+                    page: self.state.location.page,
                     background: None,
                 });
             }
@@ -728,7 +726,7 @@ impl DeviceView {
     fn background_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.close_kinds();
         self.focus_workspace(window, cx);
-        let page = self.state.page;
+        let page = self.state.location.page;
         let epoch = self.state.epoch;
         let fit = self.background_fit();
         let paths = cx.prompt_for_paths(PathPromptOptions {
@@ -937,7 +935,7 @@ impl DeviceView {
                             view.focus_workspace(window, cx);
                             if item != view.background_fit() {
                                 (view.send)(Command::SetBackgroundFit {
-                                    page: view.state.page,
+                                    page: view.state.location.page,
                                     fit: item,
                                 });
                             }

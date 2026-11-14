@@ -160,10 +160,12 @@ fn a_restored_selection_fills_the_fields_and_lets_the_recorder_save(cx: &mut Tes
     state.apply(
         Event::Pages {
             names: vec!["Main".into()],
-            active: 0,
+            location: opencraft_engine::Location {
+                page: 0,
+                open: Vec::new(),
+            },
             first: 0,
             folders: Vec::new(),
-            open: Vec::new(),
         },
         now,
     );
