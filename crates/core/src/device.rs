@@ -312,10 +312,6 @@ pub struct Descriptor {
     pub packet_size: usize,
     pub surfaces: &'static [Surface],
     pub controls: &'static [Control],
-    /// Some rebrands need an explicit mode switch before they accept commands.
-    /// No code reads this field now: the start sequence sends no `MOD`. See
-    /// issue #155.
-    pub required_mode: Option<u8>,
     /// The device settings that the model has. See [`SettingsSupport`].
     pub settings: SettingsSupport,
 }
@@ -538,7 +534,6 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         packet_size: protocol::PACKET_SIZE,
         surfaces: N4PRO_SURFACES,
         controls: N4PRO_CONTROLS,
-        required_mode: None,
         settings: N4PRO_SETTINGS,
     },
     // Not tested on hardware. The same data as 0x1023.
@@ -550,7 +545,6 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         packet_size: protocol::PACKET_SIZE,
         surfaces: N4PRO_SURFACES,
         controls: N4PRO_CONTROLS,
-        required_mode: None,
         settings: N4PRO_SETTINGS,
     },
     // Not tested on hardware. The same data as 0x1023.
@@ -562,7 +556,6 @@ pub static DESCRIPTORS: &[Descriptor] = &[
         packet_size: protocol::PACKET_SIZE,
         surfaces: N4PRO_SURFACES,
         controls: N4PRO_CONTROLS,
-        required_mode: None,
         settings: N4PRO_SETTINGS,
     },
 ];

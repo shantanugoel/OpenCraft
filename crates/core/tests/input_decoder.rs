@@ -718,7 +718,6 @@ static INVENTED: Descriptor = Descriptor {
     packet_size: 512,
     surfaces: INVENTED_SURFACES,
     controls: INVENTED_CONTROLS,
-    required_mode: None,
     settings: opencraft_core::SettingsSupport {
         lowest_brightness: 0,
         knob_lights: 0,

@@ -609,7 +609,6 @@ mod tests {
             packet_size: 32,
             surfaces: SURFACES,
             controls: &[],
-            required_mode: None,
             settings: crate::device::SettingsSupport {
                 lowest_brightness: 0,
                 knob_lights: 0,

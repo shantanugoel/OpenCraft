@@ -1,6 +1,6 @@
 # StreamDock USB protocol, version 3
 
-Last update: 2026-11-12
+Last update: 2026-11-14
 
 This entry gives the protocol that the N4 Pro family uses. The device facts are
 in [n4-pro-hardware.md](n4-pro-hardware.md). The code is in `crates/core/src/`.
@@ -43,7 +43,7 @@ to our device. How the camera measurements were made is in
 | Sleep | `HAN` | None | Measured: camera, 2026-11-11 and 2026-11-12. See "Sleep". |
 | Disconnected | `CLE` | `0x00 0x00`, `"DC"` | Measured: camera, 2026-11-11 and 2026-11-12. See "Keep-alive and stop". |
 | Keep-alive | `CONNECT` | None | Measured. See "Keep-alive and stop". |
-| Set the firmware mode | `MOD` | `0x00 0x00`, ASCII digit | Source: not sent |
+| Set the mode | `MOD` | `0x00 0x00`, ASCII digit | Source: `mirajazz` `set_mode`. Not sent to our device. See "Start sequence". |
 | Device configuration, which includes the haptic feedback | `QUCMD` | 6 bytes, one for each setting | Measured: sent, 2026-11-12. See "Device configuration". |
 
 The clear command needs 3 zero bytes before the slot. With 2 zero bytes, the
@@ -284,6 +284,16 @@ pause of 150 ms after `DIS`. A test program then sent the sequence and 14
 images with no pause, on 5 new connections. The writes took 30 to 49 ms, and
 a camera saw all 14 images each time. (Measured: camera, 2026-11-11)
 
+`MOD` is not part of this sequence. We read the sources again on 2026-11-14.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The vendor SDK names `transport_change_mode` an N1 mode switch. The classes of the N4 and the N4 Pro do not call it. | Source | SDK commit `fc124cb`: `transport_c.h`, `streamdockN4.cpp`, `streamdockN4Pro.cpp` |
+| The Python class `StreamDockN1` calls `switchMode(2)` at the end of `open`. It makes no pause after that call. | Source | SDK, `StreamDockN1.py`, `open` |
+| `mirajazz` 0.16.3 has `set_mode` for a device that has more than one mode. The N1 example sends the mode, waits 50 ms, then sends the brightness and the clear. The example does not send `DIS`. | Source | `src/device.rs`, `examples/n1.rs`, CHANGELOG 0.7.0 |
+| These sources do not give a position for `MOD` in the start sequence, and they do not give a pause for that sequence. | Inference | The three rows above |
+| The probe option `--mode` of `test` sends `MOD` before `Device::start`, then waits 300 ms. `Device::start` does not send `MOD`. | Measured | `crates/cli/src/main.rs`, `crates/core/src/connection.rs` |
+
 ## Keep-alive and stop
 
 All rows are measured on 2026-11-11, with no person at the device. A test
@@ -494,7 +504,7 @@ Phase 1 did not answer these questions. Each question has a reason.
 | The largest JPEG that the device accepts for `BGPIC` | The device showed a file of 1 191 260 bytes. A background of 800 × 480 at a useful quality is much smaller. |
 | Whether an interval of exactly 15 seconds between two keep-alive commands keeps the connection | The device layer uses 10 seconds, as the vendor SDK does. 14 seconds is measured. No design needs a longer interval. |
 | What the layer argument of `BGPIC` does. Each value gave the same result. | The device layer sends layer 0 for a full background, as the SDK does. No feature needs a different layer. |
-| What `MOD` does. No program sent it to our device. | Our device operates without `MOD`. |
+| What `MOD` does on the N4 Pro. No program sent it to our device. | The sources use `MOD` for the N1. The N4 Pro operates with no `MOD`. |
 | Whether the device keeps the `QUCMD` configuration after the cable is disconnected | It needs a person. OpenCraft sends the command at each connection. |
 | What bytes 0, 2, 4, and 5 of `QUCMD` do, and what the value `0x00` does | OpenCraft sends the bytes of `mirajazz` for them. No feature needs them. Byte 2 (`CheckUsbPower`) and byte 4 (`ResetUsbReport`) can possibly change the USB behaviour, so do not test other values without a reason. |
 | Which commands VSD Craft sends when it quits | `DC` and `HAN` give the same dark state. See [decision 0022](../decisions/0022-device-settings-and-stop-state.md). |
@@ -514,8 +524,12 @@ Phase 1 did not answer these questions. Each question has a reason.
     (x86-64). We read it with `objdump`.
   - On 2026-11-12: `CPP-SDK/src/HotspotDevice/StreamDockN4Pro/streamdockN4Pro.h`
     and `CPP-SDK/src/DeviceInfo/streamdockconfigcmd.h`
+  - On 2026-11-14: `transport_change_mode` in `transport_c.h`,
+    `Python-SDK/src/StreamDock/Devices/StreamDockN1.py` (`open`),
+    `StreamDockN4.py`, `streamdockN4.cpp`, and `streamdockN4Pro.cpp`
 - `mirajazz` (MPL-2.0): <https://github.com/4ndv/mirajazz>. On 2026-11-12 we
-  read version 0.16.3, `src/device.rs`.
+  read version 0.16.3, `src/device.rs`. On 2026-11-14 we read `set_mode`,
+  `examples/n1.rs`, and CHANGELOG 0.7.0 in the same version.
 - `opendeck-akp05`: <https://github.com/ambiso/opendeck-akp05>. On 2026-11-12
   we read version 0.11.1, `src/device.rs`, `src/config.rs`, and
   `src/mappings.rs`.

@@ -104,7 +104,6 @@ pub static TEST_MODEL: Descriptor = Descriptor {
     packet_size: protocol::PACKET_SIZE,
     surfaces: SURFACES,
     controls: CONTROLS,
-    required_mode: None,
     settings: SettingsSupport {
         lowest_brightness: 0,
         knob_lights: 1,

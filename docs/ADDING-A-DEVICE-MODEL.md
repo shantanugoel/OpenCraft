@@ -192,7 +192,6 @@ N4 Pro entry as the example. Do not write a check for the model in other code.
 | `controls[].position` | The row and the column among the controls of the same kind. Row 1 is the top row. | key 6: row 2, column 1 |
 | `controls[].surface` | The surface of the control, if it has a display | key 1: key face 1 |
 | `controls[].feedback_surface` | The surface that shows feedback for a control with no display. See [decision 0013](decisions/0013-action-feedback-on-a-surface.md). | knob 1: bar panel 1 |
-| `required_mode` | Not used. See [Limits](#limits). | `None` |
 | `settings.lowest_brightness` | The lowest brightness value that changes the light | `15` |
 | `settings.knob_lights` | The number of knob lights, knob 1 first. 0: none. | `4` |
 | `settings.haptic` | True if the model has haptic feedback | `true` |
@@ -283,7 +282,6 @@ tests do not find them. Each limit has an issue, or it says when to make one.
 
 | Limit | Where | Issue |
 |---|---|---|
-| The descriptor field `required_mode` has no effect. No code sends `MOD` at the start. | `crates/core/src/device.rs`, `connection.rs` | [#155](https://github.com/shantanugoel/OpenCraft/issues/155) |
 | Before a device connects, the engine shows the layout and the profiles of the first descriptor, the N4 Pro. When the device connects, the engine changes to the correct model. | `crates/engine/src/runtime.rs` | [#156](https://github.com/shantanugoel/OpenCraft/issues/156) |
 | `opencraft-probe record` has the steps of the N4 Pro only. Use `raw`. | `crates/cli/src/record.rs`, `scripts/record-input.sh` | [#157](https://github.com/shantanugoel/OpenCraft/issues/157) |
 | The window shows no element for a control that has no surface, other than a knob and the touch bar. The window puts the knobs in one row below the display. | `crates/app/src/view.rs` | [#158](https://github.com/shantanugoel/OpenCraft/issues/158) |
