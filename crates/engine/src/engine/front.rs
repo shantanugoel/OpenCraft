@@ -46,14 +46,19 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             } else if self.is_profile(&target) && self.save_before_leaving() {
                 self.cause = cause.clone();
                 // The clock starts after the save of the old profile, and
-                // stops after the device writes of the new profile.
+                // stops when the change of the profile returns: after the
+                // device writes, the events, and the write of `state.toml`.
+                // Only a measurement writes the line (`switch_trace`).
                 self.last_written = 0;
                 let started = std::time::Instant::now();
                 self.change_profile(target.clone(), None);
-                if self.link.is_connected() && self.power.state == crate::power::DisplayState::Awake
+                if self.switch_trace
+                    && self.link.is_connected()
+                    && self.power.state == crate::power::DisplayState::Awake
                 {
                     super::log(&format!(
-                        "front application: the profile is on the device after {} ms, {} images",
+                        "switch-trace front application: the profile is on the device after \
+                         {} ms, {} images",
                         started.elapsed().as_millis(),
                         self.last_written
                     ));
@@ -87,14 +92,25 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             bundle_id: link.bundle_id,
             name,
         };
-        if self
+        self.assign_clashes();
+        let has = self
             .profile_links(&profile)
             .iter()
-            .any(|each| same_bundle(&each.bundle_id, &link.bundle_id))
-        {
+            .any(|each| same_bundle(&each.bundle_id, &link.bundle_id));
+        // A link of the profile in `clashes` does not apply: a profile before
+        // it has the same application. The command moves the link to the
+        // profile that the user names, as for a link that it does not have.
+        let clashing = self.entries.iter().any(|entry| {
+            entry.id == profile
+                && entry
+                    .clashes
+                    .iter()
+                    .any(|clash| same_bundle(clash, &link.bundle_id))
+        });
+        if has && !clashing {
             return;
         }
-        if self.profile_links(&profile).len() >= MAX_LINKS {
+        if !has && self.profile_links(&profile).len() >= MAX_LINKS {
             self.problem(
                 "OpenCraft did not add the link, because a profile can have 32 links.".to_string(),
             );
@@ -112,10 +128,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             })
             .map(|entry| entry.id.clone())
             .collect();
-        let mut links = self.profile_links(&profile);
-        links.push(link.clone());
-        if !self.write_links(&profile, links) {
-            return;
+        if !has {
+            let mut links = self.profile_links(&profile);
+            links.push(link.clone());
+            if !self.write_links(&profile, links) {
+                return;
+            }
         }
         for owner in owners {
             let mut links = self.profile_links(&owner);
@@ -146,7 +164,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !self.entries.iter().any(|entry| entry.id == profile) {
             self.problem(format!(
                 "OpenCraft did not change the default profile, because no profile has the \
-                 identity '{profile}'."
+                 identity “{profile}”."
             ));
             return;
         }

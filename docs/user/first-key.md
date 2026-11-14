@@ -197,9 +197,12 @@ You can undo each change to the pages of the profile, and then do it again.
   fill, the icon and its colour, the image, the actions, the background of
   a page, the add, rename, move, duplicate, and removal of a page, and
   **Paste**, **Clear**, and **Copy to All Pages**.
-- The undo does not cover the profiles and the device settings. When you
-  select a different profile, or when you quit OpenCraft, the list of changes
-  becomes empty.
+- The undo does not cover the profiles and the device settings.
+- Each profile keeps its own list of changes until you quit OpenCraft. When
+  you select a different profile, or when the profile changes with the front
+  application, the list of that profile shows. When you go back, the list of
+  the first profile comes back. OpenCraft keeps the lists of the last 8
+  profiles that you left. When you remove a profile, its list goes away.
 
 ## Copy a key to a different key
 

@@ -25,11 +25,22 @@ so a switch writes 14 images.
 
 The shell writes `opencraft-shell` and the Unix time when it reads
 `NSWorkspaceDidActivateApplicationNotification`. The engine writes a second
-line after the function that selects the new profile returns. That function
-renders the images, writes them, and sends the commit. The clock in the
-engine line starts after the save of the old profile. The time of the switch
-is the difference of the two Unix times. The engine number is part of that
-interval: it leaves out the save and the time on the channel.
+line after `change_profile_at` returns. That function renders the images,
+writes them, sends the commit, sends the events to the shell, and writes
+`state.toml`. Thus the interval ends after the commit, the events, and the
+write of `state.toml`. The clock in the engine line starts after the save of
+the old profile. The time of the switch is the difference of the two Unix
+times. The engine number is part of that interval: it leaves out the save
+and the time on the channel.
+
+The two lines come only when the environment variable
+`OPENCRAFT_SWITCH_TRACE` is set (issue
+[#349](https://github.com/shantanugoel/OpenCraft/issues/349)). Both lines
+contain `switch-trace`. The run of this measurement was before that change,
+and wrote the lines with no variable. A normal run writes no line for a
+change of the front application, because the log file rotates only at the
+start of the process. To measure again, start the binary with
+`OPENCRAFT_SWITCH_TRACE=1` and a scratch `OPENCRAFT_PROFILES_DIR`.
 
 The idle sample is the cumulative processor time from `ps -p`, before and
 after 60 seconds. The sample started 10 seconds after the engine logged
@@ -40,12 +51,12 @@ not used, so the installed application stayed stopped a short time.
 | Fact | Confidence | Source |
 |---|---|---|
 | The three switches took 33 ms, 32 ms, and 43 ms from the notice line to the engine line. Each switch wrote 14 images and the commit. The order was Calculator, TextEdit, and Preview. | Measured | The two log lines, one run, real N4 Pro, display awake, 2026-11-14 |
-| Of that time, the engine used 22 ms, 24 ms, and 23 ms from the end of the save to the end of the writes. | Measured | The number in the engine line, same run |
+| Of that time, the engine used 22 ms, 24 ms, and 23 ms from the end of the save to the return of `change_profile_at`. | Measured | The number in the engine line, same run |
 | The notice at the start did not change the profile. The engine wrote no second line. | Measured | The log of the same run |
 | With `--login` and the watcher on, the process used 0.08 seconds of processor time in 60 seconds: 0.13 % of one core. | Measured | `ps -p` before and after; scratch profiles; real N4 Pro; no window |
 | The watcher is the observer of `NSWorkspaceDidActivateApplicationNotification`. It has no poll and no timer. | Source | `crates/app/src/front_app.rs` |
 | VSD Craft shows the new scene 0.47 s to 1.10 s after the change. That time includes the activation by macOS and the time until the device shows the scene. | Source | [vsd-craft.md](vsd-craft.md) |
-| The host interval of 32 ms to 43 ms ends at the commit. It is shorter than 0.47 s. The two intervals do not start and stop at the same moments. | Inference | The measured interval and the VSD Craft row |
+| The host interval of 32 ms to 43 ms ends after the commit, the events, and the write of `state.toml`. It is shorter than 0.47 s. The two intervals do not start and stop at the same moments. | Inference | The measured interval and the VSD Craft row |
 | A full repaint shows less than 0.2 s after its first write. Added to this host interval, the time from the notice to the picture is under 0.25 s. This sum is an upper bound. A camera did not record this run. | Inference | [Repaint time](streamdock-protocol.md#repaint-time) and the measured host interval |
 | The idle result is below the target of 0.5 % of one core for this interval. | Inference | The measured 0.13 % |
 
@@ -54,7 +65,7 @@ not used, so the installed application stayed stopped a short time.
 | Target | Value | Result |
 |---|---|---|
 | Processor use when idle: less than 0.5 % of one core | 0.13 % in one interval of 60 seconds, with `--login` and no window | Met for this interval. The interval is a short check, not a run of 300 seconds. |
-| Time from an application change to the new profile on the device | 32 ms to 43 ms from the activation notice to the end of the device writes | Measured. The VSD Craft camera range is 0.47 s to 1.10 s, and that range includes the activation and the time until the device shows the scene. |
+| Time from an application change to the new profile on the device | 32 ms to 43 ms from the activation notice to the return of `change_profile_at`, after the device writes | Measured. The VSD Craft camera range is 0.47 s to 1.10 s, and that range includes the activation and the time until the device shows the scene. |
 
 ## Screen-off timer spot check (2026-11-13)
 

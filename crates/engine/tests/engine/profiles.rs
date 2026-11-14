@@ -1020,7 +1020,7 @@ fn a_handler_uses_the_identity_before_the_name_and_keeps_an_old_name() {
     assert_eq!(rig.engine.active_profile(), "gamma");
     assert_eq!(
         problems(&rig.take_events()),
-        ["OpenCraft did not change the profile, because no profile has the identity or the name 'missing'."]
+        ["OpenCraft did not change the profile, because no profile has the identity or the name “missing”."]
     );
 
     // A rename changes the name. The identity stays, and the old name does not.
@@ -1100,7 +1100,7 @@ fn a_handler_selects_a_page_and_uses_the_first_page_when_the_page_is_missing() {
     assert_eq!(rig.engine.active_page(), 2, "the first page");
     assert_eq!(
         problems(&rig.take_events()),
-        ["The profile \"Calls\" has no page 4."]
+        ["The profile “Calls” has no page 4."]
     );
 
     select_request(&mut rig, named("home"), Some(0));
@@ -1123,7 +1123,7 @@ fn a_handler_selects_a_page_and_uses_the_first_page_when_the_page_is_missing() {
     );
     assert_eq!(
         problems(&rig.take_events()),
-        ["The profile \"Calls\" has no page 10."]
+        ["The profile “Calls” has no page 10."]
     );
 
     select_request(&mut rig, named("home"), None);

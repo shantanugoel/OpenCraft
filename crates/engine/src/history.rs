@@ -1,4 +1,5 @@
-//! The undo and redo history of the active profile.
+//! The undo and redo history of the active profile, and the histories that
+//! the engine keeps for the other profiles in this session.
 //!
 //! The engine writes the profile (architecture rule 9), thus the engine
 //! keeps the history. A step keeps a copy of the pages and the folders of
@@ -9,6 +10,11 @@
 //! [`crate::engine::Command`] and
 //! `docs/decisions/0030-undo-and-redo-in-the-engine.md`. Decision 0036 adds
 //! the folders and the open folders to the step.
+//!
+//! At a change of the active profile, the engine puts the history of the
+//! old profile aside, and gives back the history of the new profile, if it
+//! has one (decision 0030, "A change of the active profile"). Thus a trip to
+//! a different application and back keeps the undo of a change.
 
 use crate::action::BindingId;
 use crate::profile::{Folder, FolderId, Page};
@@ -19,13 +25,25 @@ use opencraft_core::SurfaceId;
 /// typical profile: see decision 0030.
 pub const HISTORY_LIMIT: usize = 100;
 
+/// The largest number of profiles, other than the active profile, that keep
+/// their history. The history of the profile that the user left first goes
+/// away first. With [`HISTORY_LIMIT`], this limits the memory of the
+/// history to the copies of at most 9 × 100 steps.
+pub const KEPT_HISTORIES: usize = 8;
+
 /// What a change of a text field changes. In one text edit, a change with
 /// the same target as the last step joins that step, so that one edit of a
 /// field is one step and not one step for each character.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Target {
-    /// The label of a surface on a page.
-    Label { page: usize, surface: SurfaceId },
+    /// The label of a surface on a page, or in the open folder. `folder` is
+    /// the last open folder for a key face, and `None` for each other
+    /// surface and when no folder is open.
+    Label {
+        page: usize,
+        folder: Option<FolderId>,
+        surface: SurfaceId,
+    },
     /// The name of a page.
     PageName { page: usize },
     /// The name of a folder.
@@ -67,11 +85,24 @@ pub(crate) struct Location {
     pub open: Vec<FolderId>,
 }
 
-/// The two lists of steps, and the state of a text edit.
+/// The two lists of steps of a profile that is not active.
+#[derive(Debug)]
+struct Kept {
+    /// The identity of the profile.
+    profile: String,
+    undo: Vec<Step>,
+    redo: Vec<Step>,
+}
+
+/// The two lists of steps, the state of a text edit, and the lists of the
+/// profiles that are not active.
 #[derive(Debug, Default)]
 pub(crate) struct History {
     undo: Vec<Step>,
     redo: Vec<Step>,
+    /// The lists of other profiles, the profile that the user left last at
+    /// the end. At most [`KEPT_HISTORIES`].
+    kept: Vec<Kept>,
     /// True from [`Self::start_text_edit`] to [`Self::end_text_edit`].
     text_edit: bool,
     /// The target of the last step, if a change can join it: the step came
@@ -201,12 +232,62 @@ impl History {
         self.open = None;
     }
 
-    /// Remove all steps, for example when a different profile becomes the
-    /// active profile. The state of the text edit stays.
+    /// Remove all steps of the active profile. The state of the text edit
+    /// and the lists of the other profiles stay.
     pub fn clear(&mut self) {
         self.undo.clear();
         self.redo.clear();
         self.open = None;
+    }
+
+    /// The active profile changes from `from` to `to`. Put the lists of
+    /// `from` aside, and give back the lists of `to`, if they are kept. A
+    /// change to the same identity removes the steps: the profile with that
+    /// identity is new. The state of the text edit stays.
+    pub fn change_profile(&mut self, from: &str, to: &str) {
+        self.open = None;
+        if from == to {
+            self.clear();
+            return;
+        }
+        let undo = std::mem::take(&mut self.undo);
+        let redo = std::mem::take(&mut self.redo);
+        self.kept.retain(|kept| kept.profile != from);
+        if !undo.is_empty() || !redo.is_empty() {
+            self.kept.push(Kept {
+                profile: from.to_string(),
+                undo,
+                redo,
+            });
+            if self.kept.len() > KEPT_HISTORIES {
+                self.kept.remove(0);
+            }
+        }
+        if let Some(at) = self.kept.iter().position(|kept| kept.profile == to) {
+            let kept = self.kept.remove(at);
+            self.undo = kept.undo;
+            self.redo = kept.redo;
+        }
+    }
+
+    /// Remove the lists that are kept for `profile`, for example when the
+    /// user removes the profile, or when its file cannot be used.
+    pub fn forget(&mut self, profile: &str) {
+        self.kept.retain(|kept| kept.profile != profile);
+    }
+
+    /// The pages and the folders of each step that is kept for `profile`.
+    /// When the engine loads that profile, it keeps the images that these
+    /// copies use, so that an undo finds them.
+    pub fn kept_copies<'a>(
+        &'a self,
+        profile: &'a str,
+    ) -> impl Iterator<Item = (&'a [Page], &'a [Folder])> + 'a {
+        self.kept
+            .iter()
+            .filter(move |kept| kept.profile == profile)
+            .flat_map(|kept| kept.undo.iter().chain(&kept.redo))
+            .map(|step| (step.pages.as_slice(), step.folders.as_slice()))
     }
 }
 
@@ -373,6 +454,67 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, HISTORY_LIMIT);
+    }
+
+    #[test]
+    fn a_change_of_the_profile_keeps_the_lists_of_each_profile() {
+        let mut history = History::default();
+        let mut fake = Fake::new(pages(&["B"]), 0);
+        push(&mut history, "One", None, pages(&["A"]), 0, 0);
+        push(&mut history, "Two", None, pages(&["A"]), 0, 0);
+        history.undo(fake.swap());
+        history.change_profile("b", "a");
+        assert_eq!(history.names(), (None, None), "a has no steps");
+        push(&mut history, "Three", None, pages(&["A"]), 0, 0);
+        history.change_profile("a", "b");
+        assert_eq!(
+            history.names(),
+            (Some("One".into()), Some("Two".into())),
+            "b has its lists again"
+        );
+        history.change_profile("b", "a");
+        assert_eq!(history.names(), (Some("Three".into()), None));
+        // A change to the same identity is a new profile.
+        history.change_profile("a", "a");
+        assert_eq!(history.names(), (None, None));
+    }
+
+    #[test]
+    fn a_forgotten_profile_and_the_oldest_kept_profile_lose_their_lists() {
+        let mut history = History::default();
+        push(&mut history, "B", None, pages(&["A"]), 0, 0);
+        history.change_profile("b", "c");
+        history.forget("b");
+        history.change_profile("c", "b");
+        assert_eq!(history.names(), (None, None));
+
+        for n in 0..=KEPT_HISTORIES {
+            push(&mut history, &format!("P{n}"), None, pages(&["A"]), 0, 0);
+            history.change_profile(&format!("p{n}"), &format!("p{}", n + 1));
+        }
+        assert_eq!(history.kept.len(), KEPT_HISTORIES);
+        history.change_profile("x", "p0");
+        assert_eq!(history.names(), (None, None), "p0 was the oldest");
+        history.change_profile("p0", "p1");
+        assert_eq!(history.names().0.as_deref(), Some("P1"));
+    }
+
+    #[test]
+    fn the_kept_copies_are_those_of_one_profile() {
+        let mut history = History::default();
+        push(&mut history, "One", None, pages(&["A"]), 0, 0);
+        history.change_profile("b", "c");
+        push(&mut history, "Two", None, pages(&["C"]), 0, 0);
+        history.change_profile("c", "d");
+        let names = |profile| {
+            history
+                .kept_copies(profile)
+                .map(|(pages, _)| pages[0].name.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names("b"), ["A"]);
+        assert_eq!(names("c"), ["C"]);
+        assert!(names("d").is_empty());
     }
 
     #[test]

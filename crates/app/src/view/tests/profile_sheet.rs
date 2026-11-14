@@ -490,3 +490,73 @@ fn picker_labels(cx: &mut VisualTestContext) -> Vec<(Role, String)> {
     cx.run_until_parked();
     crate::view::controls::accessibility_log::take()
 }
+
+/// Decision 0035, section 5: before a pick moves a link, the list shows the
+/// profile that has it.
+#[gpui_kit::test]
+fn the_list_shows_the_profile_that_has_the_link_of_an_application(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = sheet_window(cx);
+    let link = |bundle_id: &str, name: &str| opencraft_engine::ApplicationLink {
+        bundle_id: bundle_id.into(),
+        name: name.into(),
+    };
+    let mut default = entry("default", "Default", &["Main", "Meetings", "Media"], 0);
+    default.applications = vec![link("com.apple.Safari", "Safari")];
+    let mut work = entry("work", "Work", &["Mail", "Calls"], 1);
+    // The link of Work is a clash: the link of Default applies.
+    work.applications = vec![
+        link("com.apple.Safari", "Safari"),
+        link("com.apple.mail", "Mail"),
+    ];
+    work.clashes = vec!["com.apple.Safari".into()];
+    send(cx, &tx, profiles(vec![default, work], "default"));
+    let application =
+        |name: &str, bundle_identifier: &str| crate::applications::InstalledApplication {
+            name: name.into(),
+            bundle_identifier: bundle_identifier.into(),
+            path: PathBuf::from(format!("/Applications/OpenCraftTest{name}.app")),
+        };
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.use_fixed_applications(
+                vec![
+                    application("Mail", "com.apple.mail"),
+                    application("Notes", "com.apple.Notes"),
+                    application("Safari", "com.apple.Safari"),
+                ],
+                cx,
+            );
+        });
+    });
+    let links =
+        |cx: &mut VisualTestContext| cx.update(|_, cx| view.read(cx).shown_application_links());
+
+    open_sheet(cx, "profile-work");
+    click(cx, "profile-add-application");
+    assert_eq!(
+        links(cx),
+        [None, None, Some("Linked to “Default”".to_string())],
+        "Mail is linked to Work itself, and Notes has no link"
+    );
+    assert!(cx.debug_bounds("app-row-linked-2").is_some());
+    assert!(cx.debug_bounds("app-row-linked-0").is_none());
+    assert!(cx.debug_bounds("app-row-linked-1").is_none());
+    click(cx, "app-row-2");
+    assert_eq!(
+        last(&sent),
+        Some(Command::LinkApplication {
+            profile: "work".into(),
+            link: link("com.apple.Safari", "Safari"),
+        })
+    );
+
+    // In the sheet of Default, Mail shows its profile Work.
+    click(cx, "profile-done");
+    assert!(!is_open(cx));
+    open_sheet(cx, "profile-default");
+    click(cx, "profile-add-application");
+    assert_eq!(
+        links(cx),
+        [Some("Linked to “Work”".to_string()), None, None]
+    );
+}

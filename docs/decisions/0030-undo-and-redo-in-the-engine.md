@@ -33,8 +33,10 @@ Later tasks of the overhaul add changes that also need undo:
 
 ### The engine keeps the history
 
-The history is in the engine, in `crates/engine/src/history.rs`. It is for
-the active profile only.
+The history is in the engine, in `crates/engine/src/history.rs`. Undo and
+redo change the active profile only. The engine keeps the history of each
+other profile until the process stops (see
+[A change of the active profile](#a-change-of-the-active-profile)).
 
 A **step** keeps a copy of all pages of the profile from before the change,
 the number of the active page before the change, the number of the active
@@ -116,20 +118,53 @@ shell tells the engine:
 
 In a text edit, a change joins the last step if the step came in the same
 text edit, no step came after it, and the change has the same target: the
-label of the same surface on the same page, the name of the same page, or
-the action of the same binding. Each other change starts a new step. If the
+label of the same surface on the same page or in the same folder, the name
+of the same page or of the same folder, or the action of the same binding.
+A key face is in the last open folder ([decision 0036](0036-folders.md)),
+thus the title of key 1 on the page and the title of key 1 in a folder are
+two targets. Each other change starts a new step. If the
 user types text and removes it again, the step goes away. Out of a text
 edit, each change is a step. Thus a click, for example on a toggle, is
 always a step of its own.
+
+### A change of the active profile
+
+Amended on 2026-11-14 (issue
+[#349](https://github.com/shantanugoel/OpenCraft/issues/349)). Before this
+change, each change of the active profile emptied both lists. With the
+automatic switch of [decision 0035](0035-front-application-selects-the-profile.md),
+a trip to a different application then lost the undo of a removal, and
+[decision 0036](0036-folders.md), section 10, needs that undo.
+
+- At each change of the active profile, the engine puts the two lists of the
+  old profile aside, with its identity. If it has lists for the new
+  profile, it gives them back. Then it sends `Event::History` with the names
+  of the lists of the new profile. This is the same for a manual selection,
+  a "Select a profile" key, and an automatic switch.
+- The engine keeps the lists of at most 8 profiles other than the active
+  profile (`KEPT_HISTORIES`). The lists of the profile that the user left
+  first go away first. Each list keeps its limit of 100 steps.
+- When the engine loads a profile, it removes the image files that the
+  profile does not use, as before. It keeps each image that a kept step of
+  that profile uses, so that an undo finds the image.
+- A profile that the user removes loses its lists. A new profile (an add, a
+  duplicate, an import, or a starter profile) has no lists, also when it
+  gets the identity of a removed profile. A profile file that the engine
+  cannot use (a backup of decision 0009) loses its lists.
+- The lists stay in memory only. A restart empties them.
+- The state of a text edit belongs to the shell, thus it does not change.
+  The next change after a change of the profile is a new step.
+- A change outside the pages of a profile that is not active (a link, the
+  colour, the name) does not change its kept lists. A hand edit of the file
+  while the profile is not active is not in the lists: an undo puts back
+  the pages of the step.
 
 ### What the history does not cover
 
 - **The profiles.** Add, rename, remove, and select a profile are not in the
   history. These commands change more than one file. A change of the active
-  profile, also by a "Select a profile" action, empties both lists. The
-  reason: the steps are copies of the pages of one profile, and the engine
-  removes the unused image files of a profile when it loads it. A rename of
-  the active profile stays after an undo.
+  profile keeps the lists of each profile (see the section above). A rename
+  of the active profile stays after an undo.
 - **The device settings.** They are not in the profile
   ([decision 0022](0022-device-settings-and-stop-state.md)).
 - **A test of an action.** `Command::TestAction` runs the action of a
@@ -176,7 +211,9 @@ to the engine.
 | The history in the shell, with an inverse command for each command | The shell must know the state before each change, also for the pages that it does not show: the shell holds only the bindings of the active page. Each new command needs its inverse command, and Copy to All Pages and an import need many. A second shell must do all of this again. Rule 12: the shell contains no logic of this kind. |
 | An inverse command in the engine for each command | It is less data than a copy, but each new command needs its inverse, and an error in one inverse damages the profile. The copy is correct for each command with no special work. |
 | One step for each character, joined by time | Decision 0029 says that one edit of a field is one step. A time limit makes a slow typist get many steps. |
-| Keep the history across a change of the profile | The steps are for the pages of one profile. The engine removes the unused images when it loads a profile, thus a step could name an image that is gone. |
+| Empty the history at each change of the active profile (the first version of this record) | An automatic switch occurs each time the user goes to an application with a different profile. The user then loses the undo of a change, also of a removal that only undo can repair. The image problem has a solution: the load keeps the images of the kept steps. |
+| Keep one history for all profiles, with the identity in each step | An undo could then change a profile that is not active, or select a different profile. The window shows only the active profile. |
+| No limit on the number of kept profiles | The memory grows with each profile that the user edits in a long session. 8 profiles of 100 steps is enough for a trip between some applications. |
 
 ## Results
 
@@ -187,7 +224,8 @@ to the engine.
   file of a real page with seven keys, their actions, and a bar panel is
   1.7 KB. The copy in memory is of the same order (an inference, not a
   measurement). Thus 100 steps of a profile with 10 pages are a few
-  megabytes at the most. Look at this decision again if a profile
+  megabytes at the most. The kept lists of at most 8 more profiles
+  multiply that by 9 at the most. Look at this decision again if a profile
   becomes much larger, for example with many pages of folders. Then a step
   can keep only the pages that changed.
 - An undo draws the active page again. Only the images that changed go to

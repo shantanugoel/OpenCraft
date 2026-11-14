@@ -352,11 +352,16 @@ The section **Applications** is below the settings above, and above
 | Remove an application | Click **Remove** at the right of its name. |
 
 - One application uses one profile. If you add an application that another
-  profile already has, the link moves to this profile.
+  profile already has, the link moves to this profile. Before you add it,
+  the list shows "Linked to “*profile*”" at the right of that application.
+
+  ![The application list of the profile "Default". The row of Notes shows "Linked to “Work”".](images/application-link.png)
+
 - A profile can have 32 applications.
 - A line "Linked to “*profile*”. That link applies." means a profile above
   this one in the sidebar also has that application. That profile keeps the
-  link.
+  link. To move the link to this profile, click **Add an application…** and
+  select the same application.
 - The device does not change at the moment you add a link. It changes the
   next time you go to that application. See
   [The profile follows the front application](#the-profile-follows-the-front-application).
@@ -423,7 +428,8 @@ back to an application, its profile comes back.
 | You turn the setting off | The profile that is active now, until you select a different profile |
 | The screen locks, or the computer sleeps | No change. After the unlock or the wake, the next application applies the rule. |
 
-The setting is on when you start OpenCraft. To turn it off, open
+The setting is on until you turn it off. OpenCraft keeps your setting
+after a restart. To turn it off, open
 [the tab General](background.md#the-tab-general) and turn off **Change the
 profile with the front application**. The menu bar item **Follow the Front
 Application** does the same. The check mark shows when the setting is on.

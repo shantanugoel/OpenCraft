@@ -753,35 +753,29 @@ impl DeviceView {
             )
     }
 
-    /// The caption "Linked to “Work”" when a profile already has this
-    /// application and the picker is adding a link. The first profile whose
-    /// link applies is the owner, as in the sheet (decision 0035, section 5).
+    /// The caption "Linked to “Work”" when the picker adds a link, and a
+    /// different profile has the link of this application that applies. A
+    /// pick moves that link (decision 0035, section 5). The profile of the
+    /// sheet shows no caption for its own link.
     fn linked_profile_note(&self, application: &InstalledApplication) -> Option<String> {
-        if !matches!(
-            self.application_picker.target,
-            Some(PickerTarget::Link { .. })
-        ) {
+        let Some(PickerTarget::Link { profile }) = &self.application_picker.target else {
+            return None;
+        };
+        if application.bundle_identifier.is_empty() {
             return None;
         }
-        let bundle_id = application.bundle_identifier.as_str();
-        if bundle_id.is_empty() {
-            return None;
-        }
-        let name = self
-            .state
-            .profiles
+        let owner = link_owner(&self.state.profiles, &application.bundle_identifier)?;
+        (owner.id != *profile).then(|| format!("Linked to “{}”", owner.name))
+    }
+
+    /// The caption of each row that the open picker shows, in order.
+    #[cfg(test)]
+    pub(super) fn shown_application_links(&self) -> Vec<Option<String>> {
+        self.application_picker
+            .shown
             .iter()
-            .find(|entry| {
-                entry.applications.iter().any(|link| {
-                    opencraft_engine::front::same_bundle(&link.bundle_id, bundle_id)
-                        && !entry
-                            .clashes
-                            .iter()
-                            .any(|clash| opencraft_engine::front::same_bundle(clash, bundle_id))
-                })
-            })
-            .map(|entry| entry.name.clone())?;
-        Some(format!("Linked to “{name}”"))
+            .map(|application| self.linked_profile_note(application))
+            .collect()
     }
 
     fn application_empty_text(&self, cx: &App) -> String {
@@ -832,8 +826,10 @@ impl DeviceView {
             .child(self.application_icon_tile(application))
             .child(div().flex_1().min_w_0().truncate().child(name))
             .when_some(note, |row, note| {
+                let selector = format!("app-row-linked-{index}");
                 row.child(
                     div()
+                        .debug_selector(move || selector)
                         .flex_shrink_0()
                         .max_w(relative(0.55))
                         .truncate()
@@ -1003,6 +999,25 @@ impl DeviceView {
             .icons
             .insert(path.to_path_buf(), icon);
     }
+}
+
+/// The profile whose link of `bundle_id` applies. A link in `clashes` does
+/// not apply, so the first profile that links the application and has no
+/// clash for it is the owner (decision 0035, section 5).
+pub(super) fn link_owner<'a>(
+    profiles: &'a [opencraft_engine::ProfileEntry],
+    bundle_id: &str,
+) -> Option<&'a opencraft_engine::ProfileEntry> {
+    use opencraft_engine::front::same_bundle;
+    profiles.iter().find(|entry| {
+        entry.applications.iter().any(|link| {
+            same_bundle(&link.bundle_id, bundle_id)
+                && !entry
+                    .clashes
+                    .iter()
+                    .any(|clash| same_bundle(clash, bundle_id))
+        })
+    })
 }
 
 #[cfg(test)]

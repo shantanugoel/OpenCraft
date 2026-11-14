@@ -268,8 +268,10 @@ other value.
 
 The selection uses the steps of `Engine::select_profile`: the engine writes
 the old profile if it changed, shows the first page of the new profile,
-writes `state.toml`, and empties the undo history (decision 0030). A
-selection of the active profile does nothing.
+writes `state.toml`, and puts the undo history of the old profile aside
+and gives back the history of the new profile
+([decision 0030](0030-undo-and-redo-in-the-engine.md#a-change-of-the-active-profile)).
+A selection of the active profile does nothing.
 
 The text for the user (the user guide and the help text of the Settings
 window) is:
@@ -299,7 +301,7 @@ New commands in `crates/engine/src/engine.rs`:
 | Command | Result |
 |---|---|
 | `FrontApplication(FrontApplication)` | Section 8 |
-| `LinkApplication { profile: String, link: ApplicationLink }` | Adds the link to the profile with that identity, at the end of its list. Moves it from a different profile (section 5). A link that the profile has gives no change. A link with a bundle identifier that is not correct, or a 33rd link, gives a problem and no change. |
+| `LinkApplication { profile: String, link: ApplicationLink }` | Adds the link to the profile with that identity, at the end of its list. Moves it from a different profile (section 5). A link that the profile has and that applies gives no change. A link that the profile has in `clashes` stays at its place in the list, and the engine removes the link from each other profile: then it applies (amended by [#349](https://github.com/shantanugoel/OpenCraft/issues/349)). A link with a bundle identifier that is not correct, or a 33rd link, gives a problem and no change. |
 | `UnlinkApplication { profile: String, bundle_id: String }` | Removes the link from the profile. A link that the profile does not have gives no change. |
 | `SetDefaultProfile { profile: String }` | Section 6. An identity that is not a profile of the model gives a problem. |
 | `SetFollowFrontApplication(bool)` | Section 7 |
@@ -380,7 +382,7 @@ pub enum ProfileTarget {
   identity `text`. Else the first profile, in the order of the identities,
   with the name `text`. Else the engine sends the problem
   "OpenCraft did not change the profile, because no profile has the
-  identity or the name ‘*text*’."
+  identity or the name “*text*”."
 - **An old binding.** A binding of releases up to 0.2.0 has `profile` with
   a name and no `target`. The handler reads a missing `target` as `profile`,
   thus the old binding sends `Profile(name)`, and the name rule finds the
@@ -438,9 +440,13 @@ The exact look follows [DESIGN.md](../DESIGN.md) in the task of each part.
 colour of a profile ([decision 0030](0030-undo-and-redo-in-the-engine.md)),
 and a move of a link changes two files. Each change applies at once in the
 sheet, and the user can do the inverse change with one click. An automatic
-switch empties the history, as each change of the active profile does. The
-switch never occurs while OpenCraft is in front, thus it does not remove the
-history of an edit in progress.
+switch puts the history of the old profile aside and gives back the history
+of the new profile, as each change of the active profile does
+([decision 0030](0030-undo-and-redo-in-the-engine.md#a-change-of-the-active-profile),
+amended by issue [#349](https://github.com/shantanugoel/OpenCraft/issues/349)).
+Thus a trip to a different application and back keeps the undo of a change.
+The switch never occurs while OpenCraft is in front, thus it does not
+interrupt an edit in progress.
 
 ### 13. Schema version 5
 
@@ -471,8 +477,8 @@ Migration, in `crates/engine/src/store.rs`:
   OpenCraft made it (decision 0009).
 - `state.toml` has no schema version. The new keys `default` and
   `follow_front_application` are additive: an old engine ignores them, and
-  removes them when it writes the file. That costs only the mark and the
-  setting.
+  keeps them when it writes the file. Release 0.2.0 changes only the table
+  `active`, and keeps each other key of the file.
 
 ### 14. The tasks
 

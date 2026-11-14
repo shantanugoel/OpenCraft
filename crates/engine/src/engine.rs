@@ -53,8 +53,8 @@ use crate::icons;
 use crate::layout::DeviceLayout;
 use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
-    ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry, FolderId, LabelChange,
-    Page, Profile, SurfaceContent, SurfaceIcon, DEFAULT_PROFILE_NAME,
+    image_uses_of, ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry,
+    FolderId, LabelChange, Page, Profile, SurfaceContent, SurfaceIcon, DEFAULT_PROFILE_NAME,
 };
 use crate::profiles::{ProfileEntry, ProfilesDir};
 use crate::render::{self, Size};
@@ -81,6 +81,11 @@ pub const SAVE_DELAY: Duration = Duration::from_millis(500);
 /// computer, a full draw, the stop, each problem for the shell, and the
 /// detail of an error of the device.
 /// A person can read the result of a test on the device from a log file.
+/// The environment variable that turns on the log lines of a measurement of
+/// the automatic switch (`docs/kb/footprint.md`). The shell reads the same
+/// variable for its line at the notice.
+pub const SWITCH_TRACE: &str = "OPENCRAFT_SWITCH_TRACE";
+
 fn log(text: &str) {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -365,19 +370,26 @@ pub enum Command {
 
 /// The name of the step of the history that `command` makes, and the
 /// target that a later change in the same text edit can join (decision
-/// 0030). `active` is the number of the active page. `None`: the command
-/// changes no page, and makes no step.
+/// 0030). `active` is the number of the active page, and `folder` is the
+/// last open folder. `None`: the command changes no page, and makes no step.
 ///
 /// Each command has one line here. A new command that changes the pages
 /// gets its name here, and then the history covers it with no more work.
 /// The match has no wildcard, thus the compiler asks for the line.
-fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)> {
+fn step_of(
+    command: &Command,
+    active: usize,
+    folder: Option<FolderId>,
+) -> Option<(String, Option<Target>)> {
     let step = |name: &str, target| Some((name.to_string(), target));
     match command {
         Command::SetLabel { surface, .. } => step(
             "Set Title",
             Some(Target::Label {
                 page: active,
+                // A key face is in the last open folder. Each other surface
+                // stays on the page under the folders.
+                folder: folder.filter(|_| surface.kind == SurfaceKind::KeyFace),
                 surface: *surface,
             }),
         ),
@@ -425,8 +437,8 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
         // The mark of the first page is on a page. For a profile that is not
         // active, the pages do not change, and no step occurs.
         Command::SetFirstPage { .. } => step("Set First Page", None),
-        Command::Group { name, commands } => step(name, group_target(commands, active)),
-        Command::InProfile { command, .. } => step_of(command, active),
+        Command::Group { name, commands } => step(name, group_target(commands, active, folder)),
+        Command::InProfile { command, .. } => step_of(command, active, folder),
         Command::PasteControl { .. } => step("Paste", None),
         Command::ClearControl { .. } => step("Clear", None),
         Command::CopyToAllPages { .. } => step("Copy to All Pages", None),
@@ -472,10 +484,10 @@ fn step_of(command: &Command, active: usize) -> Option<(String, Option<Target>)>
 /// if each command of the group has a target. Thus one edit of a text field
 /// that writes two bindings, for example a setting of the "Turn" card of a
 /// knob, is one step (decision 0030).
-fn group_target(commands: &[Command], active: usize) -> Option<Target> {
+fn group_target(commands: &[Command], active: usize, folder: Option<FolderId>) -> Option<Target> {
     let targets = commands
         .iter()
-        .map(|c| step_of(c, active).and_then(|(_, target)| target))
+        .map(|c| step_of(c, active, folder).and_then(|(_, target)| target))
         .collect::<Option<Vec<_>>>()?;
     targets.first().copied()
 }
@@ -753,6 +765,10 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// The number of images in the last successful `draw`. The log of a
     /// front-application switch reads it. A draw that writes nothing sets 0.
     last_written: usize,
+    /// True if the environment variable [`SWITCH_TRACE`] is set. Then the
+    /// engine logs the time of each automatic switch. Else it writes no
+    /// line for a switch, so that the log does not grow in a long session.
+    switch_trace: bool,
     /// The time of the last change of the profile that is not in the file.
     changed_at: Option<Instant>,
     /// True after a failed write of the profile, until a write is successful.
@@ -841,6 +857,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             background_sent: BackgroundState::default(),
             needs_draw: false,
             last_written: 0,
+            switch_trace: std::env::var_os(SWITCH_TRACE).is_some(),
             changed_at: None,
             save_failed: false,
             link_problem: None,
@@ -1804,16 +1821,26 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         backup.reason,
                         backup.path.display()
                     ));
+                    // The kept steps are for the pages of the old file.
+                    self.history.forget(&id);
                     (empty(), true)
                 }
                 None => {
-                    if let Err(e) = store.remove_unused_images(&loaded.profile) {
+                    // A kept step of the history can use an image that the
+                    // profile does not use now. An undo must find it.
+                    let kept = self
+                        .history
+                        .kept_copies(&id)
+                        .flat_map(|(pages, folders)| image_uses_of(pages, folders))
+                        .map(|(path, _)| path);
+                    if let Err(e) = store.remove_unused_images_but(&loaded.profile, kept) {
                         self.problem(format!("OpenCraft could not remove unused images: {e}"));
                     }
                     (loaded.profile, true)
                 }
             },
             Err(e) => {
+                self.history.forget(&id);
                 self.problem(format!(
                     "OpenCraft could not read the profile: {e}. \
                      It started with an empty profile, and it does not save changes."
@@ -1832,12 +1859,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.active = profile.first_page();
         self.open.clear();
         self.profile = profile;
-        self.profile_id = id;
         self.can_save = can_save;
         self.changed_at = None;
         self.save_failed = false;
-        // The steps are for the pages of the old profile.
-        self.history.clear();
+        // The steps of the old profile wait until it is active again, and
+        // the steps of the new profile come back (decision 0030).
+        self.history.change_profile(&self.profile_id, &id);
+        self.profile_id = id;
         self.update_entry();
     }
 
@@ -1920,7 +1948,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let page = match page {
             Some(page) if page < count => AskedPage::Number(page),
             Some(page) => {
-                self.problem(format!("The profile \"{name}\" has no page {}.", page + 1));
+                self.problem(format!("The profile “{name}” has no page {}.", page + 1));
                 AskedPage::First
             }
             None => AskedPage::Unspecified,
@@ -1957,7 +1985,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 }
                 self.problem(format!(
                     "OpenCraft did not change the profile, because no profile has the \
-                     identity or the name '{text}'."
+                     identity or the name “{text}”."
                 ));
                 None
             }
@@ -2046,7 +2074,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     fn change_profile_at(&mut self, id: String, profile: Option<Profile>, page: Option<usize>) {
         self.disappear();
         match profile {
-            Some(profile) => self.use_profile(id, profile, true),
+            Some(profile) => {
+                // A profile in memory is a new profile: an add, an import,
+                // or a starter profile. It has no history.
+                self.history.forget(&id);
+                self.use_profile(id, profile, true)
+            }
             None => self.load_profile(id),
         }
         if let Some(page) = page.filter(|page| *page < self.profile.pages().len()) {
@@ -2397,6 +2430,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         } else {
             self.send_profiles();
         }
+        // The history of the removed profile goes away with it. A new
+        // profile can get the same identity later.
+        self.history.forget(&id);
     }
 
     /// Send the layout of the model, make the image of each surface, and
@@ -2580,7 +2616,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let Some(command) = self.for_active_profile(command) else {
             return true;
         };
-        match step_of(&command, self.active) {
+        match step_of(&command, self.active, self.open.last().copied()) {
             Some((name, target)) => self.step(name, target, command),
             None => self.obey(command),
         }
