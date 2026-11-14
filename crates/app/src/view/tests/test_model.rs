@@ -191,3 +191,81 @@ fn the_device_settings_of_the_test_model_have_one_knob_light_and_no_haptic_feedb
         assert!(cx.debug_bounds(id).is_none(), "{id} shows");
     }
 }
+
+/// A layout of the test model, plus controls that have no surface: one bar
+/// panel and three keys. The shell does not use the device layer (rule 2).
+fn layout_with_controls_that_have_no_surface() -> Event {
+    let Event::Layout(layout) = test_model_layout() else {
+        panic!("layout")
+    };
+    let mut layout = (*layout).clone();
+    let bare = |kind, number, row, column| ControlLayout {
+        id: ControlId::new(kind, number),
+        row,
+        column,
+        surface: None,
+        feedback_surface: None,
+    };
+    layout.controls.extend([
+        bare(ControlKind::BarPanel, 1, 1, 1),
+        bare(ControlKind::Key, 8, 3, 2),
+        bare(ControlKind::Key, 7, 3, 1),
+        bare(ControlKind::Key, 9, 4, 1),
+    ]);
+    Event::Layout(Arc::new(layout))
+}
+
+#[gpui_kit::test]
+fn the_user_can_select_a_key_that_has_no_surface_and_give_it_a_binding(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    send(cx, &tx, layout_with_controls_that_have_no_surface());
+    send(cx, &tx, Event::Kinds(vec![kind()]));
+
+    let bounds = |cx: &mut VisualTestContext, id: &str| {
+        cx.debug_bounds(Box::leak(id.to_string().into_boxed_str()))
+            .unwrap_or_else(|| panic!("No element: {id}"))
+    };
+    let display = bounds(cx, "display");
+    let panel = bounds(cx, "control-bar panel 1");
+    let key7 = bounds(cx, "control-key 7");
+    let key8 = bounds(cx, "control-key 8");
+    let key9 = bounds(cx, "control-key 9");
+    let knob = bounds(cx, "label-knob 1");
+    // Below the display and below the knob. Row order, then column order.
+    assert!(panel.top() > display.bottom());
+    assert!(panel.top() > knob.bottom());
+    assert!(key7.top() > panel.bottom());
+    assert!(key9.top() > key7.bottom());
+    assert!((f32::from(key7.top()) - f32::from(key8.top())).abs() <= 0.5);
+    assert!(key7.center().x < display.center().x);
+    assert!(key8.center().x > display.center().x);
+    assert!((f32::from(key9.center().x) - f32::from(display.center().x)).abs() <= 0.5);
+    assert!((f32::from(panel.center().x) - f32::from(display.center().x)).abs() <= 0.5);
+    // A key that has a surface stays on the display. The knob stays a knob.
+    assert!(bounds(cx, "surface-key face 1").bottom() <= display.bottom());
+    assert!(cx.debug_bounds("control-key 1").is_none());
+
+    click(cx, "control-key 7");
+    cx.update(|_, cx| {
+        let state = &view.read(cx).state;
+        assert_eq!(
+            state.selected_control,
+            Some(ControlId::new(ControlKind::Key, 7))
+        );
+        assert_eq!(state.selected, None);
+    });
+    assert!(cx.debug_bounds("selection-key 7").is_some());
+    assert!(cx.debug_bounds("gesture-Press-kind").is_some());
+    assert!(cx.debug_bounds("appearance").is_none());
+    click(cx, "gesture-Press-kind");
+    click(cx, "kind-0");
+    assert_eq!(
+        last_binding(&sent),
+        Some(BindingId {
+            page: 0,
+            control: ControlId::new(ControlKind::Key, 7),
+            gesture: GestureKind::Press,
+            folder: None,
+        })
+    );
+}

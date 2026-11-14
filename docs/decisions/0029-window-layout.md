@@ -591,6 +591,29 @@ highest bar panel vertically. Normal: background `#FFFFFF` at 6 %, border 1
 gestures". A click selects the page and scrolls the inspector to "Touch bar
 gestures" (section 10.6).
 
+Note (2026-11-14), from issue #158. A knob has its own element. The touch
+bar has its own element. Each other control that has no surface has one
+element below the display.
+
+The elements are in rows. A lower row number is higher on the device. In
+one row, a lower column number is further to the left. The controls of one
+row share the width of the display. Each element is a square of
+`DEVICE_PLAIN_SIZE` (96 pixels of the display). A row that does not fit
+uses a smaller square. The gap is `DEVICE_PLAIN_GAP` (16).
+`DEVICE_PLAIN_TOP` (22) is the space above the block. The space is below
+the knob labels when the layout has a knob. The space is below the display
+when the layout has no knob.
+
+The element has a dashed border and the name of the control, for example
+"Key 7". The selection outline is the outline of a key face. A click
+selects that control. The click does not select the device. The inspector
+shows the gestures of the control. It shows no "Appearance" section,
+because the control has no display.
+
+The descriptor has no place for a knob relative to the display. Each knob
+stays in one row below the display. Measure that place before it becomes
+descriptor data, and write the measurement in `docs/kb/`.
+
 #### 8.3 Selection and pointer on the canvas
 
 | Click on | Selects |

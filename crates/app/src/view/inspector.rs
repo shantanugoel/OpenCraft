@@ -150,6 +150,25 @@ fn ordinal(number: u8) -> Option<&'static str> {
         .copied()
 }
 
+/// The header picture of a control that has no surface: a dashed tile of
+/// the same size as a key picture.
+fn plain_header(kind: ControlKind) -> AnyElement {
+    let radius = if kind == ControlKind::BarPanel {
+        theme::RADIUS_CONTROL
+    } else {
+        theme::RADIUS_POPOVER
+    };
+    div()
+        .flex_shrink_0()
+        .size(theme::HEADER_PICTURE)
+        .rounded(radius)
+        .bg(theme::DEVICE_DISPLAY)
+        .border_1()
+        .border_dashed()
+        .border_color(theme::DEVICE_KEY_EMPTY_BORDER)
+        .into_any_element()
+}
+
 /// The second line of the header of a control: its position, or the bar
 /// panel of the feedback of a knob (section 10.1).
 fn position_text(control: &ControlLayout, layout: &DeviceLayout) -> String {
@@ -292,7 +311,8 @@ impl DeviceView {
     }
 
     /// The picture of the header: the image of the surface from the engine,
-    /// or a knob with the ring of the canvas.
+    /// a knob with the ring of the canvas, or a dashed tile when the
+    /// control has no surface.
     fn header_picture(&self, control: &ControlLayout, layout: &DeviceLayout) -> Option<AnyElement> {
         if control.id.kind == ControlKind::Knob {
             return Some(
@@ -318,6 +338,11 @@ impl DeviceView {
                     )
                     .into_any_element(),
             );
+        }
+        if control.surface.is_none() {
+            // The touch bar is part of the page inspector.
+            return (control.id.kind != ControlKind::TouchBar)
+                .then(|| plain_header(control.id.kind));
         }
         let surface = layout.surface(control.surface?)?;
         let width = theme::HEADER_PICTURE;

@@ -641,6 +641,14 @@ pub const DEVICE_KNOB_MARK: f32 = 7.;
 pub const DEVICE_KNOB_MARK_GAP: f32 = 5.;
 /// The space between a knob and its label.
 pub const DEVICE_KNOB_LABEL_GAP: f32 = 8.;
+/// The side of a control that has no surface, in pixels of the display.
+/// A row that is wider than the display uses a smaller square.
+pub const DEVICE_PLAIN_SIZE: f32 = 96.;
+/// The space between those controls, in pixels of the display.
+pub const DEVICE_PLAIN_GAP: f32 = 16.;
+/// The space above that block. Below the knob labels when the layout has a
+/// knob, else below the display.
+pub const DEVICE_PLAIN_TOP: f32 = 22.;
 
 // These values are in points. They do not change with the scale.
 
