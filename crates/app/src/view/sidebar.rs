@@ -64,15 +64,13 @@ fn cause_text(
     match cause {
         opencraft_engine::ActiveCause::Selected => "Selected".into(),
         opencraft_engine::ActiveCause::Linked { bundle_id } => {
-            let name = profiles
-                .iter()
-                .find_map(|entry| {
-                    entry.applications.iter().find_map(|link| {
+            let name = super::application_picker::link_owner(profiles, bundle_id)
+                .and_then(|entry| {
+                    entry.applied.iter().find(|link| {
                         opencraft_engine::front::same_bundle(&link.bundle_id, bundle_id)
-                            .then(|| link.name.clone())
                     })
                 })
-                .unwrap_or_else(|| bundle_id.clone());
+                .map_or_else(|| bundle_id.clone(), |link| link.name.clone());
             format!("Because “{name}” is in front")
         }
         opencraft_engine::ActiveCause::Default => {
@@ -87,16 +85,7 @@ fn profile_note(
     profile: &opencraft_engine::ProfileEntry,
     default_id: Option<&str>,
 ) -> Option<String> {
-    let links: Vec<_> = profile
-        .applications
-        .iter()
-        .filter(|link| {
-            !profile
-                .clashes
-                .iter()
-                .any(|clash| opencraft_engine::front::same_bundle(clash, &link.bundle_id))
-        })
-        .collect();
+    let links = &profile.applied;
     let links = links.first().map(|link| {
         if links.len() == 1 {
             link.name.clone()

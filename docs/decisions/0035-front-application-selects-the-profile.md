@@ -301,7 +301,7 @@ New commands in `crates/engine/src/engine.rs`:
 | Command | Result |
 |---|---|
 | `FrontApplication(FrontApplication)` | Section 8 |
-| `LinkApplication { profile: String, link: ApplicationLink }` | Adds the link to the profile with that identity, at the end of its list. Moves it from a different profile (section 5). A link that the profile has and that applies gives no change. A link that the profile has in `clashes` stays at its place in the list, and the engine removes the link from each other profile: then it applies (amended by [#349](https://github.com/shantanugoel/OpenCraft/issues/349)). A link with a bundle identifier that is not correct, or a 33rd link, gives a problem and no change. |
+| `LinkApplication { profile: String, link: ApplicationLink }` | Adds the link to the profile with that identity, at the end of its list. Moves it from a different profile (section 5). A link that the profile has and that applies gives no change. A link that the profile has and that does not apply stays at its place in the list, and the engine removes the link from each other profile: then it applies (amended by [#349](https://github.com/shantanugoel/OpenCraft/issues/349)). A link with a bundle identifier that is not correct, or a 33rd link, gives a problem and no change. |
 | `UnlinkApplication { profile: String, bundle_id: String }` | Removes the link from the profile. A link that the profile does not have gives no change. |
 | `SetDefaultProfile { profile: String }` | Section 6. An identity that is not a profile of the model gives a problem. |
 | `SetFollowFrontApplication(bool)` | Section 7 |
@@ -314,10 +314,13 @@ changes the profile in memory and writes it after the usual delay.
 Changes to the events:
 
 - `ProfileEntry` gets `applications: Vec<ApplicationLink>` (the links of the
-  profile, in their order) and `clashes: Vec<String>` (the bundle
-  identifiers of this profile that a profile before it in the order of the
-  identities also links; they do not apply). `ProfilesDir::list` reads them
-  with the other top keys (`ProfileStore::summary`).
+  profile, in their order), `applied: Vec<ApplicationLink>` (the links of this
+  profile that apply: no profile before it in the order of the identities
+  also links them), and `link_owners: Vec<LinkOwner>` (the owner of each
+  link in `applications`, in the same order; a link does not apply if its
+  owner is a different profile). `ProfilesDir::list` reads `applications`
+  with the other top keys (`ProfileStore::summary`). The profile list module
+  computes `applied` and `link_owners`.
 - `Event::Profiles` gets `default: String` (the identity of the default
   profile of section 6) and `cause: ActiveCause`:
 
@@ -414,7 +417,7 @@ The exact look follows [DESIGN.md](../DESIGN.md) in the task of each part.
   of the default profile is on and disabled: the user moves the mark by
   turning the switch on for a different profile. The window uses the
   switch of [DESIGN.md](../DESIGN.md). That document has no check box, and
-  a switch is its on/off control. A link in `clashes` shows
+  a switch is its on/off control. A link whose owner is a different profile shows
   "Linked to “*profile*”. That link applies." The option "Go back to the
   last profile when the app is not in front" of section 21 is not made: the
   default profile and the rule of section 8 take its place.

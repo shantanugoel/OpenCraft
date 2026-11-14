@@ -249,20 +249,6 @@ fn a_clash_in_the_files_keeps_the_first_profile() {
     else {
         unreachable!()
     };
-    assert!(profiles
-        .iter()
-        .find(|entry| entry.id == "calls")
-        .unwrap()
-        .clashes
-        .is_empty());
-    assert_eq!(
-        profiles
-            .iter()
-            .find(|entry| entry.id == "home")
-            .unwrap()
-            .clashes,
-        ["US.ZOOM.XOS"]
-    );
     // Each entry has the links that apply, and the owner of each link.
     let calls = profiles.iter().find(|entry| entry.id == "calls").unwrap();
     assert_eq!(calls.applied.len(), 1);
@@ -451,7 +437,7 @@ fn the_setting_turns_the_switch_off_until_the_next_change() {
 }
 
 /// Two profiles link the same application in their files: "a" has the link
-/// that applies, and the link of "b" is in `clashes`.
+/// that applies, and the link of "b" does not apply.
 fn two_with_a_clash() -> Rig {
     let dir = TempDir::new().unwrap();
     let mut a = plain("A");
@@ -486,7 +472,7 @@ fn the_link_command_moves_a_clashing_link_to_the_profile_that_it_names() {
     };
     let b = profiles.iter().find(|entry| entry.id == "b").unwrap();
     assert_eq!(b.applications.len(), 1, "b keeps one link");
-    assert!(b.clashes.is_empty());
+    assert_eq!(b.applied.len(), 1, "the link of b applies");
     front(&mut rig, bundle("com.example.x"));
     assert_eq!(rig.engine.active_profile(), "b");
     rig.take_events();
