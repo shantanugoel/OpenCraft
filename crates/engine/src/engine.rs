@@ -51,7 +51,7 @@ use crate::clipboard::{ControlContent, Parts};
 mod front;
 mod power;
 
-use crate::device_settings::{self, DeviceSettings, SettingCommands};
+use crate::device_settings::{self, DeviceSettings, SettingCommands, SettingsFile};
 use crate::front::{ActiveCause, FrontApplication};
 use crate::history::{History, SavedProfile, Target};
 use crate::icons;
@@ -65,6 +65,7 @@ use crate::profile::{
 use crate::profile_list::ProfileList;
 use crate::profiles::{ProfileEntry, ProfilesDir};
 use crate::render::{self, Size};
+use crate::saved::SavedDocument;
 use crate::store::ProfileStore;
 use image::RgbImage;
 use opencraft_core::image::{encode_for, jpeg_quality_for};
@@ -77,10 +78,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// The time from the last change of the profile, or of the device settings,
-/// to the write of the file. Many changes in a short time, for example the
-/// letters of a label, give one write.
-pub const SAVE_DELAY: Duration = Duration::from_millis(500);
+pub use crate::saved::SAVE_DELAY;
 
 /// Write one line about the device to standard error, with the time of the
 /// system clock in seconds since 1970. The engine writes a line only for an
@@ -741,14 +739,14 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     profile_id: String,
     /// The directory of the active profile.
     store: ProfileStore,
-    /// The active profile.
-    profile: Profile,
+    /// The active profile. The saved document owns the rules for the write of
+    /// the file. The engine changes the profile only through its `edit`.
+    /// It is not writable if the profile file could not be read: the write
+    /// would replace the file.
+    profile: SavedDocument<Profile>,
     /// The active page and the open folders. Location answers which page
     /// or folder holds a control (decision 0036).
     location: Location,
-    /// False if the profile file could not be read. Then the engine does not
-    /// write the file, because the write would replace it.
-    can_save: bool,
     /// The model of the device: of the connected device, or of the last one,
     /// or the default model.
     descriptor: &'static Descriptor,
@@ -769,15 +767,13 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// engine logs the time of each automatic switch. Else it writes no
     /// line for a switch, so that the log does not grow in a long session.
     switch_trace: bool,
-    /// The time of the last change of the profile that is not in the file.
-    changed_at: Option<Instant>,
-    /// True after a failed write of the profile, until a write is successful.
-    save_failed: bool,
     /// The text of the last problem of the link, to tell the shell one time
     /// only about a problem that stays.
     link_problem: Option<String>,
-    /// The device settings of the model of the device.
-    settings: DeviceSettings,
+    /// The device settings of the model of the device. They are not writable
+    /// if the settings file has an error or a newer schema version. Then the
+    /// engine does not write the file until the user changes a setting.
+    settings: SavedDocument<DeviceSettings>,
     power: Power,
     /// True if the last front application was this process (decision 0035).
     shell_in_front: bool,
@@ -792,15 +788,6 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     cause: ActiveCause,
     /// The setting of section 7. A missing key in `state.toml` is true.
     follow_front: bool,
-    /// False if the settings file has an error or a newer schema version.
-    /// Then the engine does not write the file until the user changes a
-    /// setting.
-    settings_can_save: bool,
-    /// The time of the last change of the settings that is not in the file.
-    settings_changed_at: Option<Instant>,
-    /// True after a failed write of the settings, until a write is
-    /// successful.
-    settings_save_failed: bool,
     /// The undo and redo history of the active profile (decision 0030).
     history: History,
     /// The content of the last copied control, and the directory of the
@@ -904,6 +891,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         ports: Vec<HandlerPort>,
         sink: S,
     ) -> Self {
+        let now = link.clock().now();
         let mut engine = Self {
             link,
             // `open_profiles` sets the active profile below.
@@ -911,9 +899,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             profiles,
             list: ProfileList::default(),
             profile_id: String::new(),
-            profile: Profile::default(),
+            profile: SavedDocument::new(Profile::default(), true, now),
             location: Location::default(),
-            can_save: true,
             descriptor: default_model,
             images: BTreeMap::new(),
             background: None,
@@ -921,19 +908,18 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             needs_draw: false,
             last_written: 0,
             switch_trace: std::env::var_os(SWITCH_TRACE).is_some(),
-            changed_at: None,
-            save_failed: false,
             link_problem: None,
-            settings: DeviceSettings::defaults(default_model.settings),
+            settings: SavedDocument::new(
+                DeviceSettings::defaults(default_model.settings),
+                true,
+                now,
+            ),
             power: Power::default(),
             shell_in_front: false,
             last_target: None,
             chosen_in_window: false,
             cause: ActiveCause::Selected,
             follow_front: true,
-            settings_can_save: true,
-            settings_changed_at: None,
-            settings_save_failed: false,
             history: History::default(),
             clipboard: None,
             ports,
@@ -964,16 +950,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// A file with an error gives the defaults and a problem for the shell.
     fn load_settings(&mut self) {
         let support = self.descriptor.settings;
-        self.settings_changed_at = None;
-        self.settings_save_failed = false;
         match device_settings::load(self.profiles.dir(), self.descriptor.model, support) {
-            Ok(settings) => {
-                self.settings = settings;
-                self.settings_can_save = true;
-            }
+            Ok(settings) => self.settings.load(settings, true),
             Err(problem) => {
-                self.settings = DeviceSettings::defaults(support);
-                self.settings_can_save = false;
+                self.settings.load(DeviceSettings::defaults(support), false);
                 self.problem(format!(
                     "OpenCraft could not use the device settings file {}, because {problem}. \
                      It uses the default device settings. It does not change the file until \
@@ -985,7 +965,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     fn send_settings(&mut self) {
-        (self.sink)(Event::DeviceSettings(self.settings.clone()));
+        (self.sink)(Event::DeviceSettings((*self.settings).clone()));
     }
 
     /// Set the device settings. This is [`Command::SetDeviceSettings`]. The
@@ -1003,18 +983,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     pub fn set_device_settings(&mut self, settings: DeviceSettings) {
         let support = self.descriptor.settings;
         let settings = settings.fit(support);
-        if settings == self.settings {
+        if settings == *self.settings {
             return;
         }
         let before = SettingCommands::new(&self.settings, support);
         let after = SettingCommands::new(&settings, support);
         let timer_changed = self.settings.screen_off_minutes != settings.screen_off_minutes;
-        self.settings = settings;
+        self.settings.allow_writes();
+        *self.settings.edit() = settings;
         if timer_changed {
             self.restart_idle();
         }
-        self.settings_can_save = true;
-        self.settings_changed_at = Some(self.now());
         self.send_settings();
         let changes: Vec<Vec<u8>> = before.changes(&after).into_iter().cloned().collect();
         if changes.is_empty()
@@ -1043,26 +1022,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
 
     /// Write the settings file now, if the settings changed.
     fn save_settings(&mut self, now: Instant) {
-        if self.settings_changed_at.is_none() {
-            return;
-        }
-        if !self.settings_can_save {
-            self.settings_changed_at = None;
-            return;
-        }
-        match device_settings::save(self.profiles.dir(), self.descriptor.model, &self.settings) {
-            Ok(()) => {
-                self.settings_changed_at = None;
-                self.settings_save_failed = false;
-            }
-            Err(e) => {
-                // Try again after the delay. Tell the shell one time.
-                self.settings_changed_at = Some(now);
-                if !self.settings_save_failed {
-                    self.settings_save_failed = true;
-                    self.problem(format!("OpenCraft could not save the device settings: {e}"));
-                }
-            }
+        let file = SettingsFile {
+            dir: self.profiles.dir(),
+            model: self.descriptor.model,
+        };
+        if let Some(e) = self.settings.flush(now, &file) {
+            self.problem(format!("OpenCraft could not save the device settings: {e}"));
         }
     }
 
@@ -1266,7 +1231,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// page number.
     fn change_page<R>(
         &mut self,
-        change: impl FnOnce(&mut Profile) -> R,
+        change: impl FnOnce(&mut SavedDocument<Profile>) -> R,
         page: usize,
         close_folders: bool,
     ) -> R {
@@ -1404,8 +1369,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         };
         page.name = self.profile.new_page_name();
         let number = self.profile.pages().len();
-        self.changed_at = Some(self.now());
-        self.change_page(|profile| profile.add_page(page), number, true);
+        self.change_page(|profile| profile.edit().add_page(page), number, true);
     }
 
     fn rename_page(&mut self, page: usize, name: String) {
@@ -1416,11 +1380,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem("A page must have a name.".to_string());
             return;
         }
-        let Some(target) = self.profile.page_mut(page).filter(|p| p.name != name) else {
+        if self.profile.pages()[page].name == name {
             return;
-        };
-        target.name = name;
-        self.changed_at = Some(self.now());
+        }
+        if let Some(target) = self.profile.edit().page_mut(page) {
+            target.name = name;
+        }
         self.send_pages();
     }
 
@@ -1438,8 +1403,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         } else {
             active
         };
-        self.changed_at = Some(self.now());
-        self.change_pages(|profile| profile.move_page(page, to), after, false);
+        self.change_pages(|profile| profile.edit().move_page(page, to), after, false);
     }
 
     fn remove_page(&mut self, page: usize) {
@@ -1456,12 +1420,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             std::cmp::Ordering::Equal => page.min(count - 2),
             std::cmp::Ordering::Greater => self.location.page,
         };
-        self.changed_at = Some(self.now());
         if page == self.location.page {
             // The same number can be a different page now. The folders close.
-            self.change_page(|profile| profile.remove_page(page), after, true);
+            self.change_page(|profile| profile.edit().remove_page(page), after, true);
         } else {
-            self.change_pages(|profile| profile.remove_page(page), after, false);
+            self.change_pages(|profile| profile.edit().remove_page(page), after, false);
         }
     }
 
@@ -1471,7 +1434,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// folders close.
     fn change_pages<R>(
         &mut self,
-        change: impl FnOnce(&mut Profile) -> R,
+        change: impl FnOnce(&mut SavedDocument<Profile>) -> R,
         active: usize,
         close_folders: bool,
     ) {
@@ -1540,11 +1503,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Some(name) => page.name = name,
             None => page.name = self.profile.new_folder_name(),
         }
-        if !self.profile.add_folder(Folder { id, page }) {
+        if !self
+            .profile
+            .edit_if(|profile| profile.add_folder(Folder { id, page }))
+        {
             self.problem("The profile already has this folder.".to_string());
             return;
         }
-        self.changed_at = Some(self.now());
         self.open_folder(id);
     }
 
@@ -1553,15 +1518,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem("A folder must have a name.".to_string());
             return;
         }
-        let Some(folder) = self.profile.folder_mut(id) else {
+        let Some(folder) = self.profile.folder(id) else {
             self.problem("The profile has no folder with this identity.".to_string());
             return;
         };
         if folder.page.name == name {
             return;
         }
-        folder.page.name = name;
-        self.changed_at = Some(self.now());
+        if let Some(folder) = self.profile.edit().folder_mut(id) {
+            folder.page.name = name;
+        }
         self.send_pages();
     }
 
@@ -1582,8 +1548,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if from == to {
             return;
         }
-        self.profile.move_folder(id, to);
-        self.changed_at = Some(self.now());
+        self.profile.edit().move_folder(id, to);
         self.send_pages();
     }
 
@@ -1596,16 +1561,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             Some(pos) => self.location.open[..pos].to_vec(),
             None => self.location.open.clone(),
         };
-        self.changed_at = Some(self.now());
         if open != self.location.open {
             // The removal is inside the transition. The comparison then
             // sees the bindings of the folder, and the handler lets them go.
             self.transition(|engine| {
-                engine.profile.remove_folder(id);
+                engine.profile.edit().remove_folder(id);
                 engine.location.open = Location::restored_open(&engine.profile, &open);
             });
         } else {
-            self.profile.remove_folder(id);
+            self.profile.edit().remove_folder(id);
             self.send_pages();
         }
     }
@@ -1641,21 +1605,21 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             );
             return;
         }
-        let Some(page) = self
-            .location
-            .page_for_change(&mut self.profile, binding.control)
-        else {
-            return;
-        };
-        let before = page.binding(binding.control, binding.gesture).cloned();
-        if !page.set_binding(binding.control, binding.gesture, action.clone()) {
+        let mut before = None;
+        let changed = self.profile.edit_if(|profile| {
+            let Some(page) = self.location.page_for_change(profile, binding.control) else {
+                return false;
+            };
+            before = page.binding(binding.control, binding.gesture).cloned();
+            page.set_binding(binding.control, binding.gesture, action.clone())
+        });
+        if !changed {
             return;
         }
         if let Some(before) = before {
             self.request(&before.kind, Request::Disappear { binding });
         }
         let had_feedback = self.feedback.remove(&binding).is_some();
-        self.changed_at = Some(self.now());
         self.binding_event(binding, action.clone());
         if let Some(action) = action {
             let kind = action.kind.clone();
@@ -1898,10 +1862,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.store = self.profiles.store(&id);
         self.location.page = profile.first_page();
         self.location.open.clear();
-        self.profile = profile;
-        self.can_save = can_save;
-        self.changed_at = None;
-        self.save_failed = false;
+        self.profile.load(profile, can_save);
         // The steps of the old profile wait until it is active again, and
         // the steps of the new profile come back (decision 0030).
         self.history.change_profile(&self.profile_id, &id);
@@ -2085,13 +2046,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// The write of [`Self::save_before_leaving`], with no problem for the
     /// shell.
     fn write_now(&mut self) -> crate::Result<()> {
-        if !self.can_save || (self.changed_at.is_none() && self.store.profile_path().exists()) {
-            return Ok(());
-        }
-        self.store.save(&self.profile)?;
-        self.changed_at = None;
-        self.save_failed = false;
-        Ok(())
+        self.profile.save_before_leaving(&self.store)
     }
 
     /// Steps 2 and 3 of [`Self::select_profile`]. The caller wrote the old
@@ -2204,8 +2159,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             if self.profile.name == name {
                 return;
             }
-            self.profile.name = name;
-            self.changed_at = Some(self.now());
+            self.profile.edit().name = name;
             self.update_entry();
         } else {
             let store = self.profiles.store(&id);
@@ -2241,10 +2195,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             return;
         }
         if id == self.profile_id {
-            if !change(&mut self.profile) {
+            if !self.profile.edit_if(|profile| change(profile)) {
                 return;
             }
-            self.changed_at = Some(self.now());
             self.update_entry();
         } else {
             let store = self.profiles.store(&id);
@@ -2276,8 +2229,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             if !self.is_page(page) {
                 return;
             }
-            if self.profile.set_first_page(page) {
-                self.changed_at = Some(self.now());
+            if self.profile.edit_if(|profile| profile.set_first_page(page)) {
                 self.send_pages();
             }
             return;
@@ -2384,8 +2336,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
         // The profile that the engine made at the start is not in a file,
         // and the user did not change it.
-        let replace =
-            self.can_save && self.changed_at.is_none() && !self.store.profile_path().exists();
+        let replace = self.profile.is_unwritten(&self.store);
         let others: Vec<ProfileEntry> = if replace {
             self.list.entries_without(&self.profile_id)
         } else {
@@ -2533,15 +2484,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !self.is_page(page) {
             return;
         }
-        let Some(target) = self.profile.page_mut(page) else {
-            return;
-        };
-        let before = target.background.clone();
-        change(&mut target.background);
-        if target.background == before {
+        let changed = self.profile.edit_if(|profile| {
+            let Some(target) = profile.page_mut(page) else {
+                return false;
+            };
+            let before = target.background.clone();
+            change(&mut target.background);
+            target.background != before
+        });
+        if !changed {
             return;
         }
-        self.changed_at = Some(self.now());
         if page == self.location.page {
             self.redraw();
         }
@@ -2760,12 +2713,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         page: usize,
         open: Vec<FolderId>,
     ) -> (Vec<Page>, Vec<Folder>) {
-        self.changed_at = Some(self.now());
         let mut old_pages = Vec::new();
         let mut old_folders = Vec::new();
         self.transition(|engine| {
-            old_pages = engine.profile.replace_pages(pages);
-            old_folders = engine.profile.replace_folders(folders);
+            let profile = engine.profile.edit();
+            old_pages = profile.replace_pages(pages);
+            old_folders = profile.replace_folders(folders);
             let count = engine.profile.pages().len();
             engine.location.page = page.min(count.saturating_sub(1));
             engine.location.open = Location::restored_open(&engine.profile, &open);
@@ -3008,15 +2961,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             return;
         };
         let content = ControlContent::read(self.page(), control, parts);
-        let mut changed = false;
-        for number in (0..self.profile.pages().len()).filter(|n| *n != self.location.page) {
-            if let Some(page) = self.profile.page_mut(number) {
-                changed |= content.write(page, control, parts);
+        let active = self.location.page;
+        self.profile.edit_if(|profile| {
+            let mut changed = false;
+            for number in (0..profile.pages().len()).filter(|n| *n != active) {
+                if let Some(page) = profile.page_mut(number) {
+                    changed |= content.write(page, control, parts);
+                }
             }
-        }
-        if changed {
-            self.changed_at = Some(self.now());
-        }
+            changed
+        });
     }
 
     /// Change the content of the surface `id`. If the content is different
@@ -3027,14 +2981,14 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem(format!("This device has no {id} with content."));
             return;
         };
-        let updated = self
-            .location
-            .surface_for_change(&mut self.profile, id)
-            .is_some_and(|page| page.update(id, change));
+        let updated = self.profile.edit_if(|profile| {
+            self.location
+                .surface_for_change(profile, id)
+                .is_some_and(|page| page.update(id, change))
+        });
         if !updated {
             return;
         }
-        self.changed_at = Some(self.now());
         self.render(surface);
         if self.link.is_connected() && !self.needs_draw {
             self.draw(false, &[surface]);
@@ -3293,14 +3247,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// change came for [`SAVE_DELAY`].
     fn save_if_due(&mut self) {
         let now = self.now();
-        let due = |at: Option<Instant>| {
-            at.is_some_and(|at| now.saturating_duration_since(at) >= SAVE_DELAY)
-        };
-        if due(self.changed_at) {
-            self.save(now);
+        if let Some(e) = self.profile.save_if_due(now, &self.store) {
+            self.problem(format!("OpenCraft could not save the profile: {e}"));
         }
-        if due(self.settings_changed_at) {
-            self.save_settings(now);
+        let file = SettingsFile {
+            dir: self.profiles.dir(),
+            model: self.descriptor.model,
+        };
+        if let Some(e) = self.settings.save_if_due(now, &file) {
+            self.problem(format!("OpenCraft could not save the device settings: {e}"));
         }
     }
 
@@ -3318,9 +3273,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// [`Command::Stop`] and when each sender of commands is gone.
     pub fn finish(&mut self) {
         let now = self.now();
-        if self.changed_at.is_some() {
-            self.save(now);
-        }
+        self.save_profile(now);
         self.save_settings(now);
         match self.link.stop() {
             Ok(true) => log("stop: sent DC and HAN, the device is dark"),
@@ -3329,24 +3282,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
-    fn save(&mut self, now: Instant) {
-        if !self.can_save {
-            self.changed_at = None;
-            return;
-        }
-        match self.store.save(&self.profile) {
-            Ok(()) => {
-                self.changed_at = None;
-                self.save_failed = false;
-            }
-            Err(e) => {
-                // Try again after the delay. Tell the shell one time.
-                self.changed_at = Some(now);
-                if !self.save_failed {
-                    self.save_failed = true;
-                    self.problem(format!("OpenCraft could not save the profile: {e}"));
-                }
-            }
+    /// Write the profile file now, if the profile changed.
+    fn save_profile(&mut self, now: Instant) {
+        if let Some(e) = self.profile.flush(now, &self.store) {
+            self.problem(format!("OpenCraft could not save the profile: {e}"));
         }
     }
 

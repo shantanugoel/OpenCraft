@@ -201,8 +201,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             if self.profile.applications == applications {
                 return false;
             }
-            self.profile.applications = applications;
-            self.changed_at = Some(self.now());
+            self.profile.edit().applications = applications;
             self.update_entry();
             return true;
         }
