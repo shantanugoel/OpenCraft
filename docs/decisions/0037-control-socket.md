@@ -81,6 +81,12 @@ on the wire. Thus a change to an engine message cannot change the protocol
 without a change to the control module, and a request that this record does
 not permit has no form on the wire.
 
+**No silent difference.** The control module has one function that names
+each variant of `Command`, and one that names each variant of `Event`, with
+no wildcard. Each line says that the protocol uses the variant, or that the
+protocol does not permit it. Thus a new engine message does not compile
+until a person selects one of the two.
+
 **One response for each request.** A request that changes something gets
 its response after the engine obeyed it. The response is a success, or it
 has the problem text of the engine. The engine gets a way to give the
