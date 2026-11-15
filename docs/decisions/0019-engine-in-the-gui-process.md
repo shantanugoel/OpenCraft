@@ -74,6 +74,9 @@ The reasons:
 ## Results
 
 - The application needs no code for a connection between processes.
+  Note (2026-11-15): [decision 0037](0037-control-socket.md) adds a socket
+  for a different program that controls OpenCraft. The engine stays in the
+  process of the GUI application.
 - The shell continues to use the engine through `EngineHandle` and messages
   only ([decision 0011](0011-engine-thread-model.md)). Thus a later move to
   two processes changes the handle and not the messages.
