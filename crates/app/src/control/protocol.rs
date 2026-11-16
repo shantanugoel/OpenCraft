@@ -31,9 +31,21 @@
 //! limit. Requests are at most 1 MiB without the newline; responses are at
 //! most 8 MiB without the newline. No stability is promised before 1.0.
 //!
+//! The server closes a connection that sends no `hello` in 10 seconds, and a
+//! connection that does not read its response in 10 seconds. It allows 16
+//! connections; the next connection gets the error `busy` and is closed.
+//! `hello` reads only `version`; the server version is in the text of the
+//! error `version_mismatch`.
+//!
 //! No result contains rendered image bytes, device identity, engine logs,
-//! or absolute image destinations. The server replaces the current home
-//! path with `~` in returned text, also within nested action settings.
+//! or absolute image destinations. In a returned text (and in a name of an
+//! object) that begins with the home directory of the user, the server
+//! replaces the home directory with `~`. The rule is that of the export of a
+//! profile: it ignores the case and acts only at a path boundary. A text that
+//! has the home directory in the middle, for example a script, is not
+//! changed. A path setting with `~/` is correct in a request: the handler
+//! expands it. A file input of a request (an image, an export or import
+//! file) must be an absolute path.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -446,8 +458,9 @@ pub const METHODS: &[&str] = &[
 #[serde(deny_unknown_fields)]
 pub struct Empty {}
 
+/// A later version can add a field. Another field is not an error here, so
+/// that the version check comes first.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct HelloParams {
     pub version: u32,
 }
@@ -492,6 +505,8 @@ pub enum ErrorCode {
     Timeout,
     ResponseTooLarge,
     EngineProblem,
+    /// All places for clients are in use.
+    Busy,
 }
 
 impl Response {

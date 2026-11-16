@@ -109,10 +109,17 @@ impl Control {
     }
 
     /// Takes effect before returning, also for open connections. Called by
-    /// the shell setting setter; the window switch is a separate task.
+    /// the shell setting setter; the window switch is a separate task. If the
+    /// worker ended with an error, the call with `true` starts a new one.
     pub fn set_enabled(&mut self, enabled: bool, config_dir: &Path) -> io::Result<()> {
         #[cfg(unix)]
         {
+            // A worker that ended by an error or a panic left no socket file.
+            // Make a new server for the setting, and tell the shell if that
+            // fails.
+            if self.server.as_ref().is_some_and(|s| !s.is_running()) {
+                self.server = None;
+            }
             if !enabled {
                 self.server = None;
             } else if self.server.is_none() {

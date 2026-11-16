@@ -263,3 +263,26 @@ fn a_profile_read_gives_the_live_profile_without_a_change_of_the_location() {
     assert!(reads[1].1.is_err());
     assert!(problems(&events).is_empty());
 }
+
+#[test]
+fn a_command_with_nothing_to_do_is_a_result_and_no_event() {
+    let mut rig = Rig::new();
+    rig.take_events();
+    // An undo with an empty history, and a fit of a page with no image.
+    for command in [
+        Command::Undo,
+        Command::Redo,
+        Command::SetBackgroundFit {
+            page: 0,
+            fit: opencraft_engine::BackgroundFit::Fill,
+        },
+    ] {
+        let (go_on, result) = rig.engine.command_with_result(command);
+        assert!(go_on);
+        assert!(result.is_err(), "{result:?}");
+        assert!(problems(&rig.take_events()).is_empty());
+    }
+    // The window sends the same commands with no result: still no problem.
+    rig.engine.command(Command::Undo);
+    assert!(problems(&rig.take_events()).is_empty());
+}

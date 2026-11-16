@@ -2658,8 +2658,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     self.for_active_profile(*command)
                 } else {
                     self.problem(
-                        "OpenCraft did not do the change: the window showed a different \
-                         profile than the active profile. Look at the window, and do it again."
+                        "OpenCraft did not do the change, because the active profile is a \
+                         different profile now. Look at the active profile, and do it again."
                             .to_string(),
                     );
                     None
@@ -2728,6 +2728,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.history = history;
         if done {
             self.send_history();
+        } else {
+            self.refuse("There is no step to undo.");
         }
     }
 
@@ -2744,6 +2746,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.history = history;
         if done {
             self.send_history();
+        } else {
+            self.refuse("There is no step to do again.");
         }
     }
 
@@ -2814,11 +2818,18 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             Command::SetBinding { binding, action } => self.set_binding(binding, action),
             Command::SetBackground { page, background } => self.set_background(page, background),
-            Command::SetBackgroundFit { page, fit } => self.change_background(page, |background| {
-                if let Some(Background::Image { fit: old, .. }) = background {
-                    *old = fit;
+            Command::SetBackgroundFit { page, fit } => {
+                let mut has_image = false;
+                self.change_background(page, |background| {
+                    if let Some(Background::Image { fit: old, .. }) = background {
+                        has_image = true;
+                        *old = fit;
+                    }
+                });
+                if page < self.profile.pages().len() && !has_image {
+                    self.refuse("The page has no background image to fit.");
                 }
-            }),
+            }
             Command::SelectPage { page } => self.select_page(page),
             Command::AddPage { copy_of } => self.add_page(copy_of),
             Command::RenamePage { page, name } => self.rename_page(page, name),
@@ -3387,6 +3398,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             *result = Err(text.clone());
         }
         self.notice(text);
+    }
+
+    /// Refuse a command that has nothing to do, only for a sender that waits
+    /// for a result. The shell gets no event: the window does a command of
+    /// this kind with no change and no problem, and a client must not read a
+    /// success for a change that did not happen.
+    fn refuse(&mut self, text: &str) {
+        if let Some(result @ Ok(())) = &mut self.command_result {
+            *result = Err(text.to_string());
+        }
     }
 
     /// Tell the shell about a problem that does not mean that the engine

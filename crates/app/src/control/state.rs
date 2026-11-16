@@ -48,12 +48,63 @@ fn value(value: &e::Value) -> serde_json::Value {
     }
 }
 
+/// The wire text of each gesture. The wire form is not the file form of the
+/// profile: a change of that form must not change the protocol.
+pub(super) fn gesture_name(gesture: e::GestureKind) -> &'static str {
+    match gesture {
+        e::GestureKind::Press => "press",
+        e::GestureKind::Release => "release",
+        e::GestureKind::TurnLeft => "turn-left",
+        e::GestureKind::TurnRight => "turn-right",
+        e::GestureKind::Push => "push",
+        e::GestureKind::Tap => "tap",
+        e::GestureKind::SwipeLeft => "swipe-left",
+        e::GestureKind::SwipeRight => "swipe-right",
+    }
+}
+
+/// The gesture of a wire text: the opposite of [`gesture_name`].
+pub(super) fn gesture_from_name(name: &str) -> Option<e::GestureKind> {
+    use e::GestureKind::*;
+    [
+        Press, Release, TurnLeft, TurnRight, Push, Tap, SwipeLeft, SwipeRight,
+    ]
+    .into_iter()
+    .find(|gesture| gesture_name(*gesture) == name)
+}
+
+/// The setting of an action for a wire value. Null and a number with a
+/// fraction are not a setting.
+fn setting(value: serde_json::Value) -> Result<e::Value, String> {
+    Ok(match value {
+        serde_json::Value::String(v) => e::Value::Text(v),
+        serde_json::Value::Bool(v) => e::Value::Boolean(v),
+        serde_json::Value::Number(v) => e::Value::Integer(
+            v.as_i64()
+                .ok_or("A setting that is a number must be a whole number.")?,
+        ),
+        serde_json::Value::Array(v) => {
+            e::Value::List(v.into_iter().map(setting).collect::<Result<_, _>>()?)
+        }
+        serde_json::Value::Object(v) => e::Value::Table(
+            v.into_iter()
+                .map(|(k, v)| Ok((k, setting(v)?)))
+                .collect::<Result<_, String>>()?,
+        ),
+        serde_json::Value::Null => return Err("A setting cannot be null.".into()),
+    })
+}
+
 impl TryFrom<w::Action> for e::Action {
-    type Error = serde_json::Error;
+    type Error = String;
     fn try_from(action: w::Action) -> Result<Self, Self::Error> {
         Ok(Self {
             kind: action.kind,
-            settings: serde_json::from_value(serde_json::to_value(action.settings)?)?,
+            settings: action
+                .settings
+                .into_iter()
+                .map(|(k, v)| Ok((k, setting(v)?)))
+                .collect::<Result<_, String>>()?,
         })
     }
 }
@@ -380,11 +431,7 @@ impl w::State {
             e::Event::Binding(binding) => {
                 let id = binding.binding;
                 let control: w::Id = id.control.into();
-                let gesture = serde_json::to_value(id.gesture)
-                    .expect("gesture is text")
-                    .as_str()
-                    .unwrap()
-                    .to_string();
+                let gesture = gesture_name(id.gesture).to_string();
                 let folder = id.folder.map(|f| f.to_string());
                 self.content.bindings.retain(|b| {
                     !(b.page == id.page
@@ -420,9 +467,15 @@ impl w::State {
             e::Event::Counters(_) => {}
             e::Event::DeviceSettings(settings) => self.device_settings = Some(settings.into()),
             e::Event::Surface(surface) => {
+                // The place of a surface in the list does not change.
                 let wire = w::Surface::from(surface);
-                self.content.surfaces.retain(|s| s.id != wire.id);
-                self.content.surfaces.push(wire);
+                match self.content.surfaces.iter_mut().find(|s| s.id == wire.id) {
+                    Some(old) => *old = wire,
+                    None => {
+                        self.content.surfaces.push(wire);
+                        self.content.surfaces.sort_by(|a, b| a.id.cmp(&b.id));
+                    }
+                }
             }
             e::Event::Background(background) => {
                 self.content.background = background.background.as_ref().map(Into::into)

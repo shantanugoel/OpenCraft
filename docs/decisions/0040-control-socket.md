@@ -153,6 +153,31 @@ and the next read shows the change. A problem that is a notice and not a
 refusal (the device or a file fails after a correct change) is not the
 result of the request.
 
+Note (2026-11-16, review 1): these points hold for the socket.
+
+- The worker never ends for an error of `accept` that can go away (for
+  example no free file descriptor). It writes one log line, waits, and tries
+  again. If it ends for another reason, it removes the socket file, and the
+  next switch to "on" starts a new worker. Without a home directory, the
+  socket does not start.
+- A connection with no `hello` after 10 seconds closes. A connection that does
+  not read a response for 10 seconds closes. The 17th connection gets the
+  error `busy` and closes. `hello` reads only `version`; the text of the error
+  `version_mismatch` has the two versions.
+- A client that closes its write side after the requests still gets all
+  responses.
+- In a result, a text or the name of an object that begins with the home
+  directory shows `~` in place of it. The rule is the rule of the export of a
+  profile (ignore the case, act only at a path boundary). A text that has the
+  home directory in the middle, for example a script, keeps it. A request can
+  give `~/` in a path setting: the handler expands it.
+- The wire text of a gesture and the wire form of a setting are in the control
+  module. They do not depend on the file form of the profile.
+- An undo or a redo with no step, and a change of the fit of a page with no
+  image, are an error for a client. The window gets no problem for them. A
+  refusal because the active profile changed has a text that is correct for
+  the window and for a client; the window shows it as before.
+
 **One history.** A change from a client is a step of the same history as a
 change from the window ([decision 0030](0030-undo-and-redo-in-the-engine.md)).
 The user can undo it in the window.
