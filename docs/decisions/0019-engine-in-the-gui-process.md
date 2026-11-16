@@ -74,7 +74,7 @@ The reasons:
 ## Results
 
 - The application needs no code for a connection between processes.
-  Note (2026-11-15): [decision 0037](0037-control-socket.md) adds a socket
+  Note (2026-11-15): [decision 0040](0040-control-socket.md) adds a socket
   for a different program that controls OpenCraft. The engine stays in the
   process of the GUI application.
 - The shell continues to use the engine through `EngineHandle` and messages
