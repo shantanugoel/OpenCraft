@@ -21,12 +21,15 @@
 //! kind; an `initialize` request, and the requests after it, are of the
 //! second kind. There is no other session state.
 //!
-//! The server has three tools, and [`tools`] makes them from `COMMANDS`.
-//! Each tool call opens one connection to the control socket, as the client
-//! does: a new start of OpenCraft needs no new start of the server. When
-//! OpenCraft does not run, or the setting "Allow control by other programs"
-//! is off, the tool call is a tool error with the text of the client, and
-//! the server continues.
+//! The server has four tools, and [`tools`] makes them from `COMMANDS`. The
+//! tool of a command is the class of that command: `opencraft_read` reads,
+//! `opencraft_change` adds data or changes it, and `opencraft_remove` removes
+//! data or writes a file, thus its `destructiveHint` is true. Each tool call
+//! opens one connection to the control socket, as the client does: a new
+//! start of OpenCraft needs no new start of the server. When OpenCraft does
+//! not run, or the setting "Allow control by other programs" is off, the tool
+//! call is a tool error with the text of the client, and the server
+//! continues.
 
 #[cfg(test)]
 mod tests;
@@ -70,18 +73,19 @@ const ANSWER_TIMEOUT: Duration = Duration::from_secs(60);
 /// repeat the tool descriptions. The complete skill is the result of
 /// `opencraft_help` with no command.
 const INSTRUCTIONS: &str = concat!(
-    "OpenCraft operates a StreamDock controller. `opencraft_read` and ",
-    "`opencraft_change` read and change the OpenCraft that runs now: its ",
-    "profiles, pages, folders, surfaces, bindings, actions, device settings, ",
-    "and history. The user sees each change at once on the device and in the ",
-    "window.\n",
+    "OpenCraft operates a StreamDock controller. `opencraft_read`, ",
+    "`opencraft_change`, and `opencraft_remove` read, change, and remove the ",
+    "data of the OpenCraft that runs now: its profiles, pages, folders, ",
+    "surfaces, bindings, actions, device settings, and history. The user sees ",
+    "each change at once on the device and in the window.\n",
     "\n",
     "Rules that prevent damage:\n",
     "- A change with `page` moves the device: it makes the profile active and ",
     "shows the page. When you are done, go home: `profile select`, ",
     "`page select`, and `folder open` for each open folder of your home.\n",
-    "- Ask the user before `profile remove`. OpenCraft does not delete the ",
-    "profile: it moves it to the folder `removed`, and no undo brings it back.\n",
+    "- Ask the user before a command of `opencraft_remove`. It removes data, ",
+    "or it writes a file in place of a file. `profile remove` moves the ",
+    "profile to the folder `removed`, and no undo brings it back.\n",
     "- Read the identities from `profile list`, `page list`, and ",
     "`folder list`. Never guess them.\n",
     "- You cannot run an action. A person must push the key.\n",
@@ -196,9 +200,10 @@ pub fn help() -> String {
          standard output, for an agent. The server is a client of the control socket:\n\
          OpenCraft must run, and the setting \"Allow control by other programs\" must be\n\
          on. It takes no lock, starts no engine, and opens no device.\n\n\
-         The server has the tools opencraft_read, opencraft_change, and opencraft_help.\n\
-         The instructions of the server give the first rules; opencraft_help with no\n\
-         command gives the complete skill for an agent.\n\n\
+         The server has the tools opencraft_read, opencraft_change,\n\
+         opencraft_remove, and opencraft_help. The instructions of the server give\n\
+         the first rules; opencraft_help with no command gives the complete skill\n\
+         for an agent.\n\n\
          Arguments:\n  \
          --config [AGENT]  Write the line that installs the server in an agent:\n  \
          \x20                 `claude` for Claude Code, `codex` for the Codex CLI, or no\n  \
@@ -542,7 +547,7 @@ fn call(params: &Value, env: &Env) -> Result<Value, (i64, String)> {
                 },
             })
         }
-        tools::READ_TOOL | tools::CHANGE_TOOL => {
+        tools::READ_TOOL | tools::CHANGE_TOOL | tools::REMOVE_TOOL => {
             if let Some(key) = unknown_key(arguments.keys(), &["command", "args"]) {
                 return Ok(failed(&format!(
                     "The argument `{key}` of {name} is not correct. Put the arguments of the \
@@ -571,20 +576,19 @@ fn call(params: &Value, env: &Env) -> Result<Value, (i64, String)> {
                     "`{command}` is not a command. See `opencraft ctl --help`."
                 )));
             };
-            let read = tools::is_read(command);
-            if (name == tools::READ_TOOL) != read {
-                let text = if read {
-                    format!(
-                        "`{}` is a read. Use {} for it.",
-                        command.name,
-                        tools::READ_TOOL
-                    )
-                } else {
-                    format!(
-                        "`{}` is a change. Use {} for it.",
-                        command.name,
-                        tools::CHANGE_TOOL
-                    )
+            let tool = tools::tool_of(command.class);
+            if name != tool {
+                let text = match command.class {
+                    commands::Class::Read => {
+                        format!("`{}` is a read. Use {tool} for it.", command.name)
+                    }
+                    commands::Class::Change => {
+                        format!("`{}` is a change. Use {tool} for it.", command.name)
+                    }
+                    commands::Class::Remove => format!(
+                        "`{}` removes data or writes a file. Use {tool} for it.",
+                        command.name
+                    ),
                 };
                 return Ok(failed(&text));
             }

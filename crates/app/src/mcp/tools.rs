@@ -1,79 +1,70 @@
-//! The three tools of the MCP server, made from `COMMANDS` (decision 0040,
+//! The four tools of the MCP server, made from `COMMANDS` (decision 0040,
 //! section 6).
 //!
 //! The client of the command line and the server have one source of truth:
 //! the list `COMMANDS` of `ctl/commands.rs`. The enums, the descriptions, and
-//! the help texts come from that list when the server starts. A test checks
-//! that no command is missing and that the read tool holds exactly the read
-//! requests of `control/protocol.rs`.
+//! the help texts come from that list when the server starts. The
+//! [`Class`] of a command is the tool that holds it: a read is in
+//! `opencraft_read`, an additive change is in `opencraft_change`, and a
+//! removal or a file write is in `opencraft_remove`, which the specification
+//! calls destructive. A test checks that each command is in exactly one tool
+//! and that a read is exactly a read request of `control/protocol.rs`.
 
-use crate::ctl::commands::{Arg, Command, Kind, COMMANDS};
+use crate::ctl::commands::{Arg, Class, Command, Kind, COMMANDS};
 use serde_json::{json, Map, Value};
-
-/// The methods of the protocol that only read. `Method::reads` is the check
-/// of the protocol; the test `the_tools_cannot_drift_from_the_commands`
-/// compares this list with it, with the examples of the commands.
-pub(super) const READS: &[&str] = &[
-    "state",
-    "layout",
-    "kinds",
-    "icons",
-    "choices",
-    "profiles",
-    "pages",
-    "folders",
-    "content",
-    "device_settings",
-    "history",
-    "connection",
-];
 
 /// The name of the tool that reads.
 pub(super) const READ_TOOL: &str = "opencraft_read";
 /// The name of the tool that changes.
 pub(super) const CHANGE_TOOL: &str = "opencraft_change";
+/// The name of the tool that removes data, or that writes a file.
+pub(super) const REMOVE_TOOL: &str = "opencraft_remove";
 /// The name of the tool that gives the help.
 pub(super) const HELP_TOOL: &str = "opencraft_help";
 
-/// True if the command only reads.
-pub(super) fn is_read(command: &Command) -> bool {
-    READS.contains(&command.method)
+/// The tool that holds a command of this class.
+pub(super) fn tool_of(class: Class) -> &'static str {
+    match class {
+        Class::Read => READ_TOOL,
+        Class::Change => CHANGE_TOOL,
+        Class::Remove => REMOVE_TOOL,
+    }
 }
 
-/// The three tools, as `tools/list` gives them.
+/// The four tools, as `tools/list` gives them.
 pub(super) fn list() -> Value {
-    json!([read_tool(), change_tool(), help_tool()])
+    json!([read_tool(), change_tool(), remove_tool(), help_tool()])
 }
 
-fn names(read: bool) -> Vec<&'static str> {
+fn names(class: Class) -> Vec<&'static str> {
     COMMANDS
         .iter()
-        .filter(|command| is_read(command) == read)
+        .filter(|command| command.class == class)
         .map(|command| command.name)
         .collect()
 }
 
-/// The names of the commands of the group: the start of the description of
-/// the tool. The help of a command is one tool result away, in
-/// `opencraft_help`, thus the description stays short (Claude Code cuts a
-/// description after 4,096 characters).
-fn description(intro: &str, read: bool) -> String {
+/// The names of the commands of the class: the end of the description of the
+/// tool. The help of a command is one tool result away, in `opencraft_help`,
+/// thus the description stays short (Claude Code cuts a description after
+/// 4,096 characters).
+fn description(intro: &str, class: Class) -> String {
     let names: Vec<String> = COMMANDS
         .iter()
-        .filter(|command| is_read(command) == read)
+        .filter(|command| command.class == class)
         .map(|command| format!("`{}`", command.name))
         .collect();
     format!("{intro}\n\nThe commands: {}.", names.join(", "))
 }
 
-/// The schema of a tool that runs a command.
-fn schema(read: bool) -> Value {
+/// The schema of a tool that runs a command of the class.
+fn schema(class: Class) -> Value {
     json!({
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "enum": names(read),
+                "enum": names(class),
                 "description": "The command to run. The description of this tool names each command. `opencraft_help` gives the arguments and an example of one command."
             },
             "args": {
@@ -92,9 +83,9 @@ fn read_tool() -> Value {
         "title": "Read the state of OpenCraft",
         "description": description(
             "Read the state of a running OpenCraft: the layout, the kinds of action, the icon names, the choices of a field, the profiles, the pages, the folders, the content, the device settings, the history, and the connection. A read changes nothing and does not move the device. Call opencraft_help with a command for its arguments and an example. OpenCraft must run, and the setting \"Allow control by other programs\" must be on.",
-            true
+            Class::Read
         ),
-        "inputSchema": schema(true),
+        "inputSchema": schema(Class::Read),
         "annotations": {
             "readOnlyHint": true,
             "openWorldHint": false
@@ -107,13 +98,31 @@ fn change_tool() -> Value {
         "name": CHANGE_TOOL,
         "title": "Change OpenCraft",
         "description": description(
-            "Change a running OpenCraft: a surface, a binding, a control, a page, a folder, a profile, the device settings, or the history. The user can undo a change of the pages. A change with `page` makes that page the active page, thus the device shows it. Ask the user before `profile remove`: OpenCraft does not delete the profile, it moves it to the folder `removed`, and no undo brings it back. Call opencraft_help with a command for its arguments and an example. OpenCraft must run, and the setting \"Allow control by other programs\" must be on.",
-            false
+            "Change a running OpenCraft: a surface, a binding, a control, a page, a folder, a profile, the device settings, or the history. This tool adds data or changes it. It removes nothing: opencraft_remove removes data and writes a file, and it holds the commands that do that. A change of the pages has an undo (`undo` and `redo`). A change with `page` makes that page the active page, thus the device shows it. Call opencraft_help with a command for its arguments and an example. OpenCraft must run, and the setting \"Allow control by other programs\" must be on.",
+            Class::Change
         ),
-        "inputSchema": schema(false),
+        "inputSchema": schema(Class::Change),
         "annotations": {
             "readOnlyHint": false,
             "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+        }
+    })
+}
+
+fn remove_tool() -> Value {
+    json!({
+        "name": REMOVE_TOOL,
+        "title": "Remove data, or write a profile to a file",
+        "description": description(
+            "Remove data of a running OpenCraft, or write a profile to a file. A command of this tool removes data or replaces a file, thus it is not an additive update: ask the user before you run one. A change of the pages has an undo, but `profile remove`, `profile unlink-app`, and the file that `profile export` replaces have no undo. A command with `page` makes that page the active page, thus the device shows it. Call opencraft_help with a command for its arguments and an example. OpenCraft must run, and the setting \"Allow control by other programs\" must be on.",
+            Class::Remove
+        ),
+        "inputSchema": schema(Class::Remove),
+        "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
             "idempotentHint": false,
             "openWorldHint": false
         }

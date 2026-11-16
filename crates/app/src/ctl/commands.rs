@@ -10,6 +10,11 @@
 //! the user does not give is not in the request. For a request that sets a
 //! value or removes it, no value means remove. The request types of
 //! `control/protocol.rs` check the result: the client has no copy of them.
+//!
+//! Each command has a [`Class`]: the MCP server makes one tool for each class,
+//! and this field is the only place that says which tool holds the command.
+//! The macros `read!`, `change!`, and `remove!` are the only ways to make a
+//! command, thus no command has a class by accident.
 
 use serde_json::{Map, Value};
 
@@ -50,9 +55,25 @@ pub struct Arg {
 /// A change to the parameters, after the arguments are in them.
 pub type Finish = fn(&mut Map<String, Value>) -> Result<(), String>;
 
+/// What a command does to the data of OpenCraft. The MCP server makes one tool
+/// for each class (decision 0040, section 6): `opencraft_read`,
+/// `opencraft_change`, and `opencraft_remove`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Class {
+    /// A command that only reads. It changes nothing.
+    Read,
+    /// A command that adds or changes data: an additive update.
+    Change,
+    /// A command whose purpose is to remove data, or to write a file in place
+    /// of the file that is there.
+    Remove,
+}
+
 pub struct Command {
     /// One or two words, for example `profile add`.
     pub name: &'static str,
+    /// What the command does. It is the tool of the MCP server that holds it.
+    pub class: Class,
     /// The wire name of the request.
     pub method: &'static str,
     pub help: &'static str,
@@ -314,9 +335,10 @@ const FOLDER_NAME: &[Arg] = &[
 const NO_ARGS: &[&[Arg]] = &[];
 
 macro_rules! command {
-    ($name:literal, $method:literal, $help:literal, $example:literal, $args:expr) => {
+    ($class:expr, $name:literal, $method:literal, $help:literal, $example:literal, $args:expr) => {
         Command {
             name: $name,
+            class: $class,
             method: $method,
             help: $help,
             example: $example,
@@ -327,31 +349,52 @@ macro_rules! command {
     };
 }
 
+/// A command that only reads.
+macro_rules! read {
+    ($name:literal, $method:literal, $help:literal, $example:literal, $args:expr) => {
+        command!(Class::Read, $name, $method, $help, $example, $args)
+    };
+}
+
+/// A command that adds or changes data.
+macro_rules! change {
+    ($name:literal, $method:literal, $help:literal, $example:literal, $args:expr) => {
+        command!(Class::Change, $name, $method, $help, $example, $args)
+    };
+}
+
+/// A command that removes data, or that writes a file in place of a file.
+macro_rules! remove {
+    ($name:literal, $method:literal, $help:literal, $example:literal, $args:expr) => {
+        command!(Class::Remove, $name, $method, $help, $example, $args)
+    };
+}
+
 /// Each command of the client.
 pub const COMMANDS: &[Command] = &[
     // The reads.
-    command!(
+    read!(
         "state",
         "state",
         "Read all state in one result: the layout, the kinds, the profiles, the pages, the content of the active page, the device settings, the history, and the connection.",
         "opencraft ctl state",
         NO_ARGS
     ),
-    command!(
+    read!(
         "layout",
         "layout",
         "Read the layout of the device model: the surfaces, the controls, and the gestures of each control.",
         "opencraft ctl layout",
         NO_ARGS
     ),
-    command!(
+    read!(
         "kinds",
         "kinds",
         "Read the kinds of action, with their fields, their help, and their status.",
         "opencraft ctl kinds",
         NO_ARGS
     ),
-    command!(
+    read!(
         "icons",
         "icons",
         "Read the names of the icons for a surface: the set `Lucide`, its version, and the name of each icon. A search gives the icons whose name or tag agrees with the text, the best first.",
@@ -363,14 +406,14 @@ pub const COMMANDS: &[Command] = &[
             "Text that the name or a tag of an icon has, for example `mic` or `arrow right`. Leave it out for each icon."
         )]]
     ),
-    command!(
+    read!(
         "choices",
         "choices",
         "Read the choices of one field of an action, for example the sound devices.",
         "opencraft ctl choices --action-kind opencraft.play-sound --field device",
         &[CHOICE_ACTION]
     ),
-    command!(
+    read!(
         "content",
         "content",
         "Read the surfaces and the bindings of a location. With no argument: the active location. A location that is not active is read, and not selected.",
@@ -381,21 +424,21 @@ pub const COMMANDS: &[Command] = &[
             arg("folder", "target.folder", Kind::Text, "The identity of the folder, if there is one."),
         ]]
     ),
-    command!(
+    read!(
         "device settings",
         "device_settings",
         "Read the settings of the device: the brightness, the screen-off time, the haptic feedback, and the knob lights.",
         "opencraft ctl device settings",
         NO_ARGS
     ),
-    command!(
+    read!(
         "history",
         "history",
         "Read the names of the next undo and the next redo. With no `--profile`: the active profile. A profile that is not active keeps its history: it cannot change while the profile is not active.",
         "opencraft ctl history",
         &[OPTIONAL_PROFILE]
     ),
-    command!(
+    read!(
         "connection",
         "connection",
         "Read the state of the device connection: connected or not, and the firmware.",
@@ -403,14 +446,14 @@ pub const COMMANDS: &[Command] = &[
         NO_ARGS
     ),
     // Profiles.
-    command!(
+    read!(
         "profile list",
         "profiles",
         "Read the profiles with their pages, their application links, and which profile is active and default.",
         "opencraft ctl profile list",
         NO_ARGS
     ),
-    command!(
+    change!(
         "profile add",
         "add_profile",
         "Add a profile, empty or as a copy of a profile. The result has the identity of the new profile and of its first page.",
@@ -420,42 +463,42 @@ pub const COMMANDS: &[Command] = &[
             arg("copy-of", "copy_of", Kind::Text, "The identity of a profile to copy."),
         ]]
     ),
-    command!(
+    change!(
         "profile rename",
         "rename_profile",
         "Rename a profile.",
         "opencraft ctl profile rename --profile work --name Office",
         &[PROFILE, NAME]
     ),
-    command!(
+    remove!(
         "profile remove",
         "remove_profile",
         "Remove a profile with all its pages. There is no undo: OpenCraft moves the profile to the folder `removed` in the profiles folder.",
         "opencraft ctl profile remove --profile work",
         &[PROFILE]
     ),
-    command!(
+    change!(
         "profile select",
         "select_profile",
         "Make a profile the active profile. The device then shows it.",
         "opencraft ctl profile select --profile work",
         &[PROFILE]
     ),
-    command!(
+    change!(
         "profile set-color",
         "set_profile_color",
         "Set the colour of a profile, or remove it.",
         "opencraft ctl profile set-color --profile work --color '#ff8800'",
         &[PROFILE, COLOR]
     ),
-    command!(
+    change!(
         "profile set-default",
         "set_default_profile",
         "Make a profile the default profile.",
         "opencraft ctl profile set-default --profile work",
         &[PROFILE]
     ),
-    command!(
+    change!(
         "profile link-app",
         "link_application",
         "Link an application to a profile. The profile then becomes active when the application is in front, if the automatic switch is on.",
@@ -468,7 +511,7 @@ pub const COMMANDS: &[Command] = &[
             ]
         ]
     ),
-    command!(
+    remove!(
         "profile unlink-app",
         "unlink_application",
         "Remove the link of an application from a profile.",
@@ -478,14 +521,14 @@ pub const COMMANDS: &[Command] = &[
             &[req("bundle-id", "bundle_id", Kind::Text, "The bundle identifier of the application.")]
         ]
     ),
-    command!(
+    change!(
         "profile follow",
         "set_follow_front_application",
         "Turn the automatic switch of the profile to the front application on or off.",
         "opencraft ctl profile follow --follow true",
         &[&[req("follow", "follow", Kind::Bool, "`true` or `false`.")]]
     ),
-    command!(
+    remove!(
         "profile export",
         "export_profile",
         "Write a profile with its images to a file.",
@@ -495,7 +538,7 @@ pub const COMMANDS: &[Command] = &[
             &[req("path", "path", Kind::Path, "The file to write.")]
         ]
     ),
-    command!(
+    change!(
         "profile import",
         "import_profile",
         "Read a profile from a file. The result has the identity of the new profile and of its first page.",
@@ -503,56 +546,56 @@ pub const COMMANDS: &[Command] = &[
         &[&[req("path", "path", Kind::Path, "The file to read.")]]
     ),
     // Pages.
-    command!(
+    read!(
         "page list",
         "pages",
         "Read the pages of a profile with their identities, its folders, and the first page. With no `--profile`: the active profile, with its active location. A profile that is not active has no active location (`location` is null).",
         "opencraft ctl page list --profile work",
         &[OPTIONAL_PROFILE]
     ),
-    command!(
+    change!(
         "page add",
         "add_page",
         "Add an empty page at the end of a profile. The result has the identity of the new page.",
         "opencraft ctl page add --profile work",
         &[PROFILE]
     ),
-    command!(
+    change!(
         "page duplicate",
         "duplicate_page",
         "Add a copy of a page after it. The result has the identity of the new page.",
         "opencraft ctl page duplicate --profile work --page 0123456789abcdef",
         &[PAGE_TARGET]
     ),
-    command!(
+    change!(
         "page rename",
         "rename_page",
         "Rename a page.",
         "opencraft ctl page rename --profile work --page 0123456789abcdef --name Music",
         &[PAGE_TARGET, NAME]
     ),
-    command!(
+    change!(
         "page move",
         "move_page",
         "Move a page to a place in the list of the pages. Page 1 is the first page.",
         "opencraft ctl page move --profile work --page 0123456789abcdef --to 1",
         &[PAGE_TARGET, TO]
     ),
-    command!(
+    remove!(
         "page remove",
         "remove_page",
         "Remove a page.",
         "opencraft ctl page remove --profile work --page 0123456789abcdef",
         &[PAGE_TARGET]
     ),
-    command!(
+    change!(
         "page select",
         "select_page",
         "Make a page the active page. The device then shows it.",
         "opencraft ctl page select --profile work --page 0123456789abcdef",
         &[PAGE_TARGET]
     ),
-    command!(
+    change!(
         "page set-first",
         "set_first_page",
         "Make a page the first page of its profile: the page that the device shows when the profile becomes active.",
@@ -561,7 +604,7 @@ pub const COMMANDS: &[Command] = &[
     ),
     Command {
         finish: Some(finish_background),
-        ..command!(
+        ..change!(
             "page set-background",
             "set_background",
             "Set the background of a page: a colour or an image. Leave out all values to remove the background.",
@@ -576,7 +619,7 @@ pub const COMMANDS: &[Command] = &[
             ]
         )
     },
-    command!(
+    change!(
         "page set-background-fit",
         "set_background_fit",
         "Set how the background image of a page fits the display.",
@@ -587,14 +630,14 @@ pub const COMMANDS: &[Command] = &[
         ]
     ),
     // Folders.
-    command!(
+    read!(
         "folder list",
         "folders",
         "Read the folders of a profile. With no `--profile`: the active profile.",
         "opencraft ctl folder list --profile work",
         &[OPTIONAL_PROFILE]
     ),
-    command!(
+    change!(
         "folder add",
         "add_folder",
         "Add a folder to a profile, empty or as a copy of a folder. The result has the identity of the new folder.",
@@ -605,35 +648,35 @@ pub const COMMANDS: &[Command] = &[
             &[arg("id", "id", Kind::Text, "The identity of the new folder: 16 hexadecimal digits. Leave it out for a new identity.")]
         ]
     ),
-    command!(
+    change!(
         "folder rename",
         "rename_folder",
         "Rename a folder.",
         "opencraft ctl folder rename --profile work --folder 0123456789abcdef --name Tools",
         &[FOLDER, NAME]
     ),
-    command!(
+    change!(
         "folder move",
         "move_folder",
         "Move a folder to a place in the list of the folders. Folder 1 is the first folder.",
         "opencraft ctl folder move --profile work --folder 0123456789abcdef --to 1",
         &[FOLDER, TO]
     ),
-    command!(
+    remove!(
         "folder remove",
         "remove_folder",
         "Remove a folder.",
         "opencraft ctl folder remove --profile work --folder 0123456789abcdef",
         &[FOLDER]
     ),
-    command!(
+    change!(
         "folder open",
         "open_folder",
         "Open a folder on a page. The device then shows the folder.",
         "opencraft ctl folder open --profile work --page 0123456789abcdef --folder fedcba9876543210",
         &[OPEN_TARGET]
     ),
-    command!(
+    change!(
         "folder close",
         "close_folder",
         "Close the folder that is open at the location. The folder must be the last open folder of the active location. The device then shows the page or the folder below it.",
@@ -641,7 +684,7 @@ pub const COMMANDS: &[Command] = &[
         &[CLOSE_TARGET]
     ),
     // Surfaces.
-    command!(
+    change!(
         "surface set-label",
         "set_label",
         "Set the text of a surface, or remove it.",
@@ -652,7 +695,7 @@ pub const COMMANDS: &[Command] = &[
             &[arg("label", "label", Kind::Text, "The text. Leave it out to remove the text.")]
         ]
     ),
-    command!(
+    change!(
         "surface set-label-style",
         "set_label_style",
         "Set the style of the text of a surface. Leave out all values for the default style.",
@@ -668,14 +711,14 @@ pub const COMMANDS: &[Command] = &[
             ]
         ]
     ),
-    command!(
+    change!(
         "surface set-color",
         "set_color",
         "Set the fill colour of a surface, or remove it.",
         "opencraft ctl surface set-color --profile work --page 0123456789abcdef --surface key_face:1 --color '#336699'",
         &[TARGET, SURFACE, COLOR]
     ),
-    command!(
+    change!(
         "surface set-image",
         "set_image",
         "Set the image of a surface from a file, or remove it.",
@@ -686,7 +729,7 @@ pub const COMMANDS: &[Command] = &[
             &[arg("path", "path", Kind::Path, "The image file. Leave it out to remove the image.")]
         ]
     ),
-    command!(
+    change!(
         "surface set-icon",
         "set_icon",
         "Set the icon of a surface, or remove it. The name is a name of the icons that `icons` reads, for example `mic`.",
@@ -701,35 +744,35 @@ pub const COMMANDS: &[Command] = &[
         ]
     ),
     // Bindings and controls.
-    command!(
+    change!(
         "binding set",
         "set_binding",
         "Set the action of a gesture of a control, or remove it. A person must push the key: a client cannot run an action.",
         "opencraft ctl binding set --profile work --page 0123456789abcdef --control key:1 --gesture press --action-kind opencraft.hotkey --setting hotkey=cmd+c",
         &[TARGET, CONTROL, GESTURE, ACTION]
     ),
-    command!(
+    change!(
         "control copy",
         "copy_control",
         "Copy a control with its surface and its bindings.",
         "opencraft ctl control copy --profile work --page 0123456789abcdef --control key:1",
         &[TARGET, CONTROL]
     ),
-    command!(
+    change!(
         "control paste",
         "paste_control",
         "Paste the copied control onto a control.",
         "opencraft ctl control paste --profile work --page 0123456789abcdef --control key:2",
         &[TARGET, CONTROL]
     ),
-    command!(
+    remove!(
         "control clear",
         "clear_control",
         "Remove the surface and the bindings of a control.",
         "opencraft ctl control clear --profile work --page 0123456789abcdef --control key:2",
         &[TARGET, CONTROL]
     ),
-    command!(
+    change!(
         "control copy-to-all-pages",
         "copy_to_all_pages",
         "Copy a control to the same place on all other pages of the profile.",
@@ -739,7 +782,7 @@ pub const COMMANDS: &[Command] = &[
     // The device.
     Command {
         base: Some("device_settings"),
-        ..command!(
+        ..change!(
             "device set-settings",
             "set_device_settings",
             "Set the settings of the device. A value that you leave out keeps its value.",
@@ -755,14 +798,14 @@ pub const COMMANDS: &[Command] = &[
         )
     },
     // The history.
-    command!(
+    change!(
         "undo",
         "undo",
         "Undo the last change of a profile. The profile must be the active profile. The result gives the place of the reversed change. With no step, the error is `nothing_to_undo`.",
         "opencraft ctl undo --profile work",
         &[PROFILE]
     ),
-    command!(
+    change!(
         "redo",
         "redo",
         "Redo the last undone change of a profile. The profile must be the active profile. The result gives the place of the change. With no undone change, the error is `nothing_to_redo`.",
