@@ -169,6 +169,24 @@ impl ProfileList {
         true
     }
 
+    /// Make the default profile of now the default mark, if the list has no
+    /// mark. Return the identity if the mark is new, else `None`. A profile
+    /// that the user adds must not take the place of a default profile that
+    /// the list only derives (the first profile in the order of the
+    /// identities).
+    pub fn pin_default(&mut self) -> Option<String> {
+        if self
+            .default_mark
+            .as_deref()
+            .is_some_and(|m| self.contains(m))
+        {
+            return None;
+        }
+        let id = self.default_id()?.to_string();
+        self.default_mark = Some(id.clone());
+        Some(id)
+    }
+
     /// The identity of the default profile: the default mark if the list has
     /// that profile, else the first profile with no link that applies, else
     /// the first profile. `None` if the list is empty.

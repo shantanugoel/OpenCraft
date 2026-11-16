@@ -7,11 +7,16 @@ description: Configure a running OpenCraft (StreamDock controller app) with `ope
 
 `opencraft ctl <command>` changes the OpenCraft that runs now. It prints JSON on
 the standard output and a problem as text on the standard error. The user sees
-each change at once on the device and in the window.
+each change at once on the device and in the window, if a device is connected.
+With no device, OpenCraft accepts and saves each change, and reads it back. The
+device shows it when it connects. `opencraft ctl connection` says
+`"connected": false` then.
 
 ## Start
 
-1. Run `opencraft ctl state`. It reads everything in one result.
+1. Run `opencraft ctl state`. It reads everything in one result: `layout`,
+   `kinds` (long: filter it, for example `jq 'del(.kinds, .layout)'`),
+   `profiles`, `pages`, `content`, `device_settings`, `history`, `connection`.
 2. Read the exit status.
 
 | Status | Meaning | You do |
@@ -31,18 +36,27 @@ read it again and the next save removes your edit.
 
 ## Rules
 
-- **Every change moves the device.** A change shows the page (and the folder)
-  that it changes. When you are done, go home: run `profile select` for your
+- **Every change moves the device.** A change makes the profile that it names
+  the active profile, and shows the page (and the folder) that it changes.
+  `profile add`, `profile import`, and `page add` do this too, for the new
+  profile or page. When you are done, go home: run `profile select` for your
   home profile, `page select` for your home page, and `folder open` for each
   open folder of your home.
+- **The default profile is not the active profile.** The default profile is
+  what the device shows for an application that has no link. Only
+  `profile set-default` changes it (and `profile remove` for the default
+  profile itself). Going home needs no `profile set-default`.
 - **You cannot run an action.** A person must push the key. Set the binding,
   then tell the user which key to push.
 - **You cannot** send a gesture, stop OpenCraft, or change the control setting.
 - **Read identities. Never guess them.** A profile, a page, and a folder have an
-  identity. `profile list`, `page list`, and `folder list` give them. A change
-  that makes a thing gives its identity in the result:
-  `{"profile": null, "page": "dbf2edfee20f62ab", "folder": null}`. A name can
-  be the same for two pages.
+  identity. `profile list`, `page list`, and `folder list` give them. A name can
+  be the same for two pages. Each change gives the place that it changed:
+  `{"profile": "demo", "page": "dbf2edfee20f62ab", "folder": null}`. A part
+  that the request does not have is null. A request that adds a thing gives
+  the identity of the new thing in its field (`page add`: the new page).
+  Use that identity at once. A request that removes a thing names it; it is
+  gone.
 - **Exit 0 means OpenCraft accepted the request.** `binding set` refuses an
   action with an unknown kind, an unknown setting, or a value that the kind
   refuses (exit 1, `invalid_params`, with a text that names the problem). The
@@ -92,7 +106,10 @@ A key opens a folder with the kind `opencraft.open-folder`. Its setting
 
 Give a setting as `--setting KEY=VALUE`, one flag for each field. A value is
 JSON when it can be JSON (`step=5` is a number), else text. A hotkey is the
-modifiers and one key with `+`: `cmd+c`, `shift+cmd+4`.
+modifiers and one key with `+`: `cmd+c`, `shift+cmd+4`. The modifiers can be in
+any order (`cmd+shift+4` is the same hotkey), and capital letters are correct.
+The modifiers are `ctrl`, `alt`, `shift`, `cmd`, `fn`, and the right-side
+`rightctrl`, `rightalt`, `rightshift`, `rightcmd`.
 
 `opencraft ctl choices --action-kind opencraft.play-sound --field device` reads
 a choice that depends on the computer, for example the applications that run now.
@@ -107,7 +124,7 @@ here are examples: use the ones that OpenCraft gives you.
 
 ```sh
 opencraft ctl profile add --name Demo
-opencraft ctl page list
+opencraft ctl page list --profile demo
 opencraft ctl page rename --profile demo --page 4853c7f9bf374716 --name Main
 opencraft ctl page add --profile demo
 opencraft ctl surface set-label --profile demo --page 4853c7f9bf374716 --surface key_face:1 --label Copy
@@ -120,8 +137,8 @@ opencraft ctl binding set --profile demo --page 4853c7f9bf374716 --control key:1
 opencraft ctl content --profile demo --page 4853c7f9bf374716
 ```
 
-`profile add` makes the new profile the active profile. `page add` gives the
-identity of the new page in the result. To remove a surface value or a binding,
+`profile add` makes the new profile the active profile, and does not change the
+default profile. `page add` gives the identity of the new page in the result. To remove a surface value or a binding,
 leave out the value: `opencraft ctl surface set-label` with no `--label`.
 
 ## Commands
@@ -151,7 +168,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `profile follow` | `--follow` | Turn the automatic switch on or off |
 | `profile export` | `--profile` `--path` | Write a profile to a file |
 | `profile import` | `--path` | Read a profile from a file |
-| `page list` | | Read the pages and the active location |
+| `page list` | `--profile` | Read the pages, the folders, and the first page; no flag: the active profile, with its location |
 | `page add` | `--profile` | Add an empty page at the end |
 | `page duplicate` | `--profile` `--page` | Copy a page |
 | `page rename` | `--profile` `--page` `--name` | Rename |
@@ -161,7 +178,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `page set-first` | `--profile` `--page` | Make it the first page |
 | `page set-background` | `--profile` `--page` `--color` `--image` `--fit` | Set or remove the background |
 | `page set-background-fit` | `--profile` `--page` `--fit` | `fill` or `fit` |
-| `folder list` | | Read the folders |
+| `folder list` | `--profile` | Read the folders; no flag: the active profile |
 | `folder add` | `--profile` `--name` `--copy-of` `--id` | Add a folder |
 | `folder rename` | `--profile` `--folder` `--name` | Rename |
 | `folder move` | `--profile` `--folder` `--to` | Move |

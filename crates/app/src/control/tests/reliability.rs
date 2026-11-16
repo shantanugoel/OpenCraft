@@ -389,9 +389,14 @@ fn a_change_that_the_engine_obeys_late_has_its_response_and_no_timeout() {
     reply.unwrap()(Ok(()));
     let response = client.read();
     assert_eq!(response["id"], 5);
+    let state = client.request("state");
     assert_eq!(
         response["result"],
-        json!({"profile": null, "page": null, "folder": null})
+        json!({
+            "profile": state["profiles"]["active"],
+            "page": state["pages"]["location"]["page"],
+            "folder": null,
+        })
     );
     // The next request works on the same connection.
     assert!(client.request("history").is_object());

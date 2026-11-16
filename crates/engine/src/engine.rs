@@ -2239,6 +2239,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.problem(format!("OpenCraft could not add the profile: {e}"));
             return;
         }
+        self.pin_default_profile();
         self.note_manual_selection();
         self.change_profile(id, Some(profile));
     }
@@ -2402,6 +2403,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         };
         match written {
             Ok(profile) => {
+                self.pin_default_profile();
                 self.note_manual_selection();
                 self.change_profile(id.clone(), Some(profile));
                 (self.sink)(Event::ProfileImported { profile: id });
@@ -2468,6 +2470,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if replace {
             self.list.remove(&self.profile_id);
         }
+        self.pin_default_profile();
         self.note_manual_selection();
         self.change_profile(id, Some(profile));
     }

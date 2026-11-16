@@ -134,6 +134,19 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.send_profiles();
     }
 
+    /// Record the default profile as the mark, if the user has no mark. Call
+    /// it before a new profile joins the list: the new profile must not
+    /// become the default profile only because its identity is the first
+    /// (decision 0035, section 6; note of 2026-11-16).
+    pub(super) fn pin_default_profile(&mut self) {
+        let Some(id) = self.list.pin_default() else {
+            return;
+        };
+        // The add records the active profile in the same file right after.
+        // That write gives the notice if the file does not accept a write.
+        let _ = self.profiles.set_default(self.descriptor.model, &id);
+    }
+
     /// [`Command::SetFollowFrontApplication`].
     pub(super) fn set_follow_front(&mut self, follow: bool) {
         if !self.front_switch.set_follow(follow) {

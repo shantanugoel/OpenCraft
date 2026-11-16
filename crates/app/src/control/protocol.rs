@@ -18,10 +18,12 @@
 //!
 //! # Reads
 //!
-//! `state` (all read state), `layout`, `kinds`, `profiles`, `pages`,
-//! `folders`, `content`, `device_settings`, `history`, and `connection`
-//! take `{}`. `content` also takes `{ "target": <target> }`: then it reads
-//! that location, also of a profile that is not active, and selects nothing.
+//! `state` (all read state), `layout`, `kinds`, `profiles`,
+//! `device_settings`, `history`, and `connection` take `{}`. `pages` and
+//! `folders` take `{}` or `{ "profile": <identity> }`: no profile is the
+//! active profile. `content` takes `{}` or `{ "target": <target> }`. A read of
+//! a profile that is not active reads its file and selects nothing; its
+//! `pages` result has no `location`.
 //! `choices` takes an action and a field key. Its result is a list of
 //! choices; runtime choices arrive from the handler, not a stale cache. A
 //! read of a runtime choice has a five-second limit; the error is `timeout`.
@@ -52,8 +54,9 @@
 //! name that the window uses for the same change. `undo` and `redo` only work
 //! for the active profile.
 //!
-//! A change returns [`Changed`]: the identities of the things that it made,
-//! and null for the rest. A problem of the engine is the error
+//! A change returns [`Changed`]: the place that the request names, with the
+//! identity of the thing that it made, and null for each part that the
+//! request has not. A problem of the engine is the error
 //! `engine_problem` with its text. A change has no time limit: the response
 //! comes after the engine obeyed the request, or the error comes when the
 //! engine stops. File inputs and export destinations must be absolute paths.
@@ -320,17 +323,22 @@ pub enum NewBackground {
     Image { path: String, fit: BackgroundFit },
 }
 
-/// The result of each change request: the identities of the things that the
-/// request made. The other fields are null. A client can use the identity at
-/// once: it is the identity that the engine made, and no other request
-/// changed it in between.
+/// The result of each change request: the place that the request names (the
+/// profile, the page, and the folder, each null if the request has no such
+/// part), and for an add, the identity of the new thing in its field. A
+/// client can use the identity at once: it is the identity that the engine
+/// made, and no other request changed it in between. A request that removes a
+/// thing names it, and the thing is gone.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Changed {
-    /// The new profile, for `add_profile` and `import_profile`.
+    /// The profile of the request. For `add_profile` and `import_profile`:
+    /// the new profile.
     pub profile: Option<String>,
-    /// The new page, for `add_page` and `duplicate_page`.
+    /// The page of the request. For `add_page` and `duplicate_page`: the new
+    /// page.
     pub page: Option<String>,
-    /// The new folder, for `add_folder`.
+    /// The folder of the request. For `add_folder`: the new folder. For
+    /// `open_folder`: the folder that opens.
     pub folder: Option<String>,
 }
 
@@ -356,8 +364,8 @@ pub enum Method {
     Kinds(Empty),
     Choices(ChoicesParams),
     Profiles(Empty),
-    Pages(Empty),
-    Folders(Empty),
+    Pages(ProfileRead),
+    Folders(ProfileRead),
     Content(ContentParams),
     SetLabel(SetLabelParams),
     SetLabelStyle(SetLabelStyleParams),
@@ -524,6 +532,13 @@ pub const METHODS: &[&str] = &[
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Empty {}
+
+/// A read about a profile. No profile means the active profile.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileRead {
+    pub profile: Option<String>,
+}
 
 /// A later version can add a field. Another field is not an error here, so
 /// that the version check comes first.
@@ -884,8 +899,12 @@ pub struct Location {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Pages {
+    /// The identity of the profile.
+    pub profile: Option<String>,
     pub pages: Vec<PageSummary>,
-    pub location: Location,
+    /// The active location. Null for a profile that is not active: it has
+    /// no active location.
+    pub location: Option<Location>,
     /// The identity of the first page.
     pub first: String,
     pub folders: Vec<Folder>,

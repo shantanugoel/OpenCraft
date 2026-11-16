@@ -427,6 +427,18 @@ problem "OpenCraft did not change the profile, because no profile has the
 identity “*text*”.". The popup shows the stored value with "(not found)",
 and the form has no help text. The user selects the profile again.
 
+Note (2026-11-16, issue #406, test of the skill by an agent). Section 6 says
+that the mark always names one profile, but a new installation has no mark,
+and the default profile is then the first profile with no link in the order
+of the identities. An add of a profile that is first in that order (a
+profile "Agent Test" before "default") thus moved the default profile with no
+choice by the user. This was the same for the window and for the control
+socket. Now the engine puts the mark on the default profile of the moment
+before it adds a profile (`add`, a duplicate, an import, or a starter
+profile), if the list has no mark. The default profile does not change by an
+add. Only `SetDefaultProfile` and the removal of the default profile change
+it.
+
 ### 11. The window
 
 The window uses the places of

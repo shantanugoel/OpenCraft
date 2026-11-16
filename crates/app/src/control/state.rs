@@ -96,7 +96,7 @@ pub(super) fn page_id(ids: &[e::PageId], page: usize) -> String {
 }
 
 /// The pages of a profile: the identity and the name of each.
-fn page_summaries(ids: &[e::PageId], names: &[String]) -> Vec<w::PageSummary> {
+pub(super) fn page_summaries(ids: &[e::PageId], names: &[String]) -> Vec<w::PageSummary> {
     ids.iter()
         .zip(names)
         .map(|(id, name)| w::PageSummary {
@@ -476,8 +476,9 @@ impl w::State {
                 folders,
             } => {
                 self.pages = w::Pages {
+                    profile: self.profiles.active.clone(),
                     pages: page_summaries(ids, names),
-                    location: location(place, ids),
+                    location: Some(location(place, ids)),
                     first: page_id(ids, *first),
                     folders: folders
                         .iter()
@@ -500,7 +501,7 @@ impl w::State {
                     entry.pages = self.pages.pages.clone();
                     entry.first_page = self.pages.first.clone();
                 }
-                self.content.location = self.pages.location.clone();
+                self.content.location = self.pages.location.clone().unwrap_or_default();
                 self.content.bindings.clear();
             }
             e::Event::Binding(binding) => {

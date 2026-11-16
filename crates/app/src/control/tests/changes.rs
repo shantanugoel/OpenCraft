@@ -8,9 +8,20 @@ fn surface_1() -> Value {
     serde_json::from_str(KEY_1).unwrap()
 }
 
-/// What a change that makes nothing gives.
-fn nothing() -> Value {
-    json!({"profile": null, "page": null, "folder": null})
+/// What a change that makes nothing gives: the place that the request names.
+/// A part that the request has not is null.
+fn named(method: &str, params: &Value) -> Value {
+    let target = &params["target"];
+    let (profile, page, folder) = if target.is_object() {
+        (&target["profile"], &target["page"], &target["folder"])
+    } else {
+        (&params["profile"], &Value::Null, &Value::Null)
+    };
+    let folder = match method {
+        "open_folder" | "rename_folder" | "move_folder" | "remove_folder" => &params["folder"],
+        _ => folder,
+    };
+    json!({"profile": profile, "page": page, "folder": folder})
 }
 
 /// A handler that has two kinds and does no work: the kind `test` with a
@@ -130,9 +141,10 @@ impl Live {
         reply
     }
 
-    /// A change that makes nothing: the result has three null fields.
+    /// A change that makes nothing: the result names the place of the request.
     fn ok(&mut self, method: &str, params: Value) {
-        assert_eq!(self.made(method, params), nothing(), "{method}");
+        let expected = named(method, &params);
+        assert_eq!(self.made(method, params), expected, "{method}");
     }
 
     /// A change; the result is what it made.
@@ -474,7 +486,7 @@ fn folder_requests_need_no_page_and_add_rename_move_open_close_and_remove() {
     );
     assert_eq!(
         made,
-        json!({"profile": null, "page": null, "folder": "00000000000000a1"})
+        json!({"profile": profile, "page": null, "folder": "00000000000000a1"})
     );
     // Without an identity, OpenCraft makes one, and the result has it.
     let made = live.made("add_folder", json!({"profile": profile, "name": "Other"}));
@@ -899,6 +911,51 @@ fn a_content_request_reads_an_inactive_profile_and_a_page_that_is_not_active() {
         json!({"target": {"profile": "not-a-profile", "page": first_page, "folder": null}}),
     );
     assert_eq!(reply["error"]["code"], "engine_problem");
+}
+
+#[test]
+fn pages_and_folders_read_a_profile_that_is_not_active_and_select_nothing() {
+    let mut live = Live::new();
+    let first = live.active.clone();
+    live.made("add_page", json!({"profile": first}));
+    live.made(
+        "add_folder",
+        json!({"profile": first, "id": "00000000000000a1", "name": "Tools", "copy_of": null}),
+    );
+    let first_pages = live.read("pages");
+    live.made("add_profile", json!({"name": "Second", "copy_of": null}));
+    let second = live.read("profiles")["active"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(second, first);
+
+    // No profile and the active profile give the same result, with a location.
+    assert_eq!(
+        live.call("pages", json!({"profile": second}))["result"],
+        live.read("pages")
+    );
+    assert_eq!(live.read("pages")["profile"], second);
+    assert!(live.read("pages")["location"].is_object());
+
+    // A profile that is not active gives its pages and its folders, and no
+    // location. The active profile does not change.
+    let reply = live.call("pages", json!({"profile": first}));
+    let pages = &reply["result"];
+    assert_eq!(pages["profile"], first);
+    assert_eq!(pages["pages"], first_pages["pages"]);
+    assert_eq!(pages["first"], first_pages["first"]);
+    assert!(pages["location"].is_null());
+    assert_eq!(pages["folders"][0]["id"], "00000000000000a1");
+    let reply = live.call("folders", json!({"profile": first}));
+    assert_eq!(reply["result"][0]["name"], "Tools");
+    assert_eq!(live.read("profiles")["active"], second);
+    assert_eq!(live.read("folders").as_array().unwrap().len(), 0);
+
+    let (code, _) = live.fails("pages", json!({"profile": "not-a-profile"}));
+    assert_eq!(code, "invalid_params");
+    let (code, _) = live.fails("folders", json!({"profile": "not-a-profile"}));
+    assert_eq!(code, "invalid_params");
 }
 
 #[test]

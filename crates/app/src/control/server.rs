@@ -258,10 +258,26 @@ struct Pending {
     work: Work,
 }
 
+/// A read that needs the file of a profile.
+pub(super) enum ProfileReading {
+    Content(Target),
+    Pages { profile: String },
+    Folders { profile: String },
+}
+
+impl ProfileReading {
+    fn profile(&self) -> &str {
+        match self {
+            Self::Content(target) => &target.profile,
+            Self::Pages { profile } | Self::Folders { profile } => profile,
+        }
+    }
+}
+
 enum Work {
     Choices,
     Change,
-    Read { target: Target },
+    Read(ProfileReading),
 }
 
 impl Client {
@@ -369,7 +385,14 @@ struct Worker {
 /// `Message::Reply` with the identity that this function gives. The engine
 /// thread reads what the request made from the cache, after the events of the
 /// command and before it obeys the next command.
-fn send_with_answer(port: &Port, waker: &Waker, feed: &Feed, command: Command, made: Made) -> u64 {
+fn send_with_answer(
+    port: &Port,
+    waker: &Waker,
+    feed: &Feed,
+    command: Command,
+    made: Made,
+    named: Changed,
+) -> u64 {
     // GUI ids count up from 1. Control ids count down and survive
     // disable/enable, so a late reply cannot match a new connection after the
     // socket restarts.
@@ -383,27 +406,28 @@ fn send_with_answer(port: &Port, waker: &Waker, feed: &Feed, command: Command, m
     port(
         command,
         Some(Box::new(move |result| {
-            answer.send(result.map(|()| made_by(&feed, &made)))
+            answer.send(result.map(|()| made_by(&feed, &made, named)))
         })),
     );
     id
 }
 
-/// What a change made, with the identities of the cache.
-fn made_by(feed: &Feed, made: &Made) -> Changed {
+/// The response of a change: the place that the request names (`named`),
+/// and the identity of the new thing that the request made, from the cache.
+fn made_by(feed: &Feed, made: &Made, named: Changed) -> Changed {
     match made {
-        Made::Nothing => Changed::default(),
+        Made::Nothing => named,
         Made::Profile => feed.read(|state| Changed {
             profile: state.profiles.active.clone(),
-            ..Changed::default()
+            ..named
         }),
         Made::Page => feed.read(|state| Changed {
-            page: Some(state.pages.location.page.clone()),
-            ..Changed::default()
+            page: state.pages.location.as_ref().map(|l| l.page.clone()),
+            ..named
         }),
         Made::Folder(id) => Changed {
             folder: Some(id.clone()),
-            ..Changed::default()
+            ..named
         },
     }
 }
@@ -441,20 +465,21 @@ impl Worker {
                             else {
                                 continue;
                             };
-                            let Work::Read { target } = &p.work else {
+                            let Work::Read(read) = &p.work else {
                                 continue;
                             };
-                            let response =
-                                match profile.as_ref().map_err(Clone::clone).and_then(|p| {
-                                    self.feed.read(|state| changes::content(target, p, state))
-                                }) {
-                                    Ok(content) => Response::success(p.request_id, content),
-                                    Err(text) => Response::error(
-                                        Some(p.request_id),
-                                        ErrorCode::EngineProblem,
-                                        &text,
-                                    ),
-                                };
+                            let response = match profile
+                                .as_ref()
+                                .map_err(Clone::clone)
+                                .and_then(|profile| changes::read(read, profile, &self.feed))
+                            {
+                                Ok(value) => Response::success(p.request_id, value),
+                                Err(text) => Response::error(
+                                    Some(p.request_id),
+                                    ErrorCode::EngineProblem,
+                                    &text,
+                                ),
+                            };
                             client.pending = None;
                             client.respond(response, &home);
                         }
@@ -767,32 +792,38 @@ fn handle(
         Method::Layout(_) => Response::success(id, feed.read(|state| state.layout.clone())),
         Method::Kinds(_) => Response::success(id, feed.read(|state| state.kinds.clone())),
         Method::Profiles(_) => Response::success(id, feed.read(|state| state.profiles.clone())),
-        Method::Pages(_) => Response::success(id, feed.read(|state| state.pages.clone())),
-        Method::Folders(_) => Response::success(id, feed.read(|state| state.pages.folders.clone())),
+        Method::Pages(ProfileRead { profile }) => match other_profile(feed, profile) {
+            Err(text) => Response::error(Some(id), ErrorCode::InvalidParams, &text),
+            Ok(None) => Response::success(id, feed.read(|state| state.pages.clone())),
+            Ok(Some(profile)) => {
+                match start_read(client, port, id, pending, ProfileReading::Pages { profile }) {
+                    Some(response) => response,
+                    None => return,
+                }
+            }
+        },
+        Method::Folders(ProfileRead { profile }) => match other_profile(feed, profile) {
+            Err(text) => Response::error(Some(id), ErrorCode::InvalidParams, &text),
+            Ok(None) => Response::success(id, feed.read(|state| state.pages.folders.clone())),
+            Ok(Some(profile)) => match start_read(
+                client,
+                port,
+                id,
+                pending,
+                ProfileReading::Folders { profile },
+            ) {
+                Some(response) => response,
+                None => return,
+            },
+        },
         Method::Content(ContentParams { target: None }) => {
             Response::success(id, feed.read(|state| state.content.clone()))
         }
         Method::Content(ContentParams {
             target: Some(target),
-        }) => match port {
-            None => unavailable(),
-            Some(port) => {
-                let engine_id = next_id();
-                port(
-                    Command::ReadProfile {
-                        id: engine_id,
-                        profile: target.profile.clone(),
-                    },
-                    None,
-                );
-                client.pending = Some(Pending {
-                    engine_id,
-                    request_id: id,
-                    until: Some(Instant::now() + pending),
-                    work: Work::Read { target },
-                });
-                return;
-            }
+        }) => match start_read(client, port, id, pending, ProfileReading::Content(target)) {
+            Some(response) => response,
+            None => return,
         },
         Method::DeviceSettings(_) => {
             Response::success(id, feed.read(|state| state.device_settings.clone()))
@@ -866,8 +897,14 @@ fn handle(
             Ok(change) => match port {
                 None => unavailable(),
                 Some(port) => {
-                    let engine_id =
-                        send_with_answer(port, waker, feed, change.command, change.made);
+                    let engine_id = send_with_answer(
+                        port,
+                        waker,
+                        feed,
+                        change.command,
+                        change.made,
+                        change.named,
+                    );
                     client.pending = Some(Pending {
                         engine_id,
                         request_id: id,
@@ -880,6 +917,57 @@ fn handle(
         },
     };
     client.respond(response, home);
+}
+
+/// The profile of a read that names one. `None` for the active profile (no
+/// name, or its name): the cache has the answer. An error for a profile that
+/// does not exist.
+fn other_profile(feed: &Feed, profile: Option<String>) -> Result<Option<String>, String> {
+    let Some(profile) = profile else {
+        return Ok(None);
+    };
+    feed.read(|state| {
+        if state.profiles.active.as_deref() == Some(profile.as_str()) {
+            Ok(None)
+        } else if state.profiles.profiles.iter().any(|p| p.id == profile) {
+            Ok(Some(profile))
+        } else {
+            Err("The profile does not exist.".to_string())
+        }
+    })
+}
+
+/// Ask the engine to read the file of `profile`. The answer comes as
+/// `Event::ProfileRead`. Return the error response if there is no engine.
+fn start_read(
+    client: &mut Client,
+    port: Option<&Port>,
+    request_id: u64,
+    pending: Duration,
+    reading: ProfileReading,
+) -> Option<Response> {
+    let Some(port) = port else {
+        return Some(Response::error(
+            Some(request_id),
+            ErrorCode::Unavailable,
+            "The engine is not available.",
+        ));
+    };
+    let engine_id = next_id();
+    port(
+        Command::ReadProfile {
+            id: engine_id,
+            profile: reading.profile().to_string(),
+        },
+        None,
+    );
+    client.pending = Some(Pending {
+        engine_id,
+        request_id,
+        until: Some(Instant::now() + pending),
+        work: Work::Read(reading),
+    });
+    None
 }
 
 /// Redact the home directory of the user: in a text (and in the name of an

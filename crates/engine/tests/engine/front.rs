@@ -302,6 +302,46 @@ fn the_default_profile_follows_the_mark_and_then_the_rule() {
 }
 
 #[test]
+fn a_new_profile_does_not_take_the_default_that_the_engine_derives() {
+    // `home` is the only profile and has no mark: it is the default profile
+    // only because it is the first. `aaa` is before it in the order of the
+    // identities. An add must not move the default profile to `aaa`.
+    let dir = TempDir::new().unwrap();
+    save_at(dir.path(), "home", &plain("Home"));
+    let mut rig = Rig::in_dir(dir);
+    rig.take_events();
+    assert!(rig.engine.command(Command::AddProfile {
+        name: "Aaa".into(),
+        copy_of: None,
+    }));
+    let events = rig.take_events();
+    let Event::Profiles {
+        default, active, ..
+    } = profiles_of(&events).last().unwrap()
+    else {
+        unreachable!()
+    };
+    assert_eq!(active, "aaa");
+    assert_eq!(default, "home");
+    let state = fs::read_to_string(rig.dir.path().join("state.toml")).unwrap();
+    assert!(state.contains("home"), "{state}");
+
+    // A mark that the user made stays.
+    assert!(rig.engine.command(Command::SetDefaultProfile {
+        profile: "aaa".into(),
+    }));
+    assert!(rig.engine.command(Command::AddProfile {
+        name: "Bbb".into(),
+        copy_of: Some("home".into()),
+    }));
+    let events = rig.take_events();
+    let Event::Profiles { default, .. } = profiles_of(&events).last().unwrap() else {
+        unreachable!()
+    };
+    assert_eq!(default, "aaa");
+}
+
+#[test]
 fn the_engine_carries_out_the_selection_of_the_front_application() {
     let mut rig = calls_and_home();
     assert!(rig.engine.command(Command::SelectPage { page: 1 }));

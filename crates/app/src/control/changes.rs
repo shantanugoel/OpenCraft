@@ -14,6 +14,15 @@ use std::path::PathBuf;
 pub(super) struct Change {
     pub command: e::Command,
     pub made: Made,
+    /// The place that the request names. The response has it, and `made`
+    /// adds the identity of a new thing.
+    pub named: w::Changed,
+}
+
+/// The command and the new identity, before the place is added.
+struct Built {
+    command: e::Command,
+    made: Made,
 }
 
 /// The identity that a request makes. The worker reads it from the cache,
@@ -209,9 +218,84 @@ fn at(place: e::Place, command: e::Command) -> e::Command {
 }
 
 pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, String> {
+    let named = named(&method);
+    let Built { command, made } = build(method, state)?;
+    Ok(Change {
+        command,
+        made,
+        named,
+    })
+}
+
+/// The place that a request names, in the form of the response: the profile,
+/// the page, and the folder, each null if the request has no such part. A
+/// request that adds a thing leaves the field of the thing null: the worker
+/// adds the new identity after the engine obeyed. `open_folder` names the
+/// folder that it opens.
+fn named(method: &w::Method) -> w::Changed {
+    use w::Method as M;
+    let place = |profile: &str, page: Option<&str>, folder: Option<&str>| w::Changed {
+        profile: Some(profile.to_string()),
+        page: page.map(str::to_string),
+        folder: folder.map(str::to_string),
+    };
+    let target = |t: &w::Target| place(&t.profile, Some(&t.page), t.folder.as_deref());
+    let page = |t: &w::PageTarget| place(&t.profile, Some(&t.page), None);
+    let profile = |profile: &str| place(profile, None, None);
+    match method {
+        M::SetLabel(p) => target(&p.target),
+        M::SetLabelStyle(p) => target(&p.target),
+        M::SetColor(p) => target(&p.target),
+        M::SetImage(p) => target(&p.target),
+        M::SetIcon(p) => target(&p.target),
+        M::SetBinding(p) => target(&p.target),
+        M::CopyControl(p) | M::PasteControl(p) | M::ClearControl(p) | M::CopyToAllPages(p) => {
+            target(&p.target)
+        }
+        M::CloseFolder(p) => target(&p.target),
+        M::OpenFolder(p) => place(&p.target.profile, Some(&p.target.page), Some(&p.folder)),
+        M::AddPage(p) => profile(&p.profile),
+        M::DuplicatePage(p) | M::RemovePage(p) | M::SelectPage(p) | M::SetFirstPage(p) => {
+            page(&p.target)
+        }
+        M::RenamePage(p) => page(&p.target),
+        M::MovePage(p) => page(&p.target),
+        M::SetBackground(p) => page(&p.target),
+        M::SetBackgroundFit(p) => page(&p.target),
+        M::AddFolder(p) => profile(&p.profile),
+        M::RenameFolder(p) => place(&p.profile, None, Some(&p.folder)),
+        M::MoveFolder(p) => place(&p.profile, None, Some(&p.folder)),
+        M::RemoveFolder(p) => place(&p.profile, None, Some(&p.folder)),
+        M::RemoveProfile(p) | M::SelectProfile(p) | M::SetDefaultProfile(p) => profile(&p.profile),
+        M::Undo(p) | M::Redo(p) => profile(&p.profile),
+        M::RenameProfile(p) => profile(&p.profile),
+        M::SetProfileColor(p) => profile(&p.profile),
+        M::LinkApplication(p) => profile(&p.profile),
+        M::UnlinkApplication(p) => profile(&p.profile),
+        M::ExportProfile(p) => profile(&p.profile),
+        M::AddProfile(_)
+        | M::ImportProfile(_)
+        | M::SetFollowFrontApplication(_)
+        | M::SetDeviceSettings(_)
+        | M::Hello(_)
+        | M::State(_)
+        | M::Layout(_)
+        | M::Kinds(_)
+        | M::Choices(_)
+        | M::Profiles(_)
+        | M::Pages(_)
+        | M::Folders(_)
+        | M::Content(_)
+        | M::DeviceSettings(_)
+        | M::History(_)
+        | M::Connection(_) => w::Changed::default(),
+    }
+}
+
+fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
     use e::Command as C;
     use w::Method as M;
-    let nothing = |command| Change {
+    let nothing = |command| Built {
         command,
         made: Made::Nothing,
     };
@@ -346,13 +430,13 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
             let (place, _) = location(state, p.target)?;
             nothing(at(place, C::CopyToAllPages { control }))
         }
-        M::AddPage(p) => Change {
+        M::AddPage(p) => Built {
             command: at(profile_place(p.profile), C::AddPage { copy_of: None }),
             made: Made::Page,
         },
         M::DuplicatePage(p) => {
             let (place, number) = page_place(state, p.target)?;
-            Change {
+            Built {
                 command: at(
                     place,
                     C::AddPage {
@@ -422,7 +506,7 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
                 .copy_of
                 .map(|folder| parse(folder, "folder identity"))
                 .transpose()?;
-            Change {
+            Built {
                 command: at(
                     profile_place(p.profile),
                     C::AddFolder {
@@ -463,7 +547,7 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
             let (place, _) = location(state, p.target)?;
             nothing(at(place, C::CloseFolder))
         }
-        M::AddProfile(p) => Change {
+        M::AddProfile(p) => Built {
             command: C::AddProfile {
                 name: p.name,
                 copy_of: p.copy_of,
@@ -497,7 +581,7 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
             profile: p.profile,
             path: path(p.path)?,
         }),
-        M::ImportProfile(p) => Change {
+        M::ImportProfile(p) => Built {
             command: C::ImportProfile {
                 path: path(p.path)?,
             },
@@ -541,6 +625,48 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
     };
     debug_assert!(permitted(&change.command));
     Ok(change)
+}
+
+/// The answer of a read that needed the file of a profile.
+pub(super) fn read(
+    reading: &super::server::ProfileReading,
+    profile: &e::Profile,
+    feed: &super::Feed,
+) -> Result<serde_json::Value, String> {
+    use super::server::ProfileReading as R;
+    match reading {
+        R::Content(target) => feed.read(|state| content(target, profile, state).map(to_json)),
+        R::Pages { profile: id } => Ok(to_json(pages(id, profile))),
+        R::Folders { .. } => Ok(to_json(folder_list(profile))),
+    }
+}
+
+fn to_json(value: impl serde::Serialize) -> serde_json::Value {
+    serde_json::to_value(value).expect("wire result is JSON data")
+}
+
+/// The pages of a profile that is not active. It has no active location.
+fn pages(id: &str, profile: &e::Profile) -> w::Pages {
+    let ids: Vec<e::PageId> = profile.pages().iter().map(e::Page::id).collect();
+    let names: Vec<String> = profile.pages().iter().map(|p| p.name.clone()).collect();
+    w::Pages {
+        profile: Some(id.to_string()),
+        pages: super::state::page_summaries(&ids, &names),
+        location: None,
+        first: super::state::page_id(&ids, profile.first_page()),
+        folders: folder_list(profile),
+    }
+}
+
+fn folder_list(profile: &e::Profile) -> Vec<w::Folder> {
+    profile
+        .folders()
+        .iter()
+        .map(|f| w::Folder {
+            id: f.id.to_string(),
+            name: f.page.name.clone(),
+        })
+        .collect()
 }
 
 /// Use the engine's Location rules, not another copy of the folder rules.
