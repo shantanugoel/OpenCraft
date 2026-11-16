@@ -4,6 +4,58 @@ This file lists the changes for each version. Its form follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-16
+
+This version lets another program on your Mac configure OpenCraft, when you
+permit it.
+
+### Added
+
+- The setting **Allow control by other programs** in the tab **General** of
+  the Settings window. It is off by default. When it is on, OpenCraft
+  accepts requests from a program of your user account through a socket.
+- `opencraft ctl`, the command-line client in the application executable.
+  It reads the configuration. It changes profiles, pages, folders,
+  surfaces, bindings, device settings, and the history, and it selects a
+  page or a profile. The result is JSON on the standard output, and the
+  exit status tells what occurred.
+- A skill for agents. `opencraft ctl skill` writes its text to the standard
+  output. `opencraft ctl skill --install <directory>` writes it to the
+  skills directory of your agent.
+- An MCP server. `opencraft mcp` starts it. `opencraft mcp --config claude`
+  or `opencraft mcp --config codex` writes the installation line for Claude
+  Code or the Codex CLI. The server has the tools `opencraft_read`,
+  `opencraft_change`, `opencraft_remove`, and `opencraft_help`.
+- The menu bar item nests the profiles, so the menu stays short.
+
+### Changed
+
+- OpenCraft writes profile schema 6, which holds an identity for each page.
+  A profile file from version 0.4.0 loads and changes to schema 6. Version
+  0.4.0 cannot read a schema 6 file.
+- An application action stores the bundle identifier of the application.
+  The action still opens the application after you move it, when one copy
+  of the identifier is registered. An export has no home path in a path
+  setting.
+- Mission Control, Screen saver, and Sleep do not send a key. Thus they do
+  not need the Accessibility permission. Launchpad, Screenshot, Lock, and
+  Show desktop still need it.
+- Before a device connects, the engine shows the layout and the profiles of
+  the last device model that connected.
+
+### Known limits
+
+- Only the N4 Pro is supported.
+- Only Mac computers with Apple silicon and macOS 12 or later. The project
+  tested OpenCraft on macOS 27 only.
+- Send a hotkey, Type text, Media key, Mouse event, Launchpad, Screenshot,
+  Lock, and Show desktop need the Accessibility permission.
+- The Sleep function does nothing when macOS does not allow sleep.
+  OpenCraft then names the cause.
+- OpenCraft has no plug-ins.
+- The control protocol and the commands of `opencraft ctl` can change in
+  each release before version 1.0.
+
 ## [0.4.0] - 2026-11-14
 
 This version changes the profile when its application comes to the front,
