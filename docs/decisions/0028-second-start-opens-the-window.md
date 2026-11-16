@@ -60,7 +60,7 @@ The reasons:
 - The pipe and the thread for the signals exist. SIGUSR1 adds one branch.
 - A distributed notification of macOS needs more AppKit code, and it does
   not operate on Linux. A socket needs a new thread and a protocol.
-  Note (2026-11-15): [decision 0037](0037-control-socket.md) adds a socket
+  Note (2026-11-15): [decision 0040](0040-control-socket.md) adds a socket
   for a different purpose. The signal stays, because it operates when the
   socket is off.
 

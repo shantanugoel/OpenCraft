@@ -1,4 +1,4 @@
-# 0037: A different program controls OpenCraft through a socket, when the user permits it
+# 0040: A different program controls OpenCraft through a socket, when the user permits it
 
 - Status: Accepted
 - Date: 2026-11-15

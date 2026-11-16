@@ -98,7 +98,7 @@ the menu bar item and for the start at login is shell code in `crates/app`.
 See decisions [0020](decisions/0020-menu-bar-item-and-dock-icon.md) and
 [0021](decisions/0021-start-at-login.md). A different program can control
 OpenCraft through a socket of the shell, when the user permits it. See
-[decision 0037](decisions/0037-control-socket.md). The layout of the window is in
+[decision 0040](decisions/0040-control-socket.md). The layout of the window is in
 [decision 0029](decisions/0029-window-layout.md), and its design language is
 in [DESIGN.md](DESIGN.md). The GUI application does
 not depend on `crates/core`. The built-in action handlers are not a layer:

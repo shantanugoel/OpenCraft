@@ -34,7 +34,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0016](0016-pages-and-engine-requests-from-a-handler.md) | The engine holds the active page, and a handler asks the engine with a message | Accepted. 0036 adds the open folders to the active page. |
 | [0017](0017-toggle-and-sequence-actions.md) | An action can contain actions, and the engine draws the state of a toggle | Accepted |
 | [0018](0018-many-profiles.md) | Each profile is a directory in the profiles directory, and names its device model | Accepted. 0035 changes the request "select a profile" and adds keys to `state.toml`. 0039 adds the key `last_model`. |
-| [0019](0019-engine-in-the-gui-process.md) | The engine stays in the process of the GUI application | Accepted. 0028 changes what a second start does. 0037 adds a connection between processes. |
+| [0019](0019-engine-in-the-gui-process.md) | The engine stays in the process of the GUI application | Accepted. 0028 changes what a second start does. 0040 adds a connection between processes. |
 | [0020](0020-menu-bar-item-and-dock-icon.md) | The shell makes the menu bar item with AppKit, and has one quit path | Accepted |
 | [0021](0021-start-at-login.md) | A LaunchAgent file starts OpenCraft at login, with the argument `--login` | Accepted. 0025 changes the state of the option, and keeps the LaunchAgent file. |
 | [0022](0022-device-settings-and-stop-state.md) | Device settings are for each device model, outside the profile, and the device goes dark at the stop | Accepted |
@@ -52,10 +52,10 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0034](0034-device-dark-state.md) | The engine holds the dark state and the computer can always wake it | Accepted |
 | [0035](0035-front-application-selects-the-profile.md) | The shell reports the front application, and the engine selects the linked profile | Accepted |
 | [0036](0036-folders.md) | A folder is a page of keys outside the page cycle, with the actions "Open a folder" and "Back" | Accepted |
-| [0037](0037-control-socket.md) | A different program controls OpenCraft through a socket, when the user permits it | Accepted |
 | [0037](0037-application-bundle-and-export-path.md) | An application action stores the bundle identifier, and an export hides a home path | Accepted |
 | [0038](0038-field-shown-for-the-values-that-use-it.md) | The shell shows a field only for the values that use it | Accepted |
 | [0039](0039-start-with-the-last-connected-model.md) | The engine starts with the model of the last device that connected | Accepted |
+| [0040](0040-control-socket.md) | A different program controls OpenCraft through a socket, when the user permits it | Accepted |
 
 ## Template
 
