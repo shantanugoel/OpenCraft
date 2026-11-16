@@ -53,7 +53,9 @@ pub mod store;
 
 pub use action::*;
 pub use device_settings::{DeviceSettings, KnobLightMode, KnobLights, SettingsSupport};
-pub use engine::{BackgroundState, Command, Counters, Engine, Event, NewBackground, SurfaceState};
+pub use engine::{
+    BackgroundState, Command, Counters, Engine, Event, NewBackground, PageRef, Place, SurfaceState,
+};
 /// The image type of the messages.
 pub use image::RgbImage;
 pub use layout::{ControlLayout, DeviceLayout, SurfaceLayout};

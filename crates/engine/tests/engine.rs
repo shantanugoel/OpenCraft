@@ -47,6 +47,8 @@ mod icons;
 mod labels;
 #[path = "engine/pages.rs"]
 mod pages;
+#[path = "engine/places.rs"]
+mod places;
 #[path = "engine/power.rs"]
 mod power;
 #[path = "engine/profiles.rs"]
