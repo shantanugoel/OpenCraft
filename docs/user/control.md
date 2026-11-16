@@ -89,8 +89,13 @@ an agent cannot do. The text is in the OpenCraft executable, thus it is
 always correct for the version that you installed.
 
 - `opencraft ctl skill` writes the text of the skill to the standard output.
-- `opencraft ctl skill --install <directory>` writes the skill into that
-  directory. Use the skills directory that your agent reads.
+- `opencraft ctl skill --install <directory>` writes the skill to
+  `<directory>/opencraft/SKILL.md`. The directory is the skills directory
+  that your agent reads, for example `~/.claude/skills`. The command
+  replaces an older copy of the file.
+
+These two commands do not need a running OpenCraft, and the control can be
+off.
 
 ## What a program can do
 
