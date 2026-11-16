@@ -149,8 +149,9 @@ fn hide_action(action: &mut Action, kinds: &[KindDescription], home: &str) {
 
 /// `path` with a home-directory prefix replaced by `~`. A path that only
 /// starts with the same characters, for example a different user name, does
-/// not change. The comparison ignores the case of ASCII letters.
-fn hide_home(path: &str, home: &str) -> String {
+/// not change. The comparison ignores the case of ASCII letters. The control
+/// socket uses this rule too.
+pub fn hide_home(path: &str, home: &str) -> String {
     let home = home.trim_end_matches('/');
     if home.is_empty() {
         return path.to_string();

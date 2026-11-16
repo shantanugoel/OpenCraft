@@ -177,8 +177,8 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
         }
         M::SetBinding(p) => {
             let control = control(p.control, state)?;
-            let gesture = serde_json::from_value(serde_json::Value::String(p.gesture))
-                .map_err(|_| "The gesture is not correct.")?;
+            let gesture =
+                super::state::gesture_from_name(&p.gesture).ok_or("The gesture is not correct.")?;
             let binding = location(&p.target)?.binding_id(control, gesture);
             at(p.target);
             C::SetBinding {
@@ -450,11 +450,7 @@ pub(super) fn content(
             page: binding.page,
             folder: binding.folder.map(|f| f.to_string()),
             control: binding.control.into(),
-            gesture: serde_json::to_value(binding.gesture)
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .into(),
+            gesture: super::state::gesture_name(binding.gesture).into(),
             available: state.kinds.iter().any(|k| k.kind == action.kind),
             action: (&action).into(),
         })

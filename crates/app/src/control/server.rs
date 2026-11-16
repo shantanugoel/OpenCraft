@@ -21,6 +21,27 @@ use std::{
 
 const MAX_CLIENTS: usize = 16;
 const PENDING_TIMEOUT: Duration = Duration::from_secs(5);
+/// The time that the worker waits after an error of `accept` that can go
+/// away, for example no free file descriptor.
+const ACCEPT_PAUSE: Duration = Duration::from_millis(250);
+
+/// The time limits of a connection. A test makes them short.
+#[derive(Clone, Copy)]
+pub(super) struct Limits {
+    /// A connection must send `hello` in this time.
+    pub hello: Duration,
+    /// A client must read a response in this time.
+    pub write: Duration,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            hello: Duration::from_secs(10),
+            write: Duration::from_secs(10),
+        }
+    }
+}
 
 pub(super) struct Server {
     waker: Waker,
@@ -87,6 +108,26 @@ impl Drop for Answer {
 
 impl Server {
     pub fn start(dir: &Path, feed: Feed, port: Option<Port>) -> io::Result<Self> {
+        Self::start_with(dir, feed, port, Limits::default())
+    }
+
+    pub(super) fn start_with(
+        dir: &Path,
+        feed: Feed,
+        port: Option<Port>,
+        limits: Limits,
+    ) -> io::Result<Self> {
+        // A response must never have the home directory. Without it, no
+        // socket is made. `home_dir` reads `HOME`, then the user database.
+        let home = std::env::home_dir()
+            .and_then(|home| home.to_str().map(str::to_string))
+            .filter(|home| !home.trim_end_matches('/').is_empty())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "OpenCraft cannot find the home directory.",
+                )
+            })?;
         std::fs::create_dir_all(dir)?;
         let path = dir.join(FILE_NAME);
         let listener = UnixListener::bind(&path)?;
@@ -111,12 +152,23 @@ impl Server {
                 port,
                 waker: waker.clone(),
                 clients: Vec::new(),
+                home,
+                limits,
+                accept_pause: None,
+                accept_failing: false,
             };
+            let socket_path = path.clone();
             let thread = thread::Builder::new()
                 .name("opencraft-control".into())
                 .spawn(move || {
+                    // The file goes away when the worker ends for any
+                    // reason, also after a panic. A client then gets "not
+                    // found", not a refused connection.
+                    let _cleanup = Cleanup(socket_path);
                     let mut worker = worker;
-                    worker.run();
+                    if let Err(error) = worker.run() {
+                        eprintln!("The control socket stopped: {error}");
+                    }
                 })?;
             // From now on, the engine thread wakes the worker for each
             // answer. The feed holds the state: nothing is lost.
@@ -132,6 +184,31 @@ impl Server {
             let _ = std::fs::remove_file(path);
         }
         prepared
+    }
+}
+
+/// Remove the socket file when the worker ends.
+struct Cleanup(PathBuf);
+
+impl Drop for Cleanup {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+impl Server {
+    /// `false` after the worker ended with an error or a panic. The shell
+    /// starts a new server then.
+    pub(super) fn is_running(&self) -> bool {
+        self.thread.as_ref().is_some_and(|t| !t.is_finished())
+    }
+}
+
+#[cfg(test)]
+impl Server {
+    /// Put a message in the queue of the worker, as the engine thread does.
+    pub(super) fn post(&self, message: Message) {
+        self.waker.post(message);
     }
 }
 
@@ -154,6 +231,9 @@ struct Client {
     hello: bool,
     close: bool,
     pending: Option<Pending>,
+    connected: Instant,
+    /// When the output was made. The client has a time limit to read it.
+    output_since: Instant,
 }
 
 struct Pending {
@@ -186,7 +266,16 @@ impl Client {
             hello: false,
             close: false,
             pending: None,
+            connected: Instant::now(),
+            output_since: Instant::now(),
         }
+    }
+
+    /// When the worker must close this connection, if nothing happens.
+    fn expiry(&self, limits: Limits) -> Option<Instant> {
+        let hello = (!self.hello).then(|| self.connected + limits.hello);
+        let write = (!self.output.is_empty()).then(|| self.output_since + limits.write);
+        hello.into_iter().chain(write).min()
     }
 
     fn respond(&mut self, response: Response, home: &str) {
@@ -204,6 +293,7 @@ impl Client {
         }
         self.output.push(b'\n');
         self.written = 0;
+        self.output_since = Instant::now();
     }
 
     /// At most one bounded read and write in each turn. A client that
@@ -260,6 +350,11 @@ struct Worker {
     port: Option<Port>,
     waker: Waker,
     clients: Vec<Client>,
+    home: String,
+    limits: Limits,
+    /// No `accept` until this time, after an error that can go away.
+    accept_pause: Option<Instant>,
+    accept_failing: bool,
 }
 
 /// Send `command` to the engine. The result comes back to the worker as
@@ -312,8 +407,8 @@ impl Worker {
         }
     }
 
-    fn run(&mut self) {
-        let home = std::env::var("HOME").unwrap_or_default();
+    fn run(&mut self) -> Result<(), String> {
+        let home = self.home.clone();
         loop {
             // Drain the pipe BEFORE the queue. An event posted after this
             // drain either appears in the queue or leaves a wake for poll.
@@ -323,7 +418,7 @@ impl Worker {
             for message in self.messages.try_iter().take(256) {
                 count += 1;
                 match message {
-                    Message::Stop => return,
+                    Message::Stop => return Ok(()),
                     Message::Event(Event::Choices { id, options }) => {
                         for client in &mut self.clients {
                             if client.pending.as_ref().is_some_and(|p| p.engine_id == id) {
@@ -384,22 +479,49 @@ impl Worker {
             // A bounded drain preserves fairness. A nonempty queue must
             // not lose its wake when more than one batch was posted.
             let more_events = count == 256;
+            if self
+                .accept_pause
+                .is_some_and(|until| Instant::now() >= until)
+            {
+                self.accept_pause = None;
+            }
             for _ in 0..MAX_CLIENTS {
+                if self.accept_pause.is_some() {
+                    break;
+                }
                 match self.listener.accept() {
                     Ok((socket, _)) => {
-                        if self.clients.len() < MAX_CLIENTS
-                            && same_user(&socket)
-                            && socket.set_nonblocking(true).is_ok()
-                        {
-                            self.clients.push(Client::new(socket));
-                        }
+                        self.accept_failing = false;
+                        self.admit(socket);
                     }
-                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                    Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(_) => return,
+                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        self.accept_failing = false;
+                        break;
+                    }
+                    Err(e)
+                        if matches!(
+                            e.kind(),
+                            io::ErrorKind::Interrupted | io::ErrorKind::ConnectionAborted
+                        ) =>
+                    {
+                        continue
+                    }
+                    Err(e) => {
+                        // For example no free file descriptor. The error can
+                        // go away: tell the log once, wait, and try again.
+                        if !self.accept_failing {
+                            eprintln!("The control socket cannot accept a connection: {e}");
+                        }
+                        self.accept_failing = true;
+                        self.accept_pause = Some(Instant::now() + ACCEPT_PAUSE);
+                    }
                 }
             }
             self.clients.retain_mut(|c| c.io().unwrap_or(false));
+            let now = Instant::now();
+            let limits = self.limits;
+            self.clients
+                .retain(|c| c.expiry(limits).is_none_or(|until| now < until));
             for client in &mut self.clients {
                 if client
                     .pending
@@ -422,7 +544,12 @@ impl Worker {
             }
             let mut polls = vec![
                 libc::pollfd {
-                    fd: self.listener.as_raw_fd(),
+                    // A negative descriptor is ignored by poll.
+                    fd: if self.accept_pause.is_some() {
+                        -1
+                    } else {
+                        self.listener.as_raw_fd()
+                    },
                     events: libc::POLLIN,
                     revents: 0,
                 },
@@ -433,15 +560,19 @@ impl Worker {
                 },
             ];
             for client in &self.clients {
-                let events = if !client.output.is_empty() {
-                    libc::POLLOUT
+                // A client that waits for the engine is not polled: a client
+                // that closed its write side gives POLLHUP at once on
+                // macOS, also with data not read yet, and poll would not
+                // wait. Its next read or write finds the end.
+                let (fd, events) = if !client.output.is_empty() {
+                    (client.socket.as_raw_fd(), libc::POLLOUT)
                 } else if client.pending.is_none() {
-                    libc::POLLIN
+                    (client.socket.as_raw_fd(), libc::POLLIN)
                 } else {
-                    0
+                    (-1, 0)
                 };
                 polls.push(libc::pollfd {
-                    fd: client.socket.as_raw_fd(),
+                    fd,
                     events,
                     revents: 0,
                 });
@@ -449,32 +580,63 @@ impl Worker {
             let timeout = if more_events || self.clients.iter().any(Client::ready) {
                 0
             } else {
+                // The nearest time at which the worker must act.
                 self.clients
                     .iter()
-                    .filter_map(|c| c.pending.as_ref())
-                    .map(|p| {
-                        p.until
+                    .filter_map(|c| c.pending.as_ref().map(|p| p.until))
+                    .chain(self.clients.iter().filter_map(|c| c.expiry(limits)))
+                    .chain(self.accept_pause)
+                    .map(|until| {
+                        // Round up: a wake just before the time is useless.
+                        until
                             .saturating_duration_since(Instant::now())
                             .as_millis()
+                            .saturating_add(1)
                             .min(i32::MAX as u128) as i32
                     })
                     .min()
                     .unwrap_or(-1)
             };
             // SAFETY: poll gets a valid, writable array for this call only.
-            if unsafe { libc::poll(polls.as_mut_ptr(), polls.len() as libc::nfds_t, timeout) } < 0
-                && io::Error::last_os_error().kind() != io::ErrorKind::Interrupted
-            {
-                return;
+            if unsafe { libc::poll(polls.as_mut_ptr(), polls.len() as libc::nfds_t, timeout) } < 0 {
+                let error = io::Error::last_os_error();
+                if error.kind() != io::ErrorKind::Interrupted {
+                    return Err(format!("poll failed: {error}"));
+                }
             }
+            // POLLHUP is not a failure: a client can close its write side and
+            // wait for the responses. `Client::io` finds the end of the data.
             let mut index = 2;
             self.clients.retain(|_| {
-                let failed =
-                    polls[index].revents & (libc::POLLERR | libc::POLLHUP | libc::POLLNVAL) != 0;
+                let failed = polls[index].revents & (libc::POLLERR | libc::POLLNVAL) != 0;
                 index += 1;
                 !failed
             });
         }
+    }
+}
+
+impl Worker {
+    /// Keep a new connection of this user, or close it with the error `busy`.
+    fn admit(&mut self, socket: UnixStream) {
+        if !same_user(&socket) || socket.set_nonblocking(true).is_err() {
+            return;
+        }
+        if self.clients.len() >= MAX_CLIENTS {
+            let mut line = serde_json::to_vec(&Response::error(
+                None,
+                ErrorCode::Busy,
+                "OpenCraft has the largest number of control connections. Close one, and try again.",
+            ))
+            .expect("wire response is JSON data");
+            line.push(b'\n');
+            // A small write into an empty buffer. If it fails, the client
+            // sees the close only.
+            let _ = (&socket).write(&line);
+            let _ = socket.shutdown(Shutdown::Both);
+            return;
+        }
+        self.clients.push(Client::new(socket));
     }
 }
 
@@ -540,7 +702,10 @@ fn handle(client: &mut Client, feed: &Feed, port: Option<&Port>, waker: &Waker, 
                 Response::error(
                     Some(id),
                     ErrorCode::VersionMismatch,
-                    "The client and OpenCraft use different protocol versions.",
+                    &format!(
+                        "The client uses protocol version {}. OpenCraft uses version {VERSION}.",
+                        params.version
+                    ),
                 ),
                 home,
             );
@@ -707,22 +872,20 @@ fn handle(client: &mut Client, feed: &Feed, port: Option<&Port>, waker: &Waker, 
     client.respond(response, home);
 }
 
-/// Redact the current home path even in nested actions and handler text.
-/// No device serial number enters this module: connection data is only
-/// a boolean and the firmware version, never device identity or logs.
+/// Redact the home directory of the user: in a text (and in the name of an
+/// object) that begins with it, at a path boundary, with the rule of the
+/// export of a profile. No device serial number enters this module:
+/// connection data is only a boolean and the firmware version, never device
+/// identity or logs.
 fn hide_home(value: &mut serde_json::Value, home: &str) {
     match value {
-        serde_json::Value::String(text) if !home.is_empty() && home != "/" => {
-            *text = text.replace(home.trim_end_matches('/'), "~")
-        }
+        serde_json::Value::String(text) => *text = opencraft_engine::share::hide_home(text, home),
         serde_json::Value::Array(items) => items.iter_mut().for_each(|v| hide_home(v, home)),
         serde_json::Value::Object(items) => {
             let original = std::mem::take(items);
             for (key, mut value) in original {
-                let mut key = serde_json::Value::String(key);
-                hide_home(&mut key, home);
                 hide_home(&mut value, home);
-                items.insert(key.as_str().unwrap().into(), value);
+                items.insert(opencraft_engine::share::hide_home(&key, home), value);
             }
         }
         _ => {}

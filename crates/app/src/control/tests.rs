@@ -511,3 +511,4 @@ fn protocol_types_round_trip_and_the_command_audit_rejects_unsafe_commands() {
 }
 
 mod changes;
+mod reliability;
