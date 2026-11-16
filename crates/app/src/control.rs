@@ -12,6 +12,7 @@
 //! while idle. No thread exists when off.
 
 mod changes;
+mod check;
 pub mod protocol;
 #[cfg(unix)]
 mod server;

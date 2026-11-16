@@ -308,9 +308,14 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
             }
             let action = p
                 .action
-                .map(TryInto::try_into)
+                .map(e::Action::try_from)
                 .transpose()
                 .map_err(|_| "The action settings are not correct.")?;
+            // The window cannot make a binding with an unknown kind, an
+            // unknown field, or a value that the kind refuses.
+            if let Some(action) = &action {
+                super::check::action(action, &state.kinds)?;
+            }
             let (place, page) = location(state, p.target)?;
             // The engine rule for the holder of a binding: a key is in the
             // open folder, every other control is on the page.
