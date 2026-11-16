@@ -97,9 +97,13 @@ fn a_connection_with_no_hello_closes_and_the_17th_connection_gets_busy() {
     clients[0].request("state");
     clients.pop();
     wait_for("a free place", || {
+        // A connection that gets `busy` is closed: the write can fail.
         let mut client = Client::new(UnixStream::connect(&path).unwrap());
-        client.send(json!({"id": 1, "method": "hello", "params": {"version": VERSION}}));
-        client.read().get("result").is_some()
+        let hello = json!({"id": 1, "method": "hello", "params": {"version": VERSION}});
+        let _ = writeln!(client.0.get_mut(), "{hello}");
+        let mut line = String::new();
+        let _ = client.0.read_line(&mut line);
+        line.contains("\"result\"")
     });
     drop(server);
 }
