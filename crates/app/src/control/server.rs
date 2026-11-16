@@ -1,7 +1,7 @@
 //! One nonblocking worker for all control clients. Only this module knows
 //! Unix sockets; protocol data is also usable by a client.
 
-use super::{protocol::*, state::permitted};
+use super::{changes, protocol::*, state::permitted, Feed, Port};
 use opencraft_engine::{Command, Event};
 use std::{
     io::{self, Read, Write},
@@ -14,32 +14,79 @@ use std::{
         },
     },
     path::{Path, PathBuf},
-    sync::mpsc,
+    sync::{mpsc, Arc},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
 const MAX_CLIENTS: usize = 16;
-const CHOICES_TIMEOUT: Duration = Duration::from_secs(5);
+const PENDING_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(super) struct Server {
-    messages: mpsc::Sender<Message>,
-    wake: UnixStream,
+    waker: Waker,
+    feed: Feed,
     thread: Option<JoinHandle<()>>,
     path: PathBuf,
 }
 
-enum Message {
+pub(super) enum Message {
+    /// An answer that a client waits for.
     Event(Event),
+    /// The result of one command of a client, from the engine thread.
+    Reply {
+        id: u64,
+        result: Result<(), String>,
+    },
     Stop,
 }
 
+/// A way to put a message in the queue of the worker and wake it. The engine
+/// thread uses it. It never waits for the worker.
+#[derive(Clone)]
+pub(super) struct Waker {
+    messages: mpsc::Sender<Message>,
+    wake: Arc<UnixStream>,
+}
+
+impl Waker {
+    pub(super) fn post(&self, message: Message) {
+        let _ = self.messages.send(message);
+        // A full pipe is already a wake. Never wait on the worker.
+        let _ = (&*self.wake).write(&[1]);
+    }
+}
+
+/// The result of one command for the worker. If the engine drops it, for
+/// example at a stop, the worker gets a problem and not a long wait.
+struct Answer {
+    id: u64,
+    waker: Waker,
+    sent: bool,
+}
+
+impl Answer {
+    fn send(mut self, result: Result<(), String>) {
+        self.sent = true;
+        self.waker.post(Message::Reply {
+            id: self.id,
+            result,
+        });
+    }
+}
+
+impl Drop for Answer {
+    fn drop(&mut self) {
+        if !self.sent {
+            self.waker.post(Message::Reply {
+                id: self.id,
+                result: Err("The engine is not available.".into()),
+            });
+        }
+    }
+}
+
 impl Server {
-    pub fn start(
-        dir: &Path,
-        state: State,
-        commands: async_channel::Sender<Command>,
-    ) -> io::Result<Self> {
+    pub fn start(dir: &Path, feed: Feed, port: Option<Port>) -> io::Result<Self> {
         std::fs::create_dir_all(dir)?;
         let path = dir.join(FILE_NAME);
         let listener = UnixListener::bind(&path)?;
@@ -52,22 +99,31 @@ impl Server {
             wake.set_nonblocking(true)?;
             reader.set_nonblocking(true)?;
             let (messages, receiver) = mpsc::channel();
+            let waker = Waker {
+                messages,
+                wake: Arc::new(wake),
+            };
+            let worker = Worker {
+                listener,
+                wake: reader,
+                messages: receiver,
+                feed: feed.clone(),
+                port,
+                waker: waker.clone(),
+                clients: Vec::new(),
+            };
             let thread = thread::Builder::new()
                 .name("opencraft-control".into())
                 .spawn(move || {
-                    Worker {
-                        listener,
-                        wake: reader,
-                        messages: receiver,
-                        state,
-                        commands,
-                        clients: Vec::new(),
-                    }
-                    .run();
+                    let mut worker = worker;
+                    worker.run();
                 })?;
+            // From now on, the engine thread wakes the worker for each
+            // answer. The feed holds the state: nothing is lost.
+            feed.lock().waker = Some(waker.clone());
             Ok(Self {
-                messages,
-                wake,
+                waker,
+                feed,
                 thread: Some(thread),
                 path: path.clone(),
             })
@@ -77,21 +133,12 @@ impl Server {
         }
         prepared
     }
-
-    fn post(&self, message: Message) {
-        let _ = self.messages.send(message);
-        // A full pipe is already a wake. Never wait on the worker.
-        let _ = (&self.wake).write(&[1]);
-    }
-
-    pub fn observe(&self, event: Event) {
-        self.post(Message::Event(event));
-    }
 }
 
 impl Drop for Server {
     fn drop(&mut self) {
-        self.post(Message::Stop);
+        self.feed.lock().waker = None;
+        self.waker.post(Message::Stop);
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -110,9 +157,23 @@ struct Client {
 }
 
 struct Pending {
+    /// The identity of the engine answer that the client waits for.
     engine_id: u64,
     request_id: u64,
     until: Instant,
+    work: Work,
+}
+
+enum Work {
+    Choices,
+    /// The change selects the profile first. Then it sends `command`.
+    Select {
+        command: Command,
+    },
+    Change,
+    Read {
+        target: Target,
+    },
 }
 
 impl Client {
@@ -195,12 +256,62 @@ struct Worker {
     listener: UnixListener,
     wake: UnixStream,
     messages: mpsc::Receiver<Message>,
-    state: State,
-    commands: async_channel::Sender<Command>,
+    feed: Feed,
+    port: Option<Port>,
+    waker: Waker,
     clients: Vec<Client>,
 }
 
+/// Send `command` to the engine. The result comes back to the worker as
+/// `Message::Reply` with the identity that this function gives.
+fn send_with_answer(port: &Port, waker: &Waker, command: Command) -> u64 {
+    // GUI ids count up from 1. Control ids count down and survive
+    // disable/enable, so a late reply cannot match a new connection after the
+    // socket restarts.
+    let id = next_id();
+    let answer = Answer {
+        id,
+        waker: waker.clone(),
+        sent: false,
+    };
+    port(command, Some(Box::new(move |result| answer.send(result))));
+    id
+}
+
 impl Worker {
+    /// The next step of a client request, after the engine answered. `None`
+    /// if the request goes on with a second command.
+    fn reply(
+        client: &mut Client,
+        result: Result<(), String>,
+        port: Option<&Port>,
+        waker: &Waker,
+    ) -> Option<Response> {
+        let pending = client.pending.as_mut()?;
+        let request_id = pending.request_id;
+        if let Err(text) = result {
+            return Some(Response::error(
+                Some(request_id),
+                ErrorCode::EngineProblem,
+                &text,
+            ));
+        }
+        match std::mem::replace(&mut pending.work, Work::Change) {
+            Work::Select { command } => match port {
+                Some(port) => {
+                    pending.engine_id = send_with_answer(port, waker, command);
+                    None
+                }
+                None => Some(Response::error(
+                    Some(request_id),
+                    ErrorCode::Unavailable,
+                    "The engine is not available.",
+                )),
+            },
+            _ => Some(Response::success(request_id, Empty {})),
+        }
+    }
+
     fn run(&mut self) {
         let home = std::env::var("HOME").unwrap_or_default();
         loop {
@@ -213,19 +324,57 @@ impl Worker {
                 count += 1;
                 match message {
                     Message::Stop => return,
-                    Message::Event(event) => {
-                        self.state.apply(&event);
-                        if let Event::Choices { id, options } = event {
-                            for client in &mut self.clients {
-                                if client.pending.as_ref().is_some_and(|p| p.engine_id == id) {
-                                    let p = client.pending.take().unwrap();
-                                    client.respond(
-                                        Response::success(
-                                            p.request_id,
-                                            options.iter().map(Choice::from).collect::<Vec<_>>(),
-                                        ),
-                                        &home,
-                                    );
+                    Message::Event(Event::Choices { id, options }) => {
+                        for client in &mut self.clients {
+                            if client.pending.as_ref().is_some_and(|p| p.engine_id == id) {
+                                let p = client.pending.take().unwrap();
+                                client.respond(
+                                    Response::success(
+                                        p.request_id,
+                                        options.iter().map(Choice::from).collect::<Vec<_>>(),
+                                    ),
+                                    &home,
+                                );
+                            }
+                        }
+                    }
+                    Message::Event(Event::ProfileRead { id, profile }) => {
+                        for client in &mut self.clients {
+                            let Some(p) = client.pending.as_ref().filter(|p| p.engine_id == id)
+                            else {
+                                continue;
+                            };
+                            let Work::Read { target } = &p.work else {
+                                continue;
+                            };
+                            let response =
+                                match profile.as_ref().map_err(Clone::clone).and_then(|p| {
+                                    self.feed.read(|state| changes::content(target, p, state))
+                                }) {
+                                    Ok(content) => Response::success(p.request_id, content),
+                                    Err(text) => Response::error(
+                                        Some(p.request_id),
+                                        ErrorCode::EngineProblem,
+                                        &text,
+                                    ),
+                                };
+                            client.pending = None;
+                            client.respond(response, &home);
+                        }
+                    }
+                    Message::Event(_) => {}
+                    Message::Reply { id, result } => {
+                        for client in &mut self.clients {
+                            if client.pending.as_ref().is_some_and(|p| p.engine_id == id) {
+                                let response = Self::reply(
+                                    client,
+                                    result.clone(),
+                                    self.port.as_ref(),
+                                    &self.waker,
+                                );
+                                if let Some(response) = response {
+                                    client.pending = None;
+                                    client.respond(response, &home);
                                 }
                             }
                         }
@@ -251,8 +400,6 @@ impl Worker {
                 }
             }
             self.clients.retain_mut(|c| c.io().unwrap_or(false));
-            let state = &self.state;
-            let commands = &self.commands;
             for client in &mut self.clients {
                 if client
                     .pending
@@ -264,13 +411,13 @@ impl Worker {
                         Response::error(
                             Some(pending.request_id),
                             ErrorCode::Timeout,
-                            "The field choices did not arrive in time.",
+                            "The engine response did not arrive in time.",
                         ),
                         &home,
                     );
                 }
                 if client.ready() {
-                    handle(client, state, commands, &home);
+                    handle(client, &self.feed, self.port.as_ref(), &self.waker, &home);
                 }
             }
             let mut polls = vec![
@@ -331,12 +478,7 @@ impl Worker {
     }
 }
 
-fn handle(
-    client: &mut Client,
-    state: &State,
-    commands: &async_channel::Sender<Command>,
-    home: &str,
-) {
+fn handle(client: &mut Client, feed: &Feed, port: Option<&Port>, waker: &Waker, home: &str) {
     let end = client.input.iter().position(|b| *b == b'\n');
     if end.unwrap_or(client.input.len()) > MAX_LINE {
         client.respond(
@@ -372,23 +514,10 @@ fn handle(
     let request: Request = match serde_json::from_value(raw.clone()) {
         Ok(request) => request,
         Err(_) => {
-            let known = raw.get("method").and_then(|m| m.as_str()).is_some_and(|m| {
-                matches!(
-                    m,
-                    "hello"
-                        | "state"
-                        | "layout"
-                        | "kinds"
-                        | "choices"
-                        | "profiles"
-                        | "pages"
-                        | "folders"
-                        | "content"
-                        | "device_settings"
-                        | "history"
-                        | "connection"
-                )
-            });
+            let known = raw
+                .get("method")
+                .and_then(|m| m.as_str())
+                .is_some_and(|m| METHODS.contains(&m));
             let (code, text) = if known {
                 (
                     ErrorCode::InvalidRequest,
@@ -436,30 +565,66 @@ fn handle(
             Response::error(
                 Some(id),
                 ErrorCode::HelloRequired,
-                "Send hello before a read request.",
+                "Send hello before a request.",
             ),
             home,
         );
         return;
     }
+    let unavailable = || {
+        Response::error(
+            Some(id),
+            ErrorCode::Unavailable,
+            "The engine is not available.",
+        )
+    };
     let response = match request.method {
         Method::Hello(_) => unreachable!(),
-        Method::State(_) => Response::success(id, state),
-        Method::Layout(_) => Response::success(id, &state.layout),
-        Method::Kinds(_) => Response::success(id, &state.kinds),
-        Method::Profiles(_) => Response::success(id, &state.profiles),
-        Method::Pages(_) => Response::success(id, &state.pages),
-        Method::Folders(_) => Response::success(id, &state.pages.folders),
-        Method::Content(_) => Response::success(id, &state.content),
-        Method::DeviceSettings(_) => Response::success(id, &state.device_settings),
-        Method::History(_) => Response::success(id, &state.history),
-        Method::Connection(_) => Response::success(id, &state.connection),
+        Method::State(_) => feed.read(|state| Response::success(id, state)),
+        Method::Layout(_) => feed.read(|state| Response::success(id, &state.layout)),
+        Method::Kinds(_) => feed.read(|state| Response::success(id, &state.kinds)),
+        Method::Profiles(_) => feed.read(|state| Response::success(id, &state.profiles)),
+        Method::Pages(_) => feed.read(|state| Response::success(id, &state.pages)),
+        Method::Folders(_) => feed.read(|state| Response::success(id, &state.pages.folders)),
+        Method::Content(ContentParams { target: None }) => {
+            feed.read(|state| Response::success(id, &state.content))
+        }
+        Method::Content(ContentParams {
+            target: Some(target),
+        }) => match port {
+            None => unavailable(),
+            Some(port) => {
+                let engine_id = next_id();
+                port(
+                    Command::ReadProfile {
+                        id: engine_id,
+                        profile: target.profile.clone(),
+                    },
+                    None,
+                );
+                client.pending = Some(Pending {
+                    engine_id,
+                    request_id: id,
+                    until: Instant::now() + PENDING_TIMEOUT,
+                    work: Work::Read { target },
+                });
+                return;
+            }
+        },
+        Method::DeviceSettings(_) => {
+            feed.read(|state| Response::success(id, &state.device_settings))
+        }
+        Method::History(_) => feed.read(|state| Response::success(id, &state.history)),
+        Method::Connection(_) => feed.read(|state| Response::success(id, &state.connection)),
         Method::Choices(params) => {
-            let field = state
-                .kinds
-                .iter()
-                .find(|k| k.kind == params.action.kind)
-                .and_then(|k| k.fields.iter().find(|f| f.key == params.field));
+            let field = feed.read(|state| {
+                state
+                    .kinds
+                    .iter()
+                    .find(|k| k.kind == params.action.kind)
+                    .and_then(|k| k.fields.iter().find(|f| f.key == params.field))
+                    .cloned()
+            });
             let Some(field) = field else {
                 client.respond(
                     Response::error(
@@ -485,31 +650,25 @@ fn handle(
                         );
                         return;
                     };
-                    // GUI ids count up from 1. Control ids count down and
-                    // survive disable/enable, so a late reply cannot match
-                    // a new connection after the socket restarts.
-                    static NEXT: std::sync::atomic::AtomicU64 =
-                        std::sync::atomic::AtomicU64::new(u64::MAX);
-                    let engine_id = NEXT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                    let engine_id = next_id();
                     let command = Command::Choices {
                         id: engine_id,
                         action,
                         field: params.field,
                     };
                     debug_assert!(permitted(&command));
-                    if commands.try_send(command).is_err() {
-                        Response::error(
-                            Some(id),
-                            ErrorCode::Unavailable,
-                            "The engine is not available.",
-                        )
-                    } else {
-                        client.pending = Some(Pending {
-                            engine_id,
-                            request_id: id,
-                            until: Instant::now() + CHOICES_TIMEOUT,
-                        });
-                        return;
+                    match port {
+                        None => unavailable(),
+                        Some(port) => {
+                            port(command, None);
+                            client.pending = Some(Pending {
+                                engine_id,
+                                request_id: id,
+                                until: Instant::now() + PENDING_TIMEOUT,
+                                work: Work::Choices,
+                            });
+                            return;
+                        }
                     }
                 }
                 _ => Response::error(
@@ -519,6 +678,31 @@ fn handle(
                 ),
             }
         }
+        method => match feed.read(|state| changes::command(method, state)) {
+            Err(text) => Response::error(Some(id), ErrorCode::InvalidParams, &text),
+            Ok(change) => match port {
+                None => unavailable(),
+                Some(port) => {
+                    let (first, work) = match change.select {
+                        Some(profile) => (
+                            Command::SelectProfile { profile },
+                            Work::Select {
+                                command: change.command,
+                            },
+                        ),
+                        None => (change.command, Work::Change),
+                    };
+                    let engine_id = send_with_answer(port, waker, first);
+                    client.pending = Some(Pending {
+                        engine_id,
+                        request_id: id,
+                        until: Instant::now() + PENDING_TIMEOUT,
+                        work,
+                    });
+                    return;
+                }
+            },
+        },
     };
     client.respond(response, home);
 }
@@ -543,6 +727,11 @@ fn hide_home(value: &mut serde_json::Value, home: &str) {
         }
         _ => {}
     }
+}
+
+fn next_id() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
+    NEXT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 fn same_user(socket: &UnixStream) -> bool {
@@ -631,8 +820,7 @@ mod tests {
             .prefix("oc")
             .tempdir_in("/tmp")
             .unwrap();
-        let (send, _) = async_channel::unbounded();
-        let server = Server::start(dir.path(), State::default(), send).unwrap();
+        let server = Server::start(dir.path(), Feed::default(), None).unwrap();
         assert!(dir.path().join(FILE_NAME).exists());
         drop(server);
         assert!(!dir.path().join(FILE_NAME).exists());

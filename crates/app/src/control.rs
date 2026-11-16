@@ -1,11 +1,17 @@
 //! The optional, shell-owned control socket (decision 0040).
 //!
-//! The shell keeps a read cache even while control is off. When enabled,
-//! one worker owns all connections and a copy of that cache. Events go to
-//! an unbounded queue; the shell never waits for a client or does socket
-//! I/O. The worker uses nonblocking sockets, bounded client buffers and a
-//! wake pipe, with no periodic wake while idle. No thread exists when off.
+//! The read cache is a [`Feed`]. The engine thread calls [`Feed::observe`]
+//! for each event, before it gives the event to the window, and the worker
+//! reads the cache under the same lock. The engine thread also calls the
+//! reply of a change request, after the events of the request. Thus a
+//! client that gets the response of a change sees the change in the next
+//! read, and the user interface thread is not in the path.
+//!
+//! When enabled, one worker owns all connections. It uses nonblocking
+//! sockets, bounded client buffers and a wake pipe, with no periodic wake
+//! while idle. No thread exists when off.
 
+mod changes;
 pub mod protocol;
 #[cfg(unix)]
 mod server;
@@ -14,44 +20,92 @@ mod state;
 mod tests;
 
 use opencraft_engine::{Command, Event};
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+};
+
+/// The function that gets the result of one command. The engine thread calls
+/// it.
+pub type Reply = Box<dyn FnOnce(Result<(), String>) + Send>;
+
+/// How the control module sends a command to the engine. With a reply, the
+/// reply gets the result of the command.
+pub type Port = Arc<dyn Fn(Command, Option<Reply>) + Send + Sync>;
+
+/// The port of an engine.
+pub fn port(engine: opencraft_engine::EngineSender) -> Port {
+    Arc::new(move |command, reply| match reply {
+        Some(reply) => engine.send_with_reply(command, reply),
+        None => engine.send(command),
+    })
+}
+
+#[derive(Default)]
+struct FeedState {
+    state: protocol::State,
+    #[cfg(unix)]
+    waker: Option<server::Waker>,
+}
+
+/// The read cache of the control socket. A clone shares the cache. The cache
+/// follows the events of the engine also while control is off.
+#[derive(Clone, Default)]
+pub struct Feed(Arc<Mutex<FeedState>>);
+
+impl Feed {
+    fn lock(&self) -> MutexGuard<'_, FeedState> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Update the cache. Call this on the engine thread for each event, or
+    /// in a test for each event of a fake engine. It does not block for
+    /// more than the time of one update.
+    pub fn observe(&self, event: &Event) {
+        let mut feed = self.lock();
+        feed.state.apply(event);
+        #[cfg(unix)]
+        if let Some(waker) = &feed.waker {
+            // Only the answers that a worker waits for need a wake.
+            if matches!(event, Event::Choices { .. } | Event::ProfileRead { .. }) {
+                waker.post(server::Message::Event(event.clone()));
+            }
+        }
+    }
+
+    /// Read the cache.
+    fn read<T>(&self, read: impl FnOnce(&protocol::State) -> T) -> T {
+        read(&self.lock().state)
+    }
+}
 
 pub struct Control {
-    state: protocol::State,
-    commands: async_channel::Receiver<Command>,
-    #[cfg(unix)]
-    sender: async_channel::Sender<Command>,
+    feed: Feed,
+    port: Option<Port>,
     #[cfg(unix)]
     server: Option<server::Server>,
 }
 
 impl Control {
     pub fn new() -> Self {
-        let (sender, commands) = async_channel::unbounded();
-        #[cfg(not(unix))]
-        drop(sender);
+        Self::with(Feed::default(), None)
+    }
+
+    pub fn with(feed: Feed, port: Option<Port>) -> Self {
         Self {
-            state: protocol::State::default(),
-            commands,
-            #[cfg(unix)]
-            sender,
+            feed,
+            port,
             #[cfg(unix)]
             server: None,
         }
     }
 
-    /// The shell forwards these commands through its EngineHandle sender.
-    /// This also gives #403 one place to add completed change requests.
-    pub fn commands(&self) -> async_channel::Receiver<Command> {
-        self.commands.clone()
-    }
-
-    pub fn observe(&mut self, event: &Event) {
-        self.state.apply(event);
-        #[cfg(unix)]
-        if let Some(server) = &self.server {
-            server.observe(event.clone());
-        }
+    /// Update the cache with an event. The shell does not call this. A test
+    /// does.
+    #[cfg(test)]
+    pub fn observe(&self, event: &Event) {
+        self.feed.observe(event);
     }
 
     /// Takes effect before returning, also for open connections. Called by
@@ -64,8 +118,8 @@ impl Control {
             } else if self.server.is_none() {
                 self.server = Some(server::Server::start(
                     config_dir,
-                    self.state.clone(),
-                    self.sender.clone(),
+                    self.feed.clone(),
+                    self.port.clone(),
                 )?);
             }
             Ok(())

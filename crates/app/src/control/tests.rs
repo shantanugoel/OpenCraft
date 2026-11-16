@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-use super::{protocol::*, Control};
+use super::{protocol::*, Control, Feed, Port, Reply};
 use opencraft_core::{device::DESCRIPTORS, Connector, Device, FakeTransport, Link};
 use opencraft_engine as e;
 use serde_json::{json, Value};
@@ -15,33 +15,51 @@ use std::{
     time::{Duration, Instant},
 };
 
-struct FakeConnector(Option<FakeTransport>);
+struct FakeConnector(
+    Option<FakeTransport>,
+    &'static opencraft_core::device::Descriptor,
+);
 impl Connector for FakeConnector {
     type Transport = FakeTransport;
     fn connect(&mut self) -> opencraft_core::Result<Option<Device<FakeTransport>>> {
-        Ok(self.0.take().map(|t| Device::new(t, &DESCRIPTORS[0])))
+        Ok(self.0.take().map(|t| Device::new(t, self.1)))
     }
 }
 
 type Sink = Box<dyn FnMut(e::Event)>;
+type Sent = std::sync::mpsc::Receiver<(e::Command, Option<Reply>)>;
 struct Rig {
     control: Rc<RefCell<Control>>,
+    commands: Sent,
     engine: e::Engine<FakeConnector, Sink>,
     dir: tempfile::TempDir,
 }
 
 impl Rig {
     fn new() -> Self {
+        Self::with_device(&DESCRIPTORS[0])
+    }
+
+    /// The engine starts with the first descriptor. The device that connects
+    /// has the descriptor `device`.
+    fn with_device(device: &'static opencraft_core::device::Descriptor) -> Self {
         // Short enough for the macOS sockaddr_un limit of 104 bytes.
         let dir = tempfile::Builder::new()
             .prefix("oc")
             .tempdir_in("/tmp")
             .unwrap();
-        let control = Rc::new(RefCell::new(Control::new()));
+        // The commands of the control module go to the test, which answers
+        // them as the engine would.
+        let (sent, commands) = std::sync::mpsc::channel();
+        let sent = std::sync::Mutex::new(sent);
+        let port: Port = std::sync::Arc::new(move |command, reply| {
+            let _ = sent.lock().unwrap().send((command, reply));
+        });
+        let control = Rc::new(RefCell::new(Control::with(Feed::default(), Some(port))));
         let sink = control.clone();
-        let sink: Sink = Box::new(move |event| sink.borrow_mut().observe(&event));
+        let sink: Sink = Box::new(move |event| sink.borrow().observe(&event));
         let mut engine = e::Engine::new(
-            Link::new(FakeConnector(Some(FakeTransport::new()))),
+            Link::new(FakeConnector(Some(FakeTransport::new()), device)),
             e::ProfilesDir::new(dir.path().join("profiles")),
             &DESCRIPTORS[0],
             sink,
@@ -49,6 +67,7 @@ impl Rig {
         engine.poll(Duration::ZERO);
         Self {
             control,
+            commands,
             engine,
             dir,
         }
@@ -239,7 +258,7 @@ fn slow_clients_do_not_block_events_other_clients_or_disable() {
     }
     let start = Instant::now();
     for _ in 0..600 {
-        rig.control.borrow_mut().observe(&e::Event::History {
+        rig.control.borrow().observe(&e::Event::History {
             undo: Some("Latest".into()),
             redo: None,
         });
@@ -270,10 +289,10 @@ fn results_hide_home_paths_in_nested_actions_and_never_include_engine_logs() {
     let rig = Rig::new();
     let home = std::env::var("HOME").unwrap();
     rig.control
-        .borrow_mut()
+        .borrow()
         .observe(&e::Event::Problem("device serial: PRIVATE-SERIAL".into()));
     rig.control
-        .borrow_mut()
+        .borrow()
         .observe(&e::Event::Binding(e::BindingState {
             binding: e::BindingId {
                 page: 0,
@@ -306,7 +325,7 @@ fn results_hide_home_paths_in_nested_actions_and_never_include_engine_logs() {
 fn choices_are_correlated_per_client_and_do_not_hold_up_reads() {
     let rig = Rig::new();
     rig.control
-        .borrow_mut()
+        .borrow()
         .observe(&e::Event::Kinds(vec![e::KindDescription {
             kind: "test".into(),
             fields: vec![e::Field {
@@ -317,25 +336,27 @@ fn choices_are_correlated_per_client_and_do_not_hold_up_reads() {
             }],
             ..Default::default()
         }]));
-    let commands = rig.control.borrow().commands();
+
     rig.enable(true);
     let mut first = rig.client();
     let mut second = rig.client();
     first.hello();
     second.hello();
     first.send(json!({"id": 10, "method": "choices", "params": {"action": {"kind": "test", "settings": {}}, "field": "device"}}));
-    let command = commands.recv_blocking().unwrap();
+    let command = rig.commands.recv_timeout(Duration::from_secs(3)).unwrap().0;
     let e::Command::Choices { id: first_id, .. } = command else {
         panic!("not choices")
     };
     second.request("history");
     second.send(json!({"id": 11, "method": "choices", "params": {"action": {"kind": "test"}, "field": "device"}}));
-    let e::Command::Choices { id: second_id, .. } = commands.recv_blocking().unwrap() else {
+    let e::Command::Choices { id: second_id, .. } =
+        rig.commands.recv_timeout(Duration::from_secs(3)).unwrap().0
+    else {
         panic!("not choices")
     };
     assert_ne!(first_id, second_id);
     for (id, value) in [(second_id, "second"), (first_id, "first")] {
-        rig.control.borrow_mut().observe(&e::Event::Choices {
+        rig.control.borrow().observe(&e::Event::Choices {
             id,
             options: vec![e::ChoiceOption {
                 value: value.into(),
@@ -350,12 +371,14 @@ fn choices_are_correlated_per_client_and_do_not_hold_up_reads() {
     let mut restarted = rig.client();
     restarted.hello();
     restarted.send(json!({"id": 12, "method": "choices", "params": {"action": {"kind": "test"}, "field": "device"}}));
-    let e::Command::Choices { id: next_id, .. } = commands.recv_blocking().unwrap() else {
+    let e::Command::Choices { id: next_id, .. } =
+        rig.commands.recv_timeout(Duration::from_secs(3)).unwrap().0
+    else {
         panic!("not choices")
     };
     assert_ne!(first_id, next_id);
     for (id, value) in [(first_id, "late"), (next_id, "new")] {
-        rig.control.borrow_mut().observe(&e::Event::Choices {
+        rig.control.borrow().observe(&e::Event::Choices {
             id,
             options: vec![e::ChoiceOption {
                 value: value.into(),
@@ -369,7 +392,7 @@ fn choices_are_correlated_per_client_and_do_not_hold_up_reads() {
 #[test]
 fn pages_clear_bindings_and_model_changes_clear_model_state() {
     let rig = Rig::new();
-    let mut control = rig.control.borrow_mut();
+    let control = rig.control.borrow();
     control.observe(&e::Event::Binding(e::BindingState {
         binding: e::BindingId {
             page: 0,
@@ -383,19 +406,57 @@ fn pages_clear_bindings_and_model_changes_clear_model_state() {
         }),
         available: false,
     }));
-    assert_eq!(control.state.content.bindings.len(), 1);
+    assert_eq!(control.feed.read(|s| s.content.bindings.len()), 1);
     control.observe(&e::Event::Pages {
         names: vec!["Other".into()],
         location: e::Location::default(),
         first: 0,
         folders: vec![],
     });
-    assert!(control.state.content.bindings.is_empty());
+    assert!(control.feed.read(|s| s.content.bindings.is_empty()));
+}
+
+#[test]
+fn a_new_layout_keeps_the_state_that_the_engine_does_not_send_again() {
+    // The second descriptor has the model of the first one. The engine sends
+    // the layout, the kinds and the surfaces again, and no other state.
+    assert_eq!(DESCRIPTORS[0].model, DESCRIPTORS[1].model);
+    let mut rig = Rig::with_device(&DESCRIPTORS[1]);
+    rig.enable(true);
+    let mut client = rig.client();
+    client.hello();
+    let state = client.request("state");
+    assert!(state["profiles"]["active"].is_string());
+    assert!(!state["pages"]["names"].as_array().unwrap().is_empty());
+    assert!(state["device_settings"].is_object());
+    assert_eq!(state["layout"]["name"], DESCRIPTORS[1].name);
+    // A status and the choice to follow the front application stay when the
+    // layout and the kinds come again.
+    let kinds = || {
+        e::Event::Kinds(vec![e::KindDescription {
+            kind: "test".into(),
+            ..Default::default()
+        }])
+    };
+    let control = rig.control.borrow();
+    control.observe(&kinds());
+    control.observe(&e::Event::Status {
+        kind: "test".into(),
+        status: e::Status::Ready,
+    });
+    control.observe(&e::Event::FollowFrontApplication(true));
     control.observe(&e::Event::Layout(std::sync::Arc::new(
         e::DeviceLayout::of_default_model(),
     )));
-    assert!(control.state.content.surfaces.is_empty());
-    assert!(control.state.device_settings.is_none());
+    control.observe(&kinds());
+    drop(control);
+    let state = client.request("state");
+    assert!(state["profiles"]["follow_front_application"]
+        .as_bool()
+        .unwrap());
+    assert!(!state["kinds"][0]["status"].is_null());
+    assert!(state["profiles"]["active"].is_string());
+    rig.engine.poll(Duration::ZERO);
 }
 
 #[test]
@@ -424,8 +485,29 @@ fn protocol_types_round_trip_and_the_command_audit_rejects_unsafe_commands() {
         ResponseBody::Success { .. }
     ));
     assert!(!super::state::permitted(&e::Command::Stop));
+    assert!(!super::state::permitted(&e::Command::AtLocation {
+        location: e::Location::default(),
+        command: Box::new(e::Command::Stop),
+    }));
+    assert!(!super::state::permitted(&e::Command::InProfile {
+        profile: "p".into(),
+        command: Box::new(e::Command::TestAction {
+            binding: e::BindingId {
+                page: 0,
+                folder: None,
+                control: e::ControlId::new(e::ControlKind::Key, 1),
+                gesture: e::GestureKind::Press,
+            },
+        }),
+    }));
+    assert!(super::state::permitted(&e::Command::ReadProfile {
+        id: 1,
+        profile: "p".into()
+    }));
     assert!(!super::state::permitted(&e::Command::Group {
         name: "test".into(),
         commands: vec![e::Command::Stop]
     }));
 }
+
+mod changes;
