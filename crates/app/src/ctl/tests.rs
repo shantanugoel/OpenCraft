@@ -194,6 +194,25 @@ fn the_flags_make_the_params_of_the_protocol() {
         binding["action"],
         json!({"kind": "hotkey", "settings": {"key": "cmd+c", "repeat": 3}})
     );
+    // A text that is a number needs the form of a JSON string. The skill and
+    // the help of --setting give this form (review 3, L1).
+    let text = |line: &str| params(line, None).unwrap()["action"]["settings"]["text"].clone();
+    assert_eq!(
+        text(
+            "opencraft ctl binding set --profile p --page g --control key:1 --gesture press \
+             --action-kind opencraft.type-text --setting 'text=\"2026\"'"
+        ),
+        json!("2026")
+    );
+    // Without the quotation marks, the value is a number, and the kind
+    // refuses it.
+    assert_eq!(
+        text(
+            "opencraft ctl binding set --profile p --page g --control key:1 --gesture press \
+             --action-kind opencraft.type-text --setting text=2026"
+        ),
+        json!(2026)
+    );
     // A device value that is not given stays.
     let device = json!({
         "brightness": 50, "screen_off_minutes": 3, "haptic": true,
@@ -635,6 +654,16 @@ fn the_skill_answers_the_kinds_of_the_code_and_its_own_words() {
     assert!(!text.contains("applications that run now"), "{text}");
     assert!(text.contains("the sound devices"));
     assert!(text.contains("--setting application=/Applications/Safari.app"));
+    // A kind that an accepted binding has is available: `available` is not
+    // the test of a fault at run time. The status of the kind is (review 3,
+    // M2).
+    assert!(!text.contains("check that the binding has"), "{text}");
+    assert!(text.contains("needs_user"));
+    // A change of a profile is not a step of the history (review 3, M1).
+    assert!(text.contains("No `profile` request has an undo"), "{text}");
+    assert!(text.contains("moves it to the folder `removed`"), "{text}");
+    // A text that is JSON needs the form of a JSON string (review 3, L1).
+    assert!(text.contains("--setting 'text=\"2026\"'"), "{text}");
 }
 
 #[test]

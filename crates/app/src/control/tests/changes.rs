@@ -1161,6 +1161,15 @@ fn a_binding_needs_a_known_kind_known_fields_and_values_that_the_kind_accepts() 
             json!({"kind": "test.shown", "settings": {"operation": "down", "step": 1}}),
             "step",
         ),
+        // A value that is not a setting: the text names the setting.
+        (
+            json!({"kind": "test", "settings": {"a": null}}),
+            "The setting \"a\" is not correct",
+        ),
+        (
+            json!({"kind": "test.keys", "settings": {"step": 1.5}}),
+            "The setting \"step\" is not correct",
+        ),
     ];
     for (action, word) in refused {
         let (code, text) = live.fails("set_binding", set(action.clone()));

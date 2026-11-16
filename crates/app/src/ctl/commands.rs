@@ -257,7 +257,7 @@ const ACTION: &[Arg] = &[
         "setting",
         "action.settings",
         Kind::Setting,
-        "A setting of the action, as KEY=VALUE. Can be given more than once.",
+        "A setting of the action, as KEY=VALUE. Give a text that is a number, `true`, `false`, `null`, or starts with a quotation mark, a bracket, or a brace as a JSON string. Can be given more than once.",
     ),
 ];
 
@@ -272,7 +272,7 @@ const CHOICE_ACTION: &[Arg] = &[
         "setting",
         "action.settings",
         Kind::Setting,
-        "A setting of the action, as KEY=VALUE. Can be given more than once.",
+        "A setting of the action, as KEY=VALUE. Give a text that is a number, `true`, `false`, `null`, or starts with a quotation mark, a bracket, or a brace as a JSON string. Can be given more than once.",
     ),
     req(
         "field",
@@ -418,7 +418,7 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "profile remove",
         "remove_profile",
-        "Remove a profile with all its pages. The user can undo it in the window.",
+        "Remove a profile with all its pages. There is no undo: OpenCraft moves the profile to the folder `removed` in the profiles folder.",
         "opencraft ctl profile remove --profile work",
         &[PROFILE]
     ),

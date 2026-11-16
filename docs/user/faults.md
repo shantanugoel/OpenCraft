@@ -130,20 +130,21 @@ do the action again.
 
 A program or a script uses `opencraft ctl`, and the command does not do its
 work. The exit status of the client tells the cause. See
-[Use the command-line client](control.md#use-the-command-line-client).
+[Use the command-line client](control.md#use-the-command-line-client) for the
+meaning of each status.
 
-| Status | The standard error says | Cause | Correction |
-|---|---|---|---|
-| 1 | "OpenCraft runs, but the control socket does not answer. In the Settings window of OpenCraft, turn \"Allow control by other programs\" off and on." | OpenCraft runs, and the socket file is there, but no program serves it | Turn **Allow control by other programs** off and on. |
-| 3 | "OpenCraft does not run. Start OpenCraft, and try again." | OpenCraft does not run. The client does not start it. | Start OpenCraft. Then do the command again. |
-| 4 | "OpenCraft runs, but it does not allow control by other programs. In the Settings window of OpenCraft, turn on \"Allow control by other programs\". If the setting is on, OpenCraft is starting: wait a moment, and try again." | OpenCraft runs, and the control is off, or OpenCraft is at its start | Turn on **Allow control by other programs**. See [Turn on the control](control.md#turn-on-the-control). If the setting is on, wait a moment, and do the command again. |
-| 5 | "The client uses protocol version" and two numbers, then "OpenCraft uses version" and a number | The client and OpenCraft that runs are two different versions | Quit OpenCraft, and start the one that you installed. Use the `opencraft` of the same installation. If you updated OpenCraft, quit the old process first. |
+| Status | The standard error says | Correction |
+|---|---|---|
+| 1 | "OpenCraft runs, but the control socket does not answer. In the Settings window of OpenCraft, turn \"Allow control by other programs\" off and on." | Turn **Allow control by other programs** off and on. |
+| 3 | "OpenCraft does not run. Start OpenCraft, and try again." | Start OpenCraft. Then do the command again. |
+| 4 | "OpenCraft runs, but it does not allow control by other programs. In the Settings window of OpenCraft, turn on \"Allow control by other programs\". If the setting is on, OpenCraft is starting: wait a moment, and try again." | Turn on **Allow control by other programs**. See [Turn on the control](control.md#turn-on-the-control). If the setting is on, wait a moment, and do the command again. |
+| 5 | "The client uses protocol version 1. OpenCraft uses version 2." The two numbers are the versions of the client and of the OpenCraft that runs. OpenCraft can also give "OpenCraft *version* uses version 2.", with the version of the OpenCraft that runs. | Quit OpenCraft, and start the one that you installed. Use the `opencraft` of the same installation. If you updated OpenCraft, quit the old process first. |
 
-Status 3 also occurs when the socket file is there and no OpenCraft process
-holds the lock. This is the case after OpenCraft stopped in an abnormal way.
-Start OpenCraft again. It removes the old file. Status 1 occurs when an
-OpenCraft process holds the lock, and its worker ended, or the start did not
-remove the old file: turn the setting off and on.
+Status 1 also occurs when an OpenCraft process holds the lock, and its worker
+ended, or the start did not remove the old socket file. Status 3 also occurs
+when the socket file is there and no OpenCraft process holds the lock. This is
+the case after OpenCraft stopped in an abnormal way; the next start removes the
+old file.
 
 ## The device goes dark
 

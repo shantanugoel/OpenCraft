@@ -6,8 +6,8 @@ program sends its requests to OpenCraft through a socket. This chapter shows
 how to turn this on and how to use it.
 
 A socket is a special file that two programs on one computer use to send
-messages to each other. It is not a network connection. See
-[Privacy](privacy.md#control-by-other-programs).
+messages to each other. [Privacy](privacy.md#control-by-other-programs) tells
+what the setting permits, and where the socket file is.
 
 **The interface can change before version 1.0.** The commands, the names of
 the fields, and the output of `opencraft ctl` can change in each release.
@@ -16,20 +16,11 @@ with the next version.
 
 ## Turn on the control
 
-The control is off until you turn it on. While it is off, OpenCraft makes no
-socket and has no thread for it.
-
 1. Open the Settings window. See
    [The Settings window](background.md#the-settings-window).
 2. In the tab **General**, turn on **Allow control by other programs**.
 
-The change applies at once. You do not have to start OpenCraft again. To
-stop the control, turn the switch off. OpenCraft then closes each open
-connection and removes the socket file. The switch is described in
-[The tab General](background.md#the-tab-general).
-
-A program cannot turn the control on. Only you can do this in the Settings
-window.
+[The tab General](background.md#the-tab-general) describes the switch.
 
 ## Use the command-line client
 
@@ -114,12 +105,15 @@ navigation that shows a page on the device.
 | Control | Copy, paste, clear, and copy to all pages |
 | Page | Add, duplicate, rename, move, remove, and select a page. Set its first-page mark, its background, and the fit of the background. |
 | Folder | Add, rename, move, remove, open, and close a folder |
-| Profile | Add, rename, remove, and select a profile. Set its colour, the default profile, and its application links. Turn its automatic switch on or off. Export and import. |
+| Profile | Add, rename, remove, and select a profile. Set its colour, the default profile, and its application links. Turn the automatic switch to the front application on or off. Export and import. |
 | Device | Set the device settings |
 | History | Undo and redo |
 
-Each change is one step of the history of OpenCraft. You can undo it in the
-window, as you undo your own change.
+A change of the pages is a step of the history of OpenCraft, thus you can undo
+it in the window. A change of a profile is not a step of the history: you
+cannot undo an add, a rename, a removal, an import, or a selection of a
+profile. [Profile settings](controls.md#profile-settings) tells which changes
+of a profile you can undo.
 
 A program cannot do these things:
 

@@ -2,8 +2,12 @@
 //! profiles. The shell writes only its own files: `shell.toml` (decisions
 //! 0020 and 0029), the lock file `opencraft.lock` with the process number
 //! (decisions 0019 and 0028), the log file when the process has no terminal
-//! (decision 0024), and on macOS the LaunchAgent file of the start at login
-//! (decision 0021).
+//! (decision 0024), the socket of the control by other programs while the
+//! setting is on (decision 0040), and on macOS the LaunchAgent file of the
+//! start at login (decision 0021).
+//!
+//! The client `opencraft ctl` writes one other file: the skill, into the
+//! directory that `ctl skill --install` names (decision 0040, section 5).
 //!
 //! The engine and the shell operate in one process, also when no window is
 //! open (decision 0019). The menu bar item opens the window again and quits
