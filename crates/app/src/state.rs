@@ -231,7 +231,8 @@ impl ViewState {
             Event::Clipboard(kind) => self.clipboard = Some(kind),
             // The window shows a message for these events.
             Event::FollowFrontApplication(follow) => self.follow_front = follow,
-            Event::Choices { .. }
+            Event::ProfileRead { .. }
+            | Event::Choices { .. }
             | Event::Counters(_)
             | Event::ProfileExported { .. }
             | Event::ProfileImported { .. } => {}

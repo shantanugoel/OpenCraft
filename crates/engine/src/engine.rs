@@ -371,6 +371,21 @@ pub enum Command {
         profile: String,
         command: Box<Command>,
     },
+    /// Check a location, make it the active location, and then obey the
+    /// command. If the page or a folder does not exist now, the engine gives
+    /// a problem and does not obey the command: nothing changes. A
+    /// [`Command::Group`] does not stop after a problem of one command, thus
+    /// a shell that names a page puts the command in this command, and not
+    /// after a [`Command::SelectPage`] in a group. The shell can put this
+    /// command in a group and in [`Command::InProfile`], with no check
+    /// against a copy of the state that can be old.
+    AtLocation {
+        location: Location,
+        command: Box<Command>,
+    },
+    /// Read the live active profile, or a saved inactive profile, without
+    /// selecting it. Only a known profile of this model can be read.
+    ReadProfile { id: u64, profile: String },
     /// Stop the engine: write the profile and the device settings if they
     /// changed, make the device dark with the stop sequence, and close the
     /// device. See [`Engine::finish`].
@@ -442,6 +457,8 @@ fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Tar
         Command::SetFirstPage { .. } => step("Set First Page", None),
         Command::Group { name, commands } => step(name, group_target(commands, location)),
         Command::InProfile { command, .. } => step_of(command, location),
+        // A targeted request is its own step, even while the window edits text.
+        Command::AtLocation { command, .. } => step_of(command, location).map(|(name, _)| (name, None)),
         Command::PasteControl { .. } => step("Paste", None),
         Command::ClearControl { .. } => step("Clear", None),
         Command::CopyToAllPages { .. } => step("Copy to All Pages", None),
@@ -479,6 +496,7 @@ fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Tar
         | Command::Choices { .. }
         | Command::TestAction { .. }
         | Command::ReadCounters
+        | Command::ReadProfile { .. }
         | Command::Stop => None,
     }
 }
@@ -598,6 +616,11 @@ impl BackgroundWrite {
 /// command with a private reply gives a problem.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// The profile requested by ReadProfile, with no change of active location.
+    ProfileRead {
+        id: u64,
+        profile: std::result::Result<Profile, String>,
+    },
     /// The layout of the device model. It is the first event. It comes again
     /// if a device of a different descriptor connects. Before the first
     /// connection, it is the layout of the default model.
@@ -1031,7 +1054,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             model: self.descriptor.model,
         };
         if let Some(e) = self.settings.flush(now, &file) {
-            self.problem(format!("OpenCraft could not save the device settings: {e}"));
+            self.notice(format!("OpenCraft could not save the device settings: {e}"));
         }
     }
 
@@ -2454,7 +2477,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         .and_then(|path| match self.store.load_image(path) {
                             Ok(image) => Some(image),
                             Err(e) => {
-                                self.problem(format!(
+                                self.notice(format!(
                                 "OpenCraft could not show the background image of the page: {e}"
                             ));
                                 None
@@ -2538,7 +2561,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .and_then(|path| match self.store.load_image(path) {
                 Ok(image) => Some(image),
                 Err(e) => {
-                    self.problem(format!(
+                    self.notice(format!(
                         "OpenCraft could not show the image of {}: {e}",
                         surface.id
                     ));
@@ -2878,6 +2901,36 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             Command::TestAction { binding } => self.test_action(binding),
             Command::ReadCounters => (self.sink)(Event::Counters(self.counters)),
+            Command::AtLocation { location, command } => {
+                if !self.is_page(location.page) {
+                    return true;
+                }
+                if Location::restored_open(&self.profile, &location.open) != location.open {
+                    self.problem("The profile does not have the requested folders.".into());
+                    return true;
+                }
+                self.select_page(location.page);
+                self.set_open(location.open);
+                return self.obey(*command);
+            }
+            Command::ReadProfile { id, profile } => {
+                // A read of a profile that is not there is the error of the
+                // read. It is not a problem for the window.
+                let result = if !self.list.contains(&profile) {
+                    Err(format!("The device model has no profile '{profile}'."))
+                } else if profile == self.profile_id {
+                    Ok(self.profile.clone())
+                } else {
+                    self.profiles
+                        .store(&profile)
+                        .read()
+                        .map_err(|e| e.to_string())
+                };
+                (self.sink)(Event::ProfileRead {
+                    id,
+                    profile: result,
+                });
+            }
             Command::Stop => return false,
         }
         true
@@ -3082,7 +3135,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             return;
         }
         if let Err(e) = self.profiles.set_last_model(model) {
-            self.problem(format!("OpenCraft could not save the device model: {e}"));
+            self.notice(format!("OpenCraft could not save the device model: {e}"));
         }
     }
 
@@ -3118,7 +3171,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             // The device of the new model must show its own profile, so the
             // change continues after a failed write.
             if let Err(e) = self.write_now() {
-                self.problem(format!("OpenCraft could not save the profile: {e}"));
+                self.notice(format!("OpenCraft could not save the profile: {e}"));
             }
             let now = self.now();
             self.save_settings(now);
@@ -3252,7 +3305,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         match encode_for(surface, image, jpeg_quality_for(surface)) {
             Ok(data) => Some(BackgroundWrite::Image(data)),
             Err(e) => {
-                self.problem(format!(
+                self.notice(format!(
                     "OpenCraft could not make the background image: {e}"
                 ));
                 None
@@ -3268,7 +3321,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         match encode_for(surface, image, jpeg_quality_for(surface)) {
             Ok(data) => Some((slot, data)),
             Err(e) => {
-                self.problem(format!(
+                self.notice(format!(
                     "OpenCraft could not make the image of {}: {e}",
                     surface.id
                 ));
@@ -3282,14 +3335,14 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     fn save_if_due(&mut self) {
         let now = self.now();
         if let Some(e) = self.profile.save_if_due(now, &self.store) {
-            self.problem(format!("OpenCraft could not save the profile: {e}"));
+            self.notice(format!("OpenCraft could not save the profile: {e}"));
         }
         let file = SettingsFile {
             dir: self.profiles.dir(),
             model: self.descriptor.model,
         };
         if let Some(e) = self.settings.save_if_due(now, &file) {
-            self.problem(format!("OpenCraft could not save the device settings: {e}"));
+            self.notice(format!("OpenCraft could not save the device settings: {e}"));
         }
     }
 
@@ -3319,7 +3372,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Write the profile file now, if the profile changed.
     fn save_profile(&mut self, now: Instant) {
         if let Some(e) = self.profile.flush(now, &self.store) {
-            self.problem(format!("OpenCraft could not save the profile: {e}"));
+            self.notice(format!("OpenCraft could not save the profile: {e}"));
         }
     }
 
@@ -3327,11 +3380,20 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.link.clock().now()
     }
 
-    /// Tell the shell about a problem, and write it to the log.
+    /// Tell the shell that the engine refused a command, and write it to the
+    /// log. The result of the command, if there is one, is this text.
     fn problem(&mut self, text: String) {
         if let Some(result @ Ok(())) = &mut self.command_result {
             *result = Err(text.clone());
         }
+        self.notice(text);
+    }
+
+    /// Tell the shell about a problem that does not mean that the engine
+    /// refused the command: the command is done, and then a file or the
+    /// device failed. The result of the command stays as it is. A sender
+    /// that did a change must not read a failure and do the change again.
+    fn notice(&mut self, text: String) {
         log(&format!("problem: {text}"));
         (self.sink)(Event::Problem(text));
     }
@@ -3347,7 +3409,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if self.link_problem.as_deref() != Some(&detail) {
             log(&format!("device error: {}", detail.replace('\n', " ")));
             self.link_problem = Some(detail);
-            self.problem(device_problem(error).to_string());
+            self.notice(device_problem(error).to_string());
         }
     }
 }

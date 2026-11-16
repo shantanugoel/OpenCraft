@@ -237,9 +237,14 @@ impl From<&e::Location> for w::Location {
 
 impl From<&e::SurfaceState> for w::Surface {
     fn from(surface: &e::SurfaceState) -> Self {
-        let c = &surface.content;
+        Self::from_content(surface.id.into(), &surface.content)
+    }
+}
+
+impl w::Surface {
+    pub(super) fn from_content(id: w::Id, c: &e::SurfaceContent) -> Self {
         Self {
-            id: surface.id.into(),
+            id,
             label: c.label.clone(),
             label_style: w::LabelStyle {
                 position: c.label_style.position.map(|p| p.key().into()),
@@ -297,15 +302,34 @@ impl w::State {
     pub(super) fn apply(&mut self, event: &e::Event) {
         match event {
             e::Event::Layout(layout) => {
-                // A new model invalidates all model-specific state.
-                *self = Self {
-                    layout: Some(layout.as_ref().into()),
-                    ..Default::default()
-                };
+                // The engine does not send all state again for each layout
+                // (the same model with a different descriptor, for example).
+                // Keep what it does not send again, as the window does, and
+                // drop only the surfaces that the new layout does not have.
+                let layout: w::Layout = layout.as_ref().into();
+                self.content
+                    .surfaces
+                    .retain(|s| layout.surfaces.iter().any(|l| l.id == s.id));
+                self.layout = Some(layout);
             }
-            e::Event::Kinds(kinds) => self.kinds = kinds.iter().map(Into::into).collect(),
+            e::Event::Kinds(kinds) => {
+                // The status comes in its own event: keep it for a kind that
+                // is still there.
+                let old = std::mem::take(&mut self.kinds);
+                self.kinds = kinds
+                    .iter()
+                    .map(|kind| {
+                        let mut kind = w::Kind::from(kind);
+                        kind.status = old
+                            .iter()
+                            .find(|k| k.kind == kind.kind)
+                            .and_then(|k| k.status.clone());
+                        kind
+                    })
+                    .collect();
+            }
             // Only the client with the pending opaque id gets these choices.
-            e::Event::Choices { .. } => {}
+            e::Event::Choices { .. } | e::Event::ProfileRead { .. } => {}
             e::Event::Profiles {
                 profiles,
                 active,
@@ -415,8 +439,8 @@ impl w::State {
     }
 }
 
-/// Explicit command audit. `true` means permitted by decision 0040 (change
-/// requests are added in #403); `false` means never accepted from a client.
+/// Explicit command audit. `true` means permitted by decision 0040;
+/// `false` means never accepted from a client.
 /// This is not a deserializer: the wire enum is the actual allow list.
 pub(super) fn permitted(command: &e::Command) -> bool {
     match command {
@@ -469,7 +493,10 @@ pub(super) fn permitted(command: &e::Command) -> bool {
         e::Command::Choices { .. } => true,
         e::Command::TestAction { .. } => false,
         e::Command::ReadCounters => false,
-        e::Command::InProfile { command, .. } => permitted(command),
+        e::Command::InProfile { command, .. } | e::Command::AtLocation { command, .. } => {
+            permitted(command)
+        }
+        e::Command::ReadProfile { .. } => true,
         e::Command::Stop => false,
     }
 }
