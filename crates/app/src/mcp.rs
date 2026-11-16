@@ -37,6 +37,7 @@ use serde_json::{json, Map, Value};
 use std::{
     io::{self, BufRead, Write},
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 /// The revision of the specification with a version on each request.
@@ -59,6 +60,39 @@ const SERVER_KEY: &str = "io.modelcontextprotocol/serverInfo";
 /// process runs. A client can cache them for an hour.
 const TTL_MS: u64 = 3_600_000;
 
+/// The longest time that the server waits for an answer of OpenCraft. A client
+/// of MCP cannot stop one request of a tool, and OpenCraft can hang.
+const ANSWER_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The text of `instructions` of `initialize` and of `server/discover`. It is
+/// short on purpose: Claude Code cuts a server instruction after 4,096
+/// characters ([kb/mcp.md](../../../docs/kb/mcp.md)), and it must not
+/// repeat the tool descriptions. The complete skill is the result of
+/// `opencraft_help` with no command.
+const INSTRUCTIONS: &str = concat!(
+    "OpenCraft operates a StreamDock controller. `opencraft_read` and ",
+    "`opencraft_change` read and change the OpenCraft that runs now: its ",
+    "profiles, pages, folders, surfaces, bindings, actions, device settings, ",
+    "and history. The user sees each change at once on the device and in the ",
+    "window.\n",
+    "\n",
+    "Rules that prevent damage:\n",
+    "- A change with `page` moves the device: it makes the profile active and ",
+    "shows the page. When you are done, go home: `profile select`, ",
+    "`page select`, and `folder open` for each open folder of your home.\n",
+    "- Ask the user before `profile remove`. OpenCraft does not delete the ",
+    "profile: it moves it to the folder `removed`, and no undo brings it back.\n",
+    "- Read the identities from `profile list`, `page list`, and ",
+    "`folder list`. Never guess them.\n",
+    "- You cannot run an action. A person must push the key.\n",
+    "- OpenCraft must run, and the setting \"Allow control by other programs\" ",
+    "must be on.\n",
+    "\n",
+    "Call `opencraft_help` with no `command` first: it gives the complete ",
+    "skill, with the rules, the terms, an example, and the commands. Call it ",
+    "with a `command` for the arguments and an example of that command.",
+);
+
 // The error codes of JSON-RPC 2.0 and of the specification of 2026-07-28.
 const PARSE_ERROR: i64 = -32700;
 const INVALID_REQUEST: i64 = -32600;
@@ -73,6 +107,8 @@ pub struct Env {
     pub config_dir: Option<PathBuf>,
     /// True if an OpenCraft process holds the lock in `config_dir`.
     pub running: fn(&Path) -> bool,
+    /// The longest time to wait for an answer of OpenCraft.
+    pub answer_timeout: Duration,
 }
 
 /// The arguments of `opencraft mcp` that ask for a text, and not for the
@@ -94,6 +130,7 @@ pub fn run(arguments: Vec<std::ffi::OsString>, profiles_dir: Option<PathBuf>) ->
     let env = Env {
         config_dir: profiles_dir.as_deref().map(crate::settings::config_dir),
         running: |dir| crate::lock::holder(dir).is_some(),
+        answer_timeout: ANSWER_TIMEOUT,
     };
     execute(
         &env,
@@ -160,7 +197,8 @@ pub fn help() -> String {
          OpenCraft must run, and the setting \"Allow control by other programs\" must be\n\
          on. It takes no lock, starts no engine, and opens no device.\n\n\
          The server has the tools opencraft_read, opencraft_change, and opencraft_help.\n\
-         The skill for an agent is in the instructions of the server.\n\n\
+         The instructions of the server give the first rules; opencraft_help with no\n\
+         command gives the complete skill for an agent.\n\n\
          Arguments:\n  \
          --config [AGENT]  Write the line that installs the server in an agent:\n  \
          \x20                 `claude` for Claude Code, `codex` for the Codex CLI, or no\n  \
@@ -178,9 +216,13 @@ fn config(agent: &str) -> Result<String, String> {
         .unwrap_or_else(|_| String::from("opencraft"));
     match agent {
         "claude" => Ok(format!(
-            "claude mcp add --scope user opencraft -- {path} mcp\n"
+            "claude mcp add --scope user opencraft -- {} mcp\n",
+            shell_word(&path)
         )),
-        "codex" => Ok(format!("codex mcp add opencraft -- {path} mcp\n")),
+        "codex" => Ok(format!(
+            "codex mcp add opencraft -- {} mcp\n",
+            shell_word(&path)
+        )),
         "" => Ok(format!(
             "{}\n",
             serde_json::to_string_pretty(&json!({
@@ -194,12 +236,24 @@ fn config(agent: &str) -> Result<String, String> {
     }
 }
 
+/// A path as one word of a shell. A word with no character that the shell
+/// reads stays as it is; every other word goes in single quotes. Thus a path
+/// with a space, or with a `$`, is one word in the line of the agent.
+fn shell_word(path: &str) -> String {
+    let plain = |c: char| c.is_ascii_alphanumeric() || "/._-+:,=@%".contains(c);
+    if !path.is_empty() && path.chars().all(plain) {
+        path.to_string()
+    } else {
+        format!("'{}'", path.replace('\'', "'\\''"))
+    }
+}
+
 /// Serve the protocol until the standard input closes.
 fn serve(env: &Env, input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let mut session = Session::default();
     loop {
-        let mut line = String::new();
-        match input.read_line(&mut line) {
+        let mut buffer = Vec::new();
+        match input.read_until(b'\n', &mut buffer) {
             Ok(0) => return status::DONE,
             Ok(_) => {}
             Err(error) => {
@@ -207,20 +261,39 @@ fn serve(env: &Env, input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn 
                 return status::REFUSED;
             }
         }
+        // A line that is not UTF-8 text is not JSON: it gets an error, and
+        // the server continues.
+        let Ok(line) = std::str::from_utf8(&buffer) else {
+            let answer = error(
+                None,
+                PARSE_ERROR,
+                "The message is not UTF-8 text, and a message of MCP is JSON text.",
+            );
+            if write_answer(out, &answer).is_err() {
+                return status::REFUSED;
+            }
+            continue;
+        };
         let line = line.trim_end_matches(['\n', '\r']);
         // No message is empty. A blank line is not a message, and it gets no
         // answer.
         if line.trim().is_empty() {
             continue;
         }
-        let Some(answer) = session.message(line, env) else {
+        let Some(answer) = session.message(line, env, err) else {
             continue;
         };
-        let text = serde_json::to_string(&answer).expect("an answer is JSON data");
-        if writeln!(out, "{text}").is_err() || out.flush().is_err() {
+        if write_answer(out, &answer).is_err() {
             return status::REFUSED;
         }
     }
+}
+
+/// Write one answer on the standard output, and send it.
+fn write_answer(out: &mut dyn Write, answer: &Value) -> io::Result<()> {
+    let text = serde_json::to_string(answer).expect("an answer is JSON data");
+    writeln!(out, "{text}")?;
+    out.flush()
 }
 
 /// The format of the requests of one client.
@@ -231,8 +304,8 @@ struct Session {
 }
 
 impl Session {
-    /// The answer to one line, or None for a notification.
-    fn message(&mut self, line: &str, env: &Env) -> Option<Value> {
+    /// The answer to one line, or None for a notification or a response.
+    fn message(&mut self, line: &str, env: &Env, err: &mut dyn Write) -> Option<Value> {
         let message: Value = match serde_json::from_str(line) {
             Ok(message) => message,
             Err(problem) => {
@@ -250,31 +323,54 @@ impl Session {
                 "A message must be a JSON object.",
             ));
         };
-        let Some(method) = message.get("method").and_then(Value::as_str) else {
-            // A response. The protocol has no request from the server in this
-            // server, thus no response is correct.
-            let id = message.get("id").cloned();
+        let Some(method) = message.get("method") else {
+            // A response. JSON-RPC has no answer to a response, and this
+            // server sends no request. Thus it writes a line for a person and
+            // no message for the client.
+            let _ = writeln!(
+                err,
+                "OpenCraft received a response, but OpenCraft sent no request. OpenCraft \
+                 sends no answer to a response."
+            );
+            return None;
+        };
+        if message.get("jsonrpc") != Some(&Value::String(String::from("2.0"))) {
             return Some(error(
-                id,
+                message.get("id").cloned(),
                 INVALID_REQUEST,
-                "OpenCraft sent no request, thus it does not accept a response.",
+                "A message of JSON-RPC 2.0 has \"jsonrpc\": \"2.0\".",
             ));
+        }
+        let Value::String(method) = method else {
+            return Some(error(
+                message.get("id").cloned(),
+                INVALID_REQUEST,
+                "The method of a request must be a text.",
+            ));
+        };
+        let params = match message.get("params") {
+            None => Value::Object(Map::new()),
+            Some(params @ Value::Object(_)) => params.clone(),
+            Some(_) => {
+                return Some(error(
+                    message.get("id").cloned(),
+                    INVALID_REQUEST,
+                    "The params of a request must be an object.",
+                ))
+            }
         };
         let Some(id) = message.get("id") else {
             // A notification. A receiver must not answer it.
             return None;
         };
-        if !(id.is_string() || id.is_number()) {
+        if !(id.is_string() || id.as_i64().is_some() || id.as_u64().is_some()) {
             return Some(error(
                 Some(id.clone()),
                 INVALID_REQUEST,
-                "The id of a request must be a string or a number, not null.",
+                "The id of a request must be a text or a whole number, not null and not a \
+                 fraction.",
             ));
         }
-        let params = message
-            .get("params")
-            .cloned()
-            .unwrap_or_else(|| Value::Object(Map::new()));
         Some(self.request(method, &params, id.clone(), env))
     }
 
@@ -337,6 +433,13 @@ impl Session {
                 ),
             };
         }
+        if method == "ping" {
+            // 2025-11-25 permits a ping before the answer to `initialize`.
+            // This server supports that revision, thus it answers the ping.
+            // A modern `ping` has a `_meta` version, and it is an error
+            // above.
+            return legacy_result(id, json!({}));
+        }
         error(
             Some(id),
             INVALID_PARAMS,
@@ -351,7 +454,8 @@ impl Session {
 }
 
 /// The result of `initialize`: the versions and the tools of this server, and
-/// the skill in `instructions`.
+/// the first rules in `instructions`. The complete skill is the result of
+/// `opencraft_help`.
 fn initialize(_params: &Value) -> Value {
     // This server has one version of this kind. It names that version also
     // when the client names a different one: the client then stops, as the
@@ -360,7 +464,7 @@ fn initialize(_params: &Value) -> Value {
         "protocolVersion": LEGACY,
         "capabilities": {"tools": {}},
         "serverInfo": {"name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION")},
-        "instructions": skill::TEXT
+        "instructions": INSTRUCTIONS
     })
 }
 
@@ -369,7 +473,7 @@ fn discover() -> Value {
     json!({
         "supportedVersions": [MODERN],
         "capabilities": {"tools": {}},
-        "instructions": skill::TEXT,
+        "instructions": INSTRUCTIONS,
         "ttlMs": TTL_MS,
         "cacheScope": "public"
     })
@@ -384,8 +488,9 @@ fn tool_list() -> Value {
     })
 }
 
-/// Run one tool. The error is a protocol error; a problem of OpenCraft is a
-/// tool result with `isError`.
+/// Run one tool. The error is a protocol error for a malformed request or an
+/// unknown tool; a wrong argument, and a problem of OpenCraft, is a tool
+/// result with `isError`.
 fn call(params: &Value, env: &Env) -> Result<Value, (i64, String)> {
     let Some(name) = params.get("name").and_then(Value::as_str) else {
         return Err((
@@ -393,8 +498,10 @@ fn call(params: &Value, env: &Env) -> Result<Value, (i64, String)> {
             String::from("The request of tools/call has no name of a tool."),
         ));
     };
+    // `arguments` is not an object: the request does not agree with
+    // CallToolRequest, thus it is a protocol error.
     let arguments = match params.get("arguments") {
-        None | Some(Value::Null) => Map::new(),
+        None => Map::new(),
         Some(Value::Object(arguments)) => arguments.clone(),
         Some(_) => {
             return Err((
@@ -405,14 +512,24 @@ fn call(params: &Value, env: &Env) -> Result<Value, (i64, String)> {
     };
     match name {
         tools::HELP_TOOL => {
+            // An argument that a tool does not have is a wrong argument of
+            // the tool, thus a tool error that the model can correct.
+            if let Some(key) = unknown_key(arguments.keys(), &["command"]) {
+                return Ok(failed(&format!(
+                    "The argument `{key}` of {} is not correct. {} has only \
+                     the argument `command`.",
+                    tools::HELP_TOOL,
+                    tools::HELP_TOOL
+                )));
+            }
             let command = match arguments.get("command") {
-                None | Some(Value::Null) => None,
+                None => None,
                 Some(Value::String(command)) => Some(command.as_str()),
                 Some(_) => {
-                    return Err((
-                        INVALID_PARAMS,
-                        String::from("The argument `command` of opencraft_help must be a text."),
-                    ))
+                    return Ok(failed(&format!(
+                        "The argument `command` of {} must be a text.",
+                        tools::HELP_TOOL
+                    )))
                 }
             };
             Ok(match command {
@@ -426,20 +543,27 @@ fn call(params: &Value, env: &Env) -> Result<Value, (i64, String)> {
             })
         }
         tools::READ_TOOL | tools::CHANGE_TOOL => {
-            let Some(command) = arguments.get("command").and_then(Value::as_str) else {
-                return Err((
-                    INVALID_PARAMS,
-                    format!("The request of {name} has no command."),
-                ));
+            if let Some(key) = unknown_key(arguments.keys(), &["command", "args"]) {
+                return Ok(failed(&format!(
+                    "The argument `{key}` of {name} is not correct. Put the arguments of the \
+                     command in `args`."
+                )));
+            }
+            let Some(command) = arguments.get("command") else {
+                return Ok(failed(&format!("The request of {name} has no command.")));
+            };
+            let Value::String(command) = command else {
+                return Ok(failed(&format!(
+                    "The argument `command` of {name} must be a text."
+                )));
             };
             let args = match arguments.get("args") {
-                None | Some(Value::Null) => Map::new(),
+                None => Map::new(),
                 Some(Value::Object(args)) => args.clone(),
                 Some(_) => {
-                    return Err((
-                        INVALID_PARAMS,
-                        format!("The argument `args` of {name} must be an object."),
-                    ))
+                    return Ok(failed(&format!(
+                        "The argument `args` of {name} must be an object."
+                    )))
                 }
             };
             let Some(command) = commands::find(command) else {
@@ -470,6 +594,14 @@ fn call(params: &Value, env: &Env) -> Result<Value, (i64, String)> {
     }
 }
 
+/// The first key of a tool call that the tool does not have, in alphabetical
+/// order.
+fn unknown_key<'a>(keys: impl Iterator<Item = &'a String>, allowed: &[&str]) -> Option<&'a str> {
+    keys.map(String::as_str)
+        .filter(|key| !allowed.contains(key))
+        .min()
+}
+
 /// Run one command of `COMMANDS` against the control socket.
 fn execute_command(
     env: &Env,
@@ -492,6 +624,7 @@ fn execute_command(
         config_dir,
         running: env.running,
         pretty: false,
+        read_timeout: Some(env.answer_timeout),
     };
     match perform(&context, command, &flags) {
         Answer::Result(result) => {
@@ -550,7 +683,10 @@ fn error(id: Option<Value>, code: i64, message: &str) -> Value {
     })
 }
 
-/// The error of a request with a version that this server does not have.
+/// The error of a request with a version that this server does not have. The
+/// list names each version that the server serves, as the example of the
+/// specification does: the format of a request differs, but this server does
+/// answer both.
 fn unsupported_version(id: Value, requested: &str) -> Value {
     json!({
         "jsonrpc": "2.0",
@@ -558,7 +694,7 @@ fn unsupported_version(id: Value, requested: &str) -> Value {
         "error": {
             "code": UNSUPPORTED_VERSION,
             "message": "Unsupported protocol version",
-            "data": {"supported": [MODERN], "requested": requested}
+            "data": {"supported": [MODERN, LEGACY], "requested": requested}
         }
     })
 }

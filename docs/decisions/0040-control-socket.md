@@ -519,10 +519,10 @@ record needs no other change. These points hold.
   `opencraft mcp`. The channel is stdio, as the transport of the Model Context
   Protocol says: one JSON-RPC message on one line, on the standard input and
   the standard output, and the messages for a person on the standard error.
-  The code is `crates/app/src/mcp/` and uses `serde_json` only: no `rmcp`, no
-  `tokio`. In this mode the process takes no lock, starts no engine, opens no
-  device, and starts no GUI toolkit. `main` starts it before all other work,
-  as it starts `ctl`.
+  The code is `crates/app/src/mcp.rs` and `crates/app/src/mcp/` and uses
+  `serde_json` only: no `rmcp`, no `tokio`. In this mode the process takes no
+  lock, starts no engine, opens no device, and starts no GUI toolkit. `main`
+  starts it before all other work, as it starts `ctl`.
 - **Two revisions.** The server supports `2025-11-25` (the `initialize`
   handshake) and `2026-07-28` (the version in `_meta` of each request, a
   `resultType` in each result, and `server/discover`). The format of an answer
@@ -531,9 +531,12 @@ record needs no other change. These points hold.
   `2026-07-28`, and a request after `initialize` gets the result of
   `2025-11-25`. Each other request is `invalid_params`. A version that the
   server does not have is `UnsupportedProtocolVersionError` (`-32022`), with
-  the versions that it has. `supportedVersions` and the answer to
-  `initialize` name the version of their kind only, because the two kinds
-  differ in more than a date.
+  `data.supported`, and that list names both versions, as the example of the
+  specification does. `supportedVersions` of `server/discover` names only
+  `2026-07-28`, because a request of `2025-11-25` has a different format. The
+  answer to `initialize` names only `2025-11-25`, because a client of that
+  revision stops when the answer has a different version. The protocol facts
+  are in [kb/mcp.md](../kb/mcp.md).
 - **The tools.** Three tools come from `COMMANDS` when the server answers:
   `opencraft_read` (the read commands), `opencraft_change` (the other
   commands), and `opencraft_help` (the help of one command, or the skill). The
@@ -545,19 +548,47 @@ record needs no other change. These points hold.
   them into the flags and calls `parse::params`, thus the kinds, the defaults,
   the checks of `protocol.rs`, and a command with a read first are the code of
   the client and not a copy.
-- **The hints.** `opencraft_read` is `readOnlyHint` and `idempotentHint`. A
-  change is not `destructiveHint`: the user can undo a change of the pages,
-  and the skill tells the agent to ask before `profile remove`. The skill is
-  in `instructions` of `initialize` and of `server/discover`.
+- **The hints.** `opencraft_read` is `readOnlyHint`. A change is not
+  `destructiveHint`: the user can undo a change of the pages, and the skill
+  tells the agent to ask before `profile remove`. The owner keeps this choice.
+  The specification gives the hint a narrower meaning, "the tool performs only
+  additive updates", and `profile remove` is not additive; see
+  [kb/mcp.md](../kb/mcp.md). The instructions of `initialize` and of
+  `server/discover` are a short text with the rules that prevent damage;
+  `opencraft_help` with no command gives the complete skill.
 - **One client path.** A tool call runs `ctl::perform`, thus it opens one
   connection to the socket, sends `hello`, and gets the result or the problem
-  of the client. A problem of OpenCraft (status 1, 3, 4, or 5, and a wrong
-  argument) is a tool result with `isError: true` and the text of the client.
-  A protocol error is only for a wrong JSON-RPC message or a wrong tool.
-  The server does not stop for a problem of OpenCraft.
+  of the client. A problem of OpenCraft (status 1, 3, 4, or 5) and a wrong
+  argument of a tool are a tool result with `isError: true` and the text of
+  the client. A protocol error is only for a wrong JSON-RPC message, a
+  malformed `tools/call`, or an unknown tool. The server does not stop for a
+  problem of OpenCraft. It waits 60 seconds for an answer, because its client
+  cannot stop one request, and a timeout is a tool error that tells the model
+  to read the state.
 - **The installation.** The user guide gives one line for each agent, and
   `opencraft mcp --config [agent]` writes the same line with the path of the
   installed executable. It changes no file of the agent.
+
+Note (2026-11-16, review 4 of PR #427): these points changed after the review.
+
+- A wrong argument of a tool, including an argument that is not in `args`, is
+  a tool result with `isError: true`, as the specification says. Only a wrong
+  JSON-RPC message, a malformed `tools/call`, and an unknown tool are a
+  protocol error.
+- `instructions` is a short text with the rules that prevent damage, because
+  Claude Code cuts a server instruction after 4,096 characters. The complete
+  skill is the result of `opencraft_help` with no command. The descriptions of
+  the tools name the commands; `opencraft_help` gives their help.
+- The connection of the server waits 60 seconds for an answer, and a timeout
+  is a tool error.
+- `data.supported` of the version error names both versions.
+- A message with no `jsonrpc`, an `id` that is not a text or a whole number,
+  and `params` that are not an object are invalid. A response gets no answer
+  and one line on the standard error. A line that is not UTF-8 is `-32700`.
+- `opencraft mcp --config` puts a path with a character that the shell reads
+  in single quotes.
+- The facts of the protocol, with their sources and confidence, are in
+  [kb/mcp.md](../kb/mcp.md).
 
 ## Results
 

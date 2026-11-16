@@ -53,13 +53,17 @@ fn names(read: bool) -> Vec<&'static str> {
         .collect()
 }
 
-/// One line for each command of the group: its name and its help text.
+/// The names of the commands of the group: the start of the description of
+/// the tool. The help of a command is one tool result away, in
+/// `opencraft_help`, thus the description stays short (Claude Code cuts a
+/// description after 4,096 characters).
 fn description(intro: &str, read: bool) -> String {
-    let mut text = String::from(intro);
-    for command in COMMANDS.iter().filter(|command| is_read(command) == read) {
-        text.push_str(&format!("\n`{}`: {}", command.name, command.help));
-    }
-    text
+    let names: Vec<String> = COMMANDS
+        .iter()
+        .filter(|command| is_read(command) == read)
+        .map(|command| format!("`{}`", command.name))
+        .collect();
+    format!("{intro}\n\nThe commands: {}.", names.join(", "))
 }
 
 /// The schema of a tool that runs a command.
@@ -70,7 +74,7 @@ fn schema(read: bool) -> Value {
             "command": {
                 "type": "string",
                 "enum": names(read),
-                "description": "The command to run. Each line of the description of this tool gives one command and its help."
+                "description": "The command to run. The description of this tool names each command. `opencraft_help` gives the arguments and an example of one command."
             },
             "args": {
                 "type": "object",
@@ -87,13 +91,12 @@ fn read_tool() -> Value {
         "name": READ_TOOL,
         "title": "Read the state of OpenCraft",
         "description": description(
-            "Read the state of a running OpenCraft: the layout, the kinds of action, the profiles, the pages, the folders, the content, the device settings, the history, and the connection. A read does not change OpenCraft and does not move the device. OpenCraft must run, and the setting \"Allow control by other programs\" must be on.",
+            "Read the state of a running OpenCraft: the layout, the kinds of action, the icon names, the choices of a field, the profiles, the pages, the folders, the content, the device settings, the history, and the connection. A read changes nothing and does not move the device. Call opencraft_help with a command for its arguments and an example. OpenCraft must run, and the setting \"Allow control by other programs\" must be on.",
             true
         ),
         "inputSchema": schema(true),
         "annotations": {
             "readOnlyHint": true,
-            "idempotentHint": true,
             "openWorldHint": false
         }
     })
@@ -104,7 +107,7 @@ fn change_tool() -> Value {
         "name": CHANGE_TOOL,
         "title": "Change OpenCraft",
         "description": description(
-            "Change a running OpenCraft: a surface, a binding, a control, a page, a folder, a profile, the device settings, or the history. The user can undo a change of the pages. A change to a page makes that page the active page, thus the device shows it. Ask the user before `profile remove`: OpenCraft does not delete the profile, it moves it to the folder `removed`, and no undo brings it back. OpenCraft must run, and the setting \"Allow control by other programs\" must be on.",
+            "Change a running OpenCraft: a surface, a binding, a control, a page, a folder, a profile, the device settings, or the history. The user can undo a change of the pages. A change with `page` makes that page the active page, thus the device shows it. Ask the user before `profile remove`: OpenCraft does not delete the profile, it moves it to the folder `removed`, and no undo brings it back. Call opencraft_help with a command for its arguments and an example. OpenCraft must run, and the setting \"Allow control by other programs\" must be on.",
             false
         ),
         "inputSchema": schema(false),
@@ -134,7 +137,6 @@ fn help_tool() -> Value {
         },
         "annotations": {
             "readOnlyHint": true,
-            "idempotentHint": true,
             "openWorldHint": false
         }
     })
