@@ -564,6 +564,7 @@ fn a_setting_that_is_on_with_no_socket_shows_the_switch_off_and_the_problem(
     assert!(is_on(cx, "switch-allow-control"));
     assert!(socket.exists());
     assert!(f.settings_on_disk().allow_control);
+    cx.update(|_, cx| assert!(f.shell.read(cx).settings_notice().is_none()));
     // Then a click closes it, and the setting goes off.
     click(cx, "switch-allow-control");
     assert!(!is_on(cx, "switch-allow-control"));

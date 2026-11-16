@@ -199,6 +199,8 @@ pub struct Shell {
     pub state: ViewState,
     settings: Settings,
     control: crate::control::Control,
+    /// Why the control socket is not open although the setting is on.
+    control_problem: Option<String>,
     /// True while a text field of the window that edits the profile has the
     /// focus. Then the Edit menu shows no names of steps.
     typing: bool,
@@ -271,6 +273,7 @@ impl Shell {
             state,
             settings,
             control: crate::control::Control::new(),
+            control_problem: None,
             typing: false,
             profiles_dir: config_dir.join("profiles"),
             config_dir,
@@ -642,12 +645,16 @@ impl Shell {
     /// this setter; no client can change this setting.
     pub fn set_allow_control(&mut self, allow: bool, cx: &mut Context<Self>) {
         if let Err(error) = self.control.set_enabled(allow, &self.config_dir) {
-            self.settings_problem(
-                format!("OpenCraft cannot change the control socket: {error}"),
-                cx,
-            );
+            let text = format!("OpenCraft cannot change the control socket: {error}");
+            self.control_problem = Some(text.clone());
+            self.settings_problem(text, cx);
             return;
         }
+        // The message of an earlier try is not true now.
+        if self.settings_notice == self.control_problem {
+            self.settings_notice = None;
+        }
+        self.control_problem = None;
         if self.settings.allow_control != allow {
             self.settings.allow_control = allow;
             self.save_settings("the control permission", cx);
@@ -953,8 +960,13 @@ impl Shell {
             cx.activate(true);
             return;
         }
-        // A new window does not show the message of an earlier window.
-        self.settings_notice = None;
+        // A new window does not show the message of an earlier window. It
+        // shows the problem of the socket while the switch and the setting
+        // are different (the switch is off, and the setting is on).
+        self.settings_notice = self
+            .control_problem
+            .clone()
+            .filter(|_| self.settings.allow_control && !self.control.is_running());
         let shell = cx.entity();
         let snapshot = self.settings_snapshot();
         let options = crate::settings_window::window_options(&shell, &snapshot, cx);
