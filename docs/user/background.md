@@ -81,7 +81,7 @@ OpenCraft window and the device continue to operate.
 
 ![The tab General of the Settings window](images/settings-general.png)
 
-The four switches at the top of the tab:
+The switches at the top of the tab:
 
 | Switch | What it does |
 |---|---|
@@ -89,6 +89,11 @@ The four switches at the top of the tab:
 | Show the Dock icon | Shows or hides the Dock icon. See [The Dock icon](#the-dock-icon). |
 | Show the window at start | Opens the OpenCraft window when you start OpenCraft. See [The window at start](#the-window-at-start). |
 | Change the profile with the front application | Changes the profile when you go to an application that needs a different profile. The full rule is in [The profile follows the front application](controls.md#the-profile-follows-the-front-application). The switch is on until you turn it off. |
+
+Below this group, **Allow control by other programs** permits programs of
+this user to read and change the profiles. It is off until you turn it on.
+The change applies at once, with no restart. When you turn it off, OpenCraft
+closes each control connection. OpenCraft keeps the setting after a restart.
 
 Below the switches, the tab shows the state of the Accessibility permission.
 The text is "Accessibility permission: **given**" or "Accessibility

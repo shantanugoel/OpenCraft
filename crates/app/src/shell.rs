@@ -176,6 +176,8 @@ pub enum ShellCommand {
     /// Turn the opening of the window at the start on if it is off, and off
     /// if it is on.
     ToggleShowWindowAtStart,
+    /// Permit or stop control by other programs of this user.
+    ToggleAllowControl,
     /// Open the licence notices file of the bundle.
     OpenNotices,
     /// Copy a local support report, with private log details removed.
@@ -489,6 +491,9 @@ impl Shell {
             ShellCommand::ToggleShowWindowAtStart => {
                 self.set_show_window_at_start(!self.settings.show_window_at_start, cx)
             }
+            ShellCommand::ToggleAllowControl => {
+                self.set_allow_control(!self.settings.allow_control, cx)
+            }
             ShellCommand::OpenNotices => self.open_notices(cx),
             ShellCommand::CopyDiagnostics => self.copy_diagnostics(cx),
             ShellCommand::OpenHelp(page) => self.open_help(page, cx),
@@ -647,6 +652,7 @@ impl Shell {
         if self.settings.allow_control != allow {
             self.settings.allow_control = allow;
             self.save_settings("the control permission", cx);
+            cx.notify();
         }
     }
 

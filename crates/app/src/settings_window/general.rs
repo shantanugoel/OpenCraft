@@ -1,4 +1,4 @@
-//! The pane "General" (decision 0029, section 17): four switches, the
+//! The pane "General" (decision 0029, section 17): the shell switches, the
 //! state of the Accessibility permission, and the folders of OpenCraft.
 
 use super::{
@@ -34,6 +34,12 @@ pub const SHOW_WINDOW_AT_START: (&str, &str) = (
 pub const FOLLOW_FRONT: (&str, &str) = (
     "Change the profile with the front application",
     "OpenCraft changes the profile when you go to an application that needs a different profile.",
+);
+
+/// The control permission (decision 0040). Off until the user permits it.
+pub const ALLOW_CONTROL: (&str, &str) = (
+    "Allow control by other programs",
+    "Programs of this user can read and change the profiles.",
 );
 
 /// The name of the permission row, before its state.
@@ -112,6 +118,17 @@ impl SettingsView {
                     )),
                 ),
             ]))
+            .child(group([row(
+                ALLOW_CONTROL.0,
+                ALLOW_CONTROL.1,
+                switch(
+                    "switch-allow-control",
+                    ALLOW_CONTROL.0,
+                    settings.allow_control,
+                    theme::SWITCH_SETTINGS,
+                )
+                .on_click(self.on_click(ShellCommand::ToggleAllowControl)),
+            )]))
             .child(self.permission_group(permission))
             .child(
                 group([

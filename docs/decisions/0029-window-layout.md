@@ -1347,6 +1347,11 @@ A standard macOS settings window
 "Change the profile when the front app changes" is a LATER place below the
 last group box.
 
+The switch "Allow control by other programs" has its own group box below the
+group box of the switches. Its description is "Programs of this user can
+read and change the profiles." It is off until the user turns it on
+([decision 0040](0040-control-socket.md), section 1).
+
 **"Shortcuts" pane.** One group box with one row for each key command of the
 window: the command name at the start (`body`), the keys at the end (`body`,
 `text-secondary`). The list: Search ⌘K, Undo ⌘Z, Redo ⇧⌘Z, Copy ⌘C, Paste
