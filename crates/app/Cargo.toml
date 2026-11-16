@@ -17,6 +17,7 @@ async-channel.workspace = true
 image.workspace = true
 # The file `shell.toml` of the shell (decision 0020).
 serde.workspace = true
+serde_json = "1"
 toml.workspace = true
 
 # The lock of decision 0019 and the signals of decision 0020.
@@ -34,5 +35,7 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 raw-window-handle = "0.6"
 
 [dev-dependencies]
+# Only the control integration tests use the fake transport.
+opencraft-core.workspace = true
 gpui-kit = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true

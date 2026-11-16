@@ -24,6 +24,9 @@ pub const FILE_NAME: &str = "shell.toml";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    /// Permit other programs of this user to use the control socket
+    /// (decision 0040). Off unless the user permits it.
+    pub allow_control: bool,
     /// Show the Dock icon. If false, the application uses the accessory
     /// activation policy.
     pub show_dock_icon: bool,
@@ -49,6 +52,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            allow_control: false,
             show_dock_icon: true,
             show_window_at_start: true,
             settings_pane: SettingsPane::default(),
@@ -243,6 +247,7 @@ mod tests {
         let (settings, problem) = load(dir.path());
         assert_eq!(settings, Settings::default());
         assert!(settings.show_dock_icon);
+        assert!(!settings.allow_control);
         assert_eq!(problem, None);
     }
 
@@ -257,7 +262,7 @@ mod tests {
         save(&config, &hidden).unwrap();
         assert_eq!(
             std::fs::read_to_string(config.join(FILE_NAME)).unwrap(),
-            "show_dock_icon = false\nshow_window_at_start = true\nsettings_pane = \"general\"\n\
+            "allow_control = false\nshow_dock_icon = false\nshow_window_at_start = true\nsettings_pane = \"general\"\n\
              sidebar_visible = true\ninspector_visible = true\n\
              sidebar_width = 240.0\ninspector_width = 360.0\nright_panel_tab = \"inspector\"\n"
         );
