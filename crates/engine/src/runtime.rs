@@ -68,10 +68,61 @@ impl Connector for DeviceConnector {
 /// writes.
 pub const STOP_TIMEOUT: Duration = Duration::from_secs(3);
 
+/// A command in the engine queue, with an optional private reply channel.
+struct PendingCommand {
+    command: Command,
+    reply: Option<Sender<std::result::Result<(), String>>>,
+}
+
+impl From<Command> for PendingCommand {
+    fn from(command: Command) -> Self {
+        Self {
+            command,
+            reply: None,
+        }
+    }
+}
+
+/// A command sender that does not own the engine thread. Each shell can
+/// keep a clone. Dropping a sender does not stop the engine.
+#[derive(Clone)]
+pub struct EngineSender {
+    commands: Sender<PendingCommand>,
+}
+
+impl EngineSender {
+    /// Send a command with no private reply. The call does not block. A
+    /// command to an engine that stopped does nothing.
+    pub fn send(&self, command: Command) {
+        let _ = self.commands.send(command.into());
+    }
+
+    /// Send a command and return its private result channel without waiting.
+    /// The receiver gets exactly one success or the first problem text after
+    /// the engine obeys the whole command, including a group or a profile
+    /// guard. Other senders cannot receive this result. Problems still go
+    /// to the shell through [`Event::Problem`].
+    ///
+    /// Success does not wait for delayed file writes or handler responses:
+    /// see [`Engine::command_with_result`]. If the engine stops before it
+    /// obeys the command, the channel disconnects without a result. A caller
+    /// can use `recv_timeout` to limit its wait. Dropping the receiver does
+    /// not cancel the command or block the engine.
+    pub fn send_with_result(&self, command: Command) -> Receiver<std::result::Result<(), String>> {
+        let (reply, result) = mpsc::channel();
+        let _ = self.commands.send(PendingCommand {
+            command,
+            reply: Some(reply),
+        });
+        result
+    }
+}
+
 /// The connection of a shell to the engine thread. When the handle goes
-/// away, the engine stops as for [`EngineHandle::stop`].
+/// away, the engine stops as for [`EngineHandle::stop`], even if command
+/// senders from [`EngineHandle::sender`] still exist.
 pub struct EngineHandle {
-    commands: Sender<Command>,
+    sender: EngineSender,
     thread: Option<JoinHandle<()>>,
     /// The engine thread holds the sender. The receiver sees the end of the
     /// thread when the sender goes away, also after a panic. The mutex keeps
@@ -84,7 +135,19 @@ impl EngineHandle {
     /// Send a command to the engine. The call does not block. A command to
     /// an engine that stopped does nothing.
     pub fn send(&self, command: Command) {
-        let _ = self.commands.send(command);
+        self.sender.send(command);
+    }
+
+    /// Give a command sender to a second shell or thread. It can outlive
+    /// this handle, but it cannot stop the engine by being dropped.
+    pub fn sender(&self) -> EngineSender {
+        self.sender.clone()
+    }
+
+    /// Send a command with one private result. See
+    /// [`EngineSender::send_with_result`].
+    pub fn send_with_result(&self, command: Command) -> Receiver<std::result::Result<(), String>> {
+        self.sender.send_with_result(command)
     }
 
     /// Stop the engine, and wait until the engine thread wrote the profile and
@@ -151,7 +214,7 @@ pub fn spawn(
             ports,
             sink,
         );
-        run_with_handlers(&mut engine, commands, &messages);
+        run_loop(&mut engine, || commands.try_recv(), &messages);
     })
 }
 
@@ -175,7 +238,7 @@ pub fn start_descriptor(
 /// Start the engine thread with the body `body`, and give the handle.
 fn start_thread(
     stop_timeout: Duration,
-    body: impl FnOnce(&Receiver<Command>) + Send + 'static,
+    body: impl FnOnce(&Receiver<PendingCommand>) + Send + 'static,
 ) -> io::Result<EngineHandle> {
     let (commands, receiver) = mpsc::channel();
     let (end, ended) = mpsc::channel::<()>();
@@ -187,7 +250,7 @@ fn start_thread(
             body(&receiver);
         })?;
     Ok(EngineHandle {
-        commands,
+        sender: EngineSender { commands },
         thread: Some(thread),
         ended: Mutex::new(ended),
         stop_timeout,
@@ -260,11 +323,27 @@ pub fn run_with_handlers<C: Connector, S: FnMut(Event), K: Clock>(
     commands: &Receiver<Command>,
     messages: &Receiver<Message>,
 ) {
+    run_loop(engine, || commands.try_recv().map(Into::into), messages);
+}
+
+fn run_loop<C: Connector, S: FnMut(Event), K: Clock>(
+    engine: &mut Engine<C, S, K>,
+    mut next: impl FnMut() -> std::result::Result<PendingCommand, TryRecvError>,
+    messages: &Receiver<Message>,
+) {
     'run: loop {
         for _ in 0..MESSAGES_PER_POLL {
-            match commands.try_recv() {
-                Ok(command) => {
-                    if !engine.command(command) {
+            match next() {
+                Ok(PendingCommand { command, reply }) => {
+                    let go_on = if let Some(reply) = reply {
+                        let (go_on, result) = engine.command_with_result(command);
+                        // An abandoned request must not block the engine.
+                        let _ = reply.send(result);
+                        go_on
+                    } else {
+                        engine.command(command)
+                    };
+                    if !go_on {
                         break 'run;
                     }
                 }
@@ -285,13 +364,162 @@ mod tests {
     use super::*;
     use std::time::Instant;
 
+    struct NoDevice;
+
+    impl Connector for NoDevice {
+        type Transport = opencraft_core::FakeTransport;
+
+        fn connect(&mut self) -> opencraft_core::Result<Option<Device<Self::Transport>>> {
+            Ok(None)
+        }
+    }
+
+    fn test_engine(sink: impl FnMut(Event) + Send + 'static) -> EngineHandle {
+        start_thread(Duration::from_secs(10), move |commands| {
+            let dir = tempfile::tempdir().unwrap();
+            let mut engine = Engine::new(
+                Link::new(NoDevice),
+                ProfilesDir::new(dir.path().to_path_buf()),
+                &DESCRIPTORS[0],
+                sink,
+            );
+            let (_sender, messages) = mpsc::channel();
+            run_loop(&mut engine, || commands.try_recv(), &messages);
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn a_private_reply_waits_for_the_command_events() {
+        let (changed, change) = mpsc::channel();
+        let (release, blocked) = mpsc::channel();
+        let handle = test_engine(move |event| {
+            if matches!(event, Event::Surface(ref state) if state.content.label.as_deref() == Some("Ready"))
+            {
+                changed.send(()).unwrap();
+                blocked.recv().unwrap();
+            }
+        });
+        let reply = handle.send_with_result(Command::SetLabel {
+            surface: crate::SurfaceId::new(opencraft_core::SurfaceKind::KeyFace, 3),
+            label: Some("Ready".into()),
+        });
+        change.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(reply.try_recv(), Err(TryRecvError::Empty));
+        release.send(()).unwrap();
+        assert_eq!(reply.recv_timeout(Duration::from_secs(10)).unwrap(), Ok(()));
+        assert_eq!(
+            reply.recv_timeout(Duration::from_secs(10)),
+            Err(RecvTimeoutError::Disconnected)
+        );
+        handle.stop();
+    }
+
+    #[test]
+    fn two_concurrent_senders_get_only_their_own_results() {
+        let (events, event) = mpsc::channel();
+        let handle = test_engine(move |e| events.send(e).unwrap());
+        let first = handle.sender();
+        let second = handle.sender();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let start = barrier.clone();
+        let success = thread::spawn(move || {
+            start.wait();
+            first.send_with_result(Command::InProfile {
+                profile: "default".into(),
+                command: Box::new(Command::Group {
+                    name: "Add page".into(),
+                    commands: vec![Command::AddPage { copy_of: None }],
+                }),
+            })
+        });
+        let failure = thread::spawn(move || {
+            barrier.wait();
+            second.send_with_result(Command::SelectPage { page: usize::MAX })
+        });
+        let success = success.join().unwrap();
+        let failure = failure.join().unwrap();
+        assert_eq!(
+            success.recv_timeout(Duration::from_secs(10)).unwrap(),
+            Ok(())
+        );
+        let problem = failure
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(
+            success.recv_timeout(Duration::from_secs(10)),
+            Err(RecvTimeoutError::Disconnected)
+        );
+        assert_eq!(
+            failure.recv_timeout(Duration::from_secs(10)),
+            Err(RecvTimeoutError::Disconnected)
+        );
+        handle.stop();
+        assert_eq!(
+            event
+                .try_iter()
+                .filter_map(|e| match e {
+                    Event::Problem(text) => Some(text),
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            vec![problem]
+        );
+    }
+
+    #[test]
+    fn an_abandoned_reply_does_not_block_the_next_command() {
+        let handle = test_engine(|_| {});
+        drop(handle.send_with_result(Command::ReadCounters));
+        let reply = handle.send_with_result(Command::ReadCounters);
+        assert_eq!(reply.recv_timeout(Duration::from_secs(10)).unwrap(), Ok(()));
+        handle.stop();
+    }
+
+    #[test]
+    fn a_sender_does_not_keep_a_stopped_engine_alive() {
+        let handle = test_engine(|_| {});
+        let sender = handle.sender();
+        handle.stop();
+        assert_eq!(
+            sender
+                .send_with_result(Command::ReadCounters)
+                .recv_timeout(Duration::from_secs(10)),
+            Err(RecvTimeoutError::Disconnected)
+        );
+    }
+
+    #[test]
+    fn a_queued_reply_disconnects_if_the_engine_does_not_obey_it() {
+        let (release, blocked) = mpsc::channel();
+        let handle = start_thread(Duration::from_secs(10), move |_| {
+            blocked.recv().unwrap();
+        })
+        .unwrap();
+        let reply = handle.send_with_result(Command::ReadCounters);
+        assert_eq!(reply.try_recv(), Err(TryRecvError::Empty));
+        release.send(()).unwrap();
+        assert_eq!(
+            reply.recv_timeout(Duration::from_secs(10)),
+            Err(RecvTimeoutError::Disconnected)
+        );
+        handle.stop();
+    }
+
     #[test]
     fn sending_a_remove_command_does_not_wait_for_the_engine() {
         let (release, blocked) = mpsc::channel();
         let handle = start_thread(Duration::from_secs(10), move |commands| {
             blocked.recv().unwrap();
-            assert!(matches!(commands.recv(), Ok(Command::RemoveProfile { .. })));
-            assert!(matches!(commands.recv(), Ok(Command::Stop)));
+            assert!(matches!(
+                commands.recv().map(|pending| pending.command),
+                Ok(Command::RemoveProfile { .. })
+            ));
+            assert!(matches!(
+                commands.recv().map(|pending| pending.command),
+                Ok(Command::Stop)
+            ));
         })
         .unwrap();
         let start = Instant::now();
@@ -307,7 +535,10 @@ mod tests {
     fn stop_waits_for_the_engine_thread() {
         let (done, finished) = mpsc::channel();
         let handle = start_thread(Duration::from_secs(10), move |commands| {
-            while !matches!(commands.recv(), Ok(Command::Stop) | Err(_)) {}
+            while !matches!(
+                commands.recv().map(|pending| pending.command),
+                Ok(Command::Stop) | Err(_)
+            ) {}
             thread::sleep(Duration::from_millis(50));
             done.send(()).unwrap();
         })
