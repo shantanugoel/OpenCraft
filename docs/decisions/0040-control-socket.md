@@ -512,6 +512,53 @@ The reasons:
 - A command-line client operates in each agent that has a shell, and a
   person can use it in a terminal and in a test.
 
+Note (2026-11-16, issue #408): the MCP server is in the executable, and this
+record needs no other change. These points hold.
+
+- **The form.** The argument `mcp` makes the executable a server:
+  `opencraft mcp`. The channel is stdio, as the transport of the Model Context
+  Protocol says: one JSON-RPC message on one line, on the standard input and
+  the standard output, and the messages for a person on the standard error.
+  The code is `crates/app/src/mcp/` and uses `serde_json` only: no `rmcp`, no
+  `tokio`. In this mode the process takes no lock, starts no engine, opens no
+  device, and starts no GUI toolkit. `main` starts it before all other work,
+  as it starts `ctl`.
+- **Two revisions.** The server supports `2025-11-25` (the `initialize`
+  handshake) and `2026-07-28` (the version in `_meta` of each request, a
+  `resultType` in each result, and `server/discover`). The format of an answer
+  follows the request: a request with
+  `_meta.io.modelcontextprotocol/protocolVersion` gets the result of
+  `2026-07-28`, and a request after `initialize` gets the result of
+  `2025-11-25`. Each other request is `invalid_params`. A version that the
+  server does not have is `UnsupportedProtocolVersionError` (`-32022`), with
+  the versions that it has. `supportedVersions` and the answer to
+  `initialize` name the version of their kind only, because the two kinds
+  differ in more than a date.
+- **The tools.** Three tools come from `COMMANDS` when the server answers:
+  `opencraft_read` (the read commands), `opencraft_change` (the other
+  commands), and `opencraft_help` (the help of one command, or the skill). The
+  enums, the descriptions, and the help are made from `COMMANDS`; a test
+  checks that each command is in exactly one of the two tools and that the
+  read tool holds exactly the read requests of `protocol.rs`
+  (`Method::reads`). The arguments of a tool are the flags of `ctl` with JSON
+  values: `{"profile": "work", "surface": "key_face:0"}`. The server turns
+  them into the flags and calls `parse::params`, thus the kinds, the defaults,
+  the checks of `protocol.rs`, and a command with a read first are the code of
+  the client and not a copy.
+- **The hints.** `opencraft_read` is `readOnlyHint` and `idempotentHint`. A
+  change is not `destructiveHint`: the user can undo a change of the pages,
+  and the skill tells the agent to ask before `profile remove`. The skill is
+  in `instructions` of `initialize` and of `server/discover`.
+- **One client path.** A tool call runs `ctl::perform`, thus it opens one
+  connection to the socket, sends `hello`, and gets the result or the problem
+  of the client. A problem of OpenCraft (status 1, 3, 4, or 5, and a wrong
+  argument) is a tool result with `isError: true` and the text of the client.
+  A protocol error is only for a wrong JSON-RPC message or a wrong tool.
+  The server does not stop for a problem of OpenCraft.
+- **The installation.** The user guide gives one line for each agent, and
+  `opencraft mcp --config [agent]` writes the same line with the path of the
+  installed executable. It changes no file of the agent.
+
 ## Results
 
 - An agent can configure OpenCraft while it operates, and the user sees

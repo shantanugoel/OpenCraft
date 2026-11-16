@@ -11,7 +11,7 @@
 //! The list of the commands is in [`commands`].
 
 pub mod commands;
-mod parse;
+pub(crate) mod parse;
 pub mod skill;
 #[cfg(test)]
 mod tests;
@@ -20,6 +20,7 @@ use crate::control::protocol::{
     ErrorCode, HelloParams, HelloResult, ProtocolError, Request, Response, FILE_NAME, MAX_RESPONSE,
     VERSION,
 };
+pub(crate) use commands::{Arg, Command};
 use parse::Parsed;
 use serde_json::{json, Value};
 use std::{
@@ -75,6 +76,86 @@ pub fn run(arguments: Vec<std::ffi::OsString>, profiles_dir: Option<PathBuf>) ->
     )
 }
 
+/// The answer to one command of the client.
+pub(crate) enum Answer {
+    /// The result of the request.
+    Result(Value),
+    /// A problem, with the exit status of decision 0040, section 4.
+    Problem { status: i32, text: String },
+}
+
+/// Do the work of one command: make the request, connect, and send it. The
+/// command-line client and the MCP server share this function, thus their
+/// checks and their texts are the same.
+pub(crate) fn perform(
+    context: &Context,
+    command: &'static Command,
+    flags: &[(&'static Arg, String)],
+) -> Answer {
+    // A command with a read first (`device set-settings`) needs the read for
+    // its request. A value that is not correct does not need it: read the
+    // arguments with an empty start, so that the client finds the problem
+    // before the connection, with the help line.
+    if command.base.is_some() {
+        if let Err(problem) =
+            parse::params(command, flags, Some(Value::Object(serde_json::Map::new())))
+        {
+            return arguments_problem(command, &problem);
+        }
+    }
+    // Most commands make their request before the connection: an argument
+    // that is not correct must not need a running OpenCraft.
+    let early = match command.base {
+        None => {
+            match parse::params(command, flags, None).and_then(|p| request(command.method, p)) {
+                Ok(request) => Some(request),
+                Err(problem) => return arguments_problem(command, &problem),
+            }
+        }
+        Some(_) => None,
+    };
+    let mut connection = match Connection::open(context) {
+        Ok(connection) => connection,
+        Err(failure) => return problem(failure),
+    };
+    let request = match early {
+        Some(request) => request,
+        None => {
+            let base = command.base.expect("a late command has a base");
+            let base = match connection.call(base, json!({})) {
+                Ok(base) => base,
+                Err(failure) => return problem(failure),
+            };
+            let params = match parse::params(command, flags, Some(base)) {
+                Ok(params) => params,
+                Err(problem) => return arguments_problem(command, &problem),
+            };
+            match request(command.method, params) {
+                Ok(request) => request,
+                Err(problem) => return arguments_problem(command, &problem),
+            }
+        }
+    };
+    match connection.send(&request) {
+        Ok(result) => Answer::Result(result),
+        Err(failure) => problem(failure),
+    }
+}
+
+/// A problem with the arguments: status 2, and the help line.
+fn arguments_problem(command: &Command, problem: &str) -> Answer {
+    Answer::Problem {
+        status: status::ARGUMENTS,
+        text: format!("{problem}\nSee `opencraft ctl {} --help`.", command.name),
+    }
+}
+
+/// A failure of the connection or of OpenCraft.
+fn problem(failure: Failure) -> Answer {
+    let (status, text) = failure.outcome();
+    Answer::Problem { status, text }
+}
+
 /// Do the work of [`run`], with its own streams.
 pub fn execute(
     context: &Context,
@@ -109,70 +190,8 @@ pub fn execute(
             return status::ARGUMENTS;
         }
     };
-    // A command with a read first (`device set-settings`) needs the read for
-    // its request. A value that is not correct does not need it: read the
-    // arguments with an empty start, so that the client finds the problem
-    // before the connection, with the help line.
-    if command.base.is_some() {
-        if let Err(problem) =
-            parse::params(command, &flags, Some(Value::Object(serde_json::Map::new())))
-        {
-            let _ = writeln!(
-                err,
-                "{problem}\nSee `opencraft ctl {} --help`.",
-                command.name
-            );
-            return status::ARGUMENTS;
-        }
-    }
-    // Most commands make their request before the connection: an argument
-    // that is not correct must not need a running OpenCraft.
-    let early = match command.base {
-        None => match parse::params(command, &flags, None).and_then(|p| request(command.method, p))
-        {
-            Ok(request) => Some(request),
-            Err(problem) => {
-                let _ = writeln!(
-                    err,
-                    "{problem}\nSee `opencraft ctl {} --help`.",
-                    command.name
-                );
-                return status::ARGUMENTS;
-            }
-        },
-        Some(_) => None,
-    };
-    let mut connection = match Connection::open(context) {
-        Ok(connection) => connection,
-        Err(failure) => return failure.report(err),
-    };
-    let request = match early {
-        Some(request) => request,
-        None => {
-            let base = command.base.expect("a late command has a base");
-            let made = connection
-                .call(base, json!({}))
-                .map_err(|failure| failure.report(err))
-                .and_then(|base| {
-                    parse::params(command, &flags, Some(base))
-                        .and_then(|p| request(command.method, p))
-                        .map_err(|problem| {
-                            let _ = writeln!(
-                                err,
-                                "{problem}\nSee `opencraft ctl {} --help`.",
-                                command.name
-                            );
-                            status::ARGUMENTS
-                        })
-                });
-            match made {
-                Ok(request) => request,
-                Err(status) => return status,
-            }
-        }
-    };
-    match connection.send(&request) {
-        Ok(result) => {
+    match perform(context, command, &flags) {
+        Answer::Result(result) => {
             let text = if context.pretty {
                 serde_json::to_string_pretty(&result)
             } else {
@@ -182,13 +201,16 @@ pub fn execute(
             let _ = writeln!(out, "{text}");
             status::DONE
         }
-        Err(failure) => failure.report(err),
+        Answer::Problem { status, text } => {
+            let _ = writeln!(err, "{text}");
+            status
+        }
     }
 }
 
 /// Make a request of the protocol. The types of the protocol check the
 /// parameters: this is the check of the client, before it sends.
-fn request(method: &str, params: Value) -> Result<Request, String> {
+pub(crate) fn request(method: &str, params: Value) -> Result<Request, String> {
     serde_json::from_value(json!({"id": 2, "method": method, "params": params}))
         .map_err(|error| format!("The arguments are not correct: {error}."))
 }
@@ -208,9 +230,9 @@ enum Failure {
 }
 
 impl Failure {
-    /// Write the problem and give the exit status.
-    fn report(self, err: &mut dyn Write) -> i32 {
-        let (status, text) = match self {
+    /// The exit status of the failure and its text for a person.
+    fn outcome(self) -> (i32, String) {
+        match self {
             Self::NotRunning(text) => (status::NOT_RUNNING, text),
             Self::ControlOff => (
                 status::CONTROL_OFF,
@@ -225,9 +247,7 @@ impl Failure {
             }
             Self::Refused(error) => (status::REFUSED, error.text),
             Self::Connection(text) => (status::REFUSED, text),
-        };
-        let _ = writeln!(err, "{text}");
-        status
+        }
     }
 }
 

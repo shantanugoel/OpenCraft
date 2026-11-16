@@ -9,6 +9,10 @@
 //! The client `opencraft ctl` writes one other file: the skill, into the
 //! directory that `ctl skill --install` names (decision 0040, section 5).
 //!
+//! The server `opencraft mcp` serves the tools of the Model Context Protocol
+//! for an agent. It is a second client of the same socket (decision 0040,
+//! section 6). It writes no file, and it takes no lock.
+//!
 //! The engine and the shell operate in one process, also when no window is
 //! open (decision 0019). The menu bar item opens the window again and quits
 //! the application (decision 0020).
@@ -32,6 +36,8 @@ mod lock;
 mod log_file;
 #[cfg(target_os = "macos")]
 mod login;
+#[cfg(unix)]
+mod mcp;
 mod menu;
 #[cfg(target_os = "macos")]
 mod menu_bar;
@@ -75,6 +81,10 @@ fn profiles_dir() -> PathBuf {
 /// (decision 0040, section 4). It must be the first argument.
 const CTL_ARGUMENT: &str = "ctl";
 
+/// The argument that makes the executable an MCP server for an agent
+/// (decision 0040, section 6). It must be the first argument.
+const MCP_ARGUMENT: &str = "mcp";
+
 /// The argument of a start at login (decision 0021).
 const LOGIN_ARGUMENT: &str = "--login";
 
@@ -91,18 +101,18 @@ enum Start {
 }
 
 /// Read the first argument. `opencraft` starts the application, and
-/// `opencraft ctl <command>` is the client, which `main` starts before this
-/// function. `--help`, `-h`, `help`, and `--version` must not start the
-/// application: an agent or a person that tries the new command in `PATH`
-/// must get the text, not a started OpenCraft with the device and the lock.
-/// An argument that the Finder gives (`-psn_…`) starts the application, as
-/// before.
+/// `opencraft ctl <command>` is the client and `opencraft mcp` is the server
+/// for an agent; `main` starts both before this function. `--help`, `-h`,
+/// `help`, and `--version` must not start the application: an agent or a
+/// person that tries the new command in `PATH` must get the text, not a
+/// started OpenCraft with the device and the lock. An argument that the
+/// Finder gives (`-psn_…`) starts the application, as before.
 fn start_of(arguments: &[std::ffi::OsString]) -> Start {
     let Some(first) = arguments.first() else {
         return Start::Application;
     };
     match first.to_str() {
-        Some(LOGIN_ARGUMENT) | Some(CTL_ARGUMENT) => Start::Application,
+        Some(LOGIN_ARGUMENT) | Some(CTL_ARGUMENT) | Some(MCP_ARGUMENT) => Start::Application,
         Some("--help" | "-h" | "help") => Start::Help,
         Some("--version") => Start::Version,
         Some(word) if word.starts_with('-') => Start::Application,
@@ -113,14 +123,16 @@ fn start_of(arguments: &[std::ffi::OsString]) -> Start {
     }
 }
 
-/// The short help of `opencraft`. It names the application and the client,
-/// because the same executable is both (decision 0040, section 4).
+/// The short help of `opencraft`. It names the application, the client, and
+/// the server for an agent, because the same executable is all three
+/// (decision 0040, sections 4 and 6).
 fn help_text() -> String {
     format!(
         "OpenCraft {version}\n\n\
          `opencraft` starts the OpenCraft application for the device.\n\
          `opencraft ctl <command>` changes a running OpenCraft: `opencraft ctl --help`.\n\
-         `opencraft ctl skill` writes the skill for an agent.\n",
+         `opencraft ctl skill` writes the skill for an agent.\n\
+         `opencraft mcp` serves the tools of the Model Context Protocol for an agent.\n",
         version = env!("CARGO_PKG_VERSION"),
     )
 }
@@ -254,17 +266,30 @@ fn main() {
             std::process::exit(2);
         }
     }
-    // Before everything else: the client takes no lock, starts no engine, and
-    // writes its messages to the terminal, not to the log file.
+    // Before everything else: the client and the server for an agent take no
+    // lock, start no engine, and write their messages to the terminal, not to
+    // the log file.
     let mut arguments = std::env::args_os().skip(1);
-    if arguments.next().is_some_and(|a| a == CTL_ARGUMENT) {
-        #[cfg(unix)]
-        std::process::exit(ctl::run(arguments.collect(), profiles_dir_if_known()));
-        #[cfg(not(unix))]
-        {
-            eprintln!("`opencraft ctl` needs a Unix socket. This system has none.");
-            std::process::exit(3);
+    match arguments.next().as_deref() {
+        Some(argument) if argument == CTL_ARGUMENT => {
+            #[cfg(unix)]
+            std::process::exit(ctl::run(arguments.collect(), profiles_dir_if_known()));
+            #[cfg(not(unix))]
+            {
+                eprintln!("`opencraft ctl` needs a Unix socket. This system has none.");
+                std::process::exit(3);
+            }
         }
+        Some(argument) if argument == MCP_ARGUMENT => {
+            #[cfg(unix)]
+            std::process::exit(mcp::run(arguments.collect(), profiles_dir_if_known()));
+            #[cfg(not(unix))]
+            {
+                eprintln!("`opencraft mcp` needs a Unix socket. This system has none.");
+                std::process::exit(3);
+            }
+        }
+        _ => {}
     }
     drop(arguments);
     if start_trace() {
@@ -444,6 +469,8 @@ mod tests {
         assert_eq!(start(&[]), "start");
         assert_eq!(start(&["--login"]), "start");
         assert_eq!(start(&["ctl", "state"]), "start");
+        assert_eq!(start(&["mcp"]), "start");
+        assert_eq!(start(&["mcp", "--config", "claude"]), "start");
         // The Finder gives an argument of this form.
         assert_eq!(start(&["-psn_0_12345"]), "start");
         assert_eq!(start(&["--help"]), "help");
