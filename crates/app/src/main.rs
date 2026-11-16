@@ -14,6 +14,7 @@
 
 mod app_menu;
 mod applications;
+mod control;
 mod diagnostics;
 mod first_start;
 #[cfg(target_os = "macos")]
@@ -182,6 +183,12 @@ fn main() {
     }
     #[cfg(unix)]
     let _lock = lock_or_stop(&config_dir, login);
+    #[cfg(unix)]
+    if _lock.is_some() {
+        if let Err(error) = control::remove_stale(&config_dir) {
+            eprintln!("OpenCraft cannot remove the old control socket: {error}");
+        }
+    }
     // After the lock, so that only one process writes and renames the log
     // file. A start through launchd or the Finder has no terminal, and the
     // messages then go to the log file.
@@ -265,7 +272,10 @@ fn main() {
         // also comes here. Stop the engine in the closure itself: GPUI
         // waits for the future for at most 200 ms, and the stop must
         // complete. The main thread waits for the engine.
-        cx.on_app_quit(move |_| {
+        cx.on_app_quit(move |cx| {
+            if let Some(shell) = cx.try_global::<ShellHandle>().map(|h| h.0.clone()) {
+                shell.update(cx, |shell, _| shell.stop_control());
+            }
             if let Some(engine) = shutdown.borrow_mut().take() {
                 engine.stop();
                 eprintln!("OpenCraft stopped the engine, and quits.");

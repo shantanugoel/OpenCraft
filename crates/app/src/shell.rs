@@ -196,6 +196,7 @@ pub struct Shell {
     /// window has its own selection.
     pub state: ViewState,
     settings: Settings,
+    control: crate::control::Control,
     /// True while a text field of the window that edits the profile has the
     /// focus. Then the Edit menu shows no names of steps.
     typing: bool,
@@ -267,6 +268,7 @@ impl Shell {
         Self {
             state,
             settings,
+            control: crate::control::Control::new(),
             typing: false,
             profiles_dir: config_dir.join("profiles"),
             config_dir,
@@ -346,6 +348,16 @@ impl Shell {
         commands: async_channel::Receiver<ShellCommand>,
         cx: &mut Context<Self>,
     ) {
+        self.set_allow_control(self.settings.allow_control, cx);
+        let control_commands = self.control.commands();
+        cx.spawn(async move |shell, cx| {
+            while let Ok(command) = control_commands.recv().await {
+                if shell.update(cx, |shell, _| (shell.send)(command)).is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
         // The key command and the menu items of the application menu. They
         // work also when the Settings window or no window has the focus.
         let settings = cx.weak_entity();
@@ -414,6 +426,7 @@ impl Shell {
     }
 
     pub fn receive(&mut self, event: Event, cx: &mut Context<Self>) {
+        self.control.observe(&event);
         let history = matches!(event, Event::History { .. });
         self.state.apply(event.clone(), Instant::now());
         if history {
@@ -619,6 +632,27 @@ impl Shell {
                 }
             });
         }));
+    }
+
+    /// Apply the control permission immediately. The Settings switch uses
+    /// this setter; no client can change this setting.
+    pub fn set_allow_control(&mut self, allow: bool, cx: &mut Context<Self>) {
+        if let Err(error) = self.control.set_enabled(allow, &self.config_dir) {
+            self.settings_problem(
+                format!("OpenCraft cannot change the control socket: {error}"),
+                cx,
+            );
+            return;
+        }
+        if self.settings.allow_control != allow {
+            self.settings.allow_control = allow;
+            self.save_settings("the control permission", cx);
+        }
+    }
+
+    /// Close all control connections before the engine stops.
+    pub fn stop_control(&mut self) {
+        let _ = self.control.set_enabled(false, &self.config_dir);
     }
 
     /// The settings of the shell.
@@ -1225,6 +1259,25 @@ mod tests {
                 .ok()
                 .flatten()
         })
+    }
+
+    #[cfg(unix)]
+    #[gpui_kit::test]
+    fn the_control_setting_opens_and_closes_the_socket_and_is_saved(cx: &mut TestAppContext) {
+        let f = shell(cx);
+        let socket = f.dir.path().join(crate::control::protocol::FILE_NAME);
+        assert!(!socket.exists());
+        f.shell
+            .update(cx, |shell, cx| shell.set_allow_control(true, cx));
+        assert!(socket.exists());
+        assert!(settings::load(f.dir.path()).0.allow_control);
+        f.shell.update(cx, |shell, _| shell.stop_control());
+        assert!(!socket.exists());
+        // A stop closes the listener without revoking the saved permission.
+        assert!(settings::load(f.dir.path()).0.allow_control);
+        f.shell
+            .update(cx, |shell, cx| shell.set_allow_control(false, cx));
+        assert!(!settings::load(f.dir.path()).0.allow_control);
     }
 
     #[gpui_kit::test]
