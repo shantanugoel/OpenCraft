@@ -327,6 +327,26 @@ build puts the text of the skill into the executable.
 `opencraft ctl skill --install <directory>` writes the skill into that
 directory. Thus the skill is always correct for the installed version.
 
+Note (2026-11-16, issue #406): these points hold for the skill.
+
+- **The place.** The file is `skills/opencraft/SKILL.md` in the repository. The
+  client includes it with `include_str!` (`ctl/skill.rs`). The frontmatter has
+  the `name` `opencraft` and a `description`.
+- **The install.** `opencraft ctl skill --install <directory>` writes
+  `<directory>/opencraft/SKILL.md`, because `<directory>` is the directory of
+  the skills of an agent (for example `~/.claude/skills`). It replaces an
+  earlier file and writes the path to the standard output. Neither form needs
+  a running OpenCraft: `skill` is not in `COMMANDS`, because it has no request.
+- **The tests.** The skill has a table of the commands. A test checks that the
+  table has each command of `COMMANDS` one time, that each flag of a row exists,
+  and that a row has each flag that the command needs. A second test makes the
+  request of each example line of the skill, with the checks of the client.
+  A third test finds personal data.
+- **A trap in the skill.** The engine keeps a binding of an unknown action kind
+  (for example `hotkey` in place of `opencraft.hotkey`) and does not check the
+  settings of an action. The skill tells the agent to use the full kind and to
+  read `available` in `content` after `binding set`.
+
 ### 6. Later
 
 An MCP server is a second client of the same socket. It is a different

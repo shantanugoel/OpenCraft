@@ -221,7 +221,7 @@ const ACTION: &[Arg] = &[
         "action-kind",
         "action.kind",
         Kind::Text,
-        "The kind of the action, in place of --action.",
+        "The kind of the action, in full as `kinds` gives it, for example `opencraft.hotkey`. Use it in place of --action.",
     ),
     arg(
         "setting",
@@ -236,7 +236,7 @@ const CHOICE_ACTION: &[Arg] = &[
         "action-kind",
         "action.kind",
         Kind::Text,
-        "The kind of the action.",
+        "The kind of the action, in full as `kinds` gives it, for example `opencraft.hotkey`.",
     ),
     arg(
         "setting",
@@ -325,7 +325,7 @@ pub const COMMANDS: &[Command] = &[
         "choices",
         "choices",
         "Read the choices of one field of an action, for example the applications that run now.",
-        "opencraft ctl choices --action-kind open_application --field application",
+        "opencraft ctl choices --action-kind opencraft.open-application --field application",
         &[CHOICE_ACTION]
     ),
     command!(
@@ -663,7 +663,7 @@ pub const COMMANDS: &[Command] = &[
         "binding set",
         "set_binding",
         "Set the action of a gesture of a control, or remove it. A person must push the key: a client cannot run an action.",
-        "opencraft ctl binding set --profile work --page 0123456789abcdef --control key:0 --gesture press --action-kind hotkey --setting key=cmd+c",
+        "opencraft ctl binding set --profile work --page 0123456789abcdef --control key:0 --gesture press --action-kind opencraft.hotkey --setting hotkey=cmd+c",
         &[TARGET, CONTROL, GESTURE, ACTION]
     ),
     command!(

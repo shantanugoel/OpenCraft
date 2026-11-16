@@ -223,7 +223,7 @@ fn convert(arg: &Arg, text: &str) -> Result<Value, String> {
 
 /// A file input of a request is an absolute path. `~/` is the home
 /// directory, and another relative path is relative to the current directory.
-fn absolute(text: &str) -> Result<String, String> {
+pub(super) fn absolute(text: &str) -> Result<String, String> {
     let path = match text.strip_prefix("~/") {
         Some(rest) => std::env::home_dir()
             .ok_or("OpenCraft cannot find the home directory.")?
@@ -254,6 +254,7 @@ pub fn help() -> String {
          it with `profile list`, `page list`, and `folder list`. A change gives the\n\
          identities of the things that it made. The commands and the output can change\n\
          in each release before version 1.0.\n\n\
+         `opencraft ctl skill` writes the skill for an agent. OpenCraft need not run for it.\n\n\
          Commands:\n",
     );
     let width = COMMANDS.iter().map(|c| c.name.len()).max().unwrap_or(0);
