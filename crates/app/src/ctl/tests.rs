@@ -246,6 +246,8 @@ fn arguments_that_are_not_correct_are_found_before_a_connection() {
         // The protocol types find these.
         "opencraft ctl binding set --profile p --page g --control key:0 --gesture bad --action-kind x",
         "opencraft ctl surface set-icon --profile p --page g --surface wall:1 --icon-name x",
+        // A command with a read first: the value is not a number.
+        "opencraft ctl device set-settings --brightness x",
     ];
     for line in bad {
         let (status, out, err) = ctl(&context, line);
@@ -275,6 +277,31 @@ fn help_goes_to_the_standard_output_with_status_0() {
         assert!(out.starts_with("opencraft ctl"), "{out}");
         assert!(err.is_empty());
     }
+    // `help <command>` gives the help of the command, also with two words.
+    for line in [
+        "opencraft ctl help state",
+        "opencraft ctl help profile add",
+        "opencraft ctl help device set-settings",
+    ] {
+        let (status, out, err) = ctl(&context, line);
+        assert_eq!(status, status::DONE, "{line}: {err}");
+        assert!(out.starts_with("opencraft ctl "), "{out}");
+        assert!(out.contains("Example:"), "{out}");
+        assert!(err.is_empty());
+    }
+    let (status, out, err) = ctl(&context, "opencraft ctl help nothing");
+    assert_eq!(status, status::ARGUMENTS);
+    assert!(out.is_empty());
+    assert!(err.contains("is not a command"), "{err}");
+    // The version of the client needs no OpenCraft.
+    for line in ["opencraft ctl --version", "opencraft ctl state --version"] {
+        let (status, out, err) = ctl(&context, line);
+        assert_eq!(status, status::DONE, "{line}");
+        assert!(out.starts_with("opencraft "), "{out}");
+        assert!(out.contains(env!("CARGO_PKG_VERSION")), "{out}");
+        assert!(err.is_empty());
+    }
+    assert!(!dir.path().join(protocol::FILE_NAME).exists());
 }
 
 #[test]
@@ -288,12 +315,22 @@ fn status_3_when_nothing_runs_and_status_4_when_control_is_off() {
     drop(UnixListener::bind(dir.path().join(protocol::FILE_NAME)).unwrap());
     let (status3, _, _) = ctl(&context(dir.path(), false), "opencraft ctl state");
     assert_eq!(status3, status::NOT_RUNNING);
+    // The socket file is there and an OpenCraft process holds the lock: the
+    // worker ended, or the start did not remove the file. OpenCraft runs,
+    // thus a start would only open its window.
+    let (status1, out, err) = ctl(&context(dir.path(), true), "opencraft ctl state");
+    assert_eq!(status1, status::REFUSED);
+    assert!(out.is_empty());
+    assert!(err.contains("does not answer"), "{err}");
+    assert!(!err.contains("does not run"), "{err}");
     std::fs::remove_file(dir.path().join(protocol::FILE_NAME)).unwrap();
     // OpenCraft runs and has no socket file.
     let (status4, out, err) = ctl(&context(dir.path(), true), "opencraft ctl state");
     assert_eq!(status4, status::CONTROL_OFF);
     assert!(out.is_empty());
     assert!(err.contains("Allow control by other programs"), "{err}");
+    // OpenCraft can be starting: the text says so.
+    assert!(err.contains("starting"), "{err}");
     // A command with a read first also gets the status.
     let (status4, _, _) = ctl(
         &context(dir.path(), true),
@@ -369,7 +406,7 @@ fn a_result_goes_to_the_output_and_an_error_to_the_standard_error() {
     assert!(err.is_empty());
     let seen = server.join().unwrap();
     assert_eq!(seen[1]["method"], "history");
-    assert_eq!(seen[1]["params"], json!({}));
+    assert_eq!(seen[1]["params"], json!({"profile": null}));
 }
 
 #[test]
@@ -409,13 +446,44 @@ fn a_closed_connection_is_status_1() {
 #[test]
 fn the_client_works_with_the_real_server() {
     let dir = short_dir();
-    // Each change gets its answer at once.
-    let port: Port = Arc::new(|_, reply| {
+    let feed = Feed::default();
+    // The kinds of this version, as OpenCraft sends them: an example of a
+    // read must work with them (the example of `choices` names a field that
+    // has choices).
+    let kinds: Vec<opencraft_engine::KindDescription> = opencraft_actions::handlers()
+        .iter()
+        .flat_map(|handler| handler.kinds())
+        .collect();
+    feed.observe(&opencraft_engine::Event::Kinds(kinds));
+    // Each change gets its answer at once. A choice that depends on the
+    // computer gets an answer as the engine gives it.
+    let answers = feed.clone();
+    let port: Port = Arc::new(move |command, reply| {
         if let Some(reply) = reply {
             reply(Ok(()));
         }
+        match command {
+            opencraft_engine::Command::Choices { id, .. } => {
+                answers.observe(&opencraft_engine::Event::Choices {
+                    id,
+                    options: vec![opencraft_engine::ChoiceOption {
+                        value: "up".into(),
+                        label: "Up".into(),
+                    }],
+                })
+            }
+            // The read of a profile that is not active. The test has no such
+            // profile.
+            opencraft_engine::Command::ReadProfile { id, .. } => {
+                answers.observe(&opencraft_engine::Event::ProfileRead {
+                    id,
+                    profile: Err("The device model has no profile.".into()),
+                })
+            }
+            _ => {}
+        }
     });
-    let mut control = Control::with(Feed::default(), Some(port));
+    let mut control = Control::with(feed, Some(port));
     control.set_enabled(true, dir.path()).unwrap();
     let context = context(dir.path(), true);
 
@@ -425,15 +493,36 @@ fn the_client_works_with_the_real_server() {
     assert!(state.get("profiles").is_some());
 
     // Each read command gets an answer or a problem of OpenCraft, not a
-    // problem of the client.
-    for command in COMMANDS.iter().filter(|c| c.args.is_empty()) {
-        let (status, _, err) = ctl(&context, command.example);
+    // problem of the client. The example of `choices` gets its choices.
+    let reads = [
+        "state",
+        "layout",
+        "kinds",
+        "choices",
+        "content",
+        "device_settings",
+        "history",
+        "connection",
+        "profiles",
+        "pages",
+        "folders",
+    ];
+    let mut seen = 0;
+    for command in COMMANDS.iter().filter(|c| reads.contains(&c.method)) {
+        seen += 1;
+        let (status, out, err) = ctl(&context, command.example);
         assert!(
             status == status::DONE || status == status::REFUSED,
             "{}: {status} {err}",
             command.example
         );
+        if command.method == "choices" {
+            assert_eq!(status, status::DONE, "{}: {err}", command.example);
+            let list: Value = serde_json::from_str(&out).unwrap();
+            assert_eq!(list[0]["value"], "up", "{}", command.example);
+        }
     }
+    assert_eq!(seen, reads.len());
 
     // A change for a place that is not there is refused.
     let (status1, out, err) = ctl(
@@ -456,6 +545,96 @@ fn the_client_works_with_the_real_server() {
     control.set_enabled(false, dir.path()).unwrap();
     let (status4, _, _) = ctl(&context, "opencraft ctl state");
     assert_eq!(status4, status::CONTROL_OFF);
+}
+
+#[test]
+fn each_example_names_a_surface_and_a_control_of_the_real_layout() {
+    // The numbers of the examples are those of a layout: a surface or a
+    // control that the layout does not have makes an example that fails.
+    let layout: protocol::Layout = (&opencraft_engine::DeviceLayout::of_default_model()).into();
+    let mut surfaces = 0;
+    let mut controls = 0;
+    for command in COMMANDS {
+        let parse::Parsed::Run { flags, .. } =
+            parse::parse(&arguments(command.example)).unwrap_or_else(|e| panic!("{e}"))
+        else {
+            panic!("{} is help", command.example);
+        };
+        let params = parse::params(command, &flags, command.base.map(|_| json!({})))
+            .unwrap_or_else(|e| panic!("{}: {e}", command.example));
+        if let Some(id) = params.get("surface") {
+            let id: protocol::SurfaceId =
+                serde_json::from_value(id.clone()).expect("a surface is an id");
+            assert!(
+                layout.surfaces.iter().any(|s| s.id == id),
+                "{}: the layout has no surface {id:?}",
+                command.example
+            );
+            surfaces += 1;
+        }
+        if let Some(id) = params.get("control") {
+            let id: protocol::ControlId =
+                serde_json::from_value(id.clone()).expect("a control is an id");
+            assert!(
+                layout.controls.iter().any(|c| c.id == id),
+                "{}: the layout has no control {id:?}",
+                command.example
+            );
+            controls += 1;
+        }
+    }
+    assert!(surfaces > 0 && controls > 0, "{surfaces} {controls}");
+}
+
+#[test]
+fn the_choices_example_reads_a_field_that_has_choices() {
+    // The examples of the help must succeed. A field of the type path has no
+    // choices, and a request for them is a refusal.
+    let choices = COMMANDS
+        .iter()
+        .find(|command| command.method == "choices")
+        .unwrap();
+    let parse::Parsed::Run { flags, .. } = parse::parse(&arguments(choices.example)).unwrap()
+    else {
+        panic!()
+    };
+    let params = parse::params(choices, &flags, None).unwrap();
+    let kind = params["action"]["kind"].as_str().unwrap();
+    let field = params["field"].as_str().unwrap();
+    let kinds: Vec<protocol::Kind> = opencraft_actions::handlers()
+        .iter()
+        .flat_map(|handler| handler.kinds())
+        .map(|kind| (&kind).into())
+        .collect();
+    let kind = kinds
+        .iter()
+        .find(|k| k.kind == kind)
+        .unwrap_or_else(|| panic!("no kind {kind}"));
+    let field = kind
+        .fields
+        .iter()
+        .find(|f| f.key == field)
+        .unwrap_or_else(|| panic!("no field {field}"));
+    assert!(
+        matches!(
+            field.input,
+            protocol::Input::Choice { .. }
+                | protocol::Input::RuntimeChoice
+                | protocol::Input::RuntimeChoiceList
+        ),
+        "{} has no choices",
+        field.key
+    );
+}
+
+#[test]
+fn the_skill_answers_the_kinds_of_the_code_and_its_own_words() {
+    // The words of the skill about choices agree with the code: only a field
+    // with choices is a read of choices, and an application is a path.
+    let text = skill::TEXT;
+    assert!(!text.contains("applications that run now"), "{text}");
+    assert!(text.contains("the sound devices"));
+    assert!(text.contains("--setting application=/Applications/Safari.app"));
 }
 
 #[test]
@@ -542,7 +721,8 @@ fn the_table_of_the_skill_has_each_command_and_no_other() {
         // Each flag that the command needs is in the row. `target` means the
         // flags of a target.
         for arg in command.arguments().filter(|a| a.required) {
-            let in_target = flags.contains("target") && ["profile", "page"].contains(&arg.flag);
+            let in_target =
+                flags.contains("target") && ["profile", "page", "folder"].contains(&arg.flag);
             assert!(
                 named.iter().any(|n| n == arg.flag) || in_target,
                 "the skill row of `{name}` has no --{}",
@@ -623,6 +803,23 @@ fn skill_install_writes_the_skill_directory() {
     let (status, _, _) = ctl(&context, &line);
     assert_eq!(status, status::DONE);
     assert_eq!(std::fs::read_to_string(&file).unwrap(), skill::TEXT);
+    // `--install=DIR` is correct, as each other flag of the client.
+    let other = dir.path().join("other");
+    let line = format!("opencraft ctl skill --install={}", other.display());
+    let (status, out, err) = ctl(&context, &line);
+    assert_eq!((status, err.as_str()), (status::DONE, ""));
+    assert_eq!(
+        std::fs::read_to_string(other.join("opencraft").join("SKILL.md")).unwrap(),
+        skill::TEXT
+    );
+    assert_eq!(
+        out.trim_end(),
+        other
+            .join("opencraft")
+            .join("SKILL.md")
+            .display()
+            .to_string()
+    );
     // A directory that cannot be made is a refusal.
     let blocked = format!("opencraft ctl skill --install {}", file.display());
     let (status, _, err) = ctl(&context, &blocked);

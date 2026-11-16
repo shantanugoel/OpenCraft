@@ -95,6 +95,11 @@ pub fn execute(
             let _ = out.write_all(text.as_bytes());
             return status::DONE;
         }
+        Ok(Parsed::Version) => {
+            let _ = writeln!(out, "opencraft {}", env!("CARGO_PKG_VERSION"));
+            let _ = writeln!(out, "protocol {VERSION}");
+            return status::DONE;
+        }
         Ok(Parsed::Run { command, flags }) => (command, flags),
         Err(problem) => {
             let _ = writeln!(
@@ -104,6 +109,22 @@ pub fn execute(
             return status::ARGUMENTS;
         }
     };
+    // A command with a read first (`device set-settings`) needs the read for
+    // its request. A value that is not correct does not need it: read the
+    // arguments with an empty start, so that the client finds the problem
+    // before the connection, with the help line.
+    if command.base.is_some() {
+        if let Err(problem) =
+            parse::params(command, &flags, Some(Value::Object(serde_json::Map::new())))
+        {
+            let _ = writeln!(
+                err,
+                "{problem}\nSee `opencraft ctl {} --help`.",
+                command.name
+            );
+            return status::ARGUMENTS;
+        }
+    }
     // Most commands make their request before the connection: an argument
     // that is not correct must not need a running OpenCraft.
     let early = match command.base {
@@ -136,7 +157,11 @@ pub fn execute(
                     parse::params(command, &flags, Some(base))
                         .and_then(|p| request(command.method, p))
                         .map_err(|problem| {
-                            let _ = writeln!(err, "{problem}");
+                            let _ = writeln!(
+                                err,
+                                "{problem}\nSee `opencraft ctl {} --help`.",
+                                command.name
+                            );
                             status::ARGUMENTS
                         })
                 });
@@ -190,7 +215,8 @@ impl Failure {
             Self::ControlOff => (
                 status::CONTROL_OFF,
                 "OpenCraft runs, but it does not allow control by other programs. In the \
-                 Settings window of OpenCraft, turn on \"Allow control by other programs\"."
+                 Settings window of OpenCraft, turn on \"Allow control by other programs\". \
+                 If the setting is on, OpenCraft is starting: wait a moment, and try again."
                     .into(),
             ),
             Self::Version(text) => (status::VERSION, text),
@@ -297,15 +323,23 @@ impl Connection {
 /// decision 0028: a process of OpenCraft that runs and no socket file mean
 /// that the setting is off.
 fn not_connected(context: &Context, path: &Path, error: &io::Error) -> Failure {
+    let running = (context.running)(&context.config_dir);
     match error.kind() {
+        // An OpenCraft process holds the lock, and it has no socket file: the
+        // setting is off, or the process did not open the socket yet.
+        io::ErrorKind::NotFound if running => Failure::ControlOff,
+        // The socket file is there, and nobody serves it: the worker of the
+        // OpenCraft process ended, or the start did not remove the file.
+        // OpenCraft runs, thus a start would only open its window.
+        io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused if running => {
+            Failure::Connection(
+                "OpenCraft runs, but the control socket does not answer. In the Settings \
+                 window of OpenCraft, turn \"Allow control by other programs\" off and on."
+                    .into(),
+            )
+        }
         io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused => {
-            if error.kind() == io::ErrorKind::NotFound && (context.running)(&context.config_dir) {
-                Failure::ControlOff
-            } else {
-                Failure::NotRunning(
-                    "OpenCraft does not run. Start OpenCraft, and try again.".into(),
-                )
-            }
+            Failure::NotRunning("OpenCraft does not run. Start OpenCraft, and try again.".into())
         }
         _ => Failure::Connection(format!(
             "OpenCraft cannot connect to {}: {error}.",

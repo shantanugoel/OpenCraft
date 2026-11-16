@@ -439,6 +439,14 @@ profile), if the list has no mark. The default profile does not change by an
 add. Only `SetDefaultProfile` and the removal of the default profile change
 it.
 
+Note (2026-11-16, review 3, H1). The mark of the note above is correct only
+for a default profile of step 2. Step 3 is no choice of the list: while each
+profile has a link, the default profile is the first profile only because the
+list has no other. The engine makes no mark then. Thus the first start window
+keeps the starter profile as the default profile: it sends each ready profile
+(they have a link), and the starter profile has no link. A profile with no
+link that the user adds is the default profile in the same way.
+
 ### 11. The window
 
 The window uses the places of

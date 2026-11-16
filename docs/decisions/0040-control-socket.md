@@ -273,6 +273,64 @@ hold for the reads and the results.
   request did not make" of review 2 (M6). The reason: an agent read the null
   fields as "not done".
 
+Note (2026-11-16, review 3 and the second test of the skill by an agent).
+These points change the interface of this record.
+
+- **The history of one profile.** `history` takes `{}` or
+  `{ "profile": <identity> }`, as `pages` and `folders` do, and its result has
+  the field `profile`. No profile, or the active profile: the cache answers.
+  The history of a profile that is not active cannot change while the profile
+  is not active, thus the cache has its names from the time when it was
+  active. A profile that was not active since the start has no step that
+  OpenCraft knows, and the result has no names.
+- **An empty history.** An undo or a redo with no step is the error
+  `nothing_to_undo` or `nothing_to_redo`, and not `engine_problem`: the
+  request is correct, and there is nothing to reverse. The exit status stays
+  as the table of section 4 says: status 1, because OpenCraft refused the
+  command. The text is the text of the engine, and the engine has it in one
+  place (`NO_UNDO_STEP` and `NO_REDO_STEP`).
+- **The place of an undo.** The result of `undo` and `redo` gives the place of
+  the step that it reversed: the profile, the page, and the open folder that
+  the device shows after the step. The other change requests keep the rule of
+  the note above.
+- **The page of a new profile.** The result of `add_profile` and
+  `import_profile` has the identity of the first page of the new profile in
+  the field `page`, because the profile has that page.
+- **A folder that is not open.** `close_folder` names the folder that is open:
+  the folder is a needed part of the target. The request fails with
+  `invalid_params` if the profile is not active (it has no open folder) or if
+  the named folder is not the last open folder of the active location. A
+  previous request gave exit 0 and changed nothing.
+- **The identity of a setting.** A setting of the type Profile or Folder must
+  name a thing that exists: the identity of a profile, and the identity of a
+  folder of the profile. A name in place of an identity is `invalid_params`.
+  The engine checks the folder of a profile that is not active at the place,
+  because the cache lists the folders of the active profile only.
+- **A hidden field.** The check uses `shown_when` (decision 0038): a setting
+  that the form does not show for the other settings is `invalid_params`. The
+  limits and the key of the delay of a step come from the engine
+  (`Field::step_delay`), not from a copy in the control module.
+- **The status of the client.** Two more causes have their own text. A socket
+  file with no answer while an OpenCraft process holds the lock is status 1:
+  OpenCraft runs, and its worker ended, or the start did not remove the file.
+  Status 4 says that OpenCraft can be starting. The client finds the process
+  that holds the lock by the number in the lock file and the name of that
+  process. A different OpenCraft process that got the same number, or
+  OpenCraft at its start, can give status 4 when the setting is on.
+- **The arguments of the application.** `opencraft --help`, `opencraft -h`,
+  `opencraft help`, and `opencraft --version` write a text and stop with
+  status 0. A first word that is not a command is an error with status 2.
+  Neither starts the application, its lock, its device, or its engine. An
+  argument that starts with `-` (for example `-psn_…` from the Finder) still
+  does not stop the start.
+- **Smaller points of the client.** `skill --install=DIRECTORY` is correct, as
+  each other flag. `opencraft ctl help <command>` writes the help of the
+  command. `opencraft ctl --version` writes the version of the client. A
+  command with a read first checks its arguments before the connection, and
+  each argument error has the line "See `opencraft ctl … --help`". The
+  example of `choices` names a field that has choices (a sound device), and
+  the skill says that the field `application` is a path.
+
 **One history.** A change from a client is a step of the same history as a
 change from the window ([decision 0030](0030-undo-and-redo-in-the-engine.md)).
 The user can undo it in the window.

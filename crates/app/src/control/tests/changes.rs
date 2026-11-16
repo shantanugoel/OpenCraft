@@ -9,7 +9,9 @@ fn surface_1() -> Value {
 }
 
 /// What a change that makes nothing gives: the place that the request names.
-/// A part that the request has not is null.
+/// A part that the request has not is null. `undo` and `redo` give the place
+/// of the step that they reversed, thus the test does not use this function
+/// for them.
 fn named(method: &str, params: &Value) -> Value {
     let target = &params["target"];
     let (profile, page, folder) = if target.is_object() {
@@ -40,7 +42,38 @@ impl e::Handler for Kinds {
             e::KindDescription {
                 kind: "test".into(),
                 name: "Test".into(),
-                fields: vec![field("a", e::InputType::Text)],
+                fields: vec![
+                    field("a", e::InputType::Text),
+                    field("profile", e::InputType::Profile),
+                    field("folder", e::InputType::Folder),
+                ],
+                ..Default::default()
+            },
+            // A field that another field shows (decision 0038).
+            e::KindDescription {
+                kind: "test.shown".into(),
+                name: "Shown".into(),
+                fields: vec![
+                    e::Field {
+                        key: "operation".into(),
+                        label: "Operation".into(),
+                        input: e::InputType::Choice {
+                            options: vec![
+                                e::ChoiceOption {
+                                    value: "up".into(),
+                                    label: "Up".into(),
+                                },
+                                e::ChoiceOption {
+                                    value: "down".into(),
+                                    label: "Down".into(),
+                                },
+                            ],
+                        },
+                        default: Some(e::Value::Text("up".into())),
+                    },
+                    field("step", e::InputType::Integer { min: 0, max: 10 }),
+                ],
+                shown_when: vec![e::ShownWhen::new("step", "operation", &["up"])],
                 ..Default::default()
             },
             e::KindDescription {
@@ -529,8 +562,19 @@ fn folder_requests_need_no_page_and_add_rename_move_open_close_and_remove() {
         .iter()
         .any(|s| s["label"] == "In"));
     assert_eq!(live.label(0), Value::Null);
-    live.ok("close_folder", json!({"target": live.at(0)}));
+    live.ok(
+        "close_folder",
+        json!({"target": live.at_in(0, "00000000000000a1")}),
+    );
     assert_eq!(live.read("pages")["location"]["open"], json!([]));
+    // A folder that is not open cannot close: the request would look like a
+    // success and change nothing.
+    let (code, text) = live.fails(
+        "close_folder",
+        json!({"target": live.at_in(0, "00000000000000a1")}),
+    );
+    assert_eq!(code, "invalid_params");
+    assert!(text.contains("not open"), "{text}");
     live.ok(
         "remove_folder",
         json!({"profile": profile, "folder": "00000000000000a1"}),
@@ -554,10 +598,10 @@ fn profile_requests_add_rename_colour_link_export_import_select_and_remove() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(
-        made,
-        json!({"profile": second, "page": null, "folder": null})
-    );
+    // The result gives the identity of the new profile and of its first page.
+    assert_eq!(made["profile"], json!(second));
+    assert_eq!(made["page"], live.read("pages")["first"]);
+    assert_eq!(made["folder"], Value::Null);
     assert_eq!(profiles["active"], second);
     live.ok(
         "rename_profile",
@@ -679,10 +723,14 @@ fn one_request_is_one_step_of_the_history_with_the_name_of_the_window_and_the_wi
         .unwrap()
         .iter()
         .any(|s| s["label_style"]["size"] == 20));
-    // The client can undo and redo, too.
-    live.ok("undo", json!({"profile": live.active}));
+    // The client can undo and redo, too. The result gives the place of the
+    // step that it reversed, not only the profile.
+    let made = live.made("undo", json!({"profile": live.active}));
+    assert_eq!(made["profile"], json!(live.active));
+    assert_eq!(made["page"], live.active_page());
     assert_eq!(live.read("history")["undo"], Value::Null);
-    live.ok("redo", json!({"profile": live.active}));
+    let made = live.made("redo", json!({"profile": live.active}));
+    assert_eq!(made["page"], live.active_page());
     assert_eq!(live.read("history")["undo"], "Set Title Style");
 }
 
@@ -1002,6 +1050,52 @@ fn a_request_with_a_wrong_surface_or_value_is_invalid_and_sends_no_command() {
 }
 
 #[test]
+fn a_history_read_names_the_profile_and_an_empty_history_has_its_own_code() {
+    let mut live = Live::new();
+    let profile = live.active.clone();
+    let history = |live: &mut Live, profile: &str| {
+        let reply = live.call("history", json!({"profile": profile}));
+        assert!(reply.get("error").is_none(), "{reply}");
+        reply["result"].clone()
+    };
+    // A new profile has no step.
+    let read = history(&mut live, &profile);
+    assert_eq!(read["profile"], json!(profile));
+    assert!(read["undo"].is_null());
+    assert!(read["redo"].is_null());
+    // A correct request with nothing to reverse has its own code: a client
+    // can tell it from a request that is not correct.
+    let (code, text) = live.fails("undo", json!({"profile": profile}));
+    assert_eq!(code, "nothing_to_undo");
+    assert_eq!(text, "There is no step to undo.");
+    let (code, text) = live.fails("redo", json!({"profile": profile}));
+    assert_eq!(code, "nothing_to_redo");
+    assert_eq!(text, "There is no step to do again.");
+
+    live.ok(
+        "set_label",
+        json!({"target": live.at(0), "surface": surface_1(), "label": "One"}),
+    );
+    assert_eq!(history(&mut live, &profile)["undo"], "Set Title");
+    // A profile that is not active keeps the history that OpenCraft kept for
+    // it: it cannot change while the profile is not active.
+    let made = live.made("add_profile", json!({"name": "Second", "copy_of": null}));
+    let second = made["profile"].as_str().unwrap().to_string();
+    let read = history(&mut live, &second);
+    assert_eq!(read["profile"], json!(second));
+    assert!(read["undo"].is_null());
+    let read = history(&mut live, &profile);
+    assert_eq!(read["profile"], json!(profile));
+    assert_eq!(read["undo"], "Set Title");
+    // A read with no profile is the active profile.
+    let reply = live.call("history", json!({}));
+    assert_eq!(reply["result"]["profile"], json!(second));
+    // An identity that does not exist is not a read with no steps.
+    let (code, _) = live.fails("history", json!({"profile": "nothing"}));
+    assert_eq!(code, "invalid_params");
+}
+
+#[test]
 fn an_undo_for_a_profile_that_is_not_active_is_refused_and_changes_nothing() {
     let mut live = Live::new();
     let first = live.active.clone();
@@ -1015,7 +1109,7 @@ fn an_undo_for_a_profile_that_is_not_active_is_refused_and_changes_nothing() {
     // The history belongs to the profile that the user sees.
     let (code, text) = live.fails("undo", json!({"profile": second}));
     assert_eq!(code, "engine_problem");
-    assert!(text.contains("different profile"), "{text}");
+    assert!(text.contains(&format!("“{first}”")), "{text}");
     assert_eq!(live.read("profiles")["active"], first);
     assert_eq!(live.read("history")["undo"], "Set Title");
     assert_eq!(live.label(0), "Mine");
@@ -1056,6 +1150,17 @@ fn a_binding_needs_a_known_kind_known_fields_and_values_that_the_kind_accepts() 
                 {"kind": "test", "settings": {"delay_before_ms": -1}}]}}),
             "delay_before_ms",
         ),
+        // The limit of the delay is the limit of the engine, not a copy.
+        (
+            json!({"kind": "test.keys", "settings": {"steps": [
+                {"kind": "test", "settings": {"delay_before_ms": 10001}}]}}),
+            "delay_before_ms",
+        ),
+        // A field that the form hides for this value of the choice.
+        (
+            json!({"kind": "test.shown", "settings": {"operation": "down", "step": 1}}),
+            "step",
+        ),
     ];
     for (action, word) in refused {
         let (code, text) = live.fails("set_binding", set(action.clone()));
@@ -1068,12 +1173,12 @@ fn a_binding_needs_a_known_kind_known_fields_and_values_that_the_kind_accepts() 
         .as_array()
         .unwrap()
         .is_empty());
-    // A correct binding still works.
+    // A correct binding still works, with the largest delay of the engine.
     live.ok(
         "set_binding",
         set(json!({"kind": "test.keys", "settings": {
             "hotkey": "shift+cmd+4", "step": 5, "mode": "up",
-            "steps": [{"kind": "test", "settings": {"a": "b", "delay_before_ms": 100}}]}})),
+            "steps": [{"kind": "test", "settings": {"a": "b", "delay_before_ms": 10000}}]}})),
     );
     assert_eq!(
         live.content(live.at(0))["bindings"]
@@ -1081,5 +1186,67 @@ fn a_binding_needs_a_known_kind_known_fields_and_values_that_the_kind_accepts() 
             .unwrap()
             .len(),
         1
+    );
+    // A field that the form shows for the default of the choice is accepted.
+    live.ok(
+        "set_binding",
+        set(json!({"kind": "test.shown", "settings": {"step": 5}})),
+    );
+    live.ok(
+        "set_binding",
+        set(json!({"kind": "test.shown", "settings": {"operation": "up", "step": 5}})),
+    );
+}
+
+#[test]
+fn a_profile_setting_and_a_folder_setting_name_a_thing_that_exists() {
+    let mut live = Live::new();
+    let profile = live.active.clone();
+    let key1 = json!({"kind": "key", "number": 1});
+    let at = live.at(0);
+    let set = |action: Value| json!({"target": at, "control": key1, "gesture": "press", "action": action});
+    let folder = "00000000000000a1";
+    live.made(
+        "add_folder",
+        json!({"profile": profile, "id": folder, "name": "Tools", "copy_of": null}),
+    );
+    // The window shows only the profiles and the folders that exist: a name
+    // gives a fault only when a person pushes the key.
+    for (action, word) in [
+        // The name of the profile, not its identity.
+        (
+            json!({"kind": "test", "settings": {"profile": "Default"}}),
+            "profile",
+        ),
+        // The name of the folder, not its identity.
+        (
+            json!({"kind": "test", "settings": {"folder": "Tools"}}),
+            "folder",
+        ),
+        // The form of an identity, and no such folder.
+        (
+            json!({"kind": "test", "settings": {"folder": "00000000000000ff"}}),
+            "folder",
+        ),
+    ] {
+        let (code, text) = live.fails("set_binding", set(action.clone()));
+        assert_eq!(code, "invalid_params", "{action}");
+        assert!(text.contains(word), "{action}: {text}");
+    }
+    // The identities of the profile and of the folder are correct.
+    live.ok(
+        "set_binding",
+        set(json!({"kind": "test", "settings": {"profile": profile, "folder": folder}})),
+    );
+    // A folder of a profile that is not active is not in the cache: the
+    // engine checks it at the place.
+    live.made("add_profile", json!({"name": "Second", "copy_of": null}));
+    let second = live.active.clone();
+    live.ok("select_profile", json!({"profile": profile}));
+    live.ok(
+        "set_binding",
+        json!({"target": json!({"profile": second, "page": live.id(0)}),
+               "control": key1, "gesture": "press",
+               "action": {"kind": "test", "settings": {"folder": "00000000000000a1"}}}),
     );
 }

@@ -46,17 +46,11 @@ pub fn run(arguments: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i3
             let _ = out.write_all(help().as_bytes());
             status::DONE
         }
-        [flag, directory] if flag == "--install" => {
-            match super::parse::absolute(directory).and_then(|d| install(Path::new(&d))) {
-                Ok(file) => {
-                    let _ = writeln!(out, "{}", file.display());
-                    status::DONE
-                }
-                Err(problem) => {
-                    let _ = writeln!(err, "{problem}");
-                    status::REFUSED
-                }
-            }
+        // Each other flag of the client takes `--flag VALUE` and
+        // `--flag=VALUE` (decision 0040, note of #405).
+        [flag, directory] if flag == "--install" => install_at(directory, out, err),
+        [flag] if flag.starts_with("--install=") => {
+            install_at(&flag["--install=".len()..], out, err)
         }
         _ => {
             let _ = writeln!(
@@ -64,6 +58,20 @@ pub fn run(arguments: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i3
                 "The arguments are not correct.\nSee `opencraft ctl skill --help`."
             );
             status::ARGUMENTS
+        }
+    }
+}
+
+/// Write the skill to the directory `directory`, and the path to `out`.
+fn install_at(directory: &str, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    match super::parse::absolute(directory).and_then(|d| install(Path::new(&d))) {
+        Ok(file) => {
+            let _ = writeln!(out, "{}", file.display());
+            status::DONE
+        }
+        Err(problem) => {
+            let _ = writeln!(err, "{problem}");
+            status::REFUSED
         }
     }
 }

@@ -7,7 +7,7 @@ use super::{
     state::permitted,
     Feed, Port,
 };
-use opencraft_engine::{Command, Event};
+use opencraft_engine::{Command, Event, NO_REDO_STEP, NO_UNDO_STEP};
 use std::{
     io::{self, Read, Write},
     net::Shutdown,
@@ -417,13 +417,25 @@ fn send_with_answer(
 fn made_by(feed: &Feed, made: &Made, named: Changed) -> Changed {
     match made {
         Made::Nothing => named,
+        // A new profile has its first page.
         Made::Profile => feed.read(|state| Changed {
             profile: state.profiles.active.clone(),
+            page: Some(state.pages.first.clone()),
             ..named
         }),
         Made::Page => feed.read(|state| Changed {
             page: state.pages.location.as_ref().map(|l| l.page.clone()),
             ..named
+        }),
+        // The place of the step that an undo or a redo reversed: the engine
+        // shows the location of the step on the device.
+        Made::Place => feed.read(|state| match state.pages.location.as_ref() {
+            Some(location) => Changed {
+                page: Some(location.page.clone()),
+                folder: location.open.last().cloned(),
+                ..named
+            },
+            None => named,
         }),
         Made::Folder(id) => Changed {
             folder: Some(id.clone()),
@@ -491,11 +503,18 @@ impl Worker {
                                 let request_id = client.pending.take().unwrap().request_id;
                                 let response = match result.clone() {
                                     Ok(changed) => Response::success(request_id, changed),
-                                    Err(text) => Response::error(
-                                        Some(request_id),
-                                        ErrorCode::EngineProblem,
-                                        &text,
-                                    ),
+                                    // An empty history has its own code: a
+                                    // client must tell it from a request that
+                                    // is not correct (decision 0040, note of
+                                    // 2026-11-16).
+                                    Err(text) => {
+                                        let code = match text.as_str() {
+                                            NO_UNDO_STEP => ErrorCode::NothingToUndo,
+                                            NO_REDO_STEP => ErrorCode::NothingToRedo,
+                                            _ => ErrorCode::EngineProblem,
+                                        };
+                                        Response::error(Some(request_id), code, &text)
+                                    }
                                 };
                                 client.respond(response, &home);
                             }
@@ -828,7 +847,29 @@ fn handle(
         Method::DeviceSettings(_) => {
             Response::success(id, feed.read(|state| state.device_settings.clone()))
         }
-        Method::History(_) => Response::success(id, feed.read(|state| state.history.clone())),
+        Method::History(ProfileRead { profile }) => match other_profile(feed, profile) {
+            Err(text) => Response::error(Some(id), ErrorCode::InvalidParams, &text),
+            Ok(None) => Response::success(id, feed.read(|state| state.history.clone())),
+            // The history of a profile that is not active stays as it was: it
+            // cannot change while the profile is not active. Read it from the
+            // cache. A profile that was not active since the start has no
+            // step that OpenCraft knows.
+            Ok(Some(profile)) => Response::success(
+                id,
+                feed.read(|state| {
+                    state
+                        .histories
+                        .iter()
+                        .find(|history| history.profile.as_deref() == Some(profile.as_str()))
+                        .cloned()
+                        .unwrap_or(History {
+                            profile: Some(profile.clone()),
+                            undo: None,
+                            redo: None,
+                        })
+                }),
+            ),
+        },
         Method::Connection(_) => Response::success(id, feed.read(|state| state.connection.clone())),
         Method::Choices(params) => {
             let field = feed.read(|state| {
