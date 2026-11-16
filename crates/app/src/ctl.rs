@@ -269,6 +269,18 @@ impl Connection {
                 })?;
                 response.into_result().map_err(Failure::Refused)
             }
+            // Linux reports a connection that the server closed with unread
+            // data as a reset.
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::BrokenPipe
+                ) =>
+            {
+                Err(Failure::Connection(format!(
+                    "OpenCraft closed the connection ({error}). {CLOSED}"
+                )))
+            }
             Err(error) => Err(Failure::Connection(format!(
                 "The connection to OpenCraft failed: {error}."
             ))),
