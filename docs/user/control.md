@@ -102,13 +102,17 @@ has an MCP server. The server is a second client of the same socket: OpenCraft
 must run, and the control must be on. The server uses the same commands and
 the same texts as `opencraft ctl`.
 
-An agent starts the server. You do not start it. The server has three tools:
+An agent starts the server. You do not start it. The server has four tools:
 
 | Tool | What it does |
 |---|---|
 | `opencraft_read` | Reads the state. It changes nothing. |
-| `opencraft_change` | Changes a surface, a binding, a page, a folder, a profile, or a setting. |
+| `opencraft_change` | Changes a surface, a binding, a page, a folder, a profile, or a setting. It only adds data or changes it. |
+| `opencraft_remove` | Removes a page, a folder, a profile, or an application link, or writes a profile to a file. The tool is destructive, thus the agent asks you before it runs one of its commands. |
 | `opencraft_help` | Gives the arguments and an example of one command. With no command, it gives the skill. |
+
+`opencraft_remove` does not delete a profile: `profile remove` moves the
+profile to the folder `removed` in the profiles folder.
 
 If OpenCraft does not run, or the control is off, the tool gives the text of
 the problem, and the server continues.

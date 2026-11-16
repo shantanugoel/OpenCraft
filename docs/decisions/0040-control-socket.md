@@ -590,6 +590,33 @@ Note (2026-11-16, review 4 of PR #427): these points changed after the review.
 - The facts of the protocol, with their sources and confidence, are in
   [kb/mcp.md](../kb/mcp.md).
 
+Note (2026-11-16, choice 4 of the owner, issue #408): the class of a command
+now selects its tool. These points of section 6 changed.
+
+- **Four tools.** `COMMANDS` of `ctl/commands.rs` gives each command a class:
+  `Read`, `Change`, or `Remove`. `opencraft_read` holds the reads,
+  `opencraft_change` holds the additive changes, `opencraft_remove` holds the
+  commands whose purpose is to remove data or to replace a file
+  (`profile remove`, `profile unlink-app`, `page remove`, `folder remove`,
+  `control clear`, and `profile export`), and `opencraft_help` gives the help.
+  The class of a command is the one place that says which tool holds it, thus
+  the lists of the tools cannot drift. A test checks that each command is in
+  exactly one tool, that a read is exactly a read request of `protocol.rs`,
+  and that each command whose name says remove, clear, or export, and
+  `profile unlink-app`, is in `opencraft_remove`. A command in the wrong tool
+  is a tool result with `isError: true` that names the right tool.
+- **The hints.** `opencraft_remove` is `destructiveHint: true`, and
+  `opencraft_change` keeps `destructiveHint: false` with the narrower meaning
+  of the specification, "only additive updates"; see
+  [kb/mcp.md](../kb/mcp.md). A client can thus ask the user before a removal,
+  and the change tool stays a tool that a user rule can permit. The skill
+  tells the agent to ask before a command of `opencraft_remove`.
+- **The reasons.** The undo of the pages was the reason of the old choice, and
+  it is true for a part of the commands only: `profile remove`, the links of
+  an application, and the file that `profile export` replaces have no undo.
+  The owner changed the choice after review 4 of PR #427 found that a client
+  with `destructiveHint: false` asks no question for those commands.
+
 ## Results
 
 - An agent can configure OpenCraft while it operates, and the user sees

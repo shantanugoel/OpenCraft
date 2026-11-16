@@ -7,7 +7,7 @@ use crate::{
         protocol::{self, Request},
         Control, Feed, Port,
     },
-    ctl::{self, commands::COMMANDS, parse, status},
+    ctl::{self, commands::Class, commands::COMMANDS, parse, status},
 };
 use serde_json::{json, Value};
 use std::{
@@ -243,31 +243,53 @@ fn example_request(command: &'static ctl::commands::Command) -> Request {
 fn the_tools_cannot_drift_from_the_commands() {
     let list = tools::list();
     let list = list.as_array().unwrap();
-    assert_eq!(list.len(), 3, "{list:?}");
-    for name in ["opencraft_read", "opencraft_change", "opencraft_help"] {
+    assert_eq!(list.len(), 4, "{list:?}");
+    for name in [
+        "opencraft_read",
+        "opencraft_change",
+        "opencraft_remove",
+        "opencraft_help",
+    ] {
         tool(&tools::list(), name);
     }
     let read = names(&tool(&tools::list(), "opencraft_read"));
     let change = names(&tool(&tools::list(), "opencraft_change"));
-    // Each command is in exactly one of the two tools.
+    let remove = names(&tool(&tools::list(), "opencraft_remove"));
+    // Each command is in exactly one tool, and it is the tool of its class.
     for command in COMMANDS {
         let in_read = read.iter().any(|name| name == command.name);
         let in_change = change.iter().any(|name| name == command.name);
-        assert!(
-            in_read != in_change,
-            "{} is in {in_read} reads and {in_change} changes",
+        let in_remove = remove.iter().any(|name| name == command.name);
+        let count = [in_read, in_change, in_remove]
+            .iter()
+            .filter(|found| **found)
+            .count();
+        assert_eq!(
+            count, 1,
+            "{} is in {in_read} reads, {in_change} changes, and {in_remove} removes",
+            command.name
+        );
+        assert_eq!(
+            tools::tool_of(command.class),
+            if in_read {
+                "opencraft_read"
+            } else if in_change {
+                "opencraft_change"
+            } else {
+                "opencraft_remove"
+            },
+            "{} has the wrong class",
             command.name
         );
     }
-    assert_eq!(read.len() + change.len(), COMMANDS.len());
+    assert_eq!(read.len() + change.len() + remove.len(), COMMANDS.len());
     // The read tool holds exactly the read requests of the protocol. The
     // example of each command makes a request that the protocol accepts, thus
     // `Method::reads` gives the property of the request without a copy here.
     for command in COMMANDS {
         let request = example_request(command);
-        let in_read = read.iter().any(|name| name == command.name);
         assert_eq!(
-            in_read,
+            command.class == Class::Read,
             request.method.reads(),
             "{} is a {} in the protocol",
             command.name,
@@ -280,7 +302,11 @@ fn the_tools_cannot_drift_from_the_commands() {
     }
     // Each description names each command of its tool. The help of a command
     // is in `opencraft_help`, thus the description stays short.
-    for (name, group) in [("opencraft_read", &read), ("opencraft_change", &change)] {
+    for (name, group) in [
+        ("opencraft_read", &read),
+        ("opencraft_change", &change),
+        ("opencraft_remove", &remove),
+    ] {
         let description = tool(&tools::list(), name)["description"]
             .as_str()
             .unwrap()
@@ -296,19 +322,53 @@ fn the_tools_cannot_drift_from_the_commands() {
             );
         }
     }
-    // The hints: a read is read-only. `idempotentHint` is meaningful only
-    // when `readOnlyHint` is false, thus a read has no such hint. A change is
-    // not destructive: the user can undo it, and the skill says to ask before
-    // `profile remove`.
+    // The hints. `destructiveHint: false` means "only additive updates", thus
+    // a tool that removes data or replaces a file has `true`
+    // ([kb/mcp.md](../../../docs/kb/mcp.md)).
     let hints = tool(&tools::list(), "opencraft_read")["annotations"].clone();
     assert_eq!(hints["readOnlyHint"], true);
     assert_eq!(hints.get("idempotentHint"), None);
     let hints = tool(&tools::list(), "opencraft_change")["annotations"].clone();
     assert_eq!(hints["readOnlyHint"], false);
     assert_eq!(hints["destructiveHint"], false);
+    let hints = tool(&tools::list(), "opencraft_remove")["annotations"].clone();
+    assert_eq!(hints["readOnlyHint"], false);
+    assert_eq!(hints["destructiveHint"], true);
     let hints = tool(&tools::list(), "opencraft_help")["annotations"].clone();
     assert_eq!(hints["readOnlyHint"], true);
     assert_eq!(hints.get("idempotentHint"), None);
+}
+
+#[test]
+fn each_command_that_removes_or_writes_a_file_is_in_the_remove_tool() {
+    let remove = names(&tool(&tools::list(), "opencraft_remove"));
+    // The rule of the class: the name says that the command removes data, or
+    // the command replaces a file of the user.
+    for command in COMMANDS {
+        let removes = command.name.ends_with(" remove")
+            || command.name.ends_with(" clear")
+            || command.name == "profile export"
+            || command.name == "profile unlink-app";
+        if !removes {
+            continue;
+        }
+        assert_eq!(command.class, Class::Remove, "{}", command.name);
+        assert!(
+            remove.iter().any(|name| name == command.name),
+            "{} is not in opencraft_remove",
+            command.name
+        );
+    }
+    // The commands that the owner named are in the tool.
+    for name in [
+        "profile remove",
+        "page remove",
+        "folder remove",
+        "control clear",
+        "profile export",
+    ] {
+        assert!(remove.iter().any(|command| command == name), "{name}");
+    }
 }
 
 #[test]
@@ -371,8 +431,13 @@ fn a_legacy_session_does_the_handshake_and_lists_and_calls_the_tools() {
     let result = &answer["result"];
     assert_eq!(result.get("resultType"), None);
     let list = &result["tools"];
-    assert_eq!(list.as_array().unwrap().len(), 3);
-    for name in ["opencraft_read", "opencraft_change", "opencraft_help"] {
+    assert_eq!(list.as_array().unwrap().len(), 4);
+    for name in [
+        "opencraft_read",
+        "opencraft_change",
+        "opencraft_remove",
+        "opencraft_help",
+    ] {
         tool(list, name);
     }
     // The caching hints are of 2026-07-28 and not of this revision.
@@ -433,7 +498,7 @@ fn a_request_of_the_legacy_revision_before_the_handshake_is_a_protocol_error() {
     );
     assert_eq!(answer["result"]["protocolVersion"], LEGACY);
     let answer = session.request(3, "tools/list", json!({}));
-    assert_eq!(answer["result"]["tools"].as_array().unwrap().len(), 3);
+    assert_eq!(answer["result"]["tools"].as_array().unwrap().len(), 4);
     assert_eq!(session.finish(), status::DONE);
 }
 
@@ -468,7 +533,7 @@ fn a_modern_session_discovers_and_calls_the_tools() {
     let answer = session.request(2, "tools/list", json!({"_meta": meta()}));
     let result = &answer["result"];
     assert_eq!(result["resultType"], "complete");
-    assert_eq!(result["tools"].as_array().unwrap().len(), 3);
+    assert_eq!(result["tools"].as_array().unwrap().len(), 4);
     assert_eq!(result["ttlMs"], TTL_MS);
     assert_eq!(result["cacheScope"], "public");
 
@@ -960,34 +1025,72 @@ fn the_wrong_arguments_stop_with_status_2() {
 }
 
 #[test]
-fn the_read_methods_of_the_protocol_are_the_reads_of_the_client() {
-    // Each method of the protocol is a read or a change, and `hello` is
-    // neither: the client sends it by itself.
+fn each_method_of_the_protocol_has_one_command_of_one_class() {
+    // Each method of the protocol is the method of exactly one command, and
+    // `hello` is neither: the client sends it by itself. The class of that
+    // command is read or not, and the protocol says which.
     for method in protocol::METHODS
         .iter()
         .filter(|method| **method != "hello")
     {
-        let reads = tools::READS.contains(method);
-        let changes = COMMANDS
+        let commands: Vec<&ctl::commands::Command> = COMMANDS
             .iter()
-            .any(|command| command.method == *method && !tools::is_read(command));
-        assert!(reads || changes, "{method} is neither");
-        assert!(!(reads && changes), "{method} is both");
+            .filter(|command| command.method == *method)
+            .collect();
+        assert_eq!(commands.len(), 1, "{method}");
+        let command = commands[0];
         assert_eq!(
-            COMMANDS
-                .iter()
-                .filter(|command| command.method == *method)
-                .count(),
-            1,
+            command.class == Class::Read,
+            example_request(command).method.reads(),
             "{method}"
         );
     }
-    for method in tools::READS {
-        assert!(protocol::METHODS.contains(method), "{method}");
-    }
-    assert!(!tools::READS.contains(&"hello"));
-    let mut sorted = tools::READS.to_vec();
-    sorted.sort_unstable();
-    sorted.dedup();
-    assert_eq!(sorted.len(), tools::READS.len());
+    assert!(!COMMANDS.iter().any(|command| command.method == "hello"));
+}
+
+#[test]
+fn a_command_in_the_wrong_tool_is_a_tool_error_that_names_the_right_tool() {
+    let rig = Rig::new();
+    let mut session = Session::new(rig.env());
+    session.handshake();
+    // A change in the remove tool, a removal in the change tool, and a read
+    // in each of the two.
+    let answer = session.call(
+        1,
+        "opencraft_remove",
+        json!({"command": "page add", "args": {"profile": "work"}}),
+    );
+    assert!(is_error(&answer["result"]), "{answer}");
+    assert!(
+        text(&answer["result"]).contains("is a change. Use opencraft_change for it"),
+        "{answer}"
+    );
+    let answer = session.call(
+        2,
+        "opencraft_change",
+        json!({"command": "page remove", "args": {"profile": "work"}}),
+    );
+    assert!(is_error(&answer["result"]), "{answer}");
+    assert!(
+        text(&answer["result"])
+            .contains("removes data or writes a file. Use opencraft_remove for it"),
+        "{answer}"
+    );
+    let answer = session.call(3, "opencraft_remove", json!({"command": "state"}));
+    assert!(is_error(&answer["result"]), "{answer}");
+    assert!(
+        text(&answer["result"]).contains("is a read. Use opencraft_read for it"),
+        "{answer}"
+    );
+    let answer = session.call(
+        4,
+        "opencraft_read",
+        json!({"command": "profile remove", "args": {"profile": "work"}}),
+    );
+    assert!(is_error(&answer["result"]), "{answer}");
+    assert!(
+        text(&answer["result"]).contains("Use opencraft_remove for it"),
+        "{answer}"
+    );
+    assert_eq!(session.finish(), status::DONE);
 }
