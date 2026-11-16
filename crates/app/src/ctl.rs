@@ -48,6 +48,10 @@ pub struct Context {
     pub running: fn(&Path) -> bool,
     /// Write the result with line breaks and indents.
     pub pretty: bool,
+    /// The longest time that the client waits for an answer. None: no limit,
+    /// as the client of the command line has it. The MCP server gives a
+    /// limit, because its client cannot stop one request.
+    pub read_timeout: Option<Duration>,
 }
 
 /// Run `opencraft ctl` with the arguments after `ctl`. The result is the exit
@@ -67,6 +71,7 @@ pub fn run(arguments: Vec<std::ffi::OsString>, profiles_dir: Option<PathBuf>) ->
         config_dir: crate::settings::config_dir(&profiles_dir),
         running: |dir| crate::lock::holder(dir).is_some(),
         pretty: io::stdout().is_terminal(),
+        read_timeout: None,
     };
     execute(
         &context,
@@ -253,6 +258,8 @@ impl Failure {
 
 struct Connection {
     reader: BufReader<UnixStream>,
+    /// The limit for the answer, for the message of a timeout.
+    answer_timeout: Option<Duration>,
 }
 
 impl Connection {
@@ -268,8 +275,16 @@ impl Connection {
         stream
             .set_write_timeout(Some(Duration::from_secs(10)))
             .map_err(|e| Failure::Connection(e.to_string()))?;
+        // The MCP server sets a limit for the answer: its client cannot
+        // cancel one request, and OpenCraft can hang.
+        if let Some(timeout) = context.read_timeout {
+            stream
+                .set_read_timeout(Some(timeout))
+                .map_err(|e| Failure::Connection(e.to_string()))?;
+        }
         let mut connection = Self {
             reader: BufReader::new(stream),
+            answer_timeout: context.read_timeout,
         };
         let hello = serde_json::from_value(json!({
             "id": 1, "method": "hello", "params": HelloParams { version: VERSION }
@@ -319,6 +334,22 @@ impl Connection {
                     Failure::Connection(format!("OpenCraft gave a wrong answer: {e}."))
                 })?;
                 response.into_result().map_err(Failure::Refused)
+            }
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                ) =>
+            {
+                let seconds = self
+                    .answer_timeout
+                    .map(|timeout| timeout.as_secs())
+                    .unwrap_or_default();
+                let unit = if seconds == 1 { "second" } else { "seconds" };
+                Err(Failure::Connection(format!(
+                    "OpenCraft did not answer within {seconds} {unit}. The change can be \
+                     done or not done: read the state before you try again."
+                )))
             }
             // Linux reports a connection that the server closed with unread
             // data as a reset.

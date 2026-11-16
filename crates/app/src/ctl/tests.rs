@@ -54,6 +54,7 @@ fn context(dir: &Path, running: bool) -> Context {
         config_dir: dir.to_path_buf(),
         running: if running { |_| true } else { |_| false },
         pretty: false,
+        read_timeout: None,
     }
 }
 

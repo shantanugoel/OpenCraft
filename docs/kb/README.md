@@ -48,6 +48,7 @@ measurement. The other documents link to these facts and do not repeat them.
 | [process-lock.md](process-lock.md) | The `flock` lock of the application, child processes, and the failure of the lock test |
 | [sleep-and-wake.md](sleep-and-wake.md) | What the clocks of a process do when the computer sleeps |
 | [ready-profiles.md](ready-profiles.md) | The ready profiles for Mac applications: links, shortcuts, and hotkey text |
+| [mcp.md](mcp.md) | The Model Context Protocol: the two revisions, the messages, the tool errors, the version negotiation, and the limits of Claude Code |
 
 ## Template
 
