@@ -142,11 +142,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let Some(id) = self.list.pin_default() else {
             return;
         };
-        if let Err(error) = self.profiles.set_default(self.descriptor.model, &id) {
-            self.notice(format!(
-                "OpenCraft could not record the default profile: {error}"
-            ));
-        }
+        // The add records the active profile in the same file right after.
+        // That write gives the notice if the file does not accept a write.
+        let _ = self.profiles.set_default(self.descriptor.model, &id);
     }
 
     /// [`Command::SetFollowFrontApplication`].
