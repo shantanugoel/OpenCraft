@@ -488,7 +488,10 @@ impl Shell {
                 self.set_show_window_at_start(!self.settings.show_window_at_start, cx)
             }
             ShellCommand::ToggleAllowControl => {
-                self.set_allow_control(!self.settings.allow_control, cx)
+                // The switch shows the socket. A setting that is on with no
+                // socket shows the switch off, and a click tries to open it.
+                let shown = self.settings.allow_control && self.control.is_running();
+                self.set_allow_control(!shown, cx)
             }
             ShellCommand::OpenNotices => self.open_notices(cx),
             ShellCommand::CopyDiagnostics => self.copy_diagnostics(cx),
@@ -648,8 +651,9 @@ impl Shell {
         if self.settings.allow_control != allow {
             self.settings.allow_control = allow;
             self.save_settings("the control permission", cx);
-            cx.notify();
         }
+        // The switch shows the socket, which can change with the same setting.
+        cx.notify();
     }
 
     /// Close all control connections before the engine stops.
@@ -687,6 +691,7 @@ impl Shell {
             permission: crate::settings_window::permission(&self.state),
             notice: self.settings_notice.clone(),
             follow_front: self.state.follow_front,
+            control_running: self.control.is_running(),
         }
     }
 

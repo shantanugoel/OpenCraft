@@ -89,11 +89,7 @@ fn the_active_place_changes_no_location() {
     });
     rig.engine.command(Command::OpenFolder { folder: F });
     rig.take_events();
-    let here = place(
-        "default",
-        Some(page(&rig, 0)),
-        Some(vec![F]),
-    );
+    let here = place("default", Some(page(&rig, 0)), Some(vec![F]));
     assert_eq!(rig.engine.command_with_result(here), (true, Ok(())));
     let events = rig.take_events();
     assert_eq!(pages_events(&events), 0, "the folder stays open");
@@ -124,8 +120,7 @@ fn a_place_with_no_page_keeps_the_page_and_the_folders() {
     rig.engine.command(Command::SelectPage { page: 1 });
     rig.take_events();
     assert_eq!(
-        rig.engine
-            .command_with_result(place("default", None, None)),
+        rig.engine.command_with_result(place("default", None, None)),
         (true, Ok(()))
     );
     assert_eq!(pages_events(&rig.take_events()), 0);
@@ -155,7 +150,14 @@ fn a_place_that_is_not_there_changes_nothing_also_the_active_profile() {
         place("work", Some(wrong_number), None),
         place("work", Some(beyond), None),
         // The identity of a page of another profile.
-        place("default", Some(PageRef { number: 1, id: work[1] }), None),
+        place(
+            "default",
+            Some(PageRef {
+                number: 1,
+                id: work[1],
+            }),
+            None,
+        ),
         // A folder that is not there.
         place("default", Some(here), Some(vec![F])),
         place(
@@ -208,7 +210,13 @@ fn a_place_in_another_profile_selects_it_and_makes_the_change_in_one_command() {
         events.last(),
         Some(Event::History { undo: Some(name), .. }) if name == "Set Title"
     ));
-    assert_eq!(rig.engine.profile().pages()[2].content(KEY_3).label.as_deref(), Some("Z label"));
+    assert_eq!(
+        rig.engine.profile().pages()[2]
+            .content(KEY_3)
+            .label
+            .as_deref(),
+        Some("Z label")
+    );
 }
 
 #[test]
@@ -236,7 +244,10 @@ fn a_refusal_of_the_command_goes_back_to_the_profile_and_the_page() {
     assert_eq!(rig.engine.active_profile(), "default");
     assert_eq!(rig.engine.active_page(), 1);
     // The work profile has no change, and the history of both has no step.
-    assert!(rig.engine.profile().pages()[1].content(KEY_3).image.is_none());
+    assert!(rig.engine.profile().pages()[1]
+        .content(KEY_3)
+        .image
+        .is_none());
     let events = rig.take_events();
     assert!(!events
         .iter()
@@ -247,7 +258,10 @@ fn a_refusal_of_the_command_goes_back_to_the_profile_and_the_page() {
     });
     assert_eq!(
         last_profiles,
-        Some(("default".to_string(), opencraft_engine::ActiveCause::Selected))
+        Some((
+            "default".to_string(),
+            opencraft_engine::ActiveCause::Selected
+        ))
     );
 }
 
@@ -259,11 +273,16 @@ fn a_page_is_named_by_its_identity_not_by_its_number() {
     rig.engine.command(Command::MovePage { page: 1, to: 0 });
     rig.take_events();
     // A program that read the old order names number 1 and the identity of B.
-    let (_, result) = rig.engine.command_with_result(place("default", Some(b.clone()), None));
+    let (_, result) = rig
+        .engine
+        .command_with_result(place("default", Some(b.clone()), None));
     assert!(result.is_err(), "{result:?}");
     assert!(rig.take_events().is_empty());
     // With the new number, the change is at page B.
-    let now = PageRef { number: 0, id: b.id };
+    let now = PageRef {
+        number: 0,
+        id: b.id,
+    };
     assert_eq!(
         rig.engine
             .command_with_result(place("default", Some(now), None)),
@@ -271,7 +290,10 @@ fn a_page_is_named_by_its_identity_not_by_its_number() {
     );
     assert_eq!(rig.engine.profile().pages()[0].name, "B");
     assert_eq!(
-        rig.engine.profile().pages()[0].content(KEY_3).label.as_deref(),
+        rig.engine.profile().pages()[0]
+            .content(KEY_3)
+            .label
+            .as_deref(),
         Some("Label")
     );
     assert_eq!(rig.engine.profile().pages()[1].content(KEY_3).label, None);
@@ -295,7 +317,10 @@ fn an_undo_shows_the_page_of_the_change() {
     rig.engine.command(Command::Redo);
     assert_eq!(rig.engine.active_page(), 1);
     assert_eq!(
-        rig.engine.profile().pages()[1].content(KEY_3).label.as_deref(),
+        rig.engine.profile().pages()[1]
+            .content(KEY_3)
+            .label
+            .as_deref(),
         Some("Label")
     );
 }

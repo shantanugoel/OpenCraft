@@ -124,7 +124,7 @@ impl SettingsView {
                 switch(
                     "switch-allow-control",
                     ALLOW_CONTROL.0,
-                    settings.allow_control,
+                    settings.allow_control && self.snapshot.control_running,
                     theme::SWITCH_SETTINGS,
                 )
                 .on_click(self.on_click(ShellCommand::ToggleAllowControl)),

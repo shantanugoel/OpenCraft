@@ -339,9 +339,7 @@ impl Rig {
                     default,
                     cause,
                 } => {
-                    profiles
-                        .iter_mut()
-                        .for_each(|entry| entry.page_ids.clear());
+                    profiles.iter_mut().for_each(|entry| entry.page_ids.clear());
                     Event::Profiles {
                         profiles,
                         active,

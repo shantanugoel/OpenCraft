@@ -554,7 +554,7 @@ impl w::State {
                     Some(old) => *old = wire,
                     None => {
                         self.content.surfaces.push(wire);
-                        self.content.surfaces.sort_by(|a, b| a.id.cmp(&b.id));
+                        self.content.surfaces.sort_by_key(|s| s.id);
                     }
                 }
             }

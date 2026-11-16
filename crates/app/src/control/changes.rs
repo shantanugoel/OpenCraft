@@ -254,10 +254,7 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
                         C::SetLabelStyle {
                             surface,
                             change: e::LabelChange::Color(
-                                style
-                                    .color
-                                    .map(|c| parse(c, "colour"))
-                                    .transpose()?,
+                                style.color.map(|c| parse(c, "colour")).transpose()?,
                             ),
                         },
                         C::SetLabelStyle {
@@ -496,7 +493,9 @@ pub(super) fn command(method: w::Method, state: &w::State) -> Result<Change, Str
             path: path(p.path)?,
         }),
         M::ImportProfile(p) => Change {
-            command: C::ImportProfile { path: path(p.path)? },
+            command: C::ImportProfile {
+                path: path(p.path)?,
+            },
             made: Made::Profile,
         },
         M::SetDeviceSettings(p) => nothing(C::SetDeviceSettings(e::DeviceSettings {

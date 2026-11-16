@@ -122,27 +122,26 @@ notices that only the shell knows: the power notices, the front
 application, and the text edit marks. A client cannot change `shell.toml`,
 thus it cannot turn the control on.
 
-**The target of a change.** A request that changes a page names the
-profile, the page, and the folder if there is one. The control module makes
-that location the active location first, and sends the change in
-`Command::InProfile`. If the active profile changed in that time, the
-request fails and changes nothing. Thus the device shows the page that the
-client changes. The steps of one request are one step of the history
-(`Command::Group`).
+**The target of a change.** A request that changes the content of a page
+names the profile, the page, and the folder if there is one. A request about
+a page names the profile and the page. A request about a folder, or about the
+profiles, names the profile only. A page has an identity that stays with the
+page (note of review 2, below). The control module sends one command,
+`Command::AtPlace`. The engine checks the place, goes there, and obeys the
+change. If the place is not there, the request fails and changes nothing. Thus
+the device shows the page that the client changes. A request is one step of
+the history.
 
 Note (2026-11-16): issue #403 made these steps in the engine. A group does
 not stop after a problem, thus "select the page, then change" in a group
 could change a different page when the page was gone. The command
-`Command::AtLocation` checks the page and the open folders, makes them the
-active location, and then obeys one command. If the page or a folder is
-gone, the engine gives a problem and the command does not run. A request
-that names a location is
-`InProfile(Group(AtLocation(change)))`, after a `SelectProfile` that the
-control module sends first when the profile is not active. A request to
-read the content of a location that is not active uses
-`Command::ReadProfile`, which gives the profile in `Event::ProfileRead`
-and changes no location. A client that adds a folder can give no identity;
-then OpenCraft makes one.
+`Command::AtLocation` checked the page and the open folders, made them the
+active location, and then obeyed one command. Review 2 replaced it with
+`Command::AtPlace`: see the note of review 2. A request to read the content of
+a location that is not active uses `Command::ReadProfile`, which gives the
+profile in `Event::ProfileRead` and changes no location. A client that adds a
+folder can give no identity; then OpenCraft makes one, and the result of the
+request has it.
 
 Note (2026-11-16): the result of a request is a function that the engine
 thread calls after the events of the command
@@ -177,6 +176,72 @@ Note (2026-11-16, review 1): these points hold for the socket.
   image, are an error for a client. The window gets no problem for them. A
   refusal because the active profile changed has a text that is correct for
   the window and for a client; the window shows it as before.
+
+Note (2026-11-16, review 2): these points hold for the changes. A client of
+the command line reuses the types of `protocol.rs`.
+
+- **One command for a place (M1, M2).** `Command::AtPlace` has a place and a
+  command. The place is a profile, a page, and the open folders. The engine
+  checks the profile, the page, and the folders first. It reads a profile that
+  is not active from its file for this check. If one of them is not correct,
+  the result is the refusal, the window gets no event, and nothing changes:
+  also not the active profile. Else the engine makes the profile the active
+  profile, and the page and the folders the active location, in one change.
+  A request for the active place changes no location. Then the engine obeys the
+  command as a step of its own, thus the name of the step is the name that the
+  window uses for the same change, and an undo shows the page of the change.
+  If the command gives a refusal, for example an image that does not open, the
+  engine goes back to the profile and to the location of before. A request
+  has no `SelectProfile` before it. `undo` and `redo` still need the active
+  profile (`Command::InProfile`): the history is the history of the profile
+  that the user sees.
+- **A page has an identity (M4).** The protocol names a page by its identity,
+  not by its number. The identity is 16 small hexadecimal digits. It stays with
+  the page when the page moves, and the profile file keeps it. The reasons:
+  a number names a different page after a move or a removal by the user, and
+  the client gets a success. A name can be the same for two pages. The client
+  reads the identities in `pages` and in `profiles` (also for a profile that is
+  not active). The control module finds the number in its cache and gives both
+  to the engine, which checks that the page with this number has this identity
+  now. If the user moved the page in between, the request fails. The profile
+  file has schema version 6 for the key `id` of a page. A file of version 5 or
+  lower has no identity: the engine gives the page at place N the identity N+1
+  until it writes the file again. A page that is a copy gets a new identity.
+  Release 0.4.0 writes version 5 and does not read version 6. The owner
+  said that no backward compatibility is necessary in this run, thus the
+  engine has no way to write version 5 again.
+- **The result of a change (M6).** Each change gives `{ "profile", "page",
+  "folder" }`. The field of a thing that the request made has its identity:
+  `profile` for `add_profile` and `import_profile`, `page` for `add_page` and
+  `duplicate_page`, `folder` for `add_folder`. The other fields are null. The
+  engine thread reads the identity from the cache in the function that gives the
+  result, thus no other command can change it before.
+- **No time limit for a change (M3).** A change waits for the engine without
+  a limit: an error for a change that is done would let the client send it
+  again. The worker always gets an answer: the engine drops the function at a
+  stop, and the client gets an error. A read that waits for a handler keeps the
+  limit of 5 seconds and the error `timeout`.
+- **The forms of a request (L6, L7, M5).** The kinds, the gestures, the label
+  positions, the fits, and the modes of the knob lights are enums in
+  `protocol.rs` with snake case names, for example `key_face` and `turn_left`.
+  The layout lists the gestures of each control, and `set_binding` refuses a
+  gesture that the control cannot make. A request for a folder, for a new page,
+  or for a profile names the profile only. A request about one page names the
+  profile and the page, and does not name a folder. `add_page` makes an empty
+  page, and `duplicate_page` makes a copy of the page of the target.
+  `set_first_page` has a page target, and goes to that page, as the other
+  requests about a page.
+- **The response (M7).** The type of a response reads an error line as a
+  failure, also when the type of the result is an `Option`. The function
+  `into_result` gives a `Result`.
+- **Smaller points.** A problem after a done change (the record of the active
+  profile, of the default profile, or the removal of unused images) is a
+  notice, not a refusal (L4). The switch of the Settings window shows the
+  socket, not the setting. If the setting is on and the socket does not open,
+  the switch is off and the message tells the problem (L3). The cache skips
+  the events that it never uses before it takes the lock, and a read copies the
+  data under the lock and makes the JSON text after it (L5). The first
+  note of this record now says what the code does (L8).
 
 **One history.** A change from a client is a step of the same history as a
 change from the window ([decision 0030](0030-undo-and-redo-in-the-engine.md)).

@@ -129,8 +129,8 @@ use crate::front::{same_bundle, valid_bundle_id, MAX_LINKS};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
     default_model, parse_surface_key, surface_key, ApplicationLink, Background, BackgroundFit,
-    Color, Folder, FolderId, LabelPosition, LabelStyle, Page, PageId, Profile, SurfaceContent, SurfaceIcon,
-    MAX_LABEL_SIZE, MIN_LABEL_SIZE,
+    Color, Folder, FolderId, LabelPosition, LabelStyle, Page, PageId, Profile, SurfaceContent,
+    SurfaceIcon, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
 use crate::saved::SavedFile;
 use image::imageops::FilterType;

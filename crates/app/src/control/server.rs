@@ -40,6 +40,9 @@ pub(super) struct Limits {
     pub hello: Duration,
     /// A client must read a response in this time.
     pub write: Duration,
+    /// A read that waits for a handler or for the engine has this limit. A
+    /// change has none.
+    pub pending: Duration,
 }
 
 impl Default for Limits {
@@ -47,6 +50,7 @@ impl Default for Limits {
         Self {
             hello: Duration::from_secs(10),
             write: Duration::from_secs(10),
+            pending: PENDING_TIMEOUT,
         }
     }
 }
@@ -538,7 +542,14 @@ impl Worker {
                     );
                 }
                 if client.ready() {
-                    handle(client, &self.feed, self.port.as_ref(), &self.waker, &home);
+                    handle(
+                        client,
+                        &self.feed,
+                        self.port.as_ref(),
+                        &self.waker,
+                        &home,
+                        self.limits.pending,
+                    );
                 }
             }
             let mut polls = vec![
@@ -639,7 +650,14 @@ impl Worker {
     }
 }
 
-fn handle(client: &mut Client, feed: &Feed, port: Option<&Port>, waker: &Waker, home: &str) {
+fn handle(
+    client: &mut Client,
+    feed: &Feed,
+    port: Option<&Port>,
+    waker: &Waker,
+    home: &str,
+    pending: Duration,
+) {
     let end = client.input.iter().position(|b| *b == b'\n');
     if end.unwrap_or(client.input.len()) > MAX_LINE {
         client.respond(
@@ -750,9 +768,7 @@ fn handle(client: &mut Client, feed: &Feed, port: Option<&Port>, waker: &Waker, 
         Method::Kinds(_) => Response::success(id, feed.read(|state| state.kinds.clone())),
         Method::Profiles(_) => Response::success(id, feed.read(|state| state.profiles.clone())),
         Method::Pages(_) => Response::success(id, feed.read(|state| state.pages.clone())),
-        Method::Folders(_) => {
-            Response::success(id, feed.read(|state| state.pages.folders.clone()))
-        }
+        Method::Folders(_) => Response::success(id, feed.read(|state| state.pages.folders.clone())),
         Method::Content(ContentParams { target: None }) => {
             Response::success(id, feed.read(|state| state.content.clone()))
         }
@@ -772,7 +788,7 @@ fn handle(client: &mut Client, feed: &Feed, port: Option<&Port>, waker: &Waker, 
                 client.pending = Some(Pending {
                     engine_id,
                     request_id: id,
-                    until: Some(Instant::now() + PENDING_TIMEOUT),
+                    until: Some(Instant::now() + pending),
                     work: Work::Read { target },
                 });
                 return;
@@ -782,9 +798,7 @@ fn handle(client: &mut Client, feed: &Feed, port: Option<&Port>, waker: &Waker, 
             Response::success(id, feed.read(|state| state.device_settings.clone()))
         }
         Method::History(_) => Response::success(id, feed.read(|state| state.history.clone())),
-        Method::Connection(_) => {
-            Response::success(id, feed.read(|state| state.connection.clone()))
-        }
+        Method::Connection(_) => Response::success(id, feed.read(|state| state.connection.clone())),
         Method::Choices(params) => {
             let field = feed.read(|state| {
                 state
@@ -833,7 +847,7 @@ fn handle(client: &mut Client, feed: &Feed, port: Option<&Port>, waker: &Waker, 
                             client.pending = Some(Pending {
                                 engine_id,
                                 request_id: id,
-                                until: Some(Instant::now() + PENDING_TIMEOUT),
+                                until: Some(Instant::now() + pending),
                                 work: Work::Choices,
                             });
                             return;

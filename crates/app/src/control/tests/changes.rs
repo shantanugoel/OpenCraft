@@ -374,7 +374,10 @@ fn page_requests_add_rename_move_select_remove_and_set_the_background() {
     assert_eq!(live.active_page(), live.id(2));
     assert_eq!(live.page_count(), 3);
     let ids: Vec<_> = (0..3).map(|n| live.id(n)).collect();
-    assert_eq!(ids.iter().collect::<std::collections::BTreeSet<_>>().len(), 3);
+    assert_eq!(
+        ids.iter().collect::<std::collections::BTreeSet<_>>().len(),
+        3
+    );
     live.ok(
         "rename_page",
         json!({"target": live.page(2), "name": "Third"}),
@@ -423,7 +426,10 @@ fn folder_requests_need_no_page_and_add_rename_move_open_close_and_remove() {
         "add_folder",
         json!({"profile": profile, "id": "00000000000000a1", "name": "First", "copy_of": null}),
     );
-    assert_eq!(made, json!({"profile": null, "page": null, "folder": "00000000000000a1"}));
+    assert_eq!(
+        made,
+        json!({"profile": null, "page": null, "folder": "00000000000000a1"})
+    );
     // Without an identity, OpenCraft makes one, and the result has it.
     let made = live.made("add_folder", json!({"profile": profile, "name": "Other"}));
     let other = made["folder"].as_str().unwrap().to_string();
@@ -490,7 +496,10 @@ fn profile_requests_add_rename_colour_link_export_import_select_and_remove() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(made, json!({"profile": second, "page": null, "folder": null}));
+    assert_eq!(
+        made,
+        json!({"profile": second, "page": null, "folder": null})
+    );
     assert_eq!(profiles["active"], second);
     live.ok(
         "rename_profile",
@@ -651,9 +660,8 @@ fn a_request_for_a_place_that_is_gone_changes_nothing() {
     live.ok("select_page", json!({"target": live.page(1)}));
     let surface = surface_1();
     let history = live.read("history");
-    let at_gone = |live: &Live| {
-        json!({"profile": live.active, "page": "00000000000000ee", "folder": null})
-    };
+    let at_gone =
+        |live: &Live| json!({"profile": live.active, "page": "00000000000000ee", "folder": null});
     // The cache has no such page, or no such profile: the request is invalid.
     for target in [
         at_gone(&live),
@@ -888,4 +896,24 @@ fn a_request_with_a_wrong_surface_or_value_is_invalid_and_sends_no_command() {
         assert_eq!(found, code, "{method}");
     }
     assert!(live.read("history")["undo"].is_null());
+}
+
+#[test]
+fn an_undo_for_a_profile_that_is_not_active_is_refused_and_changes_nothing() {
+    let mut live = Live::new();
+    let first = live.active.clone();
+    live.ok(
+        "set_label",
+        json!({"target": live.at(0), "surface": surface_1(), "label": "Mine"}),
+    );
+    let made = live.made("add_profile", json!({"name": "Second", "copy_of": null}));
+    let second = made["profile"].as_str().unwrap().to_string();
+    live.ok("select_profile", json!({"profile": first}));
+    // The history belongs to the profile that the user sees.
+    let (code, text) = live.fails("undo", json!({"profile": second}));
+    assert_eq!(code, "engine_problem");
+    assert!(text.contains("different profile"), "{text}");
+    assert_eq!(live.read("profiles")["active"], first);
+    assert_eq!(live.read("history")["undo"], "Set Title");
+    assert_eq!(live.label(0), "Mine");
 }

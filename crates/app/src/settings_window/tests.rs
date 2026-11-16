@@ -519,6 +519,58 @@ fn a_control_socket_that_cannot_open_keeps_the_switch_off_and_shows_a_problem(
     });
 }
 
+/// The setting is on at the start, but the socket cannot open (review 2, L3).
+/// The switch shows the socket: it is off, and the message tells the problem
+/// while the two are different. A click tries again.
+#[cfg(unix)]
+#[gpui_kit::test]
+fn a_setting_that_is_on_with_no_socket_shows_the_switch_off_and_the_problem(
+    cx: &mut TestAppContext,
+) {
+    let dir = tempfile::tempdir_in("/tmp").unwrap();
+    settings::save(
+        dir.path(),
+        &settings::Settings {
+            allow_control: true,
+            ..settings::Settings::default()
+        },
+    )
+    .unwrap();
+    let socket = dir.path().join(crate::control::protocol::FILE_NAME);
+    std::fs::write(&socket, "not a socket").unwrap();
+    let (f, cx) = window_with_settings(cx, Some(dir));
+    // The setting stays on in the file, but the switch is off, and the
+    // message is there.
+    assert!(f.settings_on_disk().allow_control);
+    assert!(!is_on(cx, "switch-allow-control"));
+    assert!(bounds(cx, "settings-message").is_some());
+    cx.update(|_, cx| {
+        assert!(f
+            .shell
+            .read(cx)
+            .settings_notice()
+            .unwrap()
+            .contains("control socket"));
+    });
+    // The first click does not turn the setting off: it tries to open the
+    // socket again, and the problem shows again.
+    click(cx, "switch-allow-control");
+    assert!(!is_on(cx, "switch-allow-control"));
+    assert!(f.settings_on_disk().allow_control);
+    assert_eq!(std::fs::read_to_string(&socket).unwrap(), "not a socket");
+    // With the path free, the next click opens the socket.
+    std::fs::remove_file(&socket).unwrap();
+    click(cx, "switch-allow-control");
+    assert!(is_on(cx, "switch-allow-control"));
+    assert!(socket.exists());
+    assert!(f.settings_on_disk().allow_control);
+    // Then a click closes it, and the setting goes off.
+    click(cx, "switch-allow-control");
+    assert!(!is_on(cx, "switch-allow-control"));
+    assert!(!f.settings_on_disk().allow_control);
+    assert!(!socket.exists());
+}
+
 #[gpui_kit::test]
 fn the_front_application_switch_starts_on_and_sends_the_command(cx: &mut TestAppContext) {
     let (f, cx) = window(cx);

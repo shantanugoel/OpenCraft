@@ -412,10 +412,7 @@ pub enum Command {
     /// [`Command::Group`] does not stop after a problem of one command, thus
     /// a shell puts a command in this command, and not after a
     /// [`Command::SelectPage`] in a group.
-    AtPlace {
-        place: Place,
-        command: Box<Command>,
-    },
+    AtPlace { place: Place, command: Box<Command> },
     /// Read the live active profile, or a saved inactive profile, without
     /// selecting it. Only a known profile of this model can be read.
     ReadProfile { id: u64, profile: String },
