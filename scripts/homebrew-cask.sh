@@ -102,6 +102,9 @@ cask "opencraft" do
   depends_on macos: :monterey
 
   app "OpenCraft.app"
+  # The command-line client "opencraft ctl" (decision 0040, section 4). The
+  # link has the name of the executable: opencraft.
+  binary "#{appdir}/OpenCraft.app/Contents/MacOS/opencraft"
 
   uninstall quit: "com.shantanugoel.opencraft"
 

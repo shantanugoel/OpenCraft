@@ -559,7 +559,6 @@ pub enum ResponseBody<T> {
 impl<T> Response<T> {
     /// The result, or the error of the server. The client of the command line
     /// uses it.
-    #[allow(dead_code)]
     pub fn into_result(self) -> Result<T, ProtocolError> {
         match self.body {
             ResponseBody::Success { result } => Ok(result),

@@ -59,6 +59,7 @@ are:
 | `livecheck` | `url :url`, `strategy :github_latest` | The same as the cask of the owner for Ganit. `brew livecheck` finds a new version from the latest GitHub release. |
 | `auto_updates` | Not set | OpenCraft does not update itself. `brew upgrade` is the only way to update. |
 | `app` | `OpenCraft.app` | |
+| `binary` | `#{appdir}/OpenCraft.app/Contents/MacOS/opencraft` | Homebrew makes the link `opencraft` in its `bin` directory. It is the command-line client `opencraft ctl` ([decision 0040](0040-control-socket.md#4-the-command-line-client)). Added on 2026-11-16 (issue #405). The link goes to the executable in the bundle, thus a new bundle after `brew upgrade` needs no new link. |
 | `uninstall quit:` | `com.shantanugoel.opencraft` | Homebrew quits a running OpenCraft with a quit Apple Event before it removes the bundle. The event does not need a Dock icon. It most likely goes to the same stop of the engine as a quit from the menu bar item (inference, not measured). |
 | `zap launchctl:` | `opencraft.login` | The label that [`login.rs`](../../crates/app/src/login.rs) writes. It stops the job if launchd has it loaded. |
 | `zap trash:` | `~/Library/Application Support/OpenCraft`, `~/Library/LaunchAgents/opencraft.login.plist`, `~/Library/Preferences/com.shantanugoel.opencraft.plist` | The files that OpenCraft makes. See [kb/homebrew.md](../kb/homebrew.md#the-files-that-opencraft-makes). |
