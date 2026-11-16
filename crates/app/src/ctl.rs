@@ -12,6 +12,7 @@
 
 pub mod commands;
 mod parse;
+pub mod skill;
 #[cfg(test)]
 mod tests;
 
@@ -81,6 +82,10 @@ pub fn execute(
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> i32 {
+    // The skill needs no OpenCraft.
+    if arguments.first().map(String::as_str) == Some("skill") {
+        return skill::run(&arguments[1..], out, err);
+    }
     let (command, flags) = match parse::parse(arguments) {
         Ok(Parsed::Help(command)) => {
             let text = match command {

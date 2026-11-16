@@ -481,3 +481,151 @@ fn the_kinds_of_value_have_a_flag_that_uses_them() {
         );
     }
 }
+
+// The skill (decision 0040, section 5).
+
+use super::skill;
+
+/// The flags in a text, as `--name`.
+fn flags_in(text: &str) -> Vec<String> {
+    text.split("--")
+        .skip(1)
+        .map(|rest| {
+            rest.chars()
+                .take_while(|c| c.is_ascii_lowercase() || *c == '-')
+                .collect::<String>()
+        })
+        .filter(|flag| !flag.is_empty())
+        .collect()
+}
+
+/// The rows of the table of the commands: the name, and the text of the flags.
+fn skill_rows() -> Vec<(String, String)> {
+    skill::TEXT
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .map(|line| {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            (cells[1].trim_matches('`').to_string(), cells[2].to_string())
+        })
+        .collect()
+}
+
+#[test]
+fn the_skill_has_its_name_and_a_description() {
+    let mut lines = skill::TEXT.lines();
+    assert_eq!(lines.next(), Some("---"));
+    assert_eq!(lines.next(), Some("name: opencraft"));
+    let description = lines.next().unwrap();
+    assert!(description.starts_with("description: "), "{description}");
+    assert_eq!(lines.next(), Some("---"));
+}
+
+#[test]
+fn the_table_of_the_skill_has_each_command_and_no_other() {
+    let rows = skill_rows();
+    for command in COMMANDS {
+        let count = rows.iter().filter(|(name, _)| name == command.name).count();
+        assert_eq!(count, 1, "the skill has {count} rows for {}", command.name);
+    }
+    for (name, flags) in &rows {
+        let Some(command) = COMMANDS.iter().find(|c| c.name == name) else {
+            panic!("the skill names the command `{name}`, which does not exist");
+        };
+        let named = flags_in(flags);
+        for flag in &named {
+            assert!(
+                command.arguments().any(|a| a.flag == flag),
+                "the skill gives `{name}` the flag --{flag}, which does not exist"
+            );
+        }
+        // Each flag that the command needs is in the row. `target` means the
+        // flags of a target.
+        for arg in command.arguments().filter(|a| a.required) {
+            let in_target = flags.contains("target") && ["profile", "page"].contains(&arg.flag);
+            assert!(
+                named.iter().any(|n| n == arg.flag) || in_target,
+                "the skill row of `{name}` has no --{}",
+                arg.flag
+            );
+        }
+    }
+}
+
+#[test]
+fn each_command_line_of_the_skill_makes_a_request_that_the_protocol_accepts() {
+    let device = json!({
+        "brightness": 50, "screen_off_minutes": 0, "haptic": true,
+        "knob_lights": {"mode": "effect", "brightness": 50, "colors": []}
+    });
+    let mut count = 0;
+    let mut fenced = false;
+    for line in skill::TEXT.lines() {
+        if line.starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        if !fenced || !line.starts_with("opencraft ctl ") {
+            continue;
+        }
+        count += 1;
+        let parse::Parsed::Run { command, flags } =
+            parse::parse(&arguments(line)).unwrap_or_else(|e| panic!("{line}: {e}"))
+        else {
+            panic!("{line} is help");
+        };
+        let base = command.base.map(|_| device.clone());
+        let params = parse::params(command, &flags, base).unwrap_or_else(|e| panic!("{line}: {e}"));
+        super::request(command.method, params).unwrap_or_else(|e| panic!("{line}: {e}"));
+    }
+    assert!(count >= 8, "the skill has {count} example lines");
+}
+
+#[test]
+fn the_skill_has_no_personal_data() {
+    for word in ["/Users/", "/home/", "@", "shantanu", "goel", "http://"] {
+        assert!(
+            !skill::TEXT.to_lowercase().contains(&word.to_lowercase()),
+            "the skill has {word}"
+        );
+    }
+}
+
+#[test]
+fn skill_writes_the_text_and_needs_no_opencraft() {
+    let dir = short_dir();
+    // No socket, no lock: the client does not look for OpenCraft.
+    let context = context(dir.path(), false);
+    let (status, out, err) = ctl(&context, "opencraft ctl skill");
+    assert_eq!((status, err.as_str()), (status::DONE, ""));
+    assert_eq!(out, skill::TEXT);
+    let (status, out, _) = ctl(&context, "opencraft ctl skill --help");
+    assert_eq!(status, status::DONE);
+    assert!(out.contains("--install"));
+    let (status, _, err) = ctl(&context, "opencraft ctl skill --unknown");
+    assert_eq!(status, status::ARGUMENTS);
+    assert!(err.contains("skill --help"), "{err}");
+}
+
+#[test]
+fn skill_install_writes_the_skill_directory() {
+    let dir = short_dir();
+    let target = dir.path().join("skills");
+    let context = context(dir.path(), false);
+    let line = format!("opencraft ctl skill --install {}", target.display());
+    let (status, out, err) = ctl(&context, &line);
+    assert_eq!((status, err.as_str()), (status::DONE, ""));
+    let file = target.join("opencraft").join("SKILL.md");
+    assert_eq!(out.trim_end(), file.display().to_string());
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), skill::TEXT);
+    // A second install replaces the file.
+    std::fs::write(&file, "old").unwrap();
+    let (status, _, _) = ctl(&context, &line);
+    assert_eq!(status, status::DONE);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), skill::TEXT);
+    // A directory that cannot be made is a refusal.
+    let blocked = format!("opencraft ctl skill --install {}", file.display());
+    let (status, _, err) = ctl(&context, &blocked);
+    assert_eq!(status, status::REFUSED);
+    assert!(err.contains("cannot make"), "{err}");
+}

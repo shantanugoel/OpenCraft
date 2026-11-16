@@ -50,3 +50,28 @@ fn the_status_for_arguments_and_the_help() {
     assert!(bad.stdout.is_empty());
     assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
 }
+
+#[test]
+fn the_executable_contains_the_skill_of_its_own_version() {
+    let root = tempfile::Builder::new()
+        .prefix("oc")
+        .tempdir_in("/tmp")
+        .unwrap();
+    let profiles = root.path().join("profiles");
+    let output = opencraft(&profiles, &["ctl", "skill"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.starts_with("---\nname: opencraft\n"), "{text}");
+    // The skill needs no OpenCraft and makes no file.
+    assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+    let install = root.path().join("skills");
+    let output = opencraft(
+        &profiles,
+        &["ctl", "skill", "--install", install.to_str().unwrap()],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        std::fs::read_to_string(install.join("opencraft").join("SKILL.md")).unwrap(),
+        text
+    );
+}
