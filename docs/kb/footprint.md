@@ -1,11 +1,82 @@
 # Footprint of OpenCraft
 
-Last update: 2026-11-14
+Last update: 2026-11-16
 
 This entry holds the measured values for the
 [product targets](../ROADMAP.md#product-targets). The reference is the vendor
 software: see [vsd-craft.md](vsd-craft.md#footprint-when-it-runs). Measure
 again at the end of each phase.
+
+## Control by other programs (2026-11-16)
+
+Issue [#407](https://github.com/shantanugoel/OpenCraft/issues/407) measures
+the memory and the idle processor use with the setting "Allow control by
+other programs" on ([decision 0040](../decisions/0040-control-socket.md)).
+With the setting on, the shell has one more thread: the worker that serves
+the socket.
+
+The program is the release binary of the workspace at the commit `c8e7afc`,
+started with `--login`, so it opened no window. This is the start of the
+column "Start with `--login`" in
+[Memory and processor use](#memory-and-processor-use-2026-11-13). The
+differences from that run:
+
+- The program is the binary and not the signed bundle. The check of
+  Phase 9 used the binary too.
+- `HOME` and `OPENCRAFT_PROFILES_DIR` were new directories. The profiles
+  directory had no profile file, so the engine drew the empty default
+  profile: the log said `full draw done: 14 surfaces`. The earlier runs had
+  a profile with content on 28 surfaces. Thus compare the three columns of
+  this run with each other first.
+- The connected N4 Pro showed the profile, and the display was awake. No
+  person used the device. The installed application was not started.
+- The file `shell.toml` of the new directory had `allow_control = false` or
+  `allow_control = true`, and the binary started with that value.
+
+`scripts/measure-footprint.sh --pid` made one sample each 5 seconds for 300
+seconds, 60 seconds after the start, as in the earlier runs. The three
+columns are three new processes, one after the other:
+
+1. **Off:** the setting is off. No socket file.
+2. **On:** the setting is on. The socket file `control.sock` exists. No
+   client connected.
+3. **On, client connected:** the setting is on. A program connected 20
+   seconds after the start, sent `hello`, and held the connection open
+   without more requests during the measurement.
+
+| Measurement | Off | On | On, client connected | Confidence |
+|---|---|---|---|---|
+| Processes | 1 | 1 | 1 | Measured |
+| Physical footprint: minimum, mean, maximum | 22.5, 22.5, 22.5 MiB | 22.7, 22.8, 22.9 MiB | 22.7, 22.8, 22.8 MiB | Measured |
+| Resident size, median | 91.2 MiB | 93.9 MiB | 93.9 MiB | Measured |
+| Processor time in 300 seconds | 0.31 s | 0.24 s | 0.35 s | Measured |
+| Processor use, mean (100 % is one core) | 0.10 % | 0.08 % | 0.12 % | Measured |
+| Processor use, maximum of a sample | 0.2 % | 0.2 % | 0.2 % | Measured |
+| Threads at the start and at the end of the measurement | 16, 16 | 17, 17 | 17, 17 | Measured: `ps -M`, rows without the header |
+
+After the measurement of the two columns with the setting on, 200 runs of
+`opencraft ctl state` ran one after the other against the process. Each run
+connects, sends `hello` and `state`, and stops. Then `footprint` reported
+23 MB for the process, and 23 MB as the peak. This tool rounds to whole
+megabytes. (Measured)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The setting on adds 0.2 to 0.3 MiB of physical footprint, 2.4 to 2.7 MiB of resident size, and one thread. | Measured | The table above |
+| The processor time of the three columns, 0.24 s to 0.35 s, has no order that follows the setting: the column "On" used the least. The differences are in the range of the difference between two runs of one kind in the earlier phases. | Inference | The table above and the earlier runs |
+| An idle connection and 200 requests did not make a visible change of the footprint. | Measured | The table and the `footprint` result |
+| The worker serves all connections with one `poll` call. With no connection and no time limit that is running, the timeout is infinite, thus an idle worker does not wake. | Source | `crates/app/src/control/server.rs` |
+
+### Product targets with the control on (2026-11-16)
+
+| Target | Value with the setting on | Result |
+|---|---|---|
+| Memory in the steady state: less than 80 MB | 22.9 MiB (24.0 MB) at the maximum, with and with no client connected | Met |
+| Processor use when idle: less than 0.5 % of one core | 0.08 % to 0.12 % mean; no sample above 0.2 % | Met |
+
+The start time and the lost input events were not measured again. The
+control does not change the start of the engine or the path of the input
+events. (Inference)
 
 ## Phase 9: the front application (2026-11-14)
 
