@@ -11,15 +11,17 @@
 //! identity are 16 small hexadecimal digits. The identity of a page stays with
 //! the page when the page moves, and when the profile is closed and read
 //! again. A page number is not on the wire, except in `move_page`, where `to`
-//! is a position in the list of the pages. Control and surface numbers are
-//! those of the layout. The kinds and the gestures are enums with snake case
+//! is the number of a place in the list of the pages, from 1. Control and
+//! surface numbers are those of the layout. The kinds and the gestures are enums with snake case
 //! names (`key_face`, `turn_left`); the layout lists the gestures of each
 //! control.
 //!
 //! # Reads
 //!
 //! `state` (all read state), `layout`, `kinds`, `profiles`,
-//! `device_settings`, and `connection` take `{}`. `pages`, `folders`, and
+//! `device_settings`, and `connection` take `{}`. `icons` takes `{}` or
+//! `{ "search": <text> }`: the names of the icons that the build contains,
+//! the best first when a text filters them. `pages`, `folders`, and
 //! `history` take `{}` or `{ "profile": <identity> }`: no profile is the
 //! active profile. The history of a profile that is not active is the
 //! history that OpenCraft kept for it; it cannot change while the profile is
@@ -198,7 +200,8 @@ pub struct RenamePageParams {
 #[serde(deny_unknown_fields)]
 pub struct MovePageParams {
     pub target: PageTarget,
-    /// The position in the list of the pages, from 0.
+    /// The number of the place in the list of the pages, from 1: 1 is the
+    /// first page, as the number that the window shows.
     pub to: usize,
 }
 
@@ -241,6 +244,8 @@ pub struct RenameFolderParams {
 pub struct MoveFolderParams {
     pub profile: String,
     pub folder: String,
+    /// The number of the place in the list of the folders, from 1: 1 is the
+    /// first folder.
     pub to: usize,
 }
 
@@ -368,6 +373,7 @@ pub enum Method {
     State(Empty),
     Layout(Empty),
     Kinds(Empty),
+    Icons(IconRead),
     Choices(ChoicesParams),
     Profiles(Empty),
     Pages(ProfileRead),
@@ -427,6 +433,7 @@ impl Method {
             Self::State(_) => "state",
             Self::Layout(_) => "layout",
             Self::Kinds(_) => "kinds",
+            Self::Icons(_) => "icons",
             Self::Choices(_) => "choices",
             Self::Profiles(_) => "profiles",
             Self::Pages(_) => "pages",
@@ -486,6 +493,7 @@ pub const METHODS: &[&str] = &[
     "state",
     "layout",
     "kinds",
+    "icons",
     "choices",
     "profiles",
     "pages",
@@ -544,6 +552,27 @@ pub struct Empty {}
 #[serde(deny_unknown_fields)]
 pub struct ProfileRead {
     pub profile: Option<String>,
+}
+
+/// A read of the names of the icons. No search means each icon.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IconRead {
+    /// Text that the name or a tag of an icon has, for example `mic`. A word
+    /// of the text can be in the name and another in a tag.
+    pub search: Option<String>,
+}
+
+/// The icons of the build, for `set_icon` and `surface set-icon`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Icons {
+    /// The name of the set, for example `Lucide`.
+    pub set: String,
+    /// The version of the set that the build contains.
+    pub version: String,
+    /// The names, in the order of their names, or the best first when the
+    /// request has a search.
+    pub icons: Vec<String>,
 }
 
 /// A later version can add a field. Another field is not an error here, so

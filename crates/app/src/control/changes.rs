@@ -47,6 +47,22 @@ fn parse<T: std::str::FromStr>(text: String, what: &str) -> Result<T, String> {
         .map_err(|_| format!("The {what} is not correct."))
 }
 
+/// The text of a number that cannot be a place in a list.
+const NOT_A_PLACE: &str = "The number of the place is from 1: 1 is the first.";
+
+/// The place in a list for the number that the client gives. The client
+/// counts from 1, as the window numbers the pages, and the engine counts from
+/// 0. A number that the list does not have is an error: the engine would move
+/// nothing and report no problem.
+fn place_of(number: usize, count: usize) -> Result<usize, String> {
+    match number.checked_sub(1) {
+        Some(to) if to < count => Ok(to),
+        _ => Err(format!(
+            "The number of the place is from 1 to {count}: the list has {count} places."
+        )),
+    }
+}
+
 pub(super) fn path(text: String) -> Result<PathBuf, String> {
     let path = PathBuf::from(text);
     if path.is_absolute() {
@@ -284,6 +300,7 @@ fn named(method: &w::Method) -> w::Changed {
         | M::State(_)
         | M::Layout(_)
         | M::Kinds(_)
+        | M::Icons(_)
         | M::Choices(_)
         | M::Profiles(_)
         | M::Pages(_)
@@ -459,8 +476,12 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
             nothing(at(place, C::RenamePage { page, name: p.name }))
         }
         M::MovePage(p) => {
+            // The client counts the place of a page from 1, as the window
+            // numbers the pages, and the engine counts from 0.
+            let count = profile_of(state, &p.target.profile)?.pages.len();
+            let to = place_of(p.to, count)?;
             let (place, page) = page_place(state, p.target)?;
-            nothing(at(place, C::MovePage { page, to: p.to }))
+            nothing(at(place, C::MovePage { page, to }))
         }
         M::RemovePage(p) => {
             let (place, page) = page_place(state, p.target)?;
@@ -533,13 +554,19 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                 name: p.name,
             },
         )),
-        M::MoveFolder(p) => nothing(at(
-            profile_place(p.profile),
-            C::MoveFolder {
-                folder: parse(p.folder, "folder identity")?,
-                to: p.to,
-            },
-        )),
+        M::MoveFolder(p) => {
+            // The client counts the place of a folder from 1, as a place of a
+            // page. The engine counts the folders and refuses a place that is
+            // too large.
+            let to = p.to.checked_sub(1).ok_or(NOT_A_PLACE)?;
+            nothing(at(
+                profile_place(p.profile),
+                C::MoveFolder {
+                    folder: parse(p.folder, "folder identity")?,
+                    to,
+                },
+            ))
+        }
         M::RemoveFolder(p) => nothing(at(
             profile_place(p.profile),
             C::RemoveFolder {
@@ -652,6 +679,7 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
         | M::Profiles(_)
         | M::Pages(_)
         | M::Folders(_)
+        | M::Icons(_)
         | M::Content(_)
         | M::DeviceSettings(_)
         | M::History(_)

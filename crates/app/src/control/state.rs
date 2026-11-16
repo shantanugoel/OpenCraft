@@ -232,6 +232,22 @@ impl From<&e::InputType> for w::Input {
     }
 }
 
+/// The icon names of the build, for `set_icon`. The engine draws an icon on a
+/// surface and the window shows it in the icon picker: the client reads the
+/// same set (decision 0033). The search is the search of the icon picker.
+pub(super) fn icons(search: Option<&str>) -> w::Icons {
+    let set = e::icon_set();
+    w::Icons {
+        set: e::icons::ICON_SET_NAME.into(),
+        version: e::icons::ICON_SET_VERSION.into(),
+        icons: set
+            .search(search.unwrap_or_default())
+            .iter()
+            .map(|icon| icon.name.to_string())
+            .collect(),
+    }
+}
+
 impl From<&e::KindDescription> for w::Kind {
     fn from(kind: &e::KindDescription) -> Self {
         Self {

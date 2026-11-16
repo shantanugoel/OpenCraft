@@ -287,7 +287,7 @@ const TO: &[Arg] = &[req(
     "to",
     "to",
     Kind::Int,
-    "The position in the list, from 0.",
+    "The number of the place in the list, from 1: 1 is the first.",
 )];
 const COLOR: &[Arg] = &[arg(
     "color",
@@ -350,6 +350,18 @@ pub const COMMANDS: &[Command] = &[
         "Read the kinds of action, with their fields, their help, and their status.",
         "opencraft ctl kinds",
         NO_ARGS
+    ),
+    command!(
+        "icons",
+        "icons",
+        "Read the names of the icons for a surface: the set `Lucide`, its version, and the name of each icon. A search gives the icons whose name or tag agrees with the text, the best first.",
+        "opencraft ctl icons --search mic",
+        &[&[arg(
+            "search",
+            "search",
+            Kind::Text,
+            "Text that the name or a tag of an icon has, for example `mic` or `arrow right`. Leave it out for each icon."
+        )]]
     ),
     command!(
         "choices",
@@ -522,8 +534,8 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "page move",
         "move_page",
-        "Move a page to a position in the list of the pages.",
-        "opencraft ctl page move --profile work --page 0123456789abcdef --to 0",
+        "Move a page to a place in the list of the pages. Page 1 is the first page.",
+        "opencraft ctl page move --profile work --page 0123456789abcdef --to 1",
         &[PAGE_TARGET, TO]
     ),
     command!(
@@ -603,8 +615,8 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "folder move",
         "move_folder",
-        "Move a folder to a position in the list of the folders.",
-        "opencraft ctl folder move --profile work --folder 0123456789abcdef --to 0",
+        "Move a folder to a place in the list of the folders. Folder 1 is the first folder.",
+        "opencraft ctl folder move --profile work --folder 0123456789abcdef --to 1",
         &[FOLDER, TO]
     ),
     command!(
@@ -677,14 +689,14 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "surface set-icon",
         "set_icon",
-        "Set the icon of a surface, or remove it.",
+        "Set the icon of a surface, or remove it. The name is a name of the icons that `icons` reads, for example `mic`.",
         "opencraft ctl surface set-icon --profile work --page 0123456789abcdef --surface key_face:1 --icon-name mic",
         &[
             TARGET,
             SURFACE,
             &[
-                arg("icon-name", "icon.name", Kind::Text, "The name of the icon. Leave it out to remove the icon."),
-                arg("icon-color", "icon.color", Kind::Text, "The colour of the icon."),
+                arg("icon-name", "icon.name", Kind::Text, "The name of an icon (see `icons`). Leave it out to remove the icon."),
+                arg("icon-color", "icon.color", Kind::Text, "The colour of the icon, as six hexadecimal digits with `#` in front: `#ff8800`. Leave it out for the colour of the text."),
             ]
         ]
     ),
