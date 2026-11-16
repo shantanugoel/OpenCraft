@@ -34,6 +34,30 @@ read it again and the next save removes your edit.
 3. Write down your **home** from the state: the active profile (`profiles.active`),
    and the active location (`pages.location`: a page, and the open folders).
 
+## If your client has the MCP tools
+
+If your client has the tools `opencraft_read`, `opencraft_change`, and
+`opencraft_help` in place of a shell, use them in place of `opencraft ctl`:
+
+- `opencraft_read` with `command` and `args` reads. Its `command` is the name
+  of a read command, for example `state`, `icons`, or `page list`. A read
+  changes nothing.
+- `opencraft_change` with `command` and `args` changes. Its `command` is the
+  name of a change command, for example `surface set-label` or `page add`.
+  Ask the user before `profile remove`.
+- `args` has the flags of `opencraft ctl` as keys, without `--`: `{"profile":
+  "work", "page": "0123456789abcdef", "surface": "key_face:0", "label":
+  "Mute"}`. A text is a string, a whole number is a number, and true or false
+  is a boolean. `setting` is an object of settings, as `{"hotkey":
+  "cmd+c"}`, and `knob-colors` is an array of colours. Leave out a value to
+  remove it.
+- `opencraft_help` with `command` gives the arguments and an example of one
+  command. With no `command`, it gives this text.
+
+A problem is the result with `"isError": true`. Its text is the text that
+`opencraft ctl` gives for the same request. The rules, the terms, and the
+limits below are the same for the tools.
+
 ## Rules
 
 - **A change with `--page` moves the device.** It makes its profile the active

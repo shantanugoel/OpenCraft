@@ -95,6 +95,60 @@ always correct for the version that you installed.
 These two commands do not need a running OpenCraft, and the control can be
 off.
 
+## Use an agent through MCP
+
+MCP (the Model Context Protocol) is a message format for an agent. OpenCraft
+has an MCP server. The server is a second client of the same socket: OpenCraft
+must run, and the control must be on. The server uses the same commands and
+the same texts as `opencraft ctl`.
+
+An agent starts the server. You do not start it. The server has three tools:
+
+| Tool | What it does |
+|---|---|
+| `opencraft_read` | Reads the state. It changes nothing. |
+| `opencraft_change` | Changes a surface, a binding, a page, a folder, a profile, or a setting. |
+| `opencraft_help` | Gives the arguments and an example of one command. With no command, it gives the skill. |
+
+If OpenCraft does not run, or the control is off, the tool gives the text of
+the problem, and the server continues.
+
+`opencraft mcp --config` writes the installation text with the path of the
+executable that you installed. `--config claude` writes the line for Claude
+Code, and `--config codex` writes the line for the Codex CLI. It changes no
+file of the agent.
+
+Claude Code:
+
+```sh
+claude mcp add --scope user opencraft -- /opt/homebrew/bin/opencraft mcp
+```
+
+The Codex CLI:
+
+```sh
+codex mcp add opencraft -- /opt/homebrew/bin/opencraft mcp
+```
+
+A client that reads a JSON file (Claude Desktop, Cursor, and other clients
+with `mcpServers`):
+
+```json
+{
+  "mcpServers": {
+    "opencraft": {
+      "command": "/opt/homebrew/bin/opencraft",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+If you did not install OpenCraft with Homebrew, write the full path of the
+executable: `/Applications/OpenCraft.app/Contents/MacOS/opencraft`. A client
+that a window starts does not have the `PATH` of Homebrew. Thus write the
+full path.
+
 ## What a program can do
 
 A program can read and change the configuration, and it can do the

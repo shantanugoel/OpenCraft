@@ -78,6 +78,35 @@ The start time and the lost input events were not measured again. The
 control does not change the start of the engine or the path of the input
 events. (Inference)
 
+### The MCP server (2026-11-16)
+
+Issue [#408](https://github.com/shantanugoel/OpenCraft/issues/408) adds
+`opencraft mcp`, the server for an agent
+([decision 0040, section 6](../decisions/0040-control-socket.md#6-later)).
+An agent starts it and keeps it for the time of its session. It is a second
+process: it takes no lock, starts no engine, and opens no device. It has a
+connection to the control socket only while a tool call runs.
+
+The program is the release binary of the workspace at the commit `e01d3d5`
+with the change of issue #408, with `OPENCRAFT_PROFILES_DIR` in a new
+directory and no OpenCraft process. The measurement started
+`opencraft mcp` with the standard input open, waited 2 seconds, and read the
+values each 5 seconds for 60 seconds. No tool call ran.
+
+| Measurement | Value | Confidence |
+|---|---|---|
+| Processes | 1 | Measured |
+| Physical footprint: minimum, maximum | 3.0 MiB, 3.0 MiB | Measured: `footprint` |
+| Resident size, median | 10.0 MiB | Measured: `ps -o rss` |
+| Threads | 2 | Measured: `ps -M`, rows without the header |
+| Processor time in 60 seconds | 0.01 s | Measured: `ps -o time` |
+| Files made by the server | None | Measured: the profiles directory before and after; the test `with_no_opencraft_the_server_gives_a_tool_error_and_touches_nothing` |
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The idle server holds 3.0 MiB of physical footprint, 10.0 MiB of resident size, and two threads: the main thread and one thread of the run time. It wakes for no work. | Measured | The table above |
+| A tool call opens one connection to the socket and sends `hello` and one request. It adds no thread that stays. | Source | `crates/app/src/mcp.rs`, `crates/app/src/ctl.rs` |
+
 ## Phase 9: the front application (2026-11-14)
 
 Issue [#341](https://github.com/shantanugoel/OpenCraft/issues/341) measures

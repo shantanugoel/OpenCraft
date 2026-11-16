@@ -424,6 +424,67 @@ pub enum Method {
 }
 
 impl Method {
+    /// True if the request only reads. The MCP server makes its read tool
+    /// from this property (decision 0040, section 6). A new variant must have
+    /// a place in this match.
+    #[allow(dead_code)]
+    pub fn reads(&self) -> bool {
+        match self {
+            Self::Hello(_)
+            | Self::State(_)
+            | Self::Layout(_)
+            | Self::Kinds(_)
+            | Self::Icons(_)
+            | Self::Choices(_)
+            | Self::Profiles(_)
+            | Self::Pages(_)
+            | Self::Folders(_)
+            | Self::Content(_)
+            | Self::DeviceSettings(_)
+            | Self::History(_)
+            | Self::Connection(_) => true,
+            Self::SetLabel(_)
+            | Self::SetLabelStyle(_)
+            | Self::SetColor(_)
+            | Self::SetImage(_)
+            | Self::SetIcon(_)
+            | Self::SetBinding(_)
+            | Self::CopyControl(_)
+            | Self::PasteControl(_)
+            | Self::ClearControl(_)
+            | Self::CopyToAllPages(_)
+            | Self::AddPage(_)
+            | Self::DuplicatePage(_)
+            | Self::RenamePage(_)
+            | Self::MovePage(_)
+            | Self::RemovePage(_)
+            | Self::SelectPage(_)
+            | Self::SetBackground(_)
+            | Self::SetBackgroundFit(_)
+            | Self::AddFolder(_)
+            | Self::RenameFolder(_)
+            | Self::MoveFolder(_)
+            | Self::RemoveFolder(_)
+            | Self::OpenFolder(_)
+            | Self::CloseFolder(_)
+            | Self::AddProfile(_)
+            | Self::RenameProfile(_)
+            | Self::RemoveProfile(_)
+            | Self::SelectProfile(_)
+            | Self::SetProfileColor(_)
+            | Self::SetFirstPage(_)
+            | Self::SetDefaultProfile(_)
+            | Self::LinkApplication(_)
+            | Self::UnlinkApplication(_)
+            | Self::SetFollowFrontApplication(_)
+            | Self::ExportProfile(_)
+            | Self::ImportProfile(_)
+            | Self::SetDeviceSettings(_)
+            | Self::Undo(_)
+            | Self::Redo(_) => false,
+        }
+    }
+
     /// The wire name of the method. A new variant must have a name here. The
     /// client of the command line uses it.
     #[allow(dead_code)]
