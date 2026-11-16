@@ -74,19 +74,29 @@
 //! (decision 0035). A file of version 4 or lower has neither key. Release
 //! 0.2.0 writes version 4. This engine writes version 5. A file of version
 //! 4 or lower that has `applications` or `folders` has an error: the engine
-//! keeps that file as a backup. A later key uses a version above 5.
+//! keeps that file as a backup.
 //!
 //! | Key | Value | With no key |
 //! |---|---|---|
 //! | `applications` | An array of tables, in the order of the links. Each table has `bundle_id` and `name`. | No links |
 //!
+//! Schema version 6 adds the key `id` of a page (decision 0040): 16 small
+//! hexadecimal digits that are not all zero. The identity stays with the page
+//! when it moves, and the pages of a profile have different identities. A
+//! file of version 6 has the key for each page. A file of version 5 or lower
+//! has no key, and has an error if it has the key. The engine gives the page
+//! at place N of such a file the identity N+1 until it writes the file again,
+//! thus an unchanged file gives the same identities at each read. A later key
+//! uses a version above 6.
+//!
 //! ```toml
-//! schema_version = 5
+//! schema_version = 6
 //! name = "Default"
 //! model = "n4-pro"
 //! color = "#3B82F6"
 //! first_page = 2
 //! [[pages]]
+//! id = "0f3a9c27d41b8e65"
 //! name = "Page 1"
 //! [pages.background]
 //! image = "images/0b5e2f6a91c4d873.png"
@@ -119,8 +129,8 @@ use crate::front::{same_bundle, valid_bundle_id, MAX_LINKS};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
     default_model, parse_surface_key, surface_key, ApplicationLink, Background, BackgroundFit,
-    Color, Folder, FolderId, LabelPosition, LabelStyle, Page, Profile, SurfaceContent, SurfaceIcon,
-    MAX_LABEL_SIZE, MIN_LABEL_SIZE,
+    Color, Folder, FolderId, LabelPosition, LabelStyle, Page, PageId, Profile, SurfaceContent,
+    SurfaceIcon, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
 use crate::saved::SavedFile;
 use image::imageops::FilterType;
@@ -134,7 +144,7 @@ use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
 
 /// The schema version that this engine writes.
-pub const SCHEMA_VERSION: u32 = 5;
+pub const SCHEMA_VERSION: u32 = 6;
 
 /// The first schema version with the links of a profile (decision 0035).
 const APPLICATIONS_VERSION: u32 = 5;
@@ -145,6 +155,9 @@ const LABEL_OPTIONS_VERSION: u32 = 4;
 
 /// The first schema version with the key `folders` (decision 0036).
 const FOLDERS_VERSION: u32 = 5;
+
+/// The first schema version with the key `id` of a page (decision 0040).
+const PAGE_IDS_VERSION: u32 = 6;
 
 /// The first schema version with the key `model`.
 const MODEL_VERSION: u32 = 3;
@@ -236,6 +249,10 @@ pub struct Summary {
     pub color: Option<Color>,
     /// The names of the pages, in their order.
     pub pages: Vec<String>,
+    /// The identities of the pages, in their order. A file that has no
+    /// identities, or one that is not correct, gives the same identities as a
+    /// full read of a file of version 5 or lower.
+    pub page_ids: Vec<PageId>,
     /// The number of the first page, from 0.
     pub first_page: usize,
     /// The links that the file names. The summary uses the same check as
@@ -355,6 +372,22 @@ impl ProfileStore {
                     .collect()
             })
             .unwrap_or_default();
+        let page_ids = table
+            .get("pages")
+            .and_then(|v| v.as_array())
+            .map(|pages| {
+                pages
+                    .iter()
+                    .enumerate()
+                    .map(|(index, page)| {
+                        page.get("id")
+                            .and_then(|id| id.as_str())
+                            .and_then(|id| id.parse().ok())
+                            .unwrap_or_else(|| PageId::of_old_page(index))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let first_page = table
             .get("first_page")
             .and_then(|v| v.as_integer())
@@ -366,6 +399,7 @@ impl ProfileStore {
             model: text_of("model"),
             color: text_of("color").and_then(|c| c.parse().ok()),
             pages,
+            page_ids,
             first_page,
             applications: applications_of(&table).unwrap_or_default(),
         }
@@ -724,6 +758,10 @@ struct ApplicationData {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PageData {
+    /// The identity of the page. The key came in version 6. `None` means the
+    /// key is not in the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
     name: String,
     /// The background of the page. It came in version 4.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1023,8 +1061,32 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     };
 
     let mut pages = Vec::new();
-    for page_file in file.pages {
-        let mut page = Page::new(page_file.name);
+    let mut seen_pages = HashSet::new();
+    for (index, page_file) in file.pages.into_iter().enumerate() {
+        let id = match (version >= PAGE_IDS_VERSION, &page_file.id) {
+            (true, Some(text)) => text.parse::<PageId>().map_err(|_| {
+                invalid(format!(
+                    "page identity '{text}' is not 16 hexadecimal digits"
+                ))
+            })?,
+            (true, None) => {
+                return Err(invalid(format!(
+                    "page '{}' has no identity",
+                    page_file.name
+                )))
+            }
+            (false, None) => PageId::of_old_page(index),
+            (false, Some(_)) => {
+                return Err(invalid(format!(
+                    "page '{}': version {version} has no page identity",
+                    page_file.name
+                )))
+            }
+        };
+        if !seen_pages.insert(id) {
+            return Err(invalid(format!("the page '{id}' is in the file two times")));
+        }
+        let mut page = Page::new(page_file.name).with_id(id);
         if let Some(background) = &page_file.background {
             if version < LABEL_OPTIONS_VERSION {
                 return Err(invalid(format!(
@@ -1173,6 +1235,7 @@ pub(crate) fn to_text(profile: &Profile) -> Result<String> {
             .pages()
             .iter()
             .map(|page| PageData {
+                id: Some(page.id().to_string()),
                 name: page.name.clone(),
                 background: page
                     .background
@@ -1282,13 +1345,16 @@ mod tests {
     #[test]
     fn the_file_is_readable_text_with_the_schema_version() {
         let (_dir, store) = store();
-        store.save(&sample()).unwrap();
+        let profile = sample();
+        let id = profile.pages()[0].id();
+        store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        let want = r##"schema_version = 5
+        let want = r##"schema_version = 6
 name = "Default"
 model = "n4-pro"
 
 [[pages]]
+id = "ID"
 name = "Page 1"
 
 [pages.surfaces.bar-panel-1]
@@ -1300,7 +1366,8 @@ line 2"""
 label = "Mail"
 color = "#1E6FD9"
 image = "images/4f1c2a9be07d3356.png"
-"##;
+"##
+        .replace("ID", &id.to_string());
         assert_eq!(text, want);
     }
 
@@ -1405,12 +1472,12 @@ image = "images/4f1c2a9be07d3356.png"
     #[test]
     fn a_file_with_a_newer_schema_version_is_kept_as_a_backup() {
         let (_dir, store) = store();
-        let text = "schema_version = 6\nname = \"Later\"\nnew_field = true\n";
+        let text = "schema_version = 7\nname = \"Later\"\nnew_field = true\n";
         let loaded = load_text(&store, text.as_bytes());
 
         assert_eq!(loaded.profile, Profile::default());
         let backup = loaded.backup.unwrap();
-        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 6 });
+        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 7 });
         assert_eq!(backup.path, store.dir().join("profile.backup-1.toml"));
         // The content of the file did not change, and no profile file is
         // there until the next save.
@@ -1560,10 +1627,10 @@ name = "Second"
         // The load did not write the file.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
 
-        // The next write is version 5 with the same content and the model.
+        // The next write is version 6 with the same content and the model.
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 5\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
+        assert!(text.starts_with("schema_version = 6\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
         assert!(text.contains("hotkey = \"cmd+shift+4\""), "{text}");
         assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, profile);
@@ -1594,12 +1661,12 @@ label = "Sound"
             assert_eq!(page.content(id).label_style, LabelStyle::default(), "{id}");
         }
         assert_eq!(page.content(KEY_3).label.as_deref(), Some("Mail"));
-        // The load did not write the file. The next write is version 5, and
+        // The load did not write the file. The next write is version 6, and
         // it writes no label option.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
         store.save(&loaded.profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 5\n"), "{text}");
+        assert!(text.starts_with("schema_version = 6\n"), "{text}");
         assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, loaded.profile);
     }
@@ -1679,7 +1746,7 @@ color = "#1E6FD9"
         let text = fs::read_to_string(store.profile_path()).unwrap();
         assert!(
             text.starts_with(
-                "schema_version = 5\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
+                "schema_version = 6\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
             ),
             "{text}"
         );
@@ -1724,7 +1791,7 @@ color = "#1E6FD9"
         });
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 5\n"), "{text}");
+        assert!(text.starts_with("schema_version = 6\n"), "{text}");
         assert!(text.contains("name = \"Dial\""), "{text}");
         assert!(
             text.contains("bundle_id = \"us.zoom.xos\"\nname = \"zoom.us\""),
@@ -1740,7 +1807,7 @@ color = "#1E6FD9"
         assert_eq!(loaded.profile.pages().len(), 1);
         store.save(&loaded.profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 5\n"), "{text}");
+        assert!(text.starts_with("schema_version = 6\n"), "{text}");
         assert!(text.contains("name = \"Main\""), "{text}");
         assert!(!text.contains("applications"), "{text}");
         assert!(store.summary().applications.is_empty());

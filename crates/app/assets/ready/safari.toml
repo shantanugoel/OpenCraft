@@ -1,7 +1,7 @@
 # Safari: tabs, find, and page zoom.
 # A ready profile (issue #340). It links to one application.
 # It uses built-in icons and no image file.
-schema_version = 5
+schema_version = 6
 name = "Safari"
 model = "n4-pro"
 color = "#298886"
@@ -11,6 +11,7 @@ bundle_id = "com.apple.Safari"
 name = "Safari"
 
 [[pages]]
+id = "e1d62ceb2bd88d8d"
 name = "Browse"
 
 [pages.surfaces.key-face-1]

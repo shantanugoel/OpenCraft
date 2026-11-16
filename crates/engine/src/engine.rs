@@ -61,7 +61,8 @@ use crate::location::{Holder, Location};
 use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
     image_uses_of, ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry,
-    FolderId, LabelChange, Page, Profile, SurfaceContent, SurfaceIcon, DEFAULT_PROFILE_NAME,
+    FolderId, LabelChange, Page, PageId, Profile, SurfaceContent, SurfaceIcon,
+    DEFAULT_PROFILE_NAME,
 };
 use crate::profile_list::ProfileList;
 use crate::profiles::{ProfileEntry, ProfilesDir};
@@ -117,6 +118,28 @@ fn device_problem(error: &DeviceError) -> &'static str {
              again. If the problem stays, the log file has the details."
         }
     }
+}
+
+/// A page that a program names by its identity, with the number that the
+/// program read for it. The engine checks that the page with this number
+/// has this identity now (decision 0040).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageRef {
+    pub number: usize,
+    pub id: PageId,
+}
+
+/// A place that a program names by identity: for [`Command::AtPlace`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Place {
+    /// The identity of the profile. It can be a profile that is not active.
+    pub profile: String,
+    /// The page. `None`: the place does not name a page, and the active page
+    /// stays, if the profile is active already.
+    pub page: Option<PageRef>,
+    /// The open folders, from the first to the last. `None`: they stay as
+    /// they are if the page does not change, else no folder is open.
+    pub open: Option<Vec<FolderId>>,
 }
 
 /// A command from a shell to the engine.
@@ -371,18 +394,25 @@ pub enum Command {
         profile: String,
         command: Box<Command>,
     },
-    /// Check a location, make it the active location, and then obey the
-    /// command. If the page or a folder does not exist now, the engine gives
-    /// a problem and does not obey the command: nothing changes. A
+    /// Check a place, go there, and then obey the command. A program that
+    /// names a place by identity sends this command, and no window does
+    /// (decision 0040).
+    ///
+    /// The engine checks all of it first: the profile, the identity of the
+    /// page with its number, and the open folders. If one of them is not
+    /// correct, the result of the command is the refusal, the shell gets no
+    /// event, and nothing changes: also not the active profile. Else the
+    /// engine makes the profile the active profile, if it is not, and makes
+    /// the page and the folders the active location, in one change of the
+    /// location. Nothing changes if the place is the active place. Then it
+    /// obeys `command` as a step of its own. If `command` has a page number,
+    /// it is the number in `place`. If `command` gives a refusal, the engine
+    /// goes back to the profile and the location of before.
+    ///
     /// [`Command::Group`] does not stop after a problem of one command, thus
-    /// a shell that names a page puts the command in this command, and not
-    /// after a [`Command::SelectPage`] in a group. The shell can put this
-    /// command in a group and in [`Command::InProfile`], with no check
-    /// against a copy of the state that can be old.
-    AtLocation {
-        location: Location,
-        command: Box<Command>,
-    },
+    /// a shell puts a command in this command, and not after a
+    /// [`Command::SelectPage`] in a group.
+    AtPlace { place: Place, command: Box<Command> },
     /// Read the live active profile, or a saved inactive profile, without
     /// selecting it. Only a known profile of this model can be read.
     ReadProfile { id: u64, profile: String },
@@ -457,8 +487,8 @@ fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Tar
         Command::SetFirstPage { .. } => step("Set First Page", None),
         Command::Group { name, commands } => step(name, group_target(commands, location)),
         Command::InProfile { command, .. } => step_of(command, location),
-        // A targeted request is its own step, even while the window edits text.
-        Command::AtLocation { command, .. } => step_of(command, location).map(|(name, _)| (name, None)),
+        // `at_place` makes the steps of the command inside.
+        Command::AtPlace { .. } => None,
         Command::PasteControl { .. } => step("Paste", None),
         Command::ClearControl { .. } => step("Clear", None),
         Command::CopyToAllPages { .. } => step("Copy to All Pages", None),
@@ -511,6 +541,33 @@ fn group_target(commands: &[Command], location: &Location) -> Option<Target> {
         .map(|c| step_of(c, location).and_then(|(_, target)| target))
         .collect::<Option<Vec<_>>>()?;
     targets.first().copied()
+}
+
+/// Where the engine was before [`Command::AtPlace`] went to a place.
+struct Way {
+    profile: String,
+    location: Location,
+    cause: ActiveCause,
+    front_switch: FrontSwitch,
+}
+
+/// The first reason why `profile` is not the profile of `place`, if there is
+/// one: the page with the number does not have the identity, or a folder is
+/// not there.
+fn check_place(profile: &Profile, place: &Place) -> std::result::Result<(), String> {
+    if let Some(page) = &place.page {
+        if profile.page_number(page.id) != Some(page.number) {
+            return Err("The page is not there, or it has a different place now. \
+                        Read the pages again."
+                .to_string());
+        }
+    }
+    if let Some(open) = &place.open {
+        if Location::restored_open(profile, open) != *open {
+            return Err("The profile does not have the requested folders.".to_string());
+        }
+    }
+    Ok(())
 }
 
 /// `name` if no profile in `entries` has it, else `name 2`, `name 3`, and so
@@ -685,6 +742,9 @@ pub enum Event {
     /// [`Event::Profiles`] comes between the surfaces and this event.
     Pages {
         names: Vec<String>,
+        /// The identities of the pages, in the same order as `names`
+        /// (decision 0040).
+        ids: Vec<PageId>,
         location: Location,
         first: usize,
         folders: Vec<FolderEntry>,
@@ -1134,8 +1194,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .collect();
         // The entry of the active profile follows the pages.
         self.update_entry();
+        let ids = self.profile.pages().iter().map(Page::id).collect();
         (self.sink)(Event::Pages {
             names,
+            ids,
             location: self.location.clone(),
             first: self.profile.first_page(),
             folders,
@@ -1863,7 +1925,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         .flat_map(|(pages, folders)| image_uses_of(pages, folders))
                         .map(|(path, _)| path);
                     if let Err(e) = store.remove_unused_images_but(&loaded.profile, kept) {
-                        self.problem(format!("OpenCraft could not remove unused images: {e}"));
+                        // The profile loads. This is not a refusal.
+                        self.notice(format!("OpenCraft could not remove unused images: {e}"));
                     }
                     (loaded.profile, true)
                 }
@@ -1984,7 +2047,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 AskedPage::First | AskedPage::Unspecified => None,
             };
             self.note_manual_selection();
-            self.change_profile_at(id, None, page);
+            self.change_profile_at(id, None, page, Vec::new());
             return;
         }
         match page {
@@ -2075,14 +2138,20 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// profile. With `profile`, the engine uses that profile in memory, and
     /// does not read the file.
     fn change_profile(&mut self, id: String, profile: Option<Profile>) {
-        self.change_profile_at(id, profile, None);
+        self.change_profile_at(id, profile, None, Vec::new());
     }
 
     /// [`Self::change_profile`]. `page` becomes the active page when it is a
     /// page of the profile. `None` keeps the first page. The location change
     /// uses [`Self::transition`]. The profiles, the history, and the state
     /// file stay extra steps of a profile change.
-    fn change_profile_at(&mut self, id: String, profile: Option<Profile>, page: Option<usize>) {
+    fn change_profile_at(
+        &mut self,
+        id: String,
+        profile: Option<Profile>,
+        page: Option<usize>,
+        open: Vec<FolderId>,
+    ) {
         self.transition_with(
             |engine| {
                 match profile {
@@ -2097,6 +2166,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 if let Some(page) = page.filter(|page| *page < engine.profile.pages().len()) {
                     engine.location.page = page;
                 }
+                if !open.is_empty() {
+                    engine.location.open = Location::restored_open(&engine.profile, &open);
+                }
             },
             |engine| engine.send_profiles(),
         );
@@ -2105,7 +2177,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .profiles
             .set_active(self.descriptor.model, &self.profile_id)
         {
-            self.problem(format!(
+            // The profile is the active profile. This is not a refusal.
+            self.notice(format!(
                 "OpenCraft could not record the active profile: {e}"
             ));
         }
@@ -2419,7 +2492,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let removal = self.list.remove(&id).expect("the profile is in the list");
         if removal.was_default {
             if let Err(e) = self.profiles.clear_default(self.descriptor.model) {
-                self.problem(format!(
+                // The profile is removed. This is not a refusal.
+                self.notice(format!(
                     "OpenCraft could not record the default profile: {e}"
                 ));
             }
@@ -2620,6 +2694,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let Some(command) = self.for_active_profile(command) else {
             return true;
         };
+        if let Command::AtPlace { place, command } = command {
+            return self.at_place(place, *command);
+        }
         match step_of(&command, &self.location) {
             Some((name, target)) => self.step(name, target, command),
             None => self.obey(command),
@@ -2627,10 +2704,14 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     /// Obey one command and return its result with the stop flag of
-    /// [`Self::command`]. `Err` has the first problem text sent while the
-    /// command was obeyed. All problems still go to the shell as events.
-    /// A group gives one result, even if more than one child gives a problem;
-    /// it does not roll back changes made by other children.
+    /// [`Self::command`]. `Err` has the text of the first refusal while the
+    /// command was obeyed: a problem for the shell, or a refusal that only a
+    /// sender with a result gets. A notice is not the result: the command is
+    /// done, and then a file or the device failed. All problems still go to
+    /// the shell as events. A group gives one result, even if more than one
+    /// child gives a problem; it does not roll back changes made by other
+    /// children. [`Command::AtPlace`] goes back to where it was after a
+    /// refusal of its command.
     ///
     /// Success means that synchronous command processing is done. It does
     /// not wait for the delayed file write, or for a handler response, and
@@ -2669,6 +2750,102 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
+    /// [`Command::AtPlace`]: go to the place, obey the command as its own
+    /// step of the history, and go back if the command gave a refusal.
+    fn at_place(&mut self, place: Place, command: Command) -> bool {
+        let Some(way) = self.go_to_place(&place) else {
+            return true;
+        };
+        let go_on = self.command(command);
+        if matches!(self.command_result, Some(Err(_))) {
+            self.go_back(way);
+        }
+        go_on
+    }
+
+    /// Check `place`, and then go there with one change of the location (and
+    /// one change of the profile, if it is not the active profile). `None`
+    /// after a refusal, with nothing changed. The way back is the answer
+    /// otherwise.
+    fn go_to_place(&mut self, place: &Place) -> Option<Way> {
+        if !self.list.contains(&place.profile) {
+            self.refuse(&format!(
+                "The device model has no profile '{}'.",
+                place.profile
+            ));
+            return None;
+        }
+        let active = place.profile == self.profile_id;
+        let checked = if active {
+            check_place(&self.profile, place)
+        } else {
+            match self.profiles.store(&place.profile).read() {
+                Ok(profile) => check_place(&profile, place),
+                Err(e) => Err(format!(
+                    "OpenCraft could not read the profile '{}': {e}",
+                    place.profile
+                )),
+            }
+        };
+        if let Err(text) = checked {
+            self.refuse(&text);
+            return None;
+        }
+        let way = Way {
+            profile: self.profile_id.clone(),
+            location: self.location.clone(),
+            cause: self.cause.clone(),
+            front_switch: self.front_switch.clone(),
+        };
+        let page = place.page.as_ref().map(|page| page.number);
+        if !active {
+            if !self.save_before_leaving() {
+                return None;
+            }
+            self.note_manual_selection();
+            self.change_profile_at(
+                place.profile.clone(),
+                None,
+                page,
+                place.open.clone().unwrap_or_default(),
+            );
+            return Some(way);
+        }
+        let page_changes = page.is_some_and(|page| page != self.location.page);
+        let target = Location {
+            page: page.unwrap_or(self.location.page),
+            open: place.open.clone().unwrap_or_else(|| {
+                if page_changes {
+                    Vec::new()
+                } else {
+                    self.location.open.clone()
+                }
+            }),
+        };
+        if target != self.location {
+            self.transition(|engine| engine.location = target);
+        }
+        Some(way)
+    }
+
+    /// Go back to where [`Self::go_to_place`] found the engine.
+    fn go_back(&mut self, way: Way) {
+        self.cause = way.cause;
+        self.front_switch = way.front_switch;
+        if way.profile != self.profile_id {
+            if self.save_before_leaving() {
+                self.change_profile_at(
+                    way.profile,
+                    None,
+                    Some(way.location.page),
+                    way.location.open,
+                );
+            }
+        } else if self.location != way.location {
+            self.transition(|engine| engine.location = way.location);
+        }
+    }
+
     /// Obey `command` as one step of the history with the name `name`
     /// (decision 0030). In a text edit, a change of the same `target` as
     /// the last step joins that step. Else the engine keeps a copy of the
@@ -2688,8 +2865,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let before_folders = self.profile.folders().to_vec();
         let undo_place = self.location.clone();
         let go_on = self.obey(command);
+        // The identity is not part of the equality of a page: a move of two
+        // pages that are equal is a change, too.
         if self.profile.pages() != before_pages.as_slice()
             || self.profile.folders() != before_folders.as_slice()
+            || !self
+                .profile
+                .pages()
+                .iter()
+                .map(Page::id)
+                .eq(before_pages.iter().map(Page::id))
         {
             self.history.push(
                 name,
@@ -2912,16 +3097,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             Command::TestAction { binding } => self.test_action(binding),
             Command::ReadCounters => (self.sink)(Event::Counters(self.counters)),
-            Command::AtLocation { location, command } => {
-                if !self.is_page(location.page) {
+            Command::AtPlace { place, command } => {
+                // Inside a group or a profile guard: no step of its own.
+                if self.go_to_place(&place).is_none() {
                     return true;
                 }
-                if Location::restored_open(&self.profile, &location.open) != location.open {
-                    self.problem("The profile does not have the requested folders.".into());
-                    return true;
-                }
-                self.select_page(location.page);
-                self.set_open(location.open);
                 return self.obey(*command);
             }
             Command::ReadProfile { id, profile } => {

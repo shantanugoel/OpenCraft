@@ -421,6 +421,7 @@ fn a_profile_change_sends_disappear_then_writes_only_changed_images_then_sends_a
         events[15],
         Event::Pages {
             names: vec!["Page 1".into()],
+            ids: Vec::new(),
             location: Location {
                 page: 0,
                 open: Vec::new()
@@ -466,6 +467,7 @@ fn a_profile_change_starts_on_the_first_page_and_removes_the_feedback() {
     let events = rig.take_events();
     assert!(events.contains(&Event::Pages {
         names: vec!["Page 1".into(), "Page 2".into()],
+        ids: Vec::new(),
         location: Location {
             page: 0,
             open: Vec::new()

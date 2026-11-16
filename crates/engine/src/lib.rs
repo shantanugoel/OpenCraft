@@ -53,7 +53,9 @@ pub mod store;
 
 pub use action::*;
 pub use device_settings::{DeviceSettings, KnobLightMode, KnobLights, SettingsSupport};
-pub use engine::{BackgroundState, Command, Counters, Engine, Event, NewBackground, SurfaceState};
+pub use engine::{
+    BackgroundState, Command, Counters, Engine, Event, NewBackground, PageRef, Place, SurfaceState,
+};
 /// The image type of the messages.
 pub use image::RgbImage;
 pub use layout::{ControlLayout, DeviceLayout, SurfaceLayout};
@@ -68,8 +70,8 @@ pub use front::{ActiveCause, FrontApplication};
 pub use icons::{icon_set, Icon, IconCategory, IconSet};
 pub use profile::{
     ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry, FolderId, LabelChange,
-    LabelPosition, LabelStyle, Page, ParseFolderIdError, Profile, SurfaceContent, SurfaceIcon,
-    LABEL_SIZES,
+    LabelPosition, LabelStyle, Page, PageId, ParseFolderIdError, ParsePageIdError, Profile,
+    SurfaceContent, SurfaceIcon, LABEL_SIZES,
 };
 pub use profiles::{LinkOwner, ProfileEntry, ProfilesDir};
 pub use render::{icon_color, label_color, page_preview};

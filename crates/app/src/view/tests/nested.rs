@@ -669,6 +669,7 @@ fn a_folder_that_is_open_shows_the_knob_card_and_the_states_and_a_close_lets_a_c
     cx.simulate_resize(size(px(1120.), px(3200.)));
     let pages = |open: Vec<FolderId>| Event::Pages {
         names: vec!["Page 1".into()],
+        ids: Vec::new(),
         location: Location { page: 0, open },
         first: 0,
         folders: vec![FolderEntry {

@@ -199,6 +199,8 @@ pub struct Shell {
     pub state: ViewState,
     settings: Settings,
     control: crate::control::Control,
+    /// Why the control socket is not open although the setting is on.
+    control_problem: Option<String>,
     /// True while a text field of the window that edits the profile has the
     /// focus. Then the Edit menu shows no names of steps.
     typing: bool,
@@ -271,6 +273,7 @@ impl Shell {
             state,
             settings,
             control: crate::control::Control::new(),
+            control_problem: None,
             typing: false,
             profiles_dir: config_dir.join("profiles"),
             config_dir,
@@ -488,7 +491,10 @@ impl Shell {
                 self.set_show_window_at_start(!self.settings.show_window_at_start, cx)
             }
             ShellCommand::ToggleAllowControl => {
-                self.set_allow_control(!self.settings.allow_control, cx)
+                // The switch shows the socket. A setting that is on with no
+                // socket shows the switch off, and a click tries to open it.
+                let shown = self.settings.allow_control && self.control.is_running();
+                self.set_allow_control(!shown, cx)
             }
             ShellCommand::OpenNotices => self.open_notices(cx),
             ShellCommand::CopyDiagnostics => self.copy_diagnostics(cx),
@@ -639,17 +645,22 @@ impl Shell {
     /// this setter; no client can change this setting.
     pub fn set_allow_control(&mut self, allow: bool, cx: &mut Context<Self>) {
         if let Err(error) = self.control.set_enabled(allow, &self.config_dir) {
-            self.settings_problem(
-                format!("OpenCraft cannot change the control socket: {error}"),
-                cx,
-            );
+            let text = format!("OpenCraft cannot change the control socket: {error}");
+            self.control_problem = Some(text.clone());
+            self.settings_problem(text, cx);
             return;
         }
+        // The message of an earlier try is not true now.
+        if self.settings_notice == self.control_problem {
+            self.settings_notice = None;
+        }
+        self.control_problem = None;
         if self.settings.allow_control != allow {
             self.settings.allow_control = allow;
             self.save_settings("the control permission", cx);
-            cx.notify();
         }
+        // The switch shows the socket, which can change with the same setting.
+        cx.notify();
     }
 
     /// Close all control connections before the engine stops.
@@ -687,6 +698,7 @@ impl Shell {
             permission: crate::settings_window::permission(&self.state),
             notice: self.settings_notice.clone(),
             follow_front: self.state.follow_front,
+            control_running: self.control.is_running(),
         }
     }
 
@@ -948,8 +960,13 @@ impl Shell {
             cx.activate(true);
             return;
         }
-        // A new window does not show the message of an earlier window.
-        self.settings_notice = None;
+        // A new window does not show the message of an earlier window. It
+        // shows the problem of the socket while the switch and the setting
+        // are different (the switch is off, and the setting is on).
+        self.settings_notice = self
+            .control_problem
+            .clone()
+            .filter(|_| self.settings.allow_control && !self.control.is_running());
         let shell = cx.entity();
         let snapshot = self.settings_snapshot();
         let options = crate::settings_window::window_options(&shell, &snapshot, cx);
@@ -1298,6 +1315,7 @@ mod tests {
         f.events
             .try_send(Event::Pages {
                 names: vec!["Main".into(), "Mail".into()],
+                ids: Vec::new(),
                 location: opencraft_engine::Location {
                     page: 1,
                     open: Vec::new(),
@@ -1365,6 +1383,7 @@ mod tests {
         f.events
             .try_send(Event::Pages {
                 names: vec!["Main".into(), "Mail".into()],
+                ids: Vec::new(),
                 location: opencraft_engine::Location::default(),
                 first: 0,
                 folders: Vec::new(),

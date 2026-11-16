@@ -27,7 +27,7 @@ use std::{
 };
 
 /// The function that gets the result of one command. The engine thread calls
-/// it.
+/// it, after the events of the command.
 pub type Reply = Box<dyn FnOnce(Result<(), String>) + Send>;
 
 /// How the control module sends a command to the engine. With a reply, the
@@ -63,18 +63,27 @@ impl Feed {
     /// in a test for each event of a fake engine. It does not block for
     /// more than the time of one update.
     pub fn observe(&self, event: &Event) {
+        // The answers that a worker waits for need a wake. The cache has
+        // nothing for them.
+        let for_worker = matches!(event, Event::Choices { .. } | Event::ProfileRead { .. });
+        // An event that the cache never uses, for example each input of the
+        // device, takes no lock.
+        if !for_worker && state::ignored(event) {
+            return;
+        }
         let mut feed = self.lock();
         feed.state.apply(event);
         #[cfg(unix)]
         if let Some(waker) = &feed.waker {
-            // Only the answers that a worker waits for need a wake.
-            if matches!(event, Event::Choices { .. } | Event::ProfileRead { .. }) {
+            if for_worker {
                 waker.post(server::Message::Event(event.clone()));
             }
         }
     }
 
-    /// Read the cache.
+    /// Read the cache. Copy what the response needs and return: the caller
+    /// makes the JSON data after the lock is free, so that a large read does
+    /// not hold the engine thread in the sink.
     fn read<T>(&self, read: impl FnOnce(&protocol::State) -> T) -> T {
         read(&self.lock().state)
     }
@@ -108,9 +117,10 @@ impl Control {
         self.feed.observe(event);
     }
 
-    /// Takes effect before returning, also for open connections. Called by
-    /// the shell setting setter; the window switch is a separate task. If the
-    /// worker ended with an error, the call with `true` starts a new one.
+    /// Takes effect before returning, also for open connections. The shell
+    /// setting setter calls it, and the switch in the Settings window sets
+    /// that setting. If the worker ended with an error, the call with `true`
+    /// starts a new one.
     pub fn set_enabled(&mut self, enabled: bool, config_dir: &Path) -> io::Result<()> {
         #[cfg(unix)]
         {
@@ -142,6 +152,21 @@ impl Control {
             } else {
                 Ok(())
             }
+        }
+    }
+}
+
+impl Control {
+    /// True while a worker serves the socket. The setting can be on while
+    /// this is false: the socket could not start, or the worker ended.
+    pub fn is_running(&self) -> bool {
+        #[cfg(unix)]
+        {
+            self.server.as_ref().is_some_and(|s| s.is_running())
+        }
+        #[cfg(not(unix))]
+        {
+            false
         }
     }
 }

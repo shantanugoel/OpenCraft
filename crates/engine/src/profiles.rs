@@ -21,7 +21,7 @@
 //! ```
 
 use crate::error::Result;
-use crate::profile::{default_model, ApplicationLink, Color, Profile};
+use crate::profile::{default_model, ApplicationLink, Color, Page, PageId, Profile};
 use crate::store::{io_error, write_and_rename, ProfileStore, PROFILE_FILE};
 use std::fs;
 use std::io;
@@ -62,6 +62,8 @@ pub struct ProfileEntry {
     pub color: Option<Color>,
     /// The names of the pages, in their order.
     pub pages: Vec<String>,
+    /// The identities of the pages, in the same order as `pages`.
+    pub page_ids: Vec<PageId>,
     /// The number of the first page, from 0: see [`Profile::first_page`].
     pub first_page: usize,
     /// The links of the profile, in their order (decision 0035).
@@ -92,6 +94,7 @@ impl ProfileEntry {
             name: profile.name.clone(),
             color: profile.color,
             pages: profile.pages().iter().map(|p| p.name.clone()).collect(),
+            page_ids: profile.pages().iter().map(Page::id).collect(),
             first_page: profile.first_page(),
             applications: profile.applications.clone(),
             ..Self::default()
@@ -140,6 +143,7 @@ impl ProfilesDir {
                     name,
                     color: summary.color,
                     pages: summary.pages,
+                    page_ids: summary.page_ids,
                     first_page: summary.first_page,
                     applications: summary.applications,
                     ..ProfileEntry::default()
@@ -449,14 +453,20 @@ mod tests {
             pages: vec!["Page 1".into()],
             ..Default::default()
         };
+        // The identity of a page is random: look at it, and then take it away.
+        let list = |model: &str| {
+            let mut list = profiles.list(model).unwrap();
+            for entry in &mut list {
+                assert_eq!(entry.page_ids.len(), entry.pages.len());
+                entry.page_ids.clear();
+            }
+            list
+        };
         assert_eq!(
-            profiles.list("n4-pro").unwrap(),
+            list("n4-pro"),
             [entry("default", "Default"), entry("work", "Work")]
         );
-        assert_eq!(
-            profiles.list("other-model").unwrap(),
-            [entry("other", "Other")]
-        );
+        assert_eq!(list("other-model"), [entry("other", "Other")]);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 # Finder: files, views, and the sound volume.
 # A ready profile (issue #340). It links to one application.
 # It uses built-in icons and no image file.
-schema_version = 5
+schema_version = 6
 name = "Finder"
 model = "n4-pro"
 color = "#356AB6"
@@ -11,6 +11,7 @@ bundle_id = "com.apple.finder"
 name = "Finder"
 
 [[pages]]
+id = "8c734078c4c95f63"
 name = "Files"
 
 [pages.surfaces.key-face-1]

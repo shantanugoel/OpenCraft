@@ -15,11 +15,12 @@
 //! "images/4f1c2a9be07d3356.png" = "iVBORw0KGgo..."
 //!
 //! [profile]
-//! schema_version = 5
+//! schema_version = 6
 //! name = "Work"
 //! model = "n4-pro"
 //!
 //! [[profile.pages]]
+//! id = "0f3a9c27d41b8e65"
 //! name = "Main"
 //!
 //! [profile.pages.surfaces.key-face-1]

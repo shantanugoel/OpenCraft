@@ -1,7 +1,7 @@
 # Zoom: mute, video, share, and close.
 # A ready profile (issue #340). It links to one application.
 # It uses built-in icons and no image file.
-schema_version = 5
+schema_version = 6
 name = "Zoom"
 model = "n4-pro"
 color = "#3D875A"
@@ -11,6 +11,7 @@ bundle_id = "us.zoom.xos"
 name = "zoom.us"
 
 [[pages]]
+id = "e97636317ca09c59"
 name = "Meeting"
 
 [pages.surfaces.key-face-1]

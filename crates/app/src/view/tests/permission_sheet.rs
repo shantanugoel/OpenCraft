@@ -199,6 +199,7 @@ fn no_request_for_a_given_permission_a_page_change_or_a_kind_with_no_need(cx: &m
     tx.try_send(status(false)).unwrap();
     tx.try_send(Event::Pages {
         names: vec!["Page 1".into()],
+        ids: Vec::new(),
         location: opencraft_engine::Location {
             page: 0,
             open: Vec::new(),

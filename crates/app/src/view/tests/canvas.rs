@@ -105,6 +105,7 @@ fn send(cx: &mut VisualTestContext, tx: &async_channel::Sender<Event>, event: Ev
 fn pages(names: &[&str], active: usize) -> Event {
     Event::Pages {
         names: names.iter().map(|n| n.to_string()).collect(),
+        ids: Vec::new(),
         location: opencraft_engine::Location {
             page: active,
             open: Vec::new(),

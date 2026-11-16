@@ -1,41 +1,79 @@
 //! Wire data shared by the socket server and the `ctl` client.
 //!
-//! No engine command or event is a wire type. Page numbers start at zero;
-//! control and surface numbers are those of the layout. Optional values
-//! are JSON null. Each request, including a read with no arguments, has
-//! an object in `params`.
+//! No engine command or event is a wire type. Optional values are JSON null.
+//! Each request, including a read with no arguments, has an object in
+//! `params`; a field of type `Option` can also be absent.
 //!
-//! Read methods are `state` (all read state), `layout`, `kinds`, `profiles`,
-//! `pages`, `folders`, `content`, `device_settings`, `history`, and
-//! `connection`. They take `{}`. `content` also takes
-//! `{ "target": <target> }`: then it reads that location, also of a profile
-//! that is not active, and selects nothing. `choices` takes an action and a
-//! field key. Its result is a list of choices; runtime choices arrive from
-//! the handler, not a stale cache. `hello` takes `{ "version": 1 }` and must
-//! precede other requests.
+//! # Names
 //!
-//! Change methods use the names in [`METHODS`] and named parameters. A
-//! target is `{ "profile", "page", "folder" }`: the profile identity, the
-//! zero-based page, and a folder identity or null. A request with a target
-//! makes that location the active location, and fails with no change if the
-//! profile, the page, or the folder is not there. A request is one step of
-//! the history. Null removes an optional part. A change returns `{}` after
-//! the engine obeyed it. A problem of the engine is the error
-//! `engine_problem` with its text. File inputs and export destinations must
-//! be absolute paths.
+//! A profile, a page, and a folder have an identity: a text. A profile
+//! identity is the name of its directory. A page identity and a folder
+//! identity are 16 small hexadecimal digits. The identity of a page stays with
+//! the page when the page moves, and when the profile is closed and read
+//! again. A page number is not on the wire, except in `move_page`, where `to`
+//! is a position in the list of the pages. Control and surface numbers are
+//! those of the layout. The kinds and the gestures are enums with snake case
+//! names (`key_face`, `turn_left`); the layout lists the gestures of each
+//! control.
+//!
+//! # Reads
+//!
+//! `state` (all read state), `layout`, `kinds`, `profiles`, `pages`,
+//! `folders`, `content`, `device_settings`, `history`, and `connection`
+//! take `{}`. `content` also takes `{ "target": <target> }`: then it reads
+//! that location, also of a profile that is not active, and selects nothing.
+//! `choices` takes an action and a field key. Its result is a list of
+//! choices; runtime choices arrive from the handler, not a stale cache. A
+//! read of a runtime choice has a five-second limit; the error is `timeout`.
+//! `hello` takes `{ "version": 1 }` and must precede other requests.
+//!
+//! # Changes
+//!
+//! The change methods are in [`Method`], with named parameters. A request
+//! names the place of its change, in one of three forms:
+//!
+//! - [`Target`]: `{ "profile", "page", "folder" }`, the profile, the page,
+//!   and a folder or null. For the content of a location: surfaces, bindings,
+//!   controls, `open_folder`, and `close_folder`.
+//! - [`PageTarget`]: `{ "profile", "page" }`. For a request about a page:
+//!   `rename_page`, `move_page`, `remove_page`, `select_page`,
+//!   `duplicate_page`, `set_first_page`, `set_background`, and
+//!   `set_background_fit`.
+//! - A profile only: `add_page`, the requests for folders (a folder is a part
+//!   of the profile), and the requests for profiles.
+//!
+//! One request is one command of the engine. The engine checks the place
+//! first. If the profile, the page, or the folder is not there, or if the
+//! page with this identity has a different place than the client read, the
+//! request fails and changes nothing, also not the active profile. Else the
+//! engine makes the profile the active profile and the page the active page,
+//! and the device and the window show it. If the change itself is refused, the
+//! engine goes back. A request is one step of the history; its name is the
+//! name that the window uses for the same change. `undo` and `redo` only work
+//! for the active profile.
+//!
+//! A change returns [`Changed`]: the identities of the things that it made,
+//! and null for the rest. A problem of the engine is the error
+//! `engine_problem` with its text. A change has no time limit: the response
+//! comes after the engine obeyed the request, or the error comes when the
+//! engine stops. File inputs and export destinations must be absolute paths.
+//!
+//! # Lines and connections
 //!
 //! Invalid requests have an error, with a null id when no valid id was
 //! readable. Oversized lines and version mismatches close the connection
 //! after the error. Other request errors leave it open. Each connection
-//! processes requests in order. A pending runtime choice has a five-second
-//! limit. Requests are at most 1 MiB without the newline; responses are at
-//! most 8 MiB without the newline. No stability is promised before 1.0.
+//! processes requests in order. Requests are at most 1 MiB without the
+//! newline; responses are at most 8 MiB without the newline. No stability is
+//! promised before 1.0.
 //!
 //! The server closes a connection that sends no `hello` in 10 seconds, and a
 //! connection that does not read its response in 10 seconds. It allows 16
 //! connections; the next connection gets the error `busy` and is closed.
 //! `hello` reads only `version`; the server version is in the text of the
 //! error `version_mismatch`.
+//!
+//! # What the results hold
 //!
 //! No result contains rendered image bytes, device identity, engine logs,
 //! or absolute image destinations. In a returned text (and in a name of an
@@ -51,12 +89,21 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+/// A location: the content of a page, or of a folder on a page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Target {
     pub profile: String,
-    pub page: usize,
+    pub page: String,
     pub folder: Option<String>,
+}
+
+/// A page of a profile.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PageTarget {
+    pub profile: String,
+    pub page: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,9 +120,15 @@ pub struct TargetParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct PageTargetParams {
+    pub target: PageTarget,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SetLabelParams {
     pub target: Target,
-    pub surface: Id,
+    pub surface: SurfaceId,
     pub label: Option<String>,
 }
 
@@ -83,7 +136,7 @@ pub struct SetLabelParams {
 #[serde(deny_unknown_fields)]
 pub struct SetLabelStyleParams {
     pub target: Target,
-    pub surface: Id,
+    pub surface: SurfaceId,
     pub style: Option<LabelStyle>,
 }
 
@@ -91,7 +144,7 @@ pub struct SetLabelStyleParams {
 #[serde(deny_unknown_fields)]
 pub struct SetColorParams {
     pub target: Target,
-    pub surface: Id,
+    pub surface: SurfaceId,
     pub color: Option<String>,
 }
 
@@ -99,7 +152,7 @@ pub struct SetColorParams {
 #[serde(deny_unknown_fields)]
 pub struct SetImageParams {
     pub target: Target,
-    pub surface: Id,
+    pub surface: SurfaceId,
     pub path: Option<String>,
 }
 
@@ -107,7 +160,7 @@ pub struct SetImageParams {
 #[serde(deny_unknown_fields)]
 pub struct SetIconParams {
     pub target: Target,
-    pub surface: Id,
+    pub surface: SurfaceId,
     pub icon: Option<Icon>,
 }
 
@@ -115,8 +168,8 @@ pub struct SetIconParams {
 #[serde(deny_unknown_fields)]
 pub struct SetBindingParams {
     pub target: Target,
-    pub control: Id,
-    pub gesture: String,
+    pub control: ControlId,
+    pub gesture: Gesture,
     pub action: Option<Action>,
 }
 
@@ -124,50 +177,44 @@ pub struct SetBindingParams {
 #[serde(deny_unknown_fields)]
 pub struct ControlParams {
     pub target: Target,
-    pub control: Id,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct AddPageParams {
-    pub target: Target,
-    pub copy_of: Option<usize>,
+    pub control: ControlId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenamePageParams {
-    pub target: Target,
+    pub target: PageTarget,
     pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MovePageParams {
-    pub target: Target,
+    pub target: PageTarget,
+    /// The position in the list of the pages, from 0.
     pub to: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SetBackgroundParams {
-    pub target: Target,
+    pub target: PageTarget,
     pub background: Option<NewBackground>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SetBackgroundFitParams {
-    pub target: Target,
-    pub fit: String,
+    pub target: PageTarget,
+    pub fit: BackgroundFit,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AddFolderParams {
-    pub target: Target,
+    pub profile: String,
     /// The identity of the new folder: 16 small hexadecimal digits. Without
-    /// it, OpenCraft makes a new random identity.
+    /// it, OpenCraft makes a new random identity. The result has it.
     #[serde(default)]
     pub id: Option<String>,
     pub name: Option<String>,
@@ -177,7 +224,7 @@ pub struct AddFolderParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenameFolderParams {
-    pub target: Target,
+    pub profile: String,
     pub folder: String,
     pub name: String,
 }
@@ -185,7 +232,7 @@ pub struct RenameFolderParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MoveFolderParams {
-    pub target: Target,
+    pub profile: String,
     pub folder: String,
     pub to: usize,
 }
@@ -193,6 +240,14 @@ pub struct MoveFolderParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FolderParams {
+    pub profile: String,
+    pub folder: String,
+}
+
+/// `open_folder`: the folder opens in the location of the target.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenFolderParams {
     pub target: Target,
     pub folder: String,
 }
@@ -222,13 +277,6 @@ pub struct RenameProfileParams {
 pub struct SetProfileColorParams {
     pub profile: String,
     pub color: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SetFirstPageParams {
-    pub profile: String,
-    pub page: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -269,7 +317,21 @@ pub struct ImportProfileParams {
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NewBackground {
     Color { color: String },
-    Image { path: String, fit: String },
+    Image { path: String, fit: BackgroundFit },
+}
+
+/// The result of each change request: the identities of the things that the
+/// request made. The other fields are null. A client can use the identity at
+/// once: it is the identity that the engine made, and no other request
+/// changed it in between.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Changed {
+    /// The new profile, for `add_profile` and `import_profile`.
+    pub profile: Option<String>,
+    /// The new page, for `add_page` and `duplicate_page`.
+    pub page: Option<String>,
+    /// The new folder, for `add_folder`.
+    pub folder: Option<String>,
 }
 
 pub const VERSION: u32 = 1;
@@ -307,25 +369,26 @@ pub enum Method {
     PasteControl(ControlParams),
     ClearControl(ControlParams),
     CopyToAllPages(ControlParams),
-    AddPage(AddPageParams),
+    AddPage(ProfileParams),
+    DuplicatePage(PageTargetParams),
     RenamePage(RenamePageParams),
     MovePage(MovePageParams),
-    RemovePage(TargetParams),
-    SelectPage(TargetParams),
+    RemovePage(PageTargetParams),
+    SelectPage(PageTargetParams),
     SetBackground(SetBackgroundParams),
     SetBackgroundFit(SetBackgroundFitParams),
     AddFolder(AddFolderParams),
     RenameFolder(RenameFolderParams),
     MoveFolder(MoveFolderParams),
     RemoveFolder(FolderParams),
-    OpenFolder(FolderParams),
+    OpenFolder(OpenFolderParams),
     CloseFolder(TargetParams),
     AddProfile(AddProfileParams),
     RenameProfile(RenameProfileParams),
     RemoveProfile(ProfileParams),
     SelectProfile(ProfileParams),
     SetProfileColor(SetProfileColorParams),
-    SetFirstPage(SetFirstPageParams),
+    SetFirstPage(PageTargetParams),
     SetDefaultProfile(ProfileParams),
     LinkApplication(LinkApplicationParams),
     UnlinkApplication(UnlinkApplicationParams),
@@ -341,7 +404,9 @@ pub enum Method {
 }
 
 impl Method {
-    /// The wire name of the method. A new variant must have a name here.
+    /// The wire name of the method. A new variant must have a name here. The
+    /// client of the command line uses it.
+    #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
         match self {
             Self::Hello(_) => "hello",
@@ -364,6 +429,7 @@ impl Method {
             Self::ClearControl(_) => "clear_control",
             Self::CopyToAllPages(_) => "copy_to_all_pages",
             Self::AddPage(_) => "add_page",
+            Self::DuplicatePage(_) => "duplicate_page",
             Self::RenamePage(_) => "rename_page",
             Self::MovePage(_) => "move_page",
             Self::RemovePage(_) => "remove_page",
@@ -422,6 +488,7 @@ pub const METHODS: &[&str] = &[
     "clear_control",
     "copy_to_all_pages",
     "add_page",
+    "duplicate_page",
     "rename_page",
     "move_page",
     "remove_page",
@@ -479,11 +546,26 @@ pub struct Response<T = Value> {
     pub body: ResponseBody<T>,
 }
 
+/// An error line has `error`, and a success line has `result`. `Failure` is
+/// first: a result type that is an `Option` reads a missing `result` as
+/// `None`, and an error line must not read as a success with no value.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ResponseBody<T> {
-    Success { result: T },
     Failure { error: ProtocolError },
+    Success { result: T },
+}
+
+impl<T> Response<T> {
+    /// The result, or the error of the server. The client of the command line
+    /// uses it.
+    #[allow(dead_code)]
+    pub fn into_result(self) -> Result<T, ProtocolError> {
+        match self.body {
+            ResponseBody::Success { result } => Ok(result),
+            ResponseBody::Failure { error } => Err(error),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -538,9 +620,78 @@ pub struct HelloResult {
     pub app_version: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Id {
-    pub kind: String,
+/// The kind of a surface. The wire names are these names in snake case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SurfaceKind {
+    KeyFace,
+    BarPanel,
+    Background,
+}
+
+/// The kind of a control. The wire names are these names in snake case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ControlKind {
+    Key,
+    Knob,
+    BarPanel,
+    TouchBar,
+}
+
+/// A gesture of a binding. The wire names are these names in snake case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Gesture {
+    Press,
+    Release,
+    TurnLeft,
+    TurnRight,
+    Push,
+    Tap,
+    SwipeLeft,
+    SwipeRight,
+}
+
+/// Where the label of a surface is. `Hidden`: the text stays, but the surface
+/// does not show it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LabelPosition {
+    Top,
+    Middle,
+    Bottom,
+    Hidden,
+}
+
+/// How a background image is on the display.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackgroundFit {
+    Fill,
+    Fit,
+}
+
+/// What the knob lights show.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KnobLightMode {
+    Effect,
+    Colors,
+    Off,
+}
+
+/// A surface of the layout: a kind and the number of the layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SurfaceId {
+    pub kind: SurfaceKind,
+    pub number: u8,
+}
+
+/// A control of the layout: a kind and the number of the layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ControlId {
+    pub kind: ControlKind,
     pub number: u8,
 }
 
@@ -556,7 +707,7 @@ pub struct Layout {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SurfaceLayout {
-    pub id: Id,
+    pub id: SurfaceId,
     pub x: u16,
     pub y: u16,
     pub width: u16,
@@ -565,11 +716,13 @@ pub struct SurfaceLayout {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ControlLayout {
-    pub id: Id,
+    pub id: ControlId,
     pub row: u8,
     pub column: u8,
-    pub surface: Option<Id>,
-    pub feedback_surface: Option<Id>,
+    pub surface: Option<SurfaceId>,
+    pub feedback_surface: Option<SurfaceId>,
+    /// The gestures that a binding of this control can have.
+    pub gestures: Vec<Gesture>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -685,8 +838,9 @@ pub struct Profile {
     pub id: String,
     pub name: String,
     pub color: Option<String>,
-    pub pages: Vec<String>,
-    pub first_page: usize,
+    pub pages: Vec<PageSummary>,
+    /// The identity of the first page.
+    pub first_page: String,
     pub applications: Vec<ApplicationLink>,
     pub applied: Vec<ApplicationLink>,
     pub link_owners: Vec<LinkOwner>,
@@ -715,17 +869,26 @@ pub enum Cause {
     Default,
 }
 
+/// The identity and the name of a page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PageSummary {
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Location {
-    pub page: usize,
+    /// The identity of the page under the open folders.
+    pub page: String,
     pub open: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Pages {
-    pub names: Vec<String>,
+    pub pages: Vec<PageSummary>,
     pub location: Location,
-    pub first: usize,
+    /// The identity of the first page.
+    pub first: String,
     pub folders: Vec<Folder>,
 }
 
@@ -737,7 +900,7 @@ pub struct Folder {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Surface {
-    pub id: Id,
+    pub id: SurfaceId,
     pub label: Option<String>,
     pub label_style: LabelStyle,
     pub color: Option<String>,
@@ -748,7 +911,7 @@ pub struct Surface {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabelStyle {
-    pub position: Option<String>,
+    pub position: Option<LabelPosition>,
     pub size: u8,
     pub color: Option<String>,
     pub bold: bool,
@@ -764,15 +927,16 @@ pub struct Icon {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Background {
     Color { color: String },
-    Image { image: String, fit: String },
+    Image { image: String, fit: BackgroundFit },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Binding {
-    pub page: usize,
+    /// The identity of the page.
+    pub page: String,
     pub folder: Option<String>,
-    pub control: Id,
-    pub gesture: String,
+    pub control: ControlId,
+    pub gesture: Gesture,
     pub action: Action,
     pub available: bool,
 }
@@ -796,7 +960,7 @@ pub struct DeviceSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KnobLights {
-    pub mode: String,
+    pub mode: KnobLightMode,
     pub brightness: u8,
     pub colors: Vec<String>,
 }

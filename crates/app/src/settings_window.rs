@@ -209,6 +209,10 @@ pub struct Snapshot {
     pub notice: Option<String>,
     /// The engine setting "Change the profile with the front application".
     pub follow_front: bool,
+    /// The control socket is open. The setting `allow_control` can be on while
+    /// this is false: the socket could not open at the start, or its worker
+    /// ended. The switch shows the socket, and the message tells the problem.
+    pub control_running: bool,
 }
 
 /// What the window shows, and what decides the height of the window: the

@@ -245,6 +245,7 @@ fn undo_shows_the_page_of_the_change_and_redo_the_page_after_it() {
     let events = rig.take_events();
     assert!(events.contains(&Event::Pages {
         names: vec!["A".into(), "B".into()],
+        ids: Vec::new(),
         location: Location {
             page: 1,
             open: Vec::new()

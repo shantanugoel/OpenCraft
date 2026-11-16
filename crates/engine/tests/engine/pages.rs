@@ -40,6 +40,7 @@ fn rig_with(pages: Vec<Page>) -> (Rig, mpsc::Receiver<Request>) {
 fn pages(names: &[&str], active: usize) -> Event {
     Event::Pages {
         names: names.iter().map(|n| n.to_string()).collect(),
+        ids: Vec::new(),
         location: Location {
             page: active,
             open: Vec::new(),
