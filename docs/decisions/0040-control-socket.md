@@ -283,6 +283,40 @@ does not start OpenCraft, and it does not change a profile file by itself.
 the directory of the Homebrew commands. The link goes to the executable in
 the bundle.
 
+Note (2026-11-16, issue #405): the client is in `crates/app/src/ctl/`. These
+points hold.
+
+- **One list.** `ctl/commands.rs` has the one list of the commands, `COMMANDS`.
+  A command has a name of one or two words (`profile add`, `state`), the name of
+  its request, a help text, an example, and its arguments. The parser, the help,
+  and the tests read this list; the skill (section 5) and its test read it too.
+  Each request of the protocol except `hello` has one command: a test checks
+  this. The client sends `hello` by itself, with its version.
+- **The arguments.** A flag has a value: `--profile work`, or `--profile=work`.
+  A flag names a place in the `params` of the request. A value that the user
+  does not give is not in the request, and for a request that sets or removes a
+  value, no value means remove. `--setting KEY=VALUE` makes the settings of an
+  action; the value is JSON if it is JSON, else text. A file path is made
+  absolute by the client (`~/` and a relative path). `device set-settings` reads
+  the device settings first and changes only the values that the user gives.
+- **The check.** The client makes the request with the types of `protocol.rs`
+  before it connects. A request that the types do not accept is status 2 and
+  needs no OpenCraft. A command with a read first (`device set-settings`)
+  makes its request after the read.
+- **The output.** The result is JSON on one line. If the standard output is a
+  terminal, the JSON has lines and indents. A problem is one text on the
+  standard error. `--help` and `help` write to the standard output, status 0.
+- **The status.** Status 3: the socket file does not exist and no OpenCraft
+  process holds the lock, or the socket file is there and nobody serves it. Status
+  4: the socket file does not exist and the lock file has the number of an
+  OpenCraft process that runs. Status 5: the error `version_mismatch` of
+  `hello`. Each other error of OpenCraft, a connection that closes, and a file
+  that the client cannot reach are status 1.
+- **The mode.** `main` runs the client before the lock, the log file, and the
+  engine. Thus the client writes its messages to the terminal, and it never
+  opens the device. The tests run the executable with no OpenCraft and find no
+  file made.
+
 ### 5. The skill
 
 The skill is a directory in the repository with the file `SKILL.md`. It

@@ -15,6 +15,8 @@
 mod app_menu;
 mod applications;
 mod control;
+#[cfg(unix)]
+mod ctl;
 mod diagnostics;
 mod first_start;
 #[cfg(target_os = "macos")]
@@ -54,12 +56,20 @@ use std::{
 struct ShellHandle(#[allow(dead_code)] gpui_kit::Entity<Shell>);
 impl gpui_kit::Global for ShellHandle {}
 
-fn profiles_dir() -> PathBuf {
+/// The profiles directory of the environment variable, or the default.
+fn profiles_dir_if_known() -> Option<PathBuf> {
     std::env::var_os("OPENCRAFT_PROFILES_DIR")
         .map(PathBuf::from)
         .or_else(opencraft_engine::default_profiles_dir)
-        .expect("OpenCraft cannot find the profiles directory.")
 }
+
+fn profiles_dir() -> PathBuf {
+    profiles_dir_if_known().expect("OpenCraft cannot find the profiles directory.")
+}
+
+/// The argument that makes the executable a command-line client
+/// (decision 0040, section 4). It must be the first argument.
+const CTL_ARGUMENT: &str = "ctl";
 
 /// The argument of a start at login (decision 0021).
 const LOGIN_ARGUMENT: &str = "--login";
@@ -172,6 +182,19 @@ fn trace_now(step: &str) {
 }
 
 fn main() {
+    // Before everything else: the client takes no lock, starts no engine, and
+    // writes its messages to the terminal, not to the log file.
+    let mut arguments = std::env::args_os().skip(1);
+    if arguments.next().is_some_and(|a| a == CTL_ARGUMENT) {
+        #[cfg(unix)]
+        std::process::exit(ctl::run(arguments.collect(), profiles_dir_if_known()));
+        #[cfg(not(unix))]
+        {
+            eprintln!("`opencraft ctl` needs a Unix socket. This system has none.");
+            std::process::exit(3);
+        }
+    }
+    drop(arguments);
     if start_trace() {
         trace_now("main");
     }

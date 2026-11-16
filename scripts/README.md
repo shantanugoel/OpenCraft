@@ -303,6 +303,15 @@ stapled notarization ticket. The options are:
 | `--version VERSION --sha256 SHA256` | Use these values and do not read `target/release-bundle` |
 | `--allow-unnotarized` | Do not check the notarization ticket. Use it only for a test. |
 
+The cask has a `binary` stanza. It makes the link `opencraft` in the
+directory of the Homebrew commands (`$(brew --prefix)/bin`). The link goes to
+`OpenCraft.app/Contents/MacOS/opencraft`, the executable of the bundle. With
+it, `opencraft ctl <command>` is the command-line client for other programs
+that control OpenCraft ([decision 0040](../docs/decisions/0040-control-socket.md)).
+The link is only a name for the same executable: `opencraft` with no `ctl`
+argument starts the application. The script only writes the cask file. It
+does not publish the cask: see the next section.
+
 ### Publish the Homebrew cask
 
 The owner does these steps. The tap is public only after this repository is
