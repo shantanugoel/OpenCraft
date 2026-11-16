@@ -601,6 +601,7 @@ fn a_folder_row_opens_the_folder_and_the_page_row_closes_it(cx: &mut TestAppCont
         &tx,
         Event::Pages {
             names: vec!["Main".into(), "Meetings".into(), "Media".into()],
+            ids: Vec::new(),
             location: opencraft_engine::Location {
                 page: 0,
                 open: vec![folder],

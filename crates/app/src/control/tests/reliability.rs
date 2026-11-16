@@ -3,7 +3,6 @@
 
 use super::*;
 use crate::control::server::{Limits, Message, Server};
-use crate::control::state::{gesture_from_name, gesture_name};
 
 fn short_dir() -> tempfile::TempDir {
     tempfile::Builder::new()
@@ -211,16 +210,21 @@ fn a_change_of_a_surface_keeps_its_place_in_the_list() {
     rig.enable(true);
     let mut client = rig.client();
     client.hello();
-    let order = |client: &mut Client| -> Vec<(String, u64)> {
+    // The order of the kinds is the order of the enum: key faces, bar panels,
+    // and the background. The numbers go up in each kind.
+    let order = |client: &mut Client| -> Vec<(u64, u64)> {
         client.request("content")["surfaces"]
             .as_array()
             .unwrap()
             .iter()
             .map(|s| {
-                (
-                    s["id"]["kind"].as_str().unwrap().to_string(),
-                    s["id"]["number"].as_u64().unwrap(),
-                )
+                let kind = match s["id"]["kind"].as_str().unwrap() {
+                    "key_face" => 0,
+                    "bar_panel" => 1,
+                    "background" => 2,
+                    other => panic!("{other}"),
+                };
+                (kind, s["id"]["number"].as_u64().unwrap())
             })
             .collect()
     };
@@ -235,23 +239,61 @@ fn a_change_of_a_surface_keeps_its_place_in_the_list() {
 }
 
 #[test]
-fn each_gesture_has_one_wire_text_and_the_texts_match_the_protocol_record() {
-    let all = [
+fn each_wire_enum_has_one_text_and_goes_to_the_engine_value_and_back() {
+    /// The text on the wire, and the value after the way to the engine and
+    /// back.
+    fn check<W, E>(all: &[(E, &str)])
+    where
+        W: serde::Serialize + serde::de::DeserializeOwned + From<E> + Copy + PartialEq + std::fmt::Debug,
+        E: From<W> + Copy + PartialEq + std::fmt::Debug,
+    {
+        for (engine, text) in all {
+            let wire = W::from(*engine);
+            assert_eq!(serde_json::to_value(wire).unwrap(), json!(text));
+            assert_eq!(serde_json::from_value::<W>(json!(text)).unwrap(), wire);
+            assert_eq!(E::from(wire), *engine);
+        }
+    }
+    check::<Gesture, e::GestureKind>(&[
         (e::GestureKind::Press, "press"),
         (e::GestureKind::Release, "release"),
-        (e::GestureKind::TurnLeft, "turn-left"),
-        (e::GestureKind::TurnRight, "turn-right"),
+        (e::GestureKind::TurnLeft, "turn_left"),
+        (e::GestureKind::TurnRight, "turn_right"),
         (e::GestureKind::Push, "push"),
         (e::GestureKind::Tap, "tap"),
-        (e::GestureKind::SwipeLeft, "swipe-left"),
-        (e::GestureKind::SwipeRight, "swipe-right"),
-    ];
-    for (gesture, name) in all {
-        assert_eq!(gesture_name(gesture), name);
-        assert_eq!(gesture_from_name(name), Some(gesture));
-    }
-    assert_eq!(gesture_from_name("wave"), None);
-    assert_eq!(gesture_from_name("Press"), None);
+        (e::GestureKind::SwipeLeft, "swipe_left"),
+        (e::GestureKind::SwipeRight, "swipe_right"),
+    ]);
+    check::<SurfaceKind, e::SurfaceKind>(&[
+        (e::SurfaceKind::KeyFace, "key_face"),
+        (e::SurfaceKind::BarPanel, "bar_panel"),
+        (e::SurfaceKind::Background, "background"),
+    ]);
+    check::<ControlKind, e::ControlKind>(&[
+        (e::ControlKind::Key, "key"),
+        (e::ControlKind::Knob, "knob"),
+        (e::ControlKind::BarPanel, "bar_panel"),
+        (e::ControlKind::TouchBar, "touch_bar"),
+    ]);
+    check::<LabelPosition, e::LabelPosition>(&[
+        (e::LabelPosition::Top, "top"),
+        (e::LabelPosition::Middle, "middle"),
+        (e::LabelPosition::Bottom, "bottom"),
+        (e::LabelPosition::Hidden, "hidden"),
+    ]);
+    check::<BackgroundFit, e::BackgroundFit>(&[
+        (e::BackgroundFit::Fill, "fill"),
+        (e::BackgroundFit::Fit, "fit"),
+    ]);
+    check::<KnobLightMode, e::KnobLightMode>(&[
+        (e::KnobLightMode::Effect, "effect"),
+        (e::KnobLightMode::Colors, "colors"),
+        (e::KnobLightMode::Off, "off"),
+    ]);
+    // A text that is not a value gives an error.
+    assert!(serde_json::from_value::<Gesture>(json!("wave")).is_err());
+    assert!(serde_json::from_value::<Gesture>(json!("turn-left")).is_err());
+    assert!(serde_json::from_value::<SurfaceKind>(json!("key face")).is_err());
 }
 
 #[test]

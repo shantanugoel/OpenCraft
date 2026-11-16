@@ -504,24 +504,26 @@ impl ViewState {
 }
 
 /// The gestures that a binding of a control of this kind can have, with
-/// their names for the user. The touch gestures are in decision 0015.
-pub fn gestures(kind: ControlKind) -> &'static [(GestureKind, &'static str)] {
-    match kind {
-        ControlKind::Key => &[
-            (GestureKind::Press, "Press"),
-            (GestureKind::Release, "Release"),
-        ],
-        ControlKind::Knob => &[
-            (GestureKind::TurnLeft, "Turn left"),
-            (GestureKind::TurnRight, "Turn right"),
-            (GestureKind::Push, "Push"),
-        ],
-        ControlKind::BarPanel => &[(GestureKind::Tap, "Tap")],
-        ControlKind::TouchBar => &[
-            (GestureKind::SwipeLeft, "Swipe left"),
-            (GestureKind::SwipeRight, "Swipe right"),
-        ],
-    }
+/// their names for the user. The rule is the rule of the engine.
+pub fn gestures(kind: ControlKind) -> Vec<(GestureKind, &'static str)> {
+    GestureKind::of_control(kind)
+        .iter()
+        .map(|gesture| {
+            (
+                *gesture,
+                match gesture {
+                    GestureKind::Press => "Press",
+                    GestureKind::Release => "Release",
+                    GestureKind::TurnLeft => "Turn left",
+                    GestureKind::TurnRight => "Turn right",
+                    GestureKind::Push => "Push",
+                    GestureKind::Tap => "Tap",
+                    GestureKind::SwipeLeft => "Swipe left",
+                    GestureKind::SwipeRight => "Swipe right",
+                },
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -758,6 +760,7 @@ pub(crate) mod tests {
         let folder = FolderId::from_raw(1).expect("1 is a folder identity");
         let pages = |location| Event::Pages {
             names: vec!["Page 1".into(), "Page 2".into()],
+            ids: Vec::new(),
             location,
             first: 0,
             folders: Vec::new(),
@@ -840,6 +843,7 @@ pub(crate) mod tests {
         s.apply(
             Event::Pages {
                 names: vec!["Page 1".into(), "Page 2".into()],
+                ids: Vec::new(),
                 location: Location {
                     page: 1,
                     open: Vec::new(),

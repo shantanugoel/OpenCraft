@@ -2,13 +2,24 @@
 
 use super::*;
 
-const KEY_1: &str = r#"{"kind":"key face","number":1}"#;
+const KEY_1: &str = r#"{"kind":"key_face","number":1}"#;
+
+fn surface_1() -> Value {
+    serde_json::from_str(KEY_1).unwrap()
+}
+
+/// What a change that makes nothing gives.
+fn nothing() -> Value {
+    json!({"profile": null, "page": null, "folder": null})
+}
 
 struct Live {
     control: Control,
     engine: Option<e::EngineHandle>,
     dir: tempfile::TempDir,
     client: Client,
+    /// A second connection that reads the pages for `at`.
+    peek: std::cell::RefCell<Client>,
     active: String,
 }
 
@@ -31,13 +42,17 @@ impl Live {
         .unwrap();
         let mut control = Control::with(feed, Some(super::super::port(engine.sender())));
         control.set_enabled(true, dir.path()).unwrap();
-        let mut client = Client::new(UnixStream::connect(dir.path().join(FILE_NAME)).unwrap());
+        let socket = dir.path().join(FILE_NAME);
+        let mut client = Client::new(UnixStream::connect(&socket).unwrap());
         client.hello();
+        let mut peek = Client::new(UnixStream::connect(&socket).unwrap());
+        peek.hello();
         let mut live = Self {
             control,
             engine: Some(engine),
             dir,
             client,
+            peek: std::cell::RefCell::new(peek),
             active: String::new(),
         };
         // The engine thread starts at its own time.
@@ -45,7 +60,7 @@ impl Live {
         loop {
             let state = live.read("state");
             if let Some(active) = state["profiles"]["active"].as_str() {
-                if !state["pages"]["names"].as_array().unwrap().is_empty() {
+                if !state["pages"]["pages"].as_array().unwrap().is_empty() {
                     live.active = active.into();
                     break;
                 }
@@ -69,9 +84,16 @@ impl Live {
         reply
     }
 
+    /// A change that makes nothing: the result has three null fields.
     fn ok(&mut self, method: &str, params: Value) {
+        assert_eq!(self.made(method, params), nothing(), "{method}");
+    }
+
+    /// A change; the result is what it made.
+    fn made(&mut self, method: &str, params: Value) -> Value {
         let reply = self.call(method, params);
-        assert_eq!(reply["result"], json!({}), "{method}: {reply}");
+        assert!(reply.get("error").is_none(), "{method}: {reply}");
+        reply["result"].clone()
     }
 
     /// The code and the text of the error of one request.
@@ -85,12 +107,22 @@ impl Live {
         )
     }
 
+    /// The identity of the page with this number, as the pages read now gives.
+    fn id(&self, page: usize) -> String {
+        let pages = self.peek.borrow_mut().request("pages");
+        pages["pages"][page]["id"].as_str().unwrap().to_string()
+    }
+
+    fn page(&self, page: usize) -> Value {
+        json!({"profile": self.active, "page": self.id(page)})
+    }
+
     fn at(&self, page: usize) -> Value {
-        json!({"profile": self.active, "page": page, "folder": null})
+        json!({"profile": self.active, "page": self.id(page), "folder": null})
     }
 
     fn at_in(&self, page: usize, folder: &str) -> Value {
-        json!({"profile": self.active, "page": page, "folder": folder})
+        json!({"profile": self.active, "page": self.id(page), "folder": folder})
     }
 
     /// The content of a location, with no selection of the location.
@@ -106,13 +138,21 @@ impl Live {
             .as_array()
             .unwrap()
             .iter()
-            .find(|s| s["id"] == serde_json::from_str::<Value>(KEY_1).unwrap())
+            .find(|s| s["id"] == surface_1())
             .map(|s| s["label"].clone())
             .unwrap_or(Value::Null)
     }
 
     fn page_count(&mut self) -> usize {
-        self.read("pages")["names"].as_array().unwrap().len()
+        self.read("pages")["pages"].as_array().unwrap().len()
+    }
+
+    /// The identity of the page that is active now.
+    fn active_page(&mut self) -> String {
+        self.read("pages")["location"]["page"]
+            .as_str()
+            .unwrap()
+            .to_string()
     }
 
     fn file(&self, name: &str) -> String {
@@ -140,37 +180,39 @@ impl Drop for Live {
 #[test]
 fn a_surface_request_changes_the_named_page_and_makes_it_the_active_page() {
     let mut live = Live::new();
-    live.ok("add_page", json!({"target": live.at(0), "copy_of": null}));
+    let profile = live.active.clone();
+    live.made("add_page", json!({"profile": profile}));
     assert_eq!(live.page_count(), 2);
     live.ok(
         "set_label",
-        json!({"target": live.at(0), "surface": serde_json::from_str::<Value>(KEY_1).unwrap(), "label": "Zero"}),
+        json!({"target": live.at(0), "surface": surface_1(), "label": "Zero"}),
     );
     // The request moved the device to page 0, as the decision says.
-    assert_eq!(live.read("pages")["location"]["page"], 0);
+    let (zero, one) = (live.id(0), live.id(1));
+    assert_eq!(live.active_page(), zero);
     live.ok(
         "set_label",
-        json!({"target": live.at(1), "surface": serde_json::from_str::<Value>(KEY_1).unwrap(), "label": "One"}),
+        json!({"target": live.at(1), "surface": surface_1(), "label": "One"}),
     );
-    assert_eq!(live.read("pages")["location"]["page"], 1);
+    assert_eq!(live.active_page(), one);
     assert_eq!(live.label(0), "Zero");
     assert_eq!(live.label(1), "One");
     // A read of the content of a location that is not active does not move.
-    assert_eq!(live.read("pages")["location"]["page"], 1);
-    assert_eq!(live.read("content")["location"]["page"], 1);
+    assert_eq!(live.active_page(), one);
+    assert_eq!(live.read("content")["location"]["page"], one);
 }
 
 #[test]
 fn each_surface_request_sets_and_removes_its_part() {
     let mut live = Live::new();
-    let surface = serde_json::from_str::<Value>(KEY_1).unwrap();
+    let surface = surface_1();
     let target = live.at(0);
     let find = |content: &Value| {
         content["surfaces"]
             .as_array()
             .unwrap()
             .iter()
-            .find(|s| s["id"] == serde_json::from_str::<Value>(KEY_1).unwrap())
+            .find(|s| s["id"] == surface_1())
             .unwrap()
             .clone()
     };
@@ -234,7 +276,8 @@ fn each_surface_request_sets_and_removes_its_part() {
 #[test]
 fn binding_and_control_requests_set_remove_copy_paste_clear_and_copy_to_all_pages() {
     let mut live = Live::new();
-    live.ok("add_page", json!({"target": live.at(0), "copy_of": null}));
+    let profile = live.active.clone();
+    live.made("add_page", json!({"profile": profile}));
     let key1 = json!({"kind": "key", "number": 1});
     let key2 = json!({"kind": "key", "number": 2});
     let bindings = |content: &Value| content["bindings"].as_array().unwrap().len();
@@ -246,6 +289,8 @@ fn binding_and_control_requests_set_remove_copy_paste_clear_and_copy_to_all_page
     let content = live.content(live.at(0));
     assert_eq!(bindings(&content), 1);
     assert_eq!(content["bindings"][0]["action"]["kind"], "test");
+    assert_eq!(content["bindings"][0]["page"], live.id(0));
+    assert_eq!(content["bindings"][0]["gesture"], "press");
     // Copy, paste on a different key, and clear.
     live.ok(
         "copy_control",
@@ -276,63 +321,126 @@ fn binding_and_control_requests_set_remove_copy_paste_clear_and_copy_to_all_page
 }
 
 #[test]
+fn a_binding_needs_a_gesture_that_the_control_can_make_and_the_layout_lists_them() {
+    let mut live = Live::new();
+    let layout = live.read("layout");
+    let gestures_of = |kind: &str| -> Vec<String> {
+        layout["controls"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"]["kind"] == kind)
+            .unwrap()["gestures"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|g| g.as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(gestures_of("key"), ["press", "release"]);
+    assert_eq!(gestures_of("knob"), ["turn_left", "turn_right", "push"]);
+    assert_eq!(gestures_of("bar_panel"), ["tap"]);
+    assert_eq!(gestures_of("touch_bar"), ["swipe_left", "swipe_right"]);
+    // A gesture that the control cannot make is not a binding.
+    let (code, text) = live.fails(
+        "set_binding",
+        json!({"target": live.at(0), "control": {"kind": "key", "number": 1},
+               "gesture": "push", "action": {"kind": "test", "settings": {}}}),
+    );
+    assert_eq!(code, "invalid_params");
+    assert!(text.contains("gesture"), "{text}");
+    assert!(live.read("history")["undo"].is_null());
+    assert!(live.content(live.at(0))["bindings"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    // A knob has the push.
+    live.ok(
+        "set_binding",
+        json!({"target": live.at(0), "control": {"kind": "knob", "number": 1},
+               "gesture": "push", "action": {"kind": "test", "settings": {}}}),
+    );
+}
+
+#[test]
 fn page_requests_add_rename_move_select_remove_and_set_the_background() {
     let mut live = Live::new();
-    live.ok("add_page", json!({"target": live.at(0), "copy_of": null}));
-    live.ok("add_page", json!({"target": live.at(0), "copy_of": 0}));
+    let profile = live.active.clone();
+    let second = live.made("add_page", json!({"profile": profile}));
+    assert_eq!(second["page"], live.id(1));
+    // A copy has its own identity, and it is the new active page.
+    let third = live.made("duplicate_page", json!({"target": live.page(0)}));
+    assert_eq!(third["page"], live.id(2));
+    assert_eq!(live.active_page(), live.id(2));
     assert_eq!(live.page_count(), 3);
+    let ids: Vec<_> = (0..3).map(|n| live.id(n)).collect();
+    assert_eq!(ids.iter().collect::<std::collections::BTreeSet<_>>().len(), 3);
     live.ok(
         "rename_page",
-        json!({"target": live.at(2), "name": "Third"}),
+        json!({"target": live.page(2), "name": "Third"}),
     );
-    assert_eq!(live.read("pages")["names"][2], "Third");
-    live.ok("move_page", json!({"target": live.at(2), "to": 0}));
-    assert_eq!(live.read("pages")["names"][0], "Third");
-    live.ok("select_page", json!({"target": live.at(1)}));
-    assert_eq!(live.read("pages")["location"]["page"], 1);
+    assert_eq!(live.read("pages")["pages"][2]["name"], "Third");
+    live.ok("move_page", json!({"target": live.page(2), "to": 0}));
+    assert_eq!(live.read("pages")["pages"][0]["name"], "Third");
+    // The identity moved with the page.
+    assert_eq!(live.id(0), ids[2]);
+    live.ok("select_page", json!({"target": live.page(1)}));
+    assert_eq!(live.active_page(), live.id(1));
     live.ok(
         "set_background",
-        json!({"target": live.at(1), "background": {"type": "color", "color": "#102030"}}),
+        json!({"target": live.page(1), "background": {"type": "color", "color": "#102030"}}),
     );
     assert_eq!(live.content(live.at(1))["background"]["type"], "color");
     let picture = live.image("b.png");
     live.ok(
         "set_background",
-        json!({"target": live.at(1), "background": {"type": "image", "path": picture, "fit": "fill"}}),
+        json!({"target": live.page(1), "background": {"type": "image", "path": picture, "fit": "fill"}}),
     );
     live.ok(
         "set_background_fit",
-        json!({"target": live.at(1), "fit": "fit"}),
+        json!({"target": live.page(1), "fit": "fit"}),
     );
     assert_eq!(live.content(live.at(1))["background"]["fit"], "fit");
     live.ok(
         "set_background",
-        json!({"target": live.at(1), "background": null}),
+        json!({"target": live.page(1), "background": null}),
     );
     assert!(live.content(live.at(1))["background"].is_null());
-    live.ok("remove_page", json!({"target": live.at(2)}));
+    live.ok("remove_page", json!({"target": live.page(2)}));
     assert_eq!(live.page_count(), 2);
+    // The first page is a page of the pages read, with its identity.
+    live.ok("set_first_page", json!({"target": live.page(1)}));
+    let profiles = live.read("profiles");
+    assert_eq!(profiles["profiles"][0]["first_page"], live.id(1));
+    assert_eq!(live.read("pages")["first"], live.id(1));
 }
 
 #[test]
-fn folder_requests_add_rename_move_open_close_and_remove() {
+fn folder_requests_need_no_page_and_add_rename_move_open_close_and_remove() {
     let mut live = Live::new();
-    live.ok(
+    let profile = live.active.clone();
+    let made = live.made(
         "add_folder",
-        json!({"target": live.at(0), "id": "00000000000000a1", "name": "First", "copy_of": null}),
+        json!({"profile": profile, "id": "00000000000000a1", "name": "First", "copy_of": null}),
     );
-    // Without an identity, OpenCraft makes one.
-    live.ok("add_folder", json!({"target": live.at(0), "name": "Other"}));
+    assert_eq!(made, json!({"profile": null, "page": null, "folder": "00000000000000a1"}));
+    // Without an identity, OpenCraft makes one, and the result has it.
+    let made = live.made("add_folder", json!({"profile": profile, "name": "Other"}));
+    let other = made["folder"].as_str().unwrap().to_string();
     let folders = live.read("folders");
     assert_eq!(folders.as_array().unwrap().len(), 2);
+    assert_eq!(folders[1]["id"], other);
+    // The page that the device shows stays: a folder is a part of the profile.
+    let page = live.active_page();
     live.ok(
         "rename_folder",
-        json!({"target": live.at(0), "folder": "00000000000000a1", "name": "Renamed"}),
+        json!({"profile": profile, "folder": "00000000000000a1", "name": "Renamed"}),
     );
     live.ok(
         "move_folder",
-        json!({"target": live.at(0), "folder": "00000000000000a1", "to": 1}),
+        json!({"profile": profile, "folder": "00000000000000a1", "to": 1}),
     );
+    assert_eq!(live.active_page(), page);
     let folders = live.read("folders");
     assert_eq!(folders[1]["id"], "00000000000000a1");
     assert_eq!(folders[1]["name"], "Renamed");
@@ -348,7 +456,7 @@ fn folder_requests_add_rename_move_open_close_and_remove() {
     live.ok(
         "set_label",
         json!({"target": live.at_in(0, "00000000000000a1"),
-               "surface": serde_json::from_str::<Value>(KEY_1).unwrap(), "label": "In"}),
+               "surface": surface_1(), "label": "In"}),
     );
     let inside = live.content(live.at_in(0, "00000000000000a1"));
     assert!(inside["surfaces"]
@@ -361,7 +469,7 @@ fn folder_requests_add_rename_move_open_close_and_remove() {
     assert_eq!(live.read("pages")["location"]["open"], json!([]));
     live.ok(
         "remove_folder",
-        json!({"target": live.at(0), "folder": "00000000000000a1"}),
+        json!({"profile": profile, "folder": "00000000000000a1"}),
     );
     assert_eq!(live.read("folders").as_array().unwrap().len(), 1);
 }
@@ -370,7 +478,8 @@ fn folder_requests_add_rename_move_open_close_and_remove() {
 fn profile_requests_add_rename_colour_link_export_import_select_and_remove() {
     let mut live = Live::new();
     let first = live.active.clone();
-    live.ok("add_profile", json!({"name": "Second", "copy_of": null}));
+    // The result of the request has the identity of the new profile.
+    let made = live.made("add_profile", json!({"name": "Second", "copy_of": null}));
     let profiles = live.read("profiles");
     let second = profiles["profiles"]
         .as_array()
@@ -381,6 +490,7 @@ fn profile_requests_add_rename_colour_link_export_import_select_and_remove() {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(made, json!({"profile": second, "page": null, "folder": null}));
     assert_eq!(profiles["active"], second);
     live.ok(
         "rename_profile",
@@ -396,7 +506,17 @@ fn profile_requests_add_rename_colour_link_export_import_select_and_remove() {
         json!({"profile": second, "link": {"bundle_id": "com.example.app", "name": "Example"}}),
     );
     live.ok("set_follow_front_application", json!({"follow": true}));
-    live.ok("set_first_page", json!({"profile": second, "page": 0}));
+    let first_page = live.read("profiles")["profiles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == second)
+        .unwrap()["pages"][0]["id"]
+        .clone();
+    live.ok(
+        "set_first_page",
+        json!({"target": {"profile": second, "page": first_page}}),
+    );
     let profiles = live.read("profiles");
     let entry = profiles["profiles"]
         .as_array()
@@ -417,11 +537,13 @@ fn profile_requests_add_rename_colour_link_export_import_select_and_remove() {
     let export = live.file("exported.opencraft");
     live.ok("export_profile", json!({"profile": second, "path": export}));
     assert!(std::path::Path::new(&export).exists());
-    live.ok("import_profile", json!({"path": export}));
-    assert_eq!(
-        live.read("profiles")["profiles"].as_array().unwrap().len(),
-        3
-    );
+    // An import makes a profile, and the result has its identity.
+    let made = live.made("import_profile", json!({"path": export}));
+    let profiles = live.read("profiles");
+    assert_eq!(profiles["profiles"].as_array().unwrap().len(), 3);
+    let imported = made["profile"].as_str().unwrap();
+    assert_eq!(profiles["active"], imported);
+    assert!(imported != second && imported != first);
     live.ok("select_profile", json!({"profile": first}));
     assert_eq!(live.read("profiles")["active"], first);
     live.ok("remove_profile", json!({"profile": second}));
@@ -441,28 +563,45 @@ fn a_device_settings_request_sets_the_settings() {
     let settings = live.read("device_settings");
     assert_eq!(settings["brightness"], 37);
     assert_eq!(settings["haptic"], false);
+    assert!(settings["knob_lights"]["mode"].is_string());
 }
 
 #[test]
-fn one_request_is_one_step_of_the_history_and_the_window_can_undo_it() {
+fn one_request_is_one_step_of_the_history_with_the_name_of_the_window_and_the_window_can_undo_it() {
     let mut live = Live::new();
-    let surface = serde_json::from_str::<Value>(KEY_1).unwrap();
+    let surface = surface_1();
     live.ok(
         "set_label_style",
         json!({"target": live.at(0), "surface": surface,
                "style": {"position": "top", "size": 20, "color": "#ff0000", "bold": false}}),
     );
     // The four changes of the style are one step.
-    assert_eq!(live.read("history")["undo"], "Set Label Style");
+    assert_eq!(live.read("history")["undo"], "Set Title Style");
     live.ok(
         "set_label",
         json!({"target": live.at(0), "surface": surface, "label": "Window"}),
     );
-    assert_eq!(live.read("history")["undo"], "Set Label");
+    // The name is the name that the window uses for the same change.
+    assert_eq!(live.read("history")["undo"], "Set Title");
+    live.ok(
+        "set_color",
+        json!({"target": live.at(0), "surface": surface, "color": "#336699"}),
+    );
+    assert_eq!(live.read("history")["undo"], "Set Fill");
+    live.ok(
+        "copy_to_all_pages",
+        json!({"target": live.at(0), "control": {"kind": "key", "number": 1}}),
+    );
     // The window sends Undo with no reply.
     live.engine.as_ref().unwrap().send(e::Command::Undo);
     let start = Instant::now();
-    while live.read("history")["undo"] != "Set Label Style" {
+    while live.read("history")["undo"] == "Set Fill" {
+        assert!(start.elapsed() < Duration::from_secs(5));
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    live.engine.as_ref().unwrap().send(e::Command::Undo);
+    let start = Instant::now();
+    while live.read("history")["undo"] != "Set Title Style" {
         assert!(start.elapsed() < Duration::from_secs(5));
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -477,13 +616,13 @@ fn one_request_is_one_step_of_the_history_and_the_window_can_undo_it() {
     live.ok("undo", json!({"profile": live.active}));
     assert_eq!(live.read("history")["undo"], Value::Null);
     live.ok("redo", json!({"profile": live.active}));
-    assert_eq!(live.read("history")["undo"], "Set Label Style");
+    assert_eq!(live.read("history")["undo"], "Set Title Style");
 }
 
 #[test]
 fn a_response_comes_after_the_events_of_its_change() {
     let mut live = Live::new();
-    let surface = serde_json::from_str::<Value>(KEY_1).unwrap();
+    let surface = surface_1();
     for number in 0..40 {
         let label = format!("Label {number}");
         live.ok(
@@ -500,58 +639,121 @@ fn a_response_comes_after_the_events_of_its_change() {
             .unwrap()["label"]
             .clone();
         assert_eq!(shown, label);
-        assert_eq!(live.read("history")["undo"], "Set Label");
+        assert_eq!(live.read("history")["undo"], "Set Title");
     }
 }
 
 #[test]
-fn a_request_for_a_page_or_a_folder_that_is_gone_or_a_profile_that_is_gone_changes_nothing() {
+fn a_request_for_a_place_that_is_gone_changes_nothing() {
     let mut live = Live::new();
-    live.ok("add_page", json!({"target": live.at(0), "copy_of": null}));
-    live.ok("select_page", json!({"target": live.at(1)}));
-    let surface = serde_json::from_str::<Value>(KEY_1).unwrap();
+    let profile = live.active.clone();
+    live.made("add_page", json!({"profile": profile}));
+    live.ok("select_page", json!({"target": live.page(1)}));
+    let surface = surface_1();
     let history = live.read("history");
+    let at_gone = |live: &Live| {
+        json!({"profile": live.active, "page": "00000000000000ee", "folder": null})
+    };
+    // The cache has no such page, or no such profile: the request is invalid.
     for target in [
-        live.at(9),
-        live.at_in(0, "00000000000000ee"),
-        json!({"profile": "not-a-profile", "page": 0, "folder": null}),
+        at_gone(&live),
+        json!({"profile": "not-a-profile", "page": live.id(0), "folder": null}),
     ] {
         let (code, text) = live.fails(
             "set_label",
             json!({"target": target, "surface": surface, "label": "No"}),
         );
-        assert_eq!(code, "engine_problem");
-        assert!(!text.is_empty());
-        // The page that was active stays active, and nothing has the label.
-        assert_eq!(live.read("pages")["location"]["page"], 1);
-        assert_eq!(live.read("history"), history);
-        assert!(live.label(0).is_null());
-        assert!(live.label(1).is_null());
+        assert_eq!(code, "invalid_params");
+        assert!(text.contains("does not exist"), "{text}");
     }
+    // The engine checks the folder.
+    let (code, text) = live.fails(
+        "set_label",
+        json!({"target": live.at_in(0, "00000000000000ee"), "surface": surface, "label": "No"}),
+    );
+    assert_eq!(code, "engine_problem");
+    assert!(!text.is_empty());
+    // The page that was active stays active, and nothing has the label.
+    assert_eq!(live.active_page(), live.id(1));
+    assert_eq!(live.read("history"), history);
+    assert!(live.label(0).is_null());
+    assert!(live.label(1).is_null());
     // A request that changes the structure also changes nothing.
-    let (_, text) = live.fails("rename_page", json!({"target": live.at(7), "name": "No"}));
-    assert!(text.contains("no page"), "{text}");
+    let (code, _) = live.fails(
+        "rename_page",
+        json!({"target": {"profile": live.active, "page": "00000000000000ee"}, "name": "No"}),
+    );
+    assert_eq!(code, "invalid_params");
     assert_eq!(live.page_count(), 2);
+}
+
+#[test]
+fn a_failed_request_for_a_profile_that_is_not_active_changes_nothing_also_the_active_profile() {
+    let mut live = Live::new();
+    let first = live.active.clone();
+    live.made("add_profile", json!({"name": "Second", "copy_of": null}));
+    let profiles = live.read("profiles");
+    let second = profiles["active"].as_str().unwrap().to_string();
+    let second_page = profiles["profiles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == second)
+        .unwrap()["pages"][0]["id"]
+        .clone();
+    live.ok("select_profile", json!({"profile": first}));
+    let history = live.read("history");
+    let pages = live.read("pages");
+    // A folder that the other profile does not have: the engine refuses it
+    // before it makes the profile active.
+    let (code, _) = live.fails(
+        "set_label",
+        json!({"target": {"profile": second, "page": second_page, "folder": "00000000000000ee"},
+               "surface": surface_1(), "label": "No"}),
+    );
+    assert_eq!(code, "engine_problem");
+    assert_eq!(live.read("profiles")["active"], first);
+    assert_eq!(live.read("pages"), pages);
+    assert_eq!(live.read("history"), history);
+    // A change that the engine refuses after the check goes back, too.
+    let (code, _) = live.fails(
+        "set_image",
+        json!({"target": {"profile": second, "page": second_page, "folder": null},
+               "surface": surface_1(), "path": "/this/file/is/not/there.png"}),
+    );
+    assert_eq!(code, "engine_problem");
+    assert_eq!(live.read("profiles")["active"], first);
+    assert_eq!(live.read("pages")["location"], pages["location"]);
+    assert_eq!(live.read("history"), history);
+    // A good request for the other profile is one request.
+    live.ok(
+        "set_label",
+        json!({"target": {"profile": second, "page": second_page, "folder": null},
+               "surface": surface_1(), "label": "Other"}),
+    );
+    assert_eq!(live.read("profiles")["active"], second);
+    assert_eq!(live.read("history")["undo"], "Set Title");
 }
 
 #[test]
 fn a_problem_of_the_engine_is_the_error_of_the_request_with_its_text() {
     let mut live = Live::new();
-    let (code, text) = live.fails("rename_page", json!({"target": live.at(0), "name": ""}));
+    let profile = live.active.clone();
+    let (code, text) = live.fails("rename_page", json!({"target": live.page(0), "name": ""}));
     assert_eq!(code, "engine_problem");
     assert_eq!(text, "A page must have a name.");
-    let (_, text) = live.fails("remove_page", json!({"target": live.at(0)}));
+    let (_, text) = live.fails("remove_page", json!({"target": live.page(0)}));
     assert_eq!(text, "A profile keeps one page at the minimum.");
     let (_, text) = live.fails("add_profile", json!({"name": "  ", "copy_of": null}));
     assert!(text.contains("name"), "{text}");
     // A problem of a request is not left for the next request.
-    live.ok("add_page", json!({"target": live.at(0), "copy_of": null}));
+    live.made("add_page", json!({"profile": profile}));
 }
 
 #[test]
 fn a_relative_file_path_gives_an_error_and_changes_nothing() {
     let mut live = Live::new();
-    let surface = serde_json::from_str::<Value>(KEY_1).unwrap();
+    let surface = surface_1();
     for (method, params) in [
         (
             "set_image",
@@ -559,7 +761,7 @@ fn a_relative_file_path_gives_an_error_and_changes_nothing() {
         ),
         (
             "set_background",
-            json!({"target": live.at(0),
+            json!({"target": live.page(0),
                    "background": {"type": "image", "path": "picture.png", "fit": "fill"}}),
         ),
         (
@@ -608,7 +810,8 @@ fn no_request_can_make_the_commands_that_a_client_must_not_send() {
 fn a_content_request_reads_an_inactive_profile_and_a_page_that_is_not_active() {
     let mut live = Live::new();
     let first = live.active.clone();
-    let surface = serde_json::from_str::<Value>(KEY_1).unwrap();
+    let first_page = live.id(0);
+    let surface = surface_1();
     live.ok(
         "set_label",
         json!({"target": live.at(0), "surface": surface, "label": "First profile"}),
@@ -618,26 +821,28 @@ fn a_content_request_reads_an_inactive_profile_and_a_page_that_is_not_active() {
         json!({"target": live.at(0), "control": {"kind": "key", "number": 1},
                "gesture": "press", "action": {"kind": "test", "settings": {}}}),
     );
-    live.ok("add_profile", json!({"name": "Second", "copy_of": null}));
+    live.made("add_profile", json!({"name": "Second", "copy_of": null}));
     assert_ne!(live.read("profiles")["active"], first);
-    let content = live.content(json!({"profile": first, "page": 0, "folder": null}));
+    let content = live.content(json!({"profile": first, "page": first_page, "folder": null}));
     assert_eq!(content["profile"], first);
+    assert_eq!(content["location"]["page"], first_page);
     assert!(content["surfaces"]
         .as_array()
         .unwrap()
         .iter()
         .any(|s| s["label"] == "First profile"));
     assert_eq!(content["bindings"].as_array().unwrap().len(), 1);
+    assert_eq!(content["bindings"][0]["page"], first_page);
     // The active profile did not change, and the read made no step.
     assert_ne!(live.read("profiles")["active"], first);
     let reply = live.call(
         "content",
-        json!({"target": {"profile": first, "page": 5, "folder": null}}),
+        json!({"target": {"profile": first, "page": "00000000000000ee", "folder": null}}),
     );
     assert_eq!(reply["error"]["code"], "engine_problem");
     let reply = live.call(
         "content",
-        json!({"target": {"profile": "not-a-profile", "page": 0, "folder": null}}),
+        json!({"target": {"profile": "not-a-profile", "page": first_page, "folder": null}}),
     );
     assert_eq!(reply["error"]["code"], "engine_problem");
 }
@@ -645,31 +850,42 @@ fn a_content_request_reads_an_inactive_profile_and_a_page_that_is_not_active() {
 #[test]
 fn a_request_with_a_wrong_surface_or_value_is_invalid_and_sends_no_command() {
     let mut live = Live::new();
-    for (method, params) in [
+    for (method, params, code) in [
         (
             "set_label",
-            json!({"target": live.at(0), "surface": {"kind": "key face", "number": 99}, "label": "x"}),
+            json!({"target": live.at(0), "surface": {"kind": "key_face", "number": 99}, "label": "x"}),
+            "invalid_params",
         ),
         (
             "set_color",
-            json!({"target": live.at(0), "surface": {"kind": "key face", "number": 1}, "color": "red"}),
+            json!({"target": live.at(0), "surface": {"kind": "key_face", "number": 1}, "color": "red"}),
+            "invalid_params",
         ),
+        // A text that is not one of the values of an enum.
         (
             "set_binding",
             json!({"target": live.at(0), "control": {"kind": "key", "number": 1},
                    "gesture": "wave", "action": null}),
+            "invalid_request",
+        ),
+        (
+            "set_label",
+            json!({"target": live.at(0), "surface": {"kind": "key face", "number": 1}, "label": "x"}),
+            "invalid_request",
         ),
         (
             "set_background_fit",
-            json!({"target": live.at(0), "fit": "sideways"}),
+            json!({"target": live.page(0), "fit": "sideways"}),
+            "invalid_request",
         ),
         (
             "open_folder",
             json!({"target": live.at(0), "folder": "not hex"}),
+            "invalid_params",
         ),
     ] {
-        let (code, _) = live.fails(method, params);
-        assert_eq!(code, "invalid_params", "{method}");
+        let (found, _) = live.fails(method, params);
+        assert_eq!(found, code, "{method}");
     }
     assert!(live.read("history")["undo"].is_null());
 }

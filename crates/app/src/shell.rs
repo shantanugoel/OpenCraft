@@ -1298,6 +1298,7 @@ mod tests {
         f.events
             .try_send(Event::Pages {
                 names: vec!["Main".into(), "Mail".into()],
+                ids: Vec::new(),
                 location: opencraft_engine::Location {
                     page: 1,
                     open: Vec::new(),
@@ -1365,6 +1366,7 @@ mod tests {
         f.events
             .try_send(Event::Pages {
                 names: vec!["Main".into(), "Mail".into()],
+                ids: Vec::new(),
                 location: opencraft_engine::Location::default(),
                 first: 0,
                 folders: Vec::new(),

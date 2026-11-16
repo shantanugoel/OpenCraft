@@ -409,6 +409,7 @@ fn pages_clear_bindings_and_model_changes_clear_model_state() {
     assert_eq!(control.feed.read(|s| s.content.bindings.len()), 1);
     control.observe(&e::Event::Pages {
         names: vec!["Other".into()],
+        ids: Vec::new(),
         location: e::Location::default(),
         first: 0,
         folders: vec![],
@@ -427,7 +428,7 @@ fn a_new_layout_keeps_the_state_that_the_engine_does_not_send_again() {
     client.hello();
     let state = client.request("state");
     assert!(state["profiles"]["active"].is_string());
-    assert!(!state["pages"]["names"].as_array().unwrap().is_empty());
+    assert!(!state["pages"]["pages"].as_array().unwrap().is_empty());
     assert!(state["device_settings"].is_object());
     assert_eq!(state["layout"]["name"], DESCRIPTORS[1].name);
     // A status and the choice to follow the front application stay when the
@@ -485,8 +486,12 @@ fn protocol_types_round_trip_and_the_command_audit_rejects_unsafe_commands() {
         ResponseBody::Success { .. }
     ));
     assert!(!super::state::permitted(&e::Command::Stop));
-    assert!(!super::state::permitted(&e::Command::AtLocation {
-        location: e::Location::default(),
+    assert!(!super::state::permitted(&e::Command::AtPlace {
+        place: e::Place {
+            profile: "p".into(),
+            page: None,
+            open: None,
+        },
         command: Box::new(e::Command::Stop),
     }));
     assert!(!super::state::permitted(&e::Command::InProfile {

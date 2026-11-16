@@ -5,21 +5,112 @@
 use super::protocol as w;
 use opencraft_engine as e;
 
-impl From<e::SurfaceId> for w::Id {
+impl From<e::SurfaceKind> for w::SurfaceKind {
+    fn from(kind: e::SurfaceKind) -> Self {
+        match kind {
+            e::SurfaceKind::KeyFace => Self::KeyFace,
+            e::SurfaceKind::BarPanel => Self::BarPanel,
+            e::SurfaceKind::Background => Self::Background,
+        }
+    }
+}
+
+impl From<e::ControlKind> for w::ControlKind {
+    fn from(kind: e::ControlKind) -> Self {
+        match kind {
+            e::ControlKind::Key => Self::Key,
+            e::ControlKind::Knob => Self::Knob,
+            e::ControlKind::BarPanel => Self::BarPanel,
+            e::ControlKind::TouchBar => Self::TouchBar,
+        }
+    }
+}
+
+impl From<e::SurfaceId> for w::SurfaceId {
     fn from(id: e::SurfaceId) -> Self {
         Self {
-            kind: id.kind.name().into(),
+            kind: id.kind.into(),
             number: id.number,
         }
     }
 }
 
-impl From<e::ControlId> for w::Id {
+impl From<e::ControlId> for w::ControlId {
     fn from(id: e::ControlId) -> Self {
         Self {
-            kind: id.kind.name().into(),
+            kind: id.kind.into(),
             number: id.number,
         }
+    }
+}
+
+impl From<e::GestureKind> for w::Gesture {
+    fn from(gesture: e::GestureKind) -> Self {
+        match gesture {
+            e::GestureKind::Press => Self::Press,
+            e::GestureKind::Release => Self::Release,
+            e::GestureKind::TurnLeft => Self::TurnLeft,
+            e::GestureKind::TurnRight => Self::TurnRight,
+            e::GestureKind::Push => Self::Push,
+            e::GestureKind::Tap => Self::Tap,
+            e::GestureKind::SwipeLeft => Self::SwipeLeft,
+            e::GestureKind::SwipeRight => Self::SwipeRight,
+        }
+    }
+}
+
+impl From<e::LabelPosition> for w::LabelPosition {
+    fn from(position: e::LabelPosition) -> Self {
+        match position {
+            e::LabelPosition::Top => Self::Top,
+            e::LabelPosition::Middle => Self::Middle,
+            e::LabelPosition::Bottom => Self::Bottom,
+            e::LabelPosition::Hidden => Self::Hidden,
+        }
+    }
+}
+
+impl From<e::BackgroundFit> for w::BackgroundFit {
+    fn from(fit: e::BackgroundFit) -> Self {
+        match fit {
+            e::BackgroundFit::Fill => Self::Fill,
+            e::BackgroundFit::Fit => Self::Fit,
+        }
+    }
+}
+
+impl From<e::KnobLightMode> for w::KnobLightMode {
+    fn from(mode: e::KnobLightMode) -> Self {
+        match mode {
+            e::KnobLightMode::Effect => Self::Effect,
+            e::KnobLightMode::Colors => Self::Colors,
+            e::KnobLightMode::Off => Self::Off,
+        }
+    }
+}
+
+/// The text of the identity of the page with this number. Empty if the list
+/// has no such page: the cache can be ahead of an event, never behind.
+pub(super) fn page_id(ids: &[e::PageId], page: usize) -> String {
+    ids.get(page).map(ToString::to_string).unwrap_or_default()
+}
+
+/// The pages of a profile: the identity and the name of each.
+fn page_summaries(ids: &[e::PageId], names: &[String]) -> Vec<w::PageSummary> {
+    ids.iter()
+        .zip(names)
+        .map(|(id, name)| w::PageSummary {
+            id: id.to_string(),
+            name: name.clone(),
+        })
+        .collect()
+}
+
+/// The location in wire form, for the pages `ids`.
+pub(super) fn location(location: &e::Location, ids: &[e::PageId]) -> w::Location {
+    w::Location {
+        page: page_id(ids, location.page),
+        open: location.open.iter().map(ToString::to_string).collect(),
     }
 }
 
@@ -46,31 +137,6 @@ fn value(value: &e::Value) -> serde_json::Value {
             serde_json::Value::Object(v.iter().map(|(k, v)| (k.clone(), self::value(v))).collect())
         }
     }
-}
-
-/// The wire text of each gesture. The wire form is not the file form of the
-/// profile: a change of that form must not change the protocol.
-pub(super) fn gesture_name(gesture: e::GestureKind) -> &'static str {
-    match gesture {
-        e::GestureKind::Press => "press",
-        e::GestureKind::Release => "release",
-        e::GestureKind::TurnLeft => "turn-left",
-        e::GestureKind::TurnRight => "turn-right",
-        e::GestureKind::Push => "push",
-        e::GestureKind::Tap => "tap",
-        e::GestureKind::SwipeLeft => "swipe-left",
-        e::GestureKind::SwipeRight => "swipe-right",
-    }
-}
-
-/// The gesture of a wire text: the opposite of [`gesture_name`].
-pub(super) fn gesture_from_name(name: &str) -> Option<e::GestureKind> {
-    use e::GestureKind::*;
-    [
-        Press, Release, TurnLeft, TurnRight, Push, Tap, SwipeLeft, SwipeRight,
-    ]
-    .into_iter()
-    .find(|gesture| gesture_name(*gesture) == name)
 }
 
 /// The setting of an action for a wire value. Null and a number with a
@@ -235,6 +301,10 @@ impl From<&e::DeviceLayout> for w::Layout {
                     column: c.column,
                     surface: c.surface.map(Into::into),
                     feedback_surface: c.feedback_surface.map(Into::into),
+                    gestures: e::GestureKind::of_control(c.id.kind)
+                        .iter()
+                        .map(|gesture| (*gesture).into())
+                        .collect(),
                 })
                 .collect(),
             settings: w::SettingsSupport {
@@ -261,8 +331,8 @@ impl From<&e::ProfileEntry> for w::Profile {
             id: profile.id.clone(),
             name: profile.name.clone(),
             color: profile.color.map(|c| c.to_string()),
-            pages: profile.pages.clone(),
-            first_page: profile.first_page,
+            pages: page_summaries(&profile.page_ids, &profile.pages),
+            first_page: page_id(&profile.page_ids, profile.first_page),
             applications: profile.applications.iter().map(Into::into).collect(),
             applied: profile.applied.iter().map(Into::into).collect(),
             link_owners: profile
@@ -277,15 +347,6 @@ impl From<&e::ProfileEntry> for w::Profile {
     }
 }
 
-impl From<&e::Location> for w::Location {
-    fn from(location: &e::Location) -> Self {
-        Self {
-            page: location.page,
-            open: location.open.iter().map(ToString::to_string).collect(),
-        }
-    }
-}
-
 impl From<&e::SurfaceState> for w::Surface {
     fn from(surface: &e::SurfaceState) -> Self {
         Self::from_content(surface.id.into(), &surface.content)
@@ -293,12 +354,12 @@ impl From<&e::SurfaceState> for w::Surface {
 }
 
 impl w::Surface {
-    pub(super) fn from_content(id: w::Id, c: &e::SurfaceContent) -> Self {
+    pub(super) fn from_content(id: w::SurfaceId, c: &e::SurfaceContent) -> Self {
         Self {
             id,
             label: c.label.clone(),
             label_style: w::LabelStyle {
-                position: c.label_style.position.map(|p| p.key().into()),
+                position: c.label_style.position.map(Into::into),
                 size: c.label_style.size,
                 color: c.label_style.color.map(|c| c.to_string()),
                 bold: c.label_style.bold,
@@ -321,7 +382,7 @@ impl From<&e::Background> for w::Background {
             },
             e::Background::Image { image, fit } => Self::Image {
                 image: image.clone(),
-                fit: fit.key().into(),
+                fit: (*fit).into(),
             },
         }
     }
@@ -334,7 +395,7 @@ impl From<&e::DeviceSettings> for w::DeviceSettings {
             screen_off_minutes: settings.screen_off_minutes,
             haptic: settings.haptic,
             knob_lights: w::KnobLights {
-                mode: settings.knob_lights.mode.name().into(),
+                mode: settings.knob_lights.mode.into(),
                 brightness: settings.knob_lights.brightness,
                 colors: settings
                     .knob_lights
@@ -348,8 +409,8 @@ impl From<&e::DeviceSettings> for w::DeviceSettings {
 }
 
 impl w::State {
-    /// Each event has an explicit policy. This runs on the shell thread and
-    /// on the socket thread; neither copy contains rendered pixels.
+    /// Each event has an explicit policy. This runs on the engine thread, in
+    /// the sink, and it cannot fail; the copy contains no rendered pixels.
     pub(super) fn apply(&mut self, event: &e::Event) {
         match event {
             e::Event::Layout(layout) => {
@@ -409,14 +470,15 @@ impl w::State {
             }
             e::Event::Pages {
                 names,
-                location,
+                ids,
+                location: place,
                 first,
                 folders,
             } => {
                 self.pages = w::Pages {
-                    names: names.clone(),
-                    location: location.into(),
-                    first: *first,
+                    pages: page_summaries(ids, names),
+                    location: location(place, ids),
+                    first: page_id(ids, *first),
                     folders: folders
                         .iter()
                         .map(|f| w::Folder {
@@ -425,23 +487,42 @@ impl w::State {
                         })
                         .collect(),
                 };
-                self.content.location = location.into();
+                // The entry of the active profile follows the pages, as the
+                // entry of the engine does. The engine sends the list of the
+                // profiles at other times only.
+                let active = self.profiles.active.clone();
+                if let Some(entry) = self
+                    .profiles
+                    .profiles
+                    .iter_mut()
+                    .find(|p| Some(&p.id) == active.as_ref())
+                {
+                    entry.pages = self.pages.pages.clone();
+                    entry.first_page = self.pages.first.clone();
+                }
+                self.content.location = self.pages.location.clone();
                 self.content.bindings.clear();
             }
             e::Event::Binding(binding) => {
                 let id = binding.binding;
-                let control: w::Id = id.control.into();
-                let gesture = gesture_name(id.gesture).to_string();
+                let page = self
+                    .pages
+                    .pages
+                    .get(id.page)
+                    .map(|p| p.id.clone())
+                    .unwrap_or_default();
+                let control: w::ControlId = id.control.into();
+                let gesture: w::Gesture = id.gesture.into();
                 let folder = id.folder.map(|f| f.to_string());
                 self.content.bindings.retain(|b| {
-                    !(b.page == id.page
+                    !(b.page == page
                         && b.folder == folder
                         && b.control == control
                         && b.gesture == gesture)
                 });
                 if let Some(action) = &binding.action {
                     self.content.bindings.push(w::Binding {
-                        page: id.page,
+                        page,
                         folder,
                         control,
                         gesture,
@@ -490,6 +571,20 @@ impl w::State {
             e::Event::Problem(_) => {}
         }
     }
+}
+
+/// True for an event that [`w::State::apply`] never uses. The feed returns
+/// before it takes the lock, for example for each input of the device.
+pub(super) fn ignored(event: &e::Event) -> bool {
+    matches!(
+        event,
+        e::Event::Input(_)
+            | e::Event::Counters(_)
+            | e::Event::Clipboard(_)
+            | e::Event::Problem(_)
+            | e::Event::ProfileExported { .. }
+            | e::Event::ProfileImported { .. }
+    )
 }
 
 /// Explicit command audit. `true` means permitted by decision 0040;
@@ -546,7 +641,7 @@ pub(super) fn permitted(command: &e::Command) -> bool {
         e::Command::Choices { .. } => true,
         e::Command::TestAction { .. } => false,
         e::Command::ReadCounters => false,
-        e::Command::InProfile { command, .. } | e::Command::AtLocation { command, .. } => {
+        e::Command::InProfile { command, .. } | e::Command::AtPlace { command, .. } => {
             permitted(command)
         }
         e::Command::ReadProfile { .. } => true,

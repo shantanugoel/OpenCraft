@@ -1,7 +1,7 @@
 # Keynote: play, slides, and the arrow keys.
 # A ready profile (issue #340). It links to one application.
 # It uses built-in icons and no image file.
-schema_version = 5
+schema_version = 6
 name = "Keynote"
 model = "n4-pro"
 color = "#C4A53E"
@@ -11,6 +11,7 @@ bundle_id = "com.apple.iWork.Keynote"
 name = "Keynote"
 
 [[pages]]
+id = "4cb075c74545a247"
 name = "Play"
 
 [pages.surfaces.key-face-1]

@@ -1,7 +1,7 @@
 # Final Cut Pro: play, edit, and clip volume.
 # A ready profile (issue #340). It links to one application.
 # It uses built-in icons and no image file.
-schema_version = 5
+schema_version = 6
 name = "Final Cut Pro"
 model = "n4-pro"
 color = "#B83F4C"
@@ -11,6 +11,7 @@ bundle_id = "com.apple.FinalCut"
 name = "Final Cut Pro"
 
 [[pages]]
+id = "f4c62a36346b9ec9"
 name = "Play"
 
 [pages.surfaces.key-face-1]

@@ -296,6 +296,7 @@ fn a_binding_of_a_key_names_the_open_folder(cx: &mut TestAppContext) {
     // and the page under the folders stays the page of the binding.
     tx.try_send(Event::Pages {
         names: vec!["Page 1".into()],
+        ids: Vec::new(),
         location: Location {
             page: 0,
             open: vec![folder],
