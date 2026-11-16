@@ -344,6 +344,29 @@ These points change the interface of this record.
   removal of the active profile. The user guide keeps each fact in one
   document ([the rules of the documentation](../README.md#rules)).
 
+Note (2026-11-16, issue #425, test 3 of the skill by an agent): these points
+hold for the reads and for the places.
+
+- **The names of the icons (finding 1).** `icons` takes `{}` or
+  `{ "search": <text> }`, and its result is `{ "set", "version", "icons" }`.
+  The names are the names of the icon set that the build contains
+  (`opencraft_engine::icon_set`). The engine draws an icon on a surface, and
+  the icon picker of the window shows the same set: there is no second list.
+  A search is the search of the icon picker: each word of the text is in the
+  name or in a tag, and the icon that the text names comes first. The read
+  needs no engine command and no cache. The help of `--icon-color` gives the
+  form of a colour.
+- **The places count from 1 (finding 2).** `move_page` and `move_folder` take
+  the number of a place from 1, as the window numbers the pages and as the
+  field "Page number" of `opencraft.page` counts. The control module gives
+  the engine the number from 0, which it uses. A number that the list does
+  not have is `invalid_params`: the engine moves nothing and reports no
+  problem. Page 1 is the first page of `pages`, and the skill says so.
+- **The skill (findings 2 to 5).** The skill says that a new profile has one
+  page, that the name of a step of the history is the name that the window
+  shows, that a client reads `content` before and after an undo to see the
+  change, and what an empty value of a field with `default: null` does.
+
 **One history.** A change of the pages from a client is a step of the same
 history as a change from the window
 ([decision 0030](0030-undo-and-redo-in-the-engine.md)), thus the user can undo

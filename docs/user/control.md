@@ -54,6 +54,9 @@ opencraft ctl surface set-label --profile work --page 0123456789abcdef \
 - A profile, a page, and a folder have an identity. Read it with
   `profile list`, `page list`, and `folder list`. `page list`, `folder list`,
   and `history` take `--profile` for a profile that is not active.
+- `opencraft ctl icons` lists the names of the icons that you can set on a
+  surface. `--search` gives only the icons whose name or tag agrees with a
+  text.
 - The result of a command that changes something names the profile, the page,
   and the folder of the command. A part that the command does not have is
   `null`. A command that makes a profile, a page, or a folder gives its
@@ -99,7 +102,7 @@ navigation that shows a page on the device.
 
 | Area | What a program can do |
 |---|---|
-| Read | The layout of the device, the kinds of action, the profiles, the pages, the folders, the content of a page, the device settings, the history, and the connection |
+| Read | The layout of the device, the kinds of action, the names of the icons, the profiles, the pages, the folders, the content of a page, the device settings, the history, and the connection |
 | Surface | Set or remove the title, the title style, the fill colour, the image, and the icon |
 | Binding | Set or remove the action of a gesture |
 | Control | Copy, paste, clear, and copy to all pages |

@@ -72,7 +72,12 @@ read it again and the next save removes your edit.
   A kind can still do nothing at run time, for example when it needs a
   permission: read the `status` of the kind in `opencraft ctl kinds` (see
   below), and tell the user what its `text` says.
-- **Only a change of the pages is a step of the history.** These requests make
+- **`history` gives names, and the names are the names of the window.** The
+  name of the next undo and of the next redo is the name that the window shows
+  for that change. To see what an undo changes, read `content` (or `state`)
+  before and after the undo, and tell the user the difference: the name alone
+  does not give the page, the key, or the value that the undo changes.
+- **A change of the pages is a step of the history.** These requests make
   a step: `surface set-label`, `surface set-label-style`, `surface set-color`,
   `surface set-image`, `surface set-icon`, `binding set`, `page add`,
   `page duplicate`, `page rename`, `page move`, `page remove`,
@@ -113,9 +118,12 @@ read it again and the next save removes your edit.
 | Binding | The link from one gesture of one control to one action. |
 | Action kind | The type of an action, for example `opencraft.hotkey`. |
 
-Numbers start at 1. `opencraft ctl layout` gives the surfaces, the controls,
-the surface of each control, and the gestures of each control. Read it for the
-device model; do not assume it.
+Numbers start at 1. The pages count from 1 in the order of `page list`: page 1
+is the first page of that list, and it is the page number that the action
+`opencraft.page` and `page move --to` use. A place in a list (`--to`) counts
+from 1: `--to 1` is the first place. `opencraft ctl layout` gives the surfaces,
+the controls, the surface of each control, and the gestures of each control.
+Read it for the device model; do not assume it.
 
 ## Find an action kind and its settings
 
@@ -125,7 +133,11 @@ device model; do not assume it.
 - `kind`: the identity. Use it in full: `opencraft.hotkey`, not `hotkey`.
 - `fields`: the settings. Each field has a `key` and an `input.type`. A choice
   has its `options` in `input`. `default` is the value that OpenCraft uses when
-  you give none.
+  you give none. A field with `default: null` has no value until you give one,
+  and for such a field a text of no characters is the same as no value: for
+  example, `--setting 'application=""'` of `opencraft.open-url` opens the URL
+  in the default browser. A field of another type has no empty value: leave
+  it out.
 - `status`: `{"state": "ready"}`, or `{"state": "needs_user", "text": …,
   "button": …}` for a kind that needs a permission. If the state is not
   `ready`, the key does nothing until the user acts as the `text` says; tell
@@ -159,11 +171,14 @@ sound output fields have choices that depend on the computer. The field
 `--setting application=/Applications/Safari.app`, and, if you know it, give the
 bundle identifier here too: `--setting bundle_id=com.apple.Safari`.
 
-An icon is a name of the Lucide set (for example `copy`, `compass`, `mic`). An
-unknown name gives exit 1. A colour is six hexadecimal digits with `#` in
-front: `#ff8800`. The letters can be small, and the `#` is optional. A colour
-name (`red`) and a short form (`#f00`) are refused. A read gives the colour in
-capital letters (`#FF8800`).
+An icon is a name of the Lucide set (for example `copy`, `compass`, `mic`).
+Do not guess a name: `opencraft ctl icons --search mic` gives the names that
+this version has, and each name in that result is correct. A search agrees
+with a name and with the tags of an icon. An unknown name gives exit 1.
+
+A colour is six hexadecimal digits with `#` in front: `#ff8800`. The letters
+can be small, and the `#` is optional. A colour name (`red`) and a short form
+(`#f00`) are refused. A read gives the colour in capital letters (`#FF8800`).
 
 ## Example: a profile with two pages
 
@@ -186,8 +201,10 @@ opencraft ctl content --profile demo --page 4853c7f9bf374716
 ```
 
 `profile add` makes the new profile the active profile, and does not change the
-default profile. The result gives the identity of the new profile and of its
-first page. `page add` gives the identity of the new page in the result. To
+default profile. A new profile has one page, `Page 1`; `--copy-of` copies each
+page of the other profile. The result gives the identity of the new profile and
+the identity of its first page, and `page list` gives the identity of the page
+`Page 1`. `page add` gives the identity of the new page in the result. To
 remove a surface value or a binding, leave out the value:
 `opencraft ctl surface set-label` with no `--label`.
 
@@ -201,6 +218,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `state` | | Read all state |
 | `layout` | | Read the surfaces, controls, gestures |
 | `kinds` | | Read the action kinds |
+| `icons` | `--search` | Read the icon names; no flag: each name |
 | `choices` | `--action-kind` `--field` `--setting` | Read the choices of a field |
 | `content` | `--profile` `--page` `--folder` | Read a location; no flags: the active one |
 | `device settings` | | Read the device settings |
@@ -222,7 +240,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `page add` | `--profile` | Add an empty page at the end |
 | `page duplicate` | `--profile` `--page` | Copy a page |
 | `page rename` | `--profile` `--page` `--name` | Rename |
-| `page move` | `--profile` `--page` `--to` | Move to a position from 0 |
+| `page move` | `--profile` `--page` `--to` | Move to a place, from 1 |
 | `page remove` | `--profile` `--page` | Remove |
 | `page select` | `--profile` `--page` | Show the page on the device |
 | `page set-first` | `--profile` `--page` | Make it the first page |
@@ -231,7 +249,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `folder list` | `--profile` | Read the folders; no flag: the active profile |
 | `folder add` | `--profile` `--name` `--copy-of` `--id` | Add a folder |
 | `folder rename` | `--profile` `--folder` `--name` | Rename |
-| `folder move` | `--profile` `--folder` `--to` | Move |
+| `folder move` | `--profile` `--folder` `--to` | Move to a place, from 1 |
 | `folder remove` | `--profile` `--folder` | Remove |
 | `folder open` | `--profile` `--page` `--folder` `--inside` | Show a folder |
 | `folder close` | target | Close the folder that is open |

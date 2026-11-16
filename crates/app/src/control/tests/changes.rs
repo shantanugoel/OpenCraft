@@ -474,9 +474,18 @@ fn page_requests_add_rename_move_select_remove_and_set_the_background() {
         json!({"target": live.page(2), "name": "Third"}),
     );
     assert_eq!(live.read("pages")["pages"][2]["name"], "Third");
-    live.ok("move_page", json!({"target": live.page(2), "to": 0}));
+    live.ok("move_page", json!({"target": live.page(2), "to": 1}));
     assert_eq!(live.read("pages")["pages"][0]["name"], "Third");
     // The identity moved with the page.
+    assert_eq!(live.id(0), ids[2]);
+    // The places count from 1, as the window numbers the pages: 0 is not a
+    // place, and the list has no place 4. A request that would move nothing
+    // is a refusal, not a success.
+    for to in [0, 4] {
+        let (code, text) = live.fails("move_page", json!({"target": live.page(0), "to": to}));
+        assert_eq!(code, "invalid_params", "{to}: {text}");
+        assert!(text.contains("The number of the place"), "{text}");
+    }
     assert_eq!(live.id(0), ids[2]);
     live.ok("select_page", json!({"target": live.page(1)}));
     assert_eq!(live.active_page(), live.id(1));
@@ -535,8 +544,15 @@ fn folder_requests_need_no_page_and_add_rename_move_open_close_and_remove() {
     );
     live.ok(
         "move_folder",
-        json!({"profile": profile, "folder": "00000000000000a1", "to": 1}),
+        json!({"profile": profile, "folder": "00000000000000a1", "to": 2}),
     );
+    // The places count from 1, as the places of the pages.
+    let (code, text) = live.fails(
+        "move_folder",
+        json!({"profile": profile, "folder": "00000000000000a1", "to": 0}),
+    );
+    assert_eq!(code, "invalid_params");
+    assert!(text.contains("The number of the place"), "{text}");
     assert_eq!(live.active_page(), page);
     let folders = live.read("folders");
     assert_eq!(folders[1]["id"], "00000000000000a1");

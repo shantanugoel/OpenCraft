@@ -461,6 +461,48 @@ fn a_new_layout_keeps_the_state_that_the_engine_does_not_send_again() {
 }
 
 #[test]
+fn the_icons_read_gives_the_names_of_the_icon_set_of_the_build() {
+    let rig = Rig::new();
+    rig.enable(true);
+    let mut client = rig.client();
+    client.hello();
+    let reply = client.request("icons");
+    assert_eq!(reply["set"], e::icons::ICON_SET_NAME);
+    assert_eq!(reply["version"], e::icons::ICON_SET_VERSION);
+    let names = |result: &Value| -> Vec<String> {
+        result["icons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|name| name.as_str().unwrap().to_string())
+            .collect()
+    };
+    let all = names(&reply);
+    // The read names each icon that the build has, and the window shows the
+    // same set in the icon picker.
+    let set = e::icon_set();
+    assert_eq!(all.len(), set.icons().len());
+    for icon in set.icons().iter().step_by(97) {
+        assert!(all.contains(&icon.name.to_string()), "{}", icon.name);
+    }
+    // A search is the search of the icon picker: the best first, and the
+    // tags count.
+    client.send(json!({"id": 8, "method": "icons", "params": {"search": "mic"}}));
+    let reply = client.read();
+    assert_eq!(reply["id"], 8);
+    let found = names(&reply["result"]);
+    assert_eq!(found.first().map(String::as_str), Some("mic"));
+    assert!(found.len() < all.len());
+    assert!(found.contains(&"mic-off".to_string()));
+    // A search that agrees with no icon is an empty list, not a problem.
+    client.send(json!({"id": 9, "method": "icons", "params": {"search": "zzzz"}}));
+    let reply = client.read();
+    assert!(reply.get("error").is_none(), "{reply}");
+    assert_eq!(reply["result"]["icons"], json!([]));
+    rig.enable(false);
+}
+
+#[test]
 fn protocol_types_round_trip_and_the_command_audit_rejects_unsafe_commands() {
     let request = Request {
         id: 5,

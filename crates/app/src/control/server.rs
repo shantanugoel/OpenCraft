@@ -4,7 +4,7 @@
 use super::{
     changes::{self, Made},
     protocol::*,
-    state::permitted,
+    state::{self, permitted},
     Feed, Port,
 };
 use opencraft_engine::{Command, Event, NO_REDO_STEP, NO_UNDO_STEP};
@@ -810,6 +810,10 @@ fn handle(
         Method::State(_) => Response::success(id, feed.read(|state| state.clone())),
         Method::Layout(_) => Response::success(id, feed.read(|state| state.layout.clone())),
         Method::Kinds(_) => Response::success(id, feed.read(|state| state.kinds.clone())),
+        // The icons are in the build: no engine command, and no cache.
+        Method::Icons(IconRead { search }) => {
+            Response::success(id, state::icons(search.as_deref()))
+        }
         Method::Profiles(_) => Response::success(id, feed.read(|state| state.profiles.clone())),
         Method::Pages(ProfileRead { profile }) => match other_profile(feed, profile) {
             Err(text) => Response::error(Some(id), ErrorCode::InvalidParams, &text),

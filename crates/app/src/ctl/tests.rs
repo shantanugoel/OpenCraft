@@ -517,6 +517,7 @@ fn the_client_works_with_the_real_server() {
         "state",
         "layout",
         "kinds",
+        "icons",
         "choices",
         "content",
         "device_settings",
@@ -664,6 +665,20 @@ fn the_skill_answers_the_kinds_of_the_code_and_its_own_words() {
     assert!(text.contains("moves it to the folder `removed`"), "{text}");
     // A text that is JSON needs the form of a JSON string (review 3, L1).
     assert!(text.contains("--setting 'text=\"2026\"'"), "{text}");
+    // The names of the icons are in the build: the agent reads them (test 3,
+    // finding 1).
+    assert!(text.contains("opencraft ctl icons --search mic"), "{text}");
+    // The places of the pages count from 1, as the page number of the action
+    // (test 3, finding 2).
+    assert!(text.contains("page 1"), "{text}");
+    assert!(!text.contains("from 0)"), "{text}");
+    // A new profile has one page (test 3, finding 3).
+    assert!(text.contains("A new profile has one page"), "{text}");
+    // The name of a step of the history is the name of the window (test 3,
+    // finding 4).
+    assert!(text.contains("the name that the window shows"), "{text}");
+    // A field with no default has no value (test 3, finding 5).
+    assert!(text.contains("`default: null`"), "{text}");
 }
 
 #[test]
