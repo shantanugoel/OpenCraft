@@ -99,6 +99,7 @@ fn main() {
                 println!("[{at:8.3}] input: {} {:?}", input.control, input.gesture)
             }
             Event::Choices { id, options } => println!("[{at:8.3}] choices {id}: {options:?}"),
+            Event::ProfileRead { id, .. } => println!("[{at:8.3}] profile read {id}"),
             Event::Kinds(kinds) => println!("[{at:8.3}] kinds: {kinds:?}"),
             Event::Profiles {
                 profiles,

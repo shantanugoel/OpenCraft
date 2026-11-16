@@ -342,6 +342,12 @@ impl Shell {
         }
     }
 
+    /// Give the control socket the cache that the engine thread updates, and
+    /// the way to send it commands. Call this before [`Self::listen`].
+    pub fn set_control(&mut self, feed: crate::control::Feed, port: crate::control::Port) {
+        self.control = crate::control::Control::with(feed, Some(port));
+    }
+
     /// Start the two tasks that receive the engine events and the shell
     /// commands. The tasks stop when the entity goes away.
     pub fn listen(
@@ -351,15 +357,6 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         self.set_allow_control(self.settings.allow_control, cx);
-        let control_commands = self.control.commands();
-        cx.spawn(async move |shell, cx| {
-            while let Ok(command) = control_commands.recv().await {
-                if shell.update(cx, |shell, _| (shell.send)(command)).is_err() {
-                    break;
-                }
-            }
-        })
-        .detach();
         // The key command and the menu items of the application menu. They
         // work also when the Settings window or no window has the focus.
         let settings = cx.weak_entity();
@@ -428,7 +425,6 @@ impl Shell {
     }
 
     pub fn receive(&mut self, event: Event, cx: &mut Context<Self>) {
-        self.control.observe(&event);
         let history = matches!(event, Event::History { .. });
         self.state.apply(event.clone(), Instant::now());
         if history {

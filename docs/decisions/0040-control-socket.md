@@ -130,6 +130,29 @@ request fails and changes nothing. Thus the device shows the page that the
 client changes. The steps of one request are one step of the history
 (`Command::Group`).
 
+Note (2026-11-16): issue #403 made these steps in the engine. A group does
+not stop after a problem, thus "select the page, then change" in a group
+could change a different page when the page was gone. The command
+`Command::AtLocation` checks the page and the open folders, makes them the
+active location, and then obeys one command. If the page or a folder is
+gone, the engine gives a problem and the command does not run. A request
+that names a location is
+`InProfile(Group(AtLocation(change)))`, after a `SelectProfile` that the
+control module sends first when the profile is not active. A request to
+read the content of a location that is not active uses
+`Command::ReadProfile`, which gives the profile in `Event::ProfileRead`
+and changes no location. A client that adds a folder can give no identity;
+then OpenCraft makes one.
+
+Note (2026-11-16): the result of a request is a function that the engine
+thread calls after the events of the command
+(`EngineSender::send_with_reply`). The read cache of the control module
+follows the events on the engine thread, and the worker reads it under one
+lock. Thus the response of a change comes after the events of the change,
+and the next read shows the change. A problem that is a notice and not a
+refusal (the device or a file fails after a correct change) is not the
+result of the request.
+
 **One history.** A change from a client is a step of the same history as a
 change from the window ([decision 0030](0030-undo-and-redo-in-the-engine.md)).
 The user can undo it in the window.

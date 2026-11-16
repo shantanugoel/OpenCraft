@@ -71,8 +71,12 @@ pub const STOP_TIMEOUT: Duration = Duration::from_secs(3);
 /// A command in the engine queue, with an optional private reply channel.
 struct PendingCommand {
     command: Command,
-    reply: Option<Sender<std::result::Result<(), String>>>,
+    reply: Option<Reply>,
 }
+
+/// The function that gets the result of one command. The engine thread
+/// calls it, after the command and after all events of the command.
+type Reply = Box<dyn FnOnce(std::result::Result<(), String>) + Send>;
 
 impl From<Command> for PendingCommand {
     fn from(command: Command) -> Self {
@@ -110,11 +114,29 @@ impl EngineSender {
     /// not cancel the command or block the engine.
     pub fn send_with_result(&self, command: Command) -> Receiver<std::result::Result<(), String>> {
         let (reply, result) = mpsc::channel();
-        let _ = self.commands.send(PendingCommand {
-            command,
-            reply: Some(reply),
+        self.send_with_reply(command, move |outcome| {
+            // An abandoned request must not block the engine.
+            let _ = reply.send(outcome);
         });
         result
+    }
+
+    /// Send a command, and call `reply` on the engine thread with the
+    /// result. The engine calls it after it obeyed the whole command, and
+    /// after it called the sink for each event of the command. Thus a shell
+    /// that gets the events and the result in one queue sees the result
+    /// after the events. `reply` must return quickly and must not block: it
+    /// puts the result in a queue and wakes its thread. If the engine
+    /// stops before it obeys the command, `reply` is dropped and not called.
+    pub fn send_with_reply(
+        &self,
+        command: Command,
+        reply: impl FnOnce(std::result::Result<(), String>) + Send + 'static,
+    ) {
+        let _ = self.commands.send(PendingCommand {
+            command,
+            reply: Some(Box::new(reply)),
+        });
     }
 }
 
@@ -337,8 +359,7 @@ fn run_loop<C: Connector, S: FnMut(Event), K: Clock>(
                 Ok(PendingCommand { command, reply }) => {
                     let go_on = if let Some(reply) = reply {
                         let (go_on, result) = engine.command_with_result(command);
-                        // An abandoned request must not block the engine.
-                        let _ = reply.send(result);
+                        reply(result);
                         go_on
                     } else {
                         engine.command(command)
@@ -412,6 +433,34 @@ mod tests {
             reply.recv_timeout(Duration::from_secs(10)),
             Err(RecvTimeoutError::Disconnected)
         );
+        handle.stop();
+    }
+
+    #[test]
+    fn a_reply_function_runs_on_the_engine_thread_after_the_events_of_its_command() {
+        let (log, entries) = mpsc::channel();
+        let sink_log = log.clone();
+        let handle = test_engine(move |event| {
+            if matches!(event, Event::Surface(ref state) if state.content.label.as_deref() == Some("Ready"))
+            {
+                sink_log.send("event").unwrap();
+            }
+        });
+        let reply_log = log.clone();
+        handle.sender().send_with_reply(
+            Command::SetLabel {
+                surface: crate::SurfaceId::new(opencraft_core::SurfaceKind::KeyFace, 3),
+                label: Some("Ready".into()),
+            },
+            move |result| {
+                assert_eq!(result, Ok(()));
+                assert_eq!(thread::current().name(), Some("opencraft-engine"));
+                reply_log.send("reply").unwrap();
+            },
+        );
+        let wait = Duration::from_secs(10);
+        assert_eq!(entries.recv_timeout(wait).unwrap(), "event");
+        assert_eq!(entries.recv_timeout(wait).unwrap(), "reply");
         handle.stop();
     }
 

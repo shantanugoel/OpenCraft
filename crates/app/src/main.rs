@@ -95,7 +95,10 @@ fn no_device() -> bool {
 }
 
 /// Start the device before the GUI toolkit. The sink never waits for the GUI.
-fn start_engine(profiles_dir: PathBuf) -> (EngineHandle, async_channel::Receiver<Event>) {
+fn start_engine(
+    profiles_dir: PathBuf,
+    feed: control::Feed,
+) -> (EngineHandle, async_channel::Receiver<Event>) {
     let (sender, receiver) = async_channel::unbounded();
     let trace = start_trace();
     let engine = opencraft_engine::spawn(
@@ -108,6 +111,9 @@ fn start_engine(profiles_dir: PathBuf) -> (EngineHandle, async_channel::Receiver
             if trace && matches!(event, Event::Connected) {
                 trace_now("device ready");
             }
+            // The cache of the control socket follows the engine, in the order
+            // of the events and of the results of control requests.
+            feed.observe(&event);
             let _ = sender.try_send(event);
         },
     )
@@ -232,7 +238,9 @@ fn main() {
     // Before the engine starts: with no profile file, the window is the
     // first start window (decision 0029, section 18).
     let first_start = !opencraft_engine::ProfilesDir::new(&profiles_dir).has_profiles();
-    let (engine, events) = start_engine(profiles_dir.clone());
+    let control_feed = control::Feed::default();
+    let (engine, events) = start_engine(profiles_dir.clone(), control_feed.clone());
+    let control_port = control::port(engine.sender());
     // Keep ownership outside the views. The quit hook stops the engine; code
     // after the run loop is a fallback on platforms where it returns.
     let engine = Rc::new(RefCell::new(Some(engine)));
@@ -288,6 +296,7 @@ fn main() {
         let shell = cx.new(|cx| {
             let mut shell = Shell::new(config_dir, settings, send);
             shell.set_profiles_dir(profiles_dir);
+            shell.set_control(control_feed, control_port);
             shell.set_first_start(first_start);
             shell.listen(events, command_receiver, cx);
             #[cfg(target_os = "macos")]
