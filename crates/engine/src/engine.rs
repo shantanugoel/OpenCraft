@@ -124,6 +124,11 @@ fn device_problem(error: &DeviceError) -> &'static str {
 /// The commands for a surface and for a binding change the active page.
 /// Page numbers start at 0. A command with a number that is not a page gives
 /// [`Event::Problem`] and changes nothing.
+///
+/// [`crate::runtime::EngineSender::send_with_result`] gives the sender one
+/// private result after the engine obeys the whole command, also for a
+/// [`Command::Group`] or [`Command::InProfile`]. The window can continue to
+/// send commands with no reply.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     /// Set the label of a surface. `None` or an empty text removes it.
@@ -586,6 +591,11 @@ impl BackgroundWrite {
 }
 
 /// An event from the engine to a shell.
+///
+/// Events describe shared state and problems. A command result goes only to
+/// its sender, through [`crate::runtime::EngineSender::send_with_result`],
+/// not through this event stream. [`Event::Problem`] is still sent when a
+/// command with a private reply gives a problem.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// The layout of the device model. It is the first event. It comes again
@@ -789,6 +799,9 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     feedback: BTreeMap<BindingId, (u64, Feedback)>,
     feedback_order: u64,
     counters: Counters,
+    /// The result of the command being obeyed, or `None` outside a request.
+    /// The first problem stays, including a problem inside a group.
+    command_result: Option<std::result::Result<(), String>>,
     sink: S,
 }
 
@@ -916,6 +929,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             feedback: BTreeMap::new(),
             feedback_order: 0,
             counters: Counters::default(),
+            command_result: None,
             sink,
         };
         engine.open_profiles();
@@ -2589,6 +2603,28 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
+    /// Obey one command and return its result with the stop flag of
+    /// [`Self::command`]. `Err` has the first problem text sent while the
+    /// command was obeyed. All problems still go to the shell as events.
+    /// A group gives one result, even if more than one child gives a problem;
+    /// it does not roll back changes made by other children.
+    ///
+    /// Success means that synchronous command processing is done. It does
+    /// not wait for the delayed file write, or for a handler response, and
+    /// it does not include problems from a later device poll.
+    pub fn command_with_result(
+        &mut self,
+        command: Command,
+    ) -> (bool, std::result::Result<(), String>) {
+        self.command_result = Some(Ok(()));
+        let go_on = self.command(command);
+        let result = self
+            .command_result
+            .take()
+            .expect("command result is active");
+        (go_on, result)
+    }
+
     /// The command in `command`, with no [`Command::InProfile`] around it.
     /// `None` if it is for a profile that is not the active profile: then
     /// the engine gives a problem.
@@ -3293,6 +3329,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
 
     /// Tell the shell about a problem, and write it to the log.
     fn problem(&mut self, text: String) {
+        if let Some(result @ Ok(())) = &mut self.command_result {
+            *result = Err(text.clone());
+        }
         log(&format!("problem: {text}"));
         (self.sink)(Event::Problem(text));
     }

@@ -61,7 +61,7 @@ pub use location::{Holder, Location};
 /// The types of the device layer that are in the messages.
 pub use opencraft_core::{ControlId, ControlKind, Gesture, InputEvent, SurfaceId, SurfaceKind};
 pub use power::{DisplayState, PowerNotice};
-pub use runtime::{spawn, Config, EngineHandle};
+pub use runtime::{spawn, Config, EngineHandle, EngineSender};
 
 pub use error::{Error, Result};
 pub use front::{ActiveCause, FrontApplication};

@@ -51,6 +51,8 @@ mod pages;
 mod power;
 #[path = "engine/profiles.rs"]
 mod profiles;
+#[path = "engine/results.rs"]
+mod results;
 #[path = "engine/share.rs"]
 mod share;
 #[path = "engine/test_model.rs"]
