@@ -9,7 +9,7 @@
 //!
 //! | Module | Part |
 //! |---|---|
-//! | `general` | The pane "General": the three switches, the permission, the folders |
+//! | `general` | The pane "General": the shell switches, the permission, the folders |
 //! | `shortcuts` | The pane "Shortcuts": the key commands |
 //! | `about` | The pane "About": the version and the licence notices |
 //! | `parts` | The group box and its rows |

@@ -70,6 +70,13 @@ impl Fixture {
 /// The Settings window with a shell that has fake desktop functions, and the
 /// folder of `shell.toml` in a temporary folder.
 fn window(cx: &mut TestAppContext) -> (Fixture, &mut VisualTestContext) {
+    window_with_settings(cx, None)
+}
+
+fn window_with_settings(
+    cx: &mut TestAppContext,
+    dir: Option<tempfile::TempDir>,
+) -> (Fixture, &mut VisualTestContext) {
     SHOWN.with(|shown| shown.borrow_mut().clear());
     OPENED.with(|opened| opened.borrow_mut().clear());
     cx.update(|cx| {
@@ -77,7 +84,9 @@ fn window(cx: &mut TestAppContext) -> (Fixture, &mut VisualTestContext) {
         Theme::change(ThemeMode::Dark, None, cx);
         app_menu::install(cx, &settings::Panes::default());
     });
-    let dir = tempfile::tempdir().unwrap();
+    // Keep the socket path below the Unix limit, also on macOS.
+    let dir = dir.unwrap_or_else(|| tempfile::tempdir_in("/tmp").unwrap());
+    let settings = settings::load(dir.path()).0;
     let sent: Sent = Default::default();
     let log = sent.clone();
     let config = dir.path().to_path_buf();
@@ -85,7 +94,7 @@ fn window(cx: &mut TestAppContext) -> (Fixture, &mut VisualTestContext) {
         cx.new(|cx| {
             let mut shell = Shell::new(
                 config.clone(),
-                Settings::default(),
+                settings,
                 Rc::new(move |command| log.borrow_mut().push(command)),
             );
             shell.set_profiles_dir(config.join("profiles"));
@@ -439,6 +448,75 @@ fn the_dock_icon_switch_follows_and_keeps_the_option(cx: &mut TestAppContext) {
     click(cx, "switch-dock-icon");
     assert!(is_on(cx, "switch-dock-icon"));
     assert!(f.settings_on_disk().show_dock_icon);
+}
+
+#[cfg(unix)]
+#[gpui_kit::test]
+fn the_control_switch_applies_at_once_and_stays_on_after_a_new_start(cx: &mut TestAppContext) {
+    use std::{io::Read, os::unix::net::UnixStream, time::Duration};
+
+    let (f, window_cx) = window(cx);
+    let socket = f.dir.path().join(crate::control::protocol::FILE_NAME);
+    assert!(!is_on(window_cx, "switch-allow-control"));
+    assert!(!socket.exists());
+    click(window_cx, "switch-allow-control");
+    assert!(is_on(window_cx, "switch-allow-control"));
+    assert!(f.settings_on_disk().allow_control);
+    let mut client = UnixStream::connect(&socket).unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    click(window_cx, "switch-allow-control");
+    assert!(!is_on(window_cx, "switch-allow-control"));
+    assert!(!f.settings_on_disk().allow_control);
+    assert!(!socket.exists());
+    assert_eq!(client.read(&mut [0]).unwrap(), 0);
+
+    // Stop and start a new shell and window with the saved setting.
+    click(window_cx, "switch-allow-control");
+    f.shell.update(window_cx, |shell, _| shell.stop_control());
+    assert!(!socket.exists());
+    let (restarted, window_cx) = window_with_settings(cx, Some(f.dir));
+    assert!(is_on(window_cx, "switch-allow-control"));
+    assert!(socket.exists());
+    assert!(restarted.settings_on_disk().allow_control);
+    // The keyboard uses the same command path as a click.
+    while crate::view::controls::tests::focused(window_cx).as_deref()
+        != Some("switch-allow-control")
+    {
+        window_cx.simulate_keystrokes("tab");
+    }
+    push(window_cx, "space");
+    assert!(!is_on(window_cx, "switch-allow-control"));
+    assert!(!socket.exists());
+    push(window_cx, "enter");
+    assert!(is_on(window_cx, "switch-allow-control"));
+    assert!(socket.exists());
+    click(window_cx, "switch-allow-control");
+    assert!(restarted.sent.borrow().is_empty());
+}
+
+#[cfg(unix)]
+#[gpui_kit::test]
+fn a_control_socket_that_cannot_open_keeps_the_switch_off_and_shows_a_problem(
+    cx: &mut TestAppContext,
+) {
+    let (f, cx) = window(cx);
+    let socket = f.dir.path().join(crate::control::protocol::FILE_NAME);
+    std::fs::write(&socket, "not a socket").unwrap();
+    click(cx, "switch-allow-control");
+    assert!(!is_on(cx, "switch-allow-control"));
+    assert!(!f.settings_on_disk().allow_control);
+    assert_eq!(std::fs::read_to_string(socket).unwrap(), "not a socket");
+    assert!(bounds(cx, "settings-message").is_some());
+    cx.update(|_, cx| {
+        assert!(f
+            .shell
+            .read(cx)
+            .settings_notice()
+            .unwrap()
+            .contains("control socket"));
+    });
 }
 
 #[gpui_kit::test]
@@ -1091,6 +1169,14 @@ fn each_part_of_the_settings_window_has_a_role_and_a_label(cx: &mut TestAppConte
     assert!(has(Role::Switch, "Start at login"), "{nodes:#?}");
     assert!(has(Role::Switch, "Show the Dock icon"), "{nodes:#?}");
     assert!(has(Role::Switch, "Show the window at start"), "{nodes:#?}");
+    assert!(has(Role::Switch, general::ALLOW_CONTROL.0), "{nodes:#?}");
+    assert!(
+        has(
+            Role::Label,
+            &format!("{}, {}", general::ALLOW_CONTROL.0, general::ALLOW_CONTROL.1)
+        ),
+        "{nodes:#?}"
+    );
     assert!(
         has(
             Role::Label,
@@ -1142,6 +1228,7 @@ fn tab_reaches_the_tabs_and_each_control_and_space_operates_them(cx: &mut TestAp
         "switch-dock-icon",
         "switch-window-at-start",
         "switch-follow-front",
+        "switch-allow-control",
         "open-system-settings",
         "show-profiles",
         "show-log-file",
