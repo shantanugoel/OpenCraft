@@ -302,6 +302,66 @@ fn the_default_profile_follows_the_mark_and_then_the_rule() {
 }
 
 #[test]
+fn the_first_start_keeps_the_starter_profile_as_default_when_only_it_has_no_link() {
+    // The first start window sends each ready profile and then the starter
+    // profile (`shell.rs`). Each ready profile has a link, thus step 3 of
+    // section 6 gives the first profile as the default profile while the
+    // starter profile is not in the list. The engine must not make that
+    // profile the mark: the starter profile has no link, and step 2 then
+    // makes it the default profile.
+    let dir = TempDir::new().unwrap();
+    let mut rig = Rig::in_dir(dir);
+    rig.take_events();
+    let mut finder = plain("Finder");
+    finder.applications.push(link("com.apple.finder", "Finder"));
+    assert!(rig
+        .engine
+        .command(Command::AddStarterProfile { profile: finder }));
+    assert!(rig.engine.command(Command::AddStarterProfile {
+        profile: plain("Everyday Mac")
+    }));
+    let events = rig.take_events();
+    let Event::Profiles {
+        default, active, ..
+    } = profiles_of(&events).last().unwrap()
+    else {
+        unreachable!()
+    };
+    assert_eq!(active, "everyday-mac");
+    assert_eq!(default, "everyday-mac");
+    // The engine did not record the ready profile as the default profile.
+    let state = fs::read_to_string(rig.dir.path().join("state.toml")).unwrap();
+    assert!(!state.contains("finder"), "{state}");
+}
+
+#[test]
+fn a_new_profile_with_no_link_is_the_default_when_each_profile_has_a_link() {
+    // Each profile has a link: the default profile of the moment comes from
+    // step 3 of section 6, and it is no choice of the list. A new profile
+    // with no link is the default profile by step 2.
+    let dir = TempDir::new().unwrap();
+    save_at(dir.path(), "calls", &zoom_calls());
+    let mut safari = plain("Safari");
+    safari.applications.push(link("com.apple.Safari", "Safari"));
+    save_at(dir.path(), "safari", &safari);
+    let mut rig = Rig::in_dir(dir);
+    rig.take_events();
+    assert!(rig.engine.command(Command::AddProfile {
+        name: "General".into(),
+        copy_of: None,
+    }));
+    let events = rig.take_events();
+    let Event::Profiles {
+        default, active, ..
+    } = profiles_of(&events).last().unwrap()
+    else {
+        unreachable!()
+    };
+    assert_eq!(active, "general");
+    assert_eq!(default, "general");
+}
+
+#[test]
 fn a_new_profile_does_not_take_the_default_that_the_engine_derives() {
     // `home` is the only profile and has no mark: it is the default profile
     // only because it is the first. `aaa` is before it in the order of the

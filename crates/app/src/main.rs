@@ -74,6 +74,53 @@ const CTL_ARGUMENT: &str = "ctl";
 /// The argument of a start at login (decision 0021).
 const LOGIN_ARGUMENT: &str = "--login";
 
+/// What the first argument asks for, before the application starts.
+enum Start {
+    /// Start the application.
+    Application,
+    /// Write the short help, with the version.
+    Help,
+    /// Write the version.
+    Version,
+    /// The first word is not a command: write the problem.
+    Unknown(std::ffi::OsString),
+}
+
+/// Read the first argument. `opencraft` starts the application, and
+/// `opencraft ctl <command>` is the client, which `main` starts before this
+/// function. `--help`, `-h`, `help`, and `--version` must not start the
+/// application: an agent or a person that tries the new command in `PATH`
+/// must get the text, not a started OpenCraft with the device and the lock.
+/// An argument that the Finder gives (`-psn_…`) starts the application, as
+/// before.
+fn start_of(arguments: &[std::ffi::OsString]) -> Start {
+    let Some(first) = arguments.first() else {
+        return Start::Application;
+    };
+    match first.to_str() {
+        Some(LOGIN_ARGUMENT) | Some(CTL_ARGUMENT) => Start::Application,
+        Some("--help" | "-h" | "help") => Start::Help,
+        Some("--version") => Start::Version,
+        Some(word) if word.starts_with('-') => Start::Application,
+        // The first word of the client is `ctl`: a different first word is a
+        // mistake, and it must not start the application.
+        Some(_) => Start::Unknown(first.clone()),
+        None => Start::Application,
+    }
+}
+
+/// The short help of `opencraft`. It names the application and the client,
+/// because the same executable is both (decision 0040, section 4).
+fn help_text() -> String {
+    format!(
+        "OpenCraft {version}\n\n\
+         `opencraft` starts the OpenCraft application for the device.\n\
+         `opencraft ctl <command>` changes a running OpenCraft: `opencraft ctl --help`.\n\
+         `opencraft ctl skill` writes the skill for an agent.\n",
+        version = env!("CARGO_PKG_VERSION"),
+    )
+}
+
 /// True if the arguments, with no program name, contain `--login`. The
 /// function prints each other argument and ignores it: an unknown argument
 /// does not stop the start.
@@ -182,6 +229,27 @@ fn trace_now(step: &str) {
 }
 
 fn main() {
+    // The arguments that ask for a text must not start the application. Do
+    // this first, with no lock, no engine, and no device (decision 0040).
+    let given: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    match start_of(&given) {
+        Start::Application => {}
+        Start::Help => {
+            println!("{}", help_text());
+            std::process::exit(0);
+        }
+        Start::Version => {
+            println!("opencraft {}", env!("CARGO_PKG_VERSION"));
+            std::process::exit(0);
+        }
+        Start::Unknown(word) => {
+            eprintln!(
+                "OpenCraft does not know the command {word:?}. `opencraft` starts the \
+                 application; `opencraft ctl --help` shows the commands of the client."
+            );
+            std::process::exit(2);
+        }
+    }
     // Before everything else: the client takes no lock, starts no engine, and
     // writes its messages to the terminal, not to the log file.
     let mut arguments = std::env::args_os().skip(1);
@@ -359,6 +427,27 @@ mod tests {
         settings.show_window_at_start = false;
         assert!(!opens_window(false, &settings));
         assert!(!opens_window(true, &settings));
+    }
+
+    #[test]
+    fn the_arguments_that_ask_for_a_text_do_not_start_the_application() {
+        let start = |list: &[&str]| match start_of(&arguments(list)) {
+            Start::Application => "start",
+            Start::Help => "help",
+            Start::Version => "version",
+            Start::Unknown(_) => "unknown",
+        };
+        assert_eq!(start(&[]), "start");
+        assert_eq!(start(&["--login"]), "start");
+        assert_eq!(start(&["ctl", "state"]), "start");
+        // The Finder gives an argument of this form.
+        assert_eq!(start(&["-psn_0_12345"]), "start");
+        assert_eq!(start(&["--help"]), "help");
+        assert_eq!(start(&["-h"]), "help");
+        assert_eq!(start(&["help"]), "help");
+        assert_eq!(start(&["--version"]), "version");
+        assert_eq!(start(&["clt", "state"]), "unknown");
+        assert_eq!(start(&["state"]), "unknown");
     }
 
     #[test]

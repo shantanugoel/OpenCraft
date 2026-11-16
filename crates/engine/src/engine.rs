@@ -142,6 +142,15 @@ pub struct Place {
     pub open: Option<Vec<FolderId>>,
 }
 
+/// The text of the refusal of [`Command::Undo`] with no step. The control
+/// socket gives the error `nothing_to_undo` for it (decision 0040, note of
+/// 2026-11-16). The engine has one text for the window and for a client.
+pub const NO_UNDO_STEP: &str = "There is no step to undo.";
+
+/// The text of the refusal of [`Command::Redo`] with no undone step. See
+/// [`NO_UNDO_STEP`].
+pub const NO_REDO_STEP: &str = "There is no step to do again.";
+
 /// A command from a shell to the engine.
 ///
 /// The commands for a surface and for a binding change the active page.
@@ -2741,11 +2750,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 if profile == self.profile_id {
                     self.for_active_profile(*command)
                 } else {
-                    self.problem(
-                        "OpenCraft did not do the change, because the active profile is a \
-                         different profile now. Look at the active profile, and do it again."
-                            .to_string(),
-                    );
+                    self.problem(format!(
+                        "OpenCraft did not do the change, because the active profile is \
+                         “{}” now. Look at the active profile, and do it again.",
+                        self.profile_id
+                    ));
                     None
                 }
             }
@@ -2917,7 +2926,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if done {
             self.send_history();
         } else {
-            self.refuse("There is no step to undo.");
+            self.refuse(NO_UNDO_STEP);
         }
     }
 
@@ -2935,7 +2944,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if done {
             self.send_history();
         } else {
-            self.refuse("There is no step to do again.");
+            self.refuse(NO_REDO_STEP);
         }
     }
 

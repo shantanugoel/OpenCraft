@@ -154,6 +154,28 @@ const TARGET: &[Arg] = &[
     ),
 ];
 
+/// The target of a close: the open folder is a part of the location.
+const CLOSE_TARGET: &[Arg] = &[
+    req(
+        "profile",
+        "target.profile",
+        Kind::Text,
+        "The identity of the profile (see `profile list`).",
+    ),
+    req(
+        "page",
+        "target.page",
+        Kind::Text,
+        "The identity of the page: 16 hexadecimal digits (see `page list`).",
+    ),
+    req(
+        "folder",
+        "target.folder",
+        Kind::Text,
+        "The identity of the open folder (see `folder list`).",
+    ),
+];
+
 /// `open folder` has its own flag for the folder to open.
 const OPEN_TARGET: &[Arg] = &[
     req(
@@ -332,8 +354,8 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "choices",
         "choices",
-        "Read the choices of one field of an action, for example the applications that run now.",
-        "opencraft ctl choices --action-kind opencraft.open-application --field application",
+        "Read the choices of one field of an action, for example the sound devices.",
+        "opencraft ctl choices --action-kind opencraft.play-sound --field device",
         &[CHOICE_ACTION]
     ),
     command!(
@@ -357,9 +379,9 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "history",
         "history",
-        "Read the names of the next undo and the next redo.",
+        "Read the names of the next undo and the next redo. With no `--profile`: the active profile. A profile that is not active keeps its history: it cannot change while the profile is not active.",
         "opencraft ctl history",
-        NO_ARGS
+        &[OPTIONAL_PROFILE]
     ),
     command!(
         "connection",
@@ -379,7 +401,7 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "profile add",
         "add_profile",
-        "Add a profile, empty or as a copy of a profile. The result has the identity of the new profile.",
+        "Add a profile, empty or as a copy of a profile. The result has the identity of the new profile and of its first page.",
         "opencraft ctl profile add --name Work",
         &[&[
             req("name", "name", Kind::Text, "The name of the new profile."),
@@ -464,7 +486,7 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "profile import",
         "import_profile",
-        "Read a profile from a file. The result has the identity of the new profile.",
+        "Read a profile from a file. The result has the identity of the new profile and of its first page.",
         "opencraft ctl profile import --path /tmp/work.opencraft",
         &[&[req("path", "path", Kind::Path, "The file to read.")]]
     ),
@@ -602,16 +624,16 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "folder close",
         "close_folder",
-        "Close an open folder. The device then shows the page or the folder below it.",
+        "Close the folder that is open at the location. The folder must be the last open folder of the active location. The device then shows the page or the folder below it.",
         "opencraft ctl folder close --profile work --page 0123456789abcdef --folder fedcba9876543210",
-        &[TARGET]
+        &[CLOSE_TARGET]
     ),
     // Surfaces.
     command!(
         "surface set-label",
         "set_label",
         "Set the text of a surface, or remove it.",
-        "opencraft ctl surface set-label --profile work --page 0123456789abcdef --surface key_face:0 --label Mute",
+        "opencraft ctl surface set-label --profile work --page 0123456789abcdef --surface key_face:1 --label Mute",
         &[
             TARGET,
             SURFACE,
@@ -622,7 +644,7 @@ pub const COMMANDS: &[Command] = &[
         "surface set-label-style",
         "set_label_style",
         "Set the style of the text of a surface. Leave out all values for the default style.",
-        "opencraft ctl surface set-label-style --profile work --page 0123456789abcdef --surface key_face:0 --position top --size 16",
+        "opencraft ctl surface set-label-style --profile work --page 0123456789abcdef --surface key_face:1 --position top --size 16",
         &[
             TARGET,
             SURFACE,
@@ -638,14 +660,14 @@ pub const COMMANDS: &[Command] = &[
         "surface set-color",
         "set_color",
         "Set the fill colour of a surface, or remove it.",
-        "opencraft ctl surface set-color --profile work --page 0123456789abcdef --surface key_face:0 --color '#336699'",
+        "opencraft ctl surface set-color --profile work --page 0123456789abcdef --surface key_face:1 --color '#336699'",
         &[TARGET, SURFACE, COLOR]
     ),
     command!(
         "surface set-image",
         "set_image",
         "Set the image of a surface from a file, or remove it.",
-        "opencraft ctl surface set-image --profile work --page 0123456789abcdef --surface key_face:0 --path /tmp/key.png",
+        "opencraft ctl surface set-image --profile work --page 0123456789abcdef --surface key_face:1 --path /tmp/key.png",
         &[
             TARGET,
             SURFACE,
@@ -656,7 +678,7 @@ pub const COMMANDS: &[Command] = &[
         "surface set-icon",
         "set_icon",
         "Set the icon of a surface, or remove it.",
-        "opencraft ctl surface set-icon --profile work --page 0123456789abcdef --surface key_face:0 --icon-name mic",
+        "opencraft ctl surface set-icon --profile work --page 0123456789abcdef --surface key_face:1 --icon-name mic",
         &[
             TARGET,
             SURFACE,
@@ -671,35 +693,35 @@ pub const COMMANDS: &[Command] = &[
         "binding set",
         "set_binding",
         "Set the action of a gesture of a control, or remove it. A person must push the key: a client cannot run an action.",
-        "opencraft ctl binding set --profile work --page 0123456789abcdef --control key:0 --gesture press --action-kind opencraft.hotkey --setting hotkey=cmd+c",
+        "opencraft ctl binding set --profile work --page 0123456789abcdef --control key:1 --gesture press --action-kind opencraft.hotkey --setting hotkey=cmd+c",
         &[TARGET, CONTROL, GESTURE, ACTION]
     ),
     command!(
         "control copy",
         "copy_control",
         "Copy a control with its surface and its bindings.",
-        "opencraft ctl control copy --profile work --page 0123456789abcdef --control key:0",
+        "opencraft ctl control copy --profile work --page 0123456789abcdef --control key:1",
         &[TARGET, CONTROL]
     ),
     command!(
         "control paste",
         "paste_control",
         "Paste the copied control onto a control.",
-        "opencraft ctl control paste --profile work --page 0123456789abcdef --control key:1",
+        "opencraft ctl control paste --profile work --page 0123456789abcdef --control key:2",
         &[TARGET, CONTROL]
     ),
     command!(
         "control clear",
         "clear_control",
         "Remove the surface and the bindings of a control.",
-        "opencraft ctl control clear --profile work --page 0123456789abcdef --control key:1",
+        "opencraft ctl control clear --profile work --page 0123456789abcdef --control key:2",
         &[TARGET, CONTROL]
     ),
     command!(
         "control copy-to-all-pages",
         "copy_to_all_pages",
         "Copy a control to the same place on all other pages of the profile.",
-        "opencraft ctl control copy-to-all-pages --profile work --page 0123456789abcdef --control key:0",
+        "opencraft ctl control copy-to-all-pages --profile work --page 0123456789abcdef --control key:1",
         &[TARGET, CONTROL]
     ),
     // The device.
@@ -724,14 +746,14 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "undo",
         "undo",
-        "Undo the last change of a profile. The profile must be the active profile.",
+        "Undo the last change of a profile. The profile must be the active profile. The result gives the place of the reversed change. With no step, the error is `nothing_to_undo`.",
         "opencraft ctl undo --profile work",
         &[PROFILE]
     ),
     command!(
         "redo",
         "redo",
-        "Redo the last undone change of a profile. The profile must be the active profile.",
+        "Redo the last undone change of a profile. The profile must be the active profile. The result gives the place of the change. With no undone change, the error is `nothing_to_redo`.",
         "opencraft ctl redo --profile work",
         &[PROFILE]
     ),

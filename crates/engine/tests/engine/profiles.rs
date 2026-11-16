@@ -955,7 +955,10 @@ fn a_command_for_a_profile_that_is_not_active_changes_nothing() {
         command(&mut rig, stale(page_command));
         let events = rig.take_events();
         assert_eq!(problems(&events).len(), 1, "{events:?}");
-        assert!(problems(&events)[0].contains("different profile"));
+        assert!(
+            problems(&events)[0].contains("the active profile is “default”"),
+            "{events:?}"
+        );
         assert_eq!(rig.engine.profile().pages().len(), 1);
         assert_eq!(rig.engine.active_page(), 0);
     }

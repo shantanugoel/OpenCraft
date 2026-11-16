@@ -9,6 +9,8 @@ use std::path::PathBuf;
 pub enum Parsed {
     /// The help of the client (`None`) or of one command.
     Help(Option<&'static Command>),
+    /// The version of the client.
+    Version,
     Run {
         command: &'static Command,
         flags: Vec<(&'static Arg, String)>,
@@ -24,6 +26,9 @@ pub fn parse(arguments: &[String]) -> Result<Parsed, String> {
         .collect();
     let rest = &arguments[words.len()..];
     let wants_help = rest.iter().any(|a| a == "--help" || a == "-h");
+    if rest.iter().any(|a| a == "--version") {
+        return Ok(Parsed::Version);
+    }
     if words.is_empty() {
         return if rest.is_empty() {
             Err("No command.".into())
@@ -33,8 +38,16 @@ pub fn parse(arguments: &[String]) -> Result<Parsed, String> {
             Err(format!("The argument {} must follow a command.", rest[0]))
         };
     }
-    if words[0] == "help" && words.len() == 1 {
-        return Ok(Parsed::Help(None));
+    if words[0] == "help" {
+        if words.len() == 1 {
+            return Ok(Parsed::Help(None));
+        }
+        // `help profile add` gives the help of the command.
+        let name = words[1..].join(" ");
+        return match find(&name) {
+            Some(command) => Ok(Parsed::Help(Some(command))),
+            None => Err(unknown_command(&words[1..])),
+        };
     }
     let name = words.join(" ");
     let Some(command) = find(&name) else {
@@ -247,7 +260,9 @@ pub fn help() -> String {
     let mut text = String::from(
         "opencraft ctl: control a running OpenCraft from the command line.\n\n\
          Usage: opencraft ctl <command> [--flag value]...\n\
-         \x20      opencraft ctl <command> --help\n\n\
+         \x20      opencraft ctl <command> --help\n\
+         \x20      opencraft ctl help <command>\n\
+         \x20      opencraft ctl --version\n\n\
          OpenCraft must run, and the setting \"Allow control by other programs\" must be\n\
          on. The result goes to the standard output as JSON. A problem goes to the\n\
          standard error as text. A profile, a page, and a folder have an identity: read\n\

@@ -55,6 +55,7 @@ pub use action::*;
 pub use device_settings::{DeviceSettings, KnobLightMode, KnobLights, SettingsSupport};
 pub use engine::{
     BackgroundState, Command, Counters, Engine, Event, NewBackground, PageRef, Place, SurfaceState,
+    NO_REDO_STEP, NO_UNDO_STEP,
 };
 /// The image type of the messages.
 pub use image::RgbImage;

@@ -51,7 +51,7 @@ OpenCraft.
 opencraft ctl --help
 opencraft ctl profile list
 opencraft ctl surface set-label --profile work --page 0123456789abcdef \
-  --surface key_face:0 --label Mute
+  --surface key_face:1 --label Mute
 ```
 
 - `opencraft ctl --help` lists all commands.
@@ -61,8 +61,8 @@ opencraft ctl surface set-label --profile work --page 0123456789abcdef \
   terminal, the JSON has lines and indents. A problem is a text on the
   standard error.
 - A profile, a page, and a folder have an identity. Read it with
-  `profile list`, `page list`, and `folder list`. `page list` and
-  `folder list` take `--profile` for a profile that is not active.
+  `profile list`, `page list`, and `folder list`. `page list`, `folder list`,
+  and `history` take `--profile` for a profile that is not active.
 - The result of a command that changes something names the profile, the page,
   and the folder of the command. A part that the command does not have is
   `null`. A command that makes a profile, a page, or a folder gives its

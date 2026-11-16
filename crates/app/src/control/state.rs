@@ -533,10 +533,23 @@ impl w::State {
                 }
             }
             e::Event::History { undo, redo } => {
-                self.history = w::History {
+                let history = w::History {
+                    profile: self.profiles.active.clone(),
                     undo: undo.clone(),
                     redo: redo.clone(),
+                };
+                // Keep the names of each profile that was active: the history
+                // of a profile that is not active cannot change, thus a read
+                // of it needs no engine command.
+                match self
+                    .histories
+                    .iter_mut()
+                    .find(|h| h.profile == history.profile)
+                {
+                    Some(old) => *old = history.clone(),
+                    None => self.histories.push(history.clone()),
                 }
+                self.history = history;
             }
             // The clipboard is internal; no read request exposes its contents.
             e::Event::Clipboard(_) => {}

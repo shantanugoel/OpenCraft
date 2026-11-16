@@ -31,10 +31,13 @@ struct Built {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Made {
     Nothing,
-    /// The new profile is the active profile.
+    /// The new profile is the active profile, with its first page.
     Profile,
     /// The new page is the active page.
     Page,
+    /// The active location after the change: the place of the step that an
+    /// undo or a redo reversed.
+    Place,
     /// The folder that the control module named.
     Folder(String),
 }
@@ -396,9 +399,17 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                 .transpose()
                 .map_err(|_| "The action settings are not correct.")?;
             // The window cannot make a binding with an unknown kind, an
-            // unknown field, or a value that the kind refuses.
+            // unknown field, a hidden field, or a value that the kind
+            // refuses.
             if let Some(action) = &action {
-                super::check::action(action, &state.kinds)?;
+                super::check::action(
+                    action,
+                    &state.kinds,
+                    &super::check::At {
+                        state,
+                        profile: &p.target.profile,
+                    },
+                )?;
             }
             let (place, page) = location(state, p.target)?;
             // The engine rule for the holder of a binding: a key is in the
@@ -544,6 +555,26 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
             nothing(at(place, C::OpenFolder { folder }))
         }
         M::CloseFolder(p) => {
+            // The open folders are a part of the active location. A profile
+            // that is not active has none, and a folder that is not open
+            // cannot close.
+            if state.profiles.active.as_deref() != Some(p.target.profile.as_str()) {
+                return Err(
+                    "The profile is not active, thus it has no open folder. Read `pages` \
+                     to find the active profile."
+                        .into(),
+                );
+            }
+            let open = state
+                .pages
+                .location
+                .as_ref()
+                .filter(|place| place.page == p.target.page)
+                .and_then(|place| place.open.last())
+                .ok_or("The folder is not open.")?;
+            if Some(open.as_str()) != p.target.folder.as_deref() {
+                return Err("The folder is not open.".into());
+            }
             let (place, _) = location(state, p.target)?;
             nothing(at(place, C::CloseFolder))
         }
@@ -602,14 +633,20 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                     .collect::<Result<_, _>>()?,
             },
         })),
-        M::Undo(p) => nothing(C::InProfile {
-            profile: p.profile,
-            command: Box::new(C::Undo),
-        }),
-        M::Redo(p) => nothing(C::InProfile {
-            profile: p.profile,
-            command: Box::new(C::Redo),
-        }),
+        M::Undo(p) => Built {
+            command: C::InProfile {
+                profile: p.profile,
+                command: Box::new(C::Undo),
+            },
+            made: Made::Place,
+        },
+        M::Redo(p) => Built {
+            command: C::InProfile {
+                profile: p.profile,
+                command: Box::new(C::Redo),
+            },
+            made: Made::Place,
+        },
         M::Hello(_)
         | M::State(_)
         | M::Layout(_)

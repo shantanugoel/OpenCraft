@@ -182,6 +182,14 @@ impl ProfileList {
         {
             return None;
         }
+        // Only a default profile of step 2 of decision 0035, section 6, is a
+        // choice of the list: a profile with no link that applies. A default
+        // profile of step 3 (a link applies on each profile) is not a choice:
+        // the profile that the user adds has no link, and step 2 then finds
+        // it. A mark here would give the new profile the wrong default.
+        if self.entries.iter().all(|entry| !entry.applied.is_empty()) {
+            return None;
+        }
         let id = self.default_id()?.to_string();
         self.default_mark = Some(id.clone());
         Some(id)

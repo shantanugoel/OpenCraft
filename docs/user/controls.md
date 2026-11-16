@@ -373,6 +373,9 @@ profile." The switch of the default profile is on, and you cannot turn it
 off. To move the mark, open a different profile and turn **Default profile**
 on. A new profile, a copy, and an imported profile do not get the mark from
 the file. A new profile does not take the mark from the profile that has it.
+With no mark, OpenCraft uses the first profile that has no link, in the order
+of the identities. While each profile has a link, OpenCraft uses the first
+profile. A new profile with no link is then the default profile.
 
 - Each change applies at once. Edit > Undo can undo a change of the first
   page of the active profile. It cannot undo a change of the name, of the

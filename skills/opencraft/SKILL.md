@@ -59,13 +59,20 @@ read it again and the next save removes your edit.
   gone.
 - **Exit 0 means OpenCraft accepted the request.** `binding set` refuses an
   action with an unknown kind, an unknown setting, or a value that the kind
-  refuses (exit 1, `invalid_params`, with a text that names the problem). The
-  binding does not change. Use `opencraft ctl kinds` to read the kinds, the
-  settings, and the limits. A kind can still fail at run time, for example when
-  it needs a permission. After `binding set`, run `opencraft ctl content` and
-  check that the binding has `"available": true`.
+  refuses (exit 1, `invalid_params`, with a text that names the problem). A
+  field that `shown_when` does not show for the other settings is a refusal
+  too. The binding does not change. Use `opencraft ctl kinds` to read the
+  kinds, the settings, and the limits. A kind can still fail at run time, for
+  example when it needs a permission. After `binding set`, run
+  `opencraft ctl content` and check that the binding has `"available": true`.
 - **A change is one step of the history.** `opencraft ctl undo --profile ID`
-  reverses it. The profile must be the active profile.
+  reverses it. The profile must be the active profile. The result gives the
+  place of the reversed change. `history` reads the next undo and the next
+  redo of the active profile, or of the profile that you name.
+- **An empty history is not a wrong request.** With no step, `undo` gives the
+  error `nothing_to_undo` (`nothing_to_redo` for `redo`) and exit 1. The
+  request is correct: there is nothing to reverse. Tell the user, and do not
+  change the request.
 - The user can use the device while you work. If a request fails because a page
   is gone or moved, read the state again.
 - A file path in an argument is absolute, or relative to the current directory.
@@ -112,7 +119,11 @@ The modifiers are `ctrl`, `alt`, `shift`, `cmd`, `fn`, and the right-side
 `rightctrl`, `rightalt`, `rightshift`, `rightcmd`.
 
 `opencraft ctl choices --action-kind opencraft.play-sound --field device` reads
-a choice that depends on the computer, for example the applications that run now.
+a choice that depends on the computer, for example the sound devices. Only a
+few fields have choices that depend on the computer. The field `application`
+of `opencraft.open-application` is a path: give it as
+`--setting application=/Applications/Safari.app`, and, if you know it, give the
+bundle identifier here too: `--setting bundle_id=com.apple.Safari`.
 
 An icon is a name of the Lucide set (for example `copy`, `compass`, `mic`). An
 unknown name gives exit 1. A colour is `#rrggbb`.
@@ -138,8 +149,10 @@ opencraft ctl content --profile demo --page 4853c7f9bf374716
 ```
 
 `profile add` makes the new profile the active profile, and does not change the
-default profile. `page add` gives the identity of the new page in the result. To remove a surface value or a binding,
-leave out the value: `opencraft ctl surface set-label` with no `--label`.
+default profile. The result gives the identity of the new profile and of its
+first page. `page add` gives the identity of the new page in the result. To
+remove a surface value or a binding, leave out the value:
+`opencraft ctl surface set-label` with no `--label`.
 
 ## Commands
 
@@ -154,7 +167,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `choices` | `--action-kind` `--field` `--setting` | Read the choices of a field |
 | `content` | `--profile` `--page` `--folder` | Read a location; no flags: the active one |
 | `device settings` | | Read the device settings |
-| `history` | | Read the next undo and redo |
+| `history` | `--profile` | Read the next undo and redo |
 | `connection` | | Read the device connection |
 | `profile list` | | Read the profiles |
 | `profile add` | `--name` `--copy-of` | Add a profile |
@@ -184,7 +197,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `folder move` | `--profile` `--folder` `--to` | Move |
 | `folder remove` | `--profile` `--folder` | Remove |
 | `folder open` | `--profile` `--page` `--folder` `--inside` | Show a folder |
-| `folder close` | target | Close an open folder |
+| `folder close` | target | Close the folder that is open |
 | `surface set-label` | target `--surface` `--label` | Set or remove the text |
 | `surface set-label-style` | target `--surface` `--position` `--size` `--color` `--bold` | Set the text style |
 | `surface set-color` | target `--surface` `--color` | Set or remove the fill colour |

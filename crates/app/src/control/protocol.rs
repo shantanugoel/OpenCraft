@@ -19,9 +19,11 @@
 //! # Reads
 //!
 //! `state` (all read state), `layout`, `kinds`, `profiles`,
-//! `device_settings`, `history`, and `connection` take `{}`. `pages` and
-//! `folders` take `{}` or `{ "profile": <identity> }`: no profile is the
-//! active profile. `content` takes `{}` or `{ "target": <target> }`. A read of
+//! `device_settings`, and `connection` take `{}`. `pages`, `folders`, and
+//! `history` take `{}` or `{ "profile": <identity> }`: no profile is the
+//! active profile. The history of a profile that is not active is the
+//! history that OpenCraft kept for it; it cannot change while the profile is
+//! not active. `content` takes `{}` or `{ "target": <target> }`. A read of
 //! a profile that is not active reads its file and selects nothing; its
 //! `pages` result has no `location`.
 //! `choices` takes an action and a field key. Its result is a list of
@@ -36,7 +38,9 @@
 //!
 //! - [`Target`]: `{ "profile", "page", "folder" }`, the profile, the page,
 //!   and a folder or null. For the content of a location: surfaces, bindings,
-//!   controls, `open_folder`, and `close_folder`.
+//!   and controls. `close_folder` needs the folder: it is the open folder of
+//!   the location, and the request fails if it is not the last open folder of
+//!   the active location.
 //! - [`PageTarget`]: `{ "profile", "page" }`. For a request about a page:
 //!   `rename_page`, `move_page`, `remove_page`, `select_page`,
 //!   `duplicate_page`, `set_first_page`, `set_background`, and
@@ -335,10 +339,12 @@ pub struct Changed {
     /// the new profile.
     pub profile: Option<String>,
     /// The page of the request. For `add_page` and `duplicate_page`: the new
-    /// page.
+    /// page. For `add_profile` and `import_profile`: the first page of the
+    /// new profile. For `undo` and `redo`: the page of the reversed step.
     pub page: Option<String>,
     /// The folder of the request. For `add_folder`: the new folder. For
-    /// `open_folder`: the folder that opens.
+    /// `open_folder`: the folder that opens. For `undo` and `redo`: the
+    /// innermost open folder of the reversed step.
     pub folder: Option<String>,
 }
 
@@ -407,7 +413,7 @@ pub enum Method {
     Undo(ProfileParams),
     Redo(ProfileParams),
     DeviceSettings(Empty),
-    History(Empty),
+    History(ProfileRead),
     Connection(Empty),
 }
 
@@ -603,6 +609,10 @@ pub enum ErrorCode {
     EngineProblem,
     /// All places for clients are in use.
     Busy,
+    /// An undo with no step of the history.
+    NothingToUndo,
+    /// A redo with no undone step.
+    NothingToRedo,
 }
 
 impl Response {
@@ -985,6 +995,9 @@ pub struct KnobLights {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct History {
+    /// The identity of the profile of the history. Null only before the
+    /// engine sends the first history.
+    pub profile: Option<String>,
     pub undo: Option<String>,
     pub redo: Option<String>,
 }
@@ -1005,4 +1018,9 @@ pub struct State {
     pub device_settings: Option<DeviceSettings>,
     pub history: History,
     pub connection: Connection,
+    /// The history of each profile that was active since the start. The
+    /// history of a profile that is not active cannot change, thus the
+    /// client can read it. It is not a part of `state`.
+    #[serde(skip)]
+    pub histories: Vec<History>,
 }
