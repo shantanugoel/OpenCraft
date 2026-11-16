@@ -372,7 +372,7 @@ is "The device shows this profile when the front application has no linked
 profile." The switch of the default profile is on, and you cannot turn it
 off. To move the mark, open a different profile and turn **Default profile**
 on. A new profile, a copy, and an imported profile do not get the mark from
-the file.
+the file. A new profile does not take the mark from the profile that has it.
 
 - Each change applies at once. Edit > Undo can undo a change of the first
   page of the active profile. It cannot undo a change of the name, of the

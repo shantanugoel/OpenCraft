@@ -61,8 +61,12 @@ opencraft ctl surface set-label --profile work --page 0123456789abcdef \
   terminal, the JSON has lines and indents. A problem is a text on the
   standard error.
 - A profile, a page, and a folder have an identity. Read it with
-  `profile list`, `page list`, and `folder list`. A command that makes a
-  profile, a page, or a folder gives its identity in the result.
+  `profile list`, `page list`, and `folder list`. `page list` and
+  `folder list` take `--profile` for a profile that is not active.
+- The result of a command that changes something names the profile, the page,
+  and the folder of the command. A part that the command does not have is
+  `null`. A command that makes a profile, a page, or a folder gives its
+  identity.
 - A command that changes a page names the profile and the page. The device
   then shows that page. After its work, a program should select the page that
   you used before. See [What a program can do](#what-a-program-can-do).

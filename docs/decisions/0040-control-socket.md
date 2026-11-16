@@ -243,6 +243,36 @@ the command line reuses the types of `protocol.rs`.
   data under the lock and makes the JSON text after it (L5). The first
   note of this record now says what the code does (L8).
 
+Note (2026-11-16, issue #406, test 1 of the skill by an agent): these points
+hold for the reads and the results.
+
+- **A client does not change the default profile (finding 1).** A test agent
+  saw `"default": "agent-test"` after `profile add`. The cause is not the
+  protocol. With no default mark, the engine takes the first profile with no
+  link in the order of the identities as the default profile
+  ([decision 0035](0035-front-application-selects-the-profile.md), section 6),
+  and the new profile was first. The window had the same effect. The engine
+  now puts the mark on the default profile before an add (note of 2026-11-16 in
+  decision 0035), thus no add of a client or of the window moves it. The
+  active profile is a different value: each change makes the profile that it
+  names the active profile (`AtPlace`), and `profile add` makes the new profile
+  active. The skill says this.
+- **A read takes an optional profile (finding 2).** `pages` and `folders` take
+  `{ "profile": <identity> }` as `content` does. No profile, or the active
+  profile: the cache answers, and `pages` has the active location. A profile that
+  is not active: the engine reads its file (`Command::ReadProfile`) and
+  selects nothing; the result of `pages` has `"location": null`. An identity
+  that does not exist is `invalid_params`. `Pages` has the new field
+  `profile`. The result of `profiles` already has the pages of each profile.
+- **The result of a change is the place (finding 3).** Each change gives
+  `{ "profile", "page", "folder" }`: the place that the request names (the
+  target of the request), and for an add the identity of the new thing in its
+  field. A part that the request has not is null. `open_folder` gives the
+  folder that it opens. A request that removes a thing names it, and the thing
+  is gone. This replaces the rule "null for each field of a thing that the
+  request did not make" of review 2 (M6). The reason: an agent read the null
+  fields as "not done".
+
 **One history.** A change from a client is a step of the same history as a
 change from the window ([decision 0030](0030-undo-and-redo-in-the-engine.md)).
 The user can undo it in the window.

@@ -110,6 +110,14 @@ const PROFILE: &[Arg] = &[req(
     "The identity of the profile (see `profile list`).",
 )];
 
+/// A read about one profile. No profile means the active profile.
+const OPTIONAL_PROFILE: &[Arg] = &[arg(
+    "profile",
+    "profile",
+    Kind::Text,
+    "The identity of the profile (see `profile list`). Default: the active profile.",
+)];
+
 const PAGE_TARGET: &[Arg] = &[
     req(
         "profile",
@@ -464,9 +472,9 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "page list",
         "pages",
-        "Read the pages of the active profile with their identities, the active location, and the first page.",
-        "opencraft ctl page list",
-        NO_ARGS
+        "Read the pages of a profile with their identities, its folders, and the first page. With no `--profile`: the active profile, with its active location. A profile that is not active has no active location (`location` is null).",
+        "opencraft ctl page list --profile work",
+        &[OPTIONAL_PROFILE]
     ),
     command!(
         "page add",
@@ -548,9 +556,9 @@ pub const COMMANDS: &[Command] = &[
     command!(
         "folder list",
         "folders",
-        "Read the folders of the active profile.",
-        "opencraft ctl folder list",
-        NO_ARGS
+        "Read the folders of a profile. With no `--profile`: the active profile.",
+        "opencraft ctl folder list --profile work",
+        &[OPTIONAL_PROFILE]
     ),
     command!(
         "folder add",
