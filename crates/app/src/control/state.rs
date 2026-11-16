@@ -140,15 +140,15 @@ fn value(value: &e::Value) -> serde_json::Value {
 }
 
 /// The setting of an action for a wire value. Null and a number with a
-/// fraction are not a setting.
+/// fraction are not a setting. The reason is the end of the text of the
+/// problem: [`TryFrom<w::Action>`] puts the key in front of it.
 fn setting(value: serde_json::Value) -> Result<e::Value, String> {
     Ok(match value {
         serde_json::Value::String(v) => e::Value::Text(v),
         serde_json::Value::Bool(v) => e::Value::Boolean(v),
-        serde_json::Value::Number(v) => e::Value::Integer(
-            v.as_i64()
-                .ok_or("A setting that is a number must be a whole number.")?,
-        ),
+        serde_json::Value::Number(v) => {
+            e::Value::Integer(v.as_i64().ok_or("it is not a whole number")?)
+        }
         serde_json::Value::Array(v) => {
             e::Value::List(v.into_iter().map(setting).collect::<Result<_, _>>()?)
         }
@@ -157,7 +157,7 @@ fn setting(value: serde_json::Value) -> Result<e::Value, String> {
                 .map(|(k, v)| Ok((k, setting(v)?)))
                 .collect::<Result<_, String>>()?,
         ),
-        serde_json::Value::Null => return Err("A setting cannot be null.".into()),
+        serde_json::Value::Null => return Err("it is null".into()),
     })
 }
 
@@ -169,7 +169,11 @@ impl TryFrom<w::Action> for e::Action {
             settings: action
                 .settings
                 .into_iter()
-                .map(|(k, v)| Ok((k, setting(v)?)))
+                .map(|(key, value)| {
+                    setting(value)
+                        .map(|value| (key.clone(), value))
+                        .map_err(|why| format!("The setting \"{key}\" is not correct: {why}."))
+                })
                 .collect::<Result<_, String>>()?,
         })
     }

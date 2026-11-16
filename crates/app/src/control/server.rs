@@ -894,16 +894,16 @@ fn handle(
             match &field.input {
                 Input::Choice { options } => Response::success(id, options),
                 Input::RuntimeChoice | Input::RuntimeChoiceList => {
-                    let Ok(action) = params.action.try_into() else {
-                        client.respond(
-                            Response::error(
-                                Some(id),
-                                ErrorCode::InvalidParams,
-                                "The action settings are not correct.",
-                            ),
-                            home,
-                        );
-                        return;
+                    // The conversion names a setting that it refuses.
+                    let action = match opencraft_engine::Action::try_from(params.action) {
+                        Ok(action) => action,
+                        Err(why) => {
+                            client.respond(
+                                Response::error(Some(id), ErrorCode::InvalidParams, &why),
+                                home,
+                            );
+                            return;
+                        }
                     };
                     let engine_id = next_id();
                     let command = Command::Choices {

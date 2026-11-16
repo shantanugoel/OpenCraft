@@ -91,9 +91,12 @@ The switches at the top of the tab:
 | Change the profile with the front application | Changes the profile when you go to an application that needs a different profile. The full rule is in [The profile follows the front application](controls.md#the-profile-follows-the-front-application). The switch is on until you turn it off. |
 
 Below this group, **Allow control by other programs** permits programs of
-this user to read and change the profiles. It is off until you turn it on.
-The change applies at once, with no restart. When you turn it off, OpenCraft
-closes each control connection. OpenCraft keeps the setting after a restart.
+this user to read and change the profiles. See
+[Control by other programs](control.md) for the procedure, and
+[Privacy](privacy.md#control-by-other-programs) for the socket file. The switch
+is off until you turn it on. The change applies at once, with no restart. When
+you turn it off, OpenCraft closes each control connection and removes the
+socket file. OpenCraft keeps the setting after a restart.
 
 Below the switches, the tab shows the state of the Accessibility permission.
 The text is "Accessibility permission: **given**" or "Accessibility
@@ -213,6 +216,7 @@ click Go > Go to Folder, and type the path.
 | `profiles/state.toml` | The active profile, and the model of the last device that connected |
 | `profiles/device-settings.toml` | The device settings |
 | `profiles/removed/` | The profiles that you removed |
+| `control.sock` | The socket of the control by other programs. It is there only while the setting is on. |
 | `shell.toml` | The options of the Settings window, and the sizes of the panes of the window |
 | `opencraft.log` | The log file. See below. |
 | `opencraft.log.1` | The previous log file |

@@ -393,11 +393,8 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
             if !allowed {
                 return Err("A control of this kind cannot make this gesture.".into());
             }
-            let action = p
-                .action
-                .map(e::Action::try_from)
-                .transpose()
-                .map_err(|_| "The action settings are not correct.")?;
+            // The conversion names the setting that it refuses.
+            let action = p.action.map(e::Action::try_from).transpose()?;
             // The window cannot make a binding with an unknown kind, an
             // unknown field, a hidden field, or a value that the kind
             // refuses.

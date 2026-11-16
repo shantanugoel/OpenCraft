@@ -129,8 +129,8 @@ profiles, names the profile only. A page has an identity that stays with the
 page (note of review 2, below). The control module sends one command,
 `Command::AtPlace`. The engine checks the place, goes there, and obeys the
 change. If the place is not there, the request fails and changes nothing. Thus
-the device shows the page that the client changes. A request is one step of
-the history.
+the device shows the page that the client changes. A request that changes the
+pages is one step of the history; a request that changes no page is not.
 
 Note (2026-11-16): issue #403 made these steps in the engine. A group does
 not stop after a problem, thus "select the page, then change" in a group
@@ -330,10 +330,30 @@ These points change the interface of this record.
   each argument error has the line "See `opencraft ctl … --help`". The
   example of `choices` names a field that has choices (a sound device), and
   the skill says that the field `application` is a path.
+- **The text of a setting that is not correct.** A setting that is null, or a
+  number with a fraction, gave "The action settings are not correct.", with no
+  setting named. The conversion names the setting now: "The setting \"step\"
+  is not correct: it is not a whole number." The skill gives the form of a
+  value of a text field that is JSON (`--setting 'text="2026"'`), because
+  `--setting text=2026` is a number, and the kind refuses it.
+- **The texts of the skill and of the user guide.** A change of a profile is
+  not a step of the history (decision 0030), thus the skill says which
+  requests are steps and which are not, and that no `profile` request has an
+  undo. The skill gives the folder key ("Back"), the form of a colour, the
+  run-time `status` of a kind, and the location that the device shows after a
+  removal of the active profile. The user guide keeps each fact in one
+  document ([the rules of the documentation](../README.md#rules)).
 
-**One history.** A change from a client is a step of the same history as a
-change from the window ([decision 0030](0030-undo-and-redo-in-the-engine.md)).
-The user can undo it in the window.
+**One history.** A change of the pages from a client is a step of the same
+history as a change from the window
+([decision 0030](0030-undo-and-redo-in-the-engine.md)), thus the user can undo
+it in the window. The other requests are not steps. They are the requests
+about a profile, a selection of a page or a profile, a folder open or close,
+`control copy`, and the device settings. Decision 0030 gives the rule
+([What the history does not cover](0030-undo-and-redo-in-the-engine.md#what-the-history-does-not-cover)),
+and [decision 0035](0035-front-application-selects-the-profile.md),
+section 12, gives the links. A removal of a profile is not a step: OpenCraft
+moves the profile directory into the folder `removed`.
 
 **A file path.** A request with a file path, for example an image or an
 export file, gives an absolute path. The engine reads or writes the file,
@@ -436,8 +456,11 @@ Note (2026-11-16, issue #406): these points hold for the skill.
   descriptions of the kinds (the input type, the limits, the options) and from
   the reader of the text of a hotkey. The same check is for the actions inside
   an action list. The refusal is `invalid_params`, and nothing changes. The
-  skill tells the agent to use the full kind, and to read `available` in
-  `content` after `binding set`, because a kind can still fail at run time.
+  skill tells the agent to use the full kind. A kind can still do nothing at
+  run time, for example when it needs a permission: the skill tells the agent
+  to read the `status` of the kind in `kinds`. `available` in `content` is not
+  that test: a binding that OpenCraft accepts always has `available: true`,
+  because the kind of each accepted binding exists.
 
 ### 6. Later
 

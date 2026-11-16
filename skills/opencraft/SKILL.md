@@ -36,12 +36,17 @@ read it again and the next save removes your edit.
 
 ## Rules
 
-- **Every change moves the device.** A change makes the profile that it names
-  the active profile, and shows the page (and the folder) that it changes.
-  `profile add`, `profile import`, and `page add` do this too, for the new
-  profile or page. When you are done, go home: run `profile select` for your
-  home profile, `page select` for your home page, and `folder open` for each
-  open folder of your home.
+- **A change with `--page` moves the device.** It makes its profile the active
+  profile and shows the page. A change to a different page closes the folder
+  that was open. A request that has `--folder` opens that folder, and it closes
+  the open folder when you give no `--folder`. `profile add`,
+  `profile import`, and `page add` move the device too, for the new profile or
+  page. When you are done, go home: run `profile select` for your home profile,
+  `page select` for your home page, and `folder open` for each open folder of
+  your home.
+- **A read does not move the device.** `state.content` is the active location.
+  `content`, `page list`, `folder list`, and `history` read a profile that is
+  not active without selecting it.
 - **The default profile is not the active profile.** The default profile is
   what the device shows for an application that has no link. Only
   `profile set-default` changes it (and `profile remove` for the default
@@ -62,13 +67,29 @@ read it again and the next save removes your edit.
   refuses (exit 1, `invalid_params`, with a text that names the problem). A
   field that `shown_when` does not show for the other settings is a refusal
   too. The binding does not change. Use `opencraft ctl kinds` to read the
-  kinds, the settings, and the limits. A kind can still fail at run time, for
-  example when it needs a permission. After `binding set`, run
-  `opencraft ctl content` and check that the binding has `"available": true`.
-- **A change is one step of the history.** `opencraft ctl undo --profile ID`
-  reverses it. The profile must be the active profile. The result gives the
-  place of the reversed change. `history` reads the next undo and the next
-  redo of the active profile, or of the profile that you name.
+  kinds, the settings, and the limits. `"available": true` in `content` only
+  says that the kind exists, and each binding that OpenCraft accepts has it.
+  A kind can still do nothing at run time, for example when it needs a
+  permission: read the `status` of the kind in `opencraft ctl kinds` (see
+  below), and tell the user what its `text` says.
+- **Only a change of the pages is a step of the history.** These requests make
+  a step: `surface set-label`, `surface set-label-style`, `surface set-color`,
+  `surface set-image`, `surface set-icon`, `binding set`, `page add`,
+  `page duplicate`, `page rename`, `page move`, `page remove`,
+  `page set-first`, `page set-background`, `page set-background-fit`,
+  `folder add`, `folder rename`, `folder move`, `folder remove`,
+  `control paste`, `control clear`, and `control copy-to-all-pages`. The other
+  requests are not steps: all `profile` commands, `page select`, `folder open`,
+  `folder close`, `control copy`, and `device set-settings`. The command
+  `undo --profile ID` reverses the last step of the active profile, and the
+  result gives the place of the reversed step. `history` reads the next undo
+  and the next redo of the active profile, or of the profile that you name.
+- **No `profile` request has an undo.** The window cannot undo a change of a
+  profile either. Ask the user before `profile remove`. Then tell the user that
+  OpenCraft does not delete the profile: it moves it to the folder `removed` in
+  the profiles folder. If you remove the active profile, another profile
+  becomes active: the one that is now at the same position in the list.
+  OpenCraft keeps one profile, thus a removal of the last profile is a refusal.
 - **An empty history is not a wrong request.** With no step, `undo` gives the
   error `nothing_to_undo` (`nothing_to_redo` for `redo`) and exit 1. The
   request is correct: there is nothing to reverse. Tell the user, and do not
@@ -105,28 +126,44 @@ device model; do not assume it.
 - `fields`: the settings. Each field has a `key` and an `input.type`. A choice
   has its `options` in `input`. `default` is the value that OpenCraft uses when
   you give none.
-- `status`: a kind that needs a permission shows it here. If the state is not
-  `ready`, tell the user to give the permission.
+- `status`: `{"state": "ready"}`, or `{"state": "needs_user", "text": …,
+  "button": …}` for a kind that needs a permission. If the state is not
+  `ready`, the key does nothing until the user acts as the `text` says; tell
+  the user that text. For example, `opencraft.hotkey`, `opencraft.type-text`,
+  `opencraft.media-key`, `opencraft.mouse`, and `opencraft.mac-function`
+  show `needs_user` while OpenCraft has no Accessibility permission. `status`
+  is `null` for a kind that never needs the permission, or before OpenCraft
+  reads it: `null` is not a fault.
 
 A key opens a folder with the kind `opencraft.open-folder`. Its setting
-`folder` is the identity of the folder.
+`folder` is the identity of the folder. A folder opens only with such a key.
+To leave the folder, the user pushes a key with the kind
+`opencraft.close-folder` (the action "Back"). OpenCraft adds no key to a folder
+that you add. A page selection and a profile selection also close the folder.
 
 Give a setting as `--setting KEY=VALUE`, one flag for each field. A value is
-JSON when it can be JSON (`step=5` is a number), else text. A hotkey is the
-modifiers and one key with `+`: `cmd+c`, `shift+cmd+4`. The modifiers can be in
-any order (`cmd+shift+4` is the same hotkey), and capital letters are correct.
-The modifiers are `ctrl`, `alt`, `shift`, `cmd`, `fn`, and the right-side
-`rightctrl`, `rightalt`, `rightshift`, `rightcmd`.
+JSON when it can be JSON (`step=5` is a number), else text. Thus a text field
+needs a JSON string for a value that is a number, `true`, `false`, `null`, or
+that starts with `"`, `[`, or `{`: `--setting 'text="2026"'`. Without the
+quotation marks, OpenCraft refuses the value, and the text of the refusal names
+the setting. A hotkey is the modifiers and one key with `+`: `cmd+c`,
+`shift+cmd+4`. The modifiers can be in any order (`cmd+shift+4` is the same
+hotkey), and capital letters are correct. The modifiers are `ctrl`, `alt`,
+`shift`, `cmd`, `fn`, and the right-side `rightctrl`, `rightalt`, `rightshift`,
+`rightcmd`.
 
 `opencraft ctl choices --action-kind opencraft.play-sound --field device` reads
-a choice that depends on the computer, for example the sound devices. Only a
-few fields have choices that depend on the computer. The field `application`
-of `opencraft.open-application` is a path: give it as
+a choice that depends on the computer, for example the sound devices. Only the
+sound output fields have choices that depend on the computer. The field
+`application` of `opencraft.open-application` is a path: give it as
 `--setting application=/Applications/Safari.app`, and, if you know it, give the
 bundle identifier here too: `--setting bundle_id=com.apple.Safari`.
 
 An icon is a name of the Lucide set (for example `copy`, `compass`, `mic`). An
-unknown name gives exit 1. A colour is `#rrggbb`.
+unknown name gives exit 1. A colour is six hexadecimal digits with `#` in
+front: `#ff8800`. The letters can be small, and the `#` is optional. A colour
+name (`red`) and a short form (`#f00`) are refused. A read gives the colour in
+capital letters (`#FF8800`).
 
 ## Example: a profile with two pages
 
@@ -178,7 +215,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `profile set-default` | `--profile` | Make it the default profile |
 | `profile link-app` | `--profile` `--bundle-id` `--name` | Link an application |
 | `profile unlink-app` | `--profile` `--bundle-id` | Remove the link |
-| `profile follow` | `--follow` | Turn the automatic switch on or off |
+| `profile follow` | `--follow` | Turn the automatic switch to the front application on or off |
 | `profile export` | `--profile` `--path` | Write a profile to a file |
 | `profile import` | `--path` | Read a profile from a file |
 | `page list` | `--profile` | Read the pages, the folders, and the first page; no flag: the active profile, with its location |

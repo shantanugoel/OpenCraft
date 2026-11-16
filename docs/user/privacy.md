@@ -40,29 +40,25 @@ network when you run them:
 
 ## Control by other programs
 
-The setting **Allow control by other programs** is off until you turn it on.
-See [Control by other programs](control.md). While it is off, OpenCraft has
-no socket, and no other program can send a request.
+The setting **Allow control by other programs** permits programs that run as
+your user to read and change your profiles. See
+[Turn on the control](control.md#turn-on-the-control) for the switch. While it
+is off, OpenCraft makes no socket file, and no other program can send a
+request.
 
 When you turn it on, OpenCraft makes the file `control.sock` in the folder
 `~/Library/Application Support/OpenCraft`, next to the profiles folder. The
 file is a socket on this Mac. It is not a network connection. A computer on
 your network, or on the internet, cannot reach it. Only you can open the
 file: its mode is `0600`. OpenCraft also reads the user of each program that
-connects, and it closes the connection if that user is not you.
+connects, and it closes the connection if that user is not you. The file has a
+row in [The files of OpenCraft](background.md#the-files-of-opencraft).
 
 With the setting on, each program that runs as your user can do what the
 list in [What a program can do](control.md#what-a-program-can-do) says. It
 can read your profiles and their settings, and it can change them. This
-includes the action of a key. An action can open an application, send keys,
-or run a shell command, and it runs when you push the key. A program that you
-do not trust must not run as your user while the setting is on. This is the
-same risk as a program that changes your profile files while OpenCraft does
-not run.
+includes the action of a key. A program that you do not trust must not run as
+your user while the setting is on. This is the same risk as a program that
+changes your profile files while OpenCraft does not run.
 
-A program cannot push a key, cannot make an action run, and cannot turn the
-setting on or off.
-
-OpenCraft sends no data to a server because of this setting. When you turn
-the setting off, OpenCraft closes each connection and removes the socket
-file.
+OpenCraft sends no data to a server because of this setting.
