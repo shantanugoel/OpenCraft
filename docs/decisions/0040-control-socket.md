@@ -342,10 +342,14 @@ Note (2026-11-16, issue #406): these points hold for the skill.
   and that a row has each flag that the command needs. A second test makes the
   request of each example line of the skill, with the checks of the client.
   A third test finds personal data.
-- **A trap in the skill.** The engine keeps a binding of an unknown action kind
-  (for example `hotkey` in place of `opencraft.hotkey`) and does not check the
-  settings of an action. The skill tells the agent to use the full kind and to
-  read `available` in `content` after `binding set`.
+- **A bad action in `binding set`.** The control module refuses a binding with
+  an action kind that does not exist, a setting that the kind does not have,
+  or a value that the kind refuses (issue #419). The rules come from the
+  descriptions of the kinds (the input type, the limits, the options) and from
+  the reader of the text of a hotkey. The same check is for the actions inside
+  an action list. The refusal is `invalid_params`, and nothing changes. The
+  skill tells the agent to use the full kind, and to read `available` in
+  `content` after `binding set`, because a kind can still fail at run time.
 
 ### 6. Later
 

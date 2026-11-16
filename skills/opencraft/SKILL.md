@@ -43,10 +43,13 @@ read it again and the next save removes your edit.
   that makes a thing gives its identity in the result:
   `{"profile": null, "page": "dbf2edfee20f62ab", "folder": null}`. A name can
   be the same for two pages.
-- **Exit 0 means OpenCraft accepted the request.** It does not mean that the
-  action works. OpenCraft keeps an action of an unknown kind and does not check
-  the settings. After `binding set`, run `opencraft ctl content` and check that
-  the binding has `"available": true`.
+- **Exit 0 means OpenCraft accepted the request.** `binding set` refuses an
+  action with an unknown kind, an unknown setting, or a value that the kind
+  refuses (exit 1, `invalid_params`, with a text that names the problem). The
+  binding does not change. Use `opencraft ctl kinds` to read the kinds, the
+  settings, and the limits. A kind can still fail at run time, for example when
+  it needs a permission. After `binding set`, run `opencraft ctl content` and
+  check that the binding has `"available": true`.
 - **A change is one step of the history.** `opencraft ctl undo --profile ID`
   reverses it. The profile must be the active profile.
 - The user can use the device while you work. If a request fails because a page

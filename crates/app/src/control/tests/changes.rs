@@ -13,6 +13,52 @@ fn nothing() -> Value {
     json!({"profile": null, "page": null, "folder": null})
 }
 
+/// A handler that has two kinds and does no work: the kind `test` with a
+/// text, and the kind `test.keys` with a hotkey, a number, a choice and a list.
+struct Kinds;
+
+impl e::Handler for Kinds {
+    fn kinds(&self) -> Vec<e::KindDescription> {
+        let field = |key: &str, input| e::Field {
+            key: key.into(),
+            label: key.into(),
+            input,
+            default: None,
+        };
+        vec![
+            e::KindDescription {
+                kind: "test".into(),
+                name: "Test".into(),
+                fields: vec![field("a", e::InputType::Text)],
+                ..Default::default()
+            },
+            e::KindDescription {
+                kind: "test.keys".into(),
+                name: "Keys".into(),
+                fields: vec![
+                    field("hotkey", e::InputType::Hotkey),
+                    field("step", e::InputType::Integer { min: 1, max: 9 }),
+                    field(
+                        "mode",
+                        e::InputType::Choice {
+                            options: vec![e::ChoiceOption {
+                                value: "up".into(),
+                                label: "Up".into(),
+                            }],
+                        },
+                    ),
+                    field("steps", e::InputType::TimedActionList),
+                ],
+                ..Default::default()
+            },
+        ]
+    }
+
+    fn start(&mut self, _sender: e::MessageSender) {}
+
+    fn handle(&mut self, _request: e::Request) {}
+}
+
 struct Live {
     control: Control,
     engine: Option<e::EngineHandle>,
@@ -36,7 +82,7 @@ impl Live {
                 profiles_dir: dir.path().join("profiles"),
                 no_device: true,
             },
-            Vec::new(),
+            vec![Box::new(Kinds)],
             move |event| sink.observe(&event),
         )
         .unwrap();
@@ -916,4 +962,67 @@ fn an_undo_for_a_profile_that_is_not_active_is_refused_and_changes_nothing() {
     assert_eq!(live.read("profiles")["active"], first);
     assert_eq!(live.read("history")["undo"], "Set Title");
     assert_eq!(live.label(0), "Mine");
+}
+
+#[test]
+fn a_binding_needs_a_known_kind_known_fields_and_values_that_the_kind_accepts() {
+    let mut live = Live::new();
+    let key1 = json!({"kind": "key", "number": 1});
+    let at = live.at(0);
+    let set = |action: Value| json!({"target": at, "control": key1, "gesture": "press", "action": action});
+    let refused = [
+        // An unknown kind: the short name of a built-in kind.
+        (json!({"kind": "hotkey", "settings": {}}), "hotkey"),
+        // An unknown field.
+        (json!({"kind": "test", "settings": {"b": "x"}}), "\"b\""),
+        // A hotkey that the kind refuses.
+        (
+            json!({"kind": "test.keys", "settings": {"hotkey": "cmd+bogus"}}),
+            "hotkey",
+        ),
+        (
+            json!({"kind": "test.keys", "settings": {"step": 10}}),
+            "step",
+        ),
+        (
+            json!({"kind": "test.keys", "settings": {"mode": "down"}}),
+            "mode",
+        ),
+        (json!({"kind": "test", "settings": {"a": 1}}), "a"),
+        // A step of a list: an unknown kind, and a delay out of range.
+        (
+            json!({"kind": "test.keys", "settings": {"steps": [{"kind": "nope"}]}}),
+            "nope",
+        ),
+        (
+            json!({"kind": "test.keys", "settings": {"steps": [
+                {"kind": "test", "settings": {"delay_before_ms": -1}}]}}),
+            "delay_before_ms",
+        ),
+    ];
+    for (action, word) in refused {
+        let (code, text) = live.fails("set_binding", set(action.clone()));
+        assert_eq!(code, "invalid_params", "{action}");
+        assert!(text.contains(word), "{action}: {text}");
+    }
+    // Nothing changed.
+    assert!(live.read("history")["undo"].is_null());
+    assert!(live.content(live.at(0))["bindings"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    // A correct binding still works.
+    live.ok(
+        "set_binding",
+        set(json!({"kind": "test.keys", "settings": {
+            "hotkey": "shift+cmd+4", "step": 5, "mode": "up",
+            "steps": [{"kind": "test", "settings": {"a": "b", "delay_before_ms": 100}}]}})),
+    );
+    assert_eq!(
+        live.content(live.at(0))["bindings"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
 }
