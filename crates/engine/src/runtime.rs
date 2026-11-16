@@ -408,7 +408,10 @@ mod tests {
         assert_eq!(reply.try_recv(), Err(TryRecvError::Empty));
         release.send(()).unwrap();
         assert_eq!(reply.recv_timeout(Duration::from_secs(10)).unwrap(), Ok(()));
-        assert_eq!(reply.try_recv(), Err(TryRecvError::Disconnected));
+        assert_eq!(
+            reply.recv_timeout(Duration::from_secs(10)),
+            Err(RecvTimeoutError::Disconnected)
+        );
         handle.stop();
     }
 
@@ -444,8 +447,14 @@ mod tests {
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
             .unwrap_err();
-        assert_eq!(success.try_recv(), Err(TryRecvError::Disconnected));
-        assert_eq!(failure.try_recv(), Err(TryRecvError::Disconnected));
+        assert_eq!(
+            success.recv_timeout(Duration::from_secs(10)),
+            Err(RecvTimeoutError::Disconnected)
+        );
+        assert_eq!(
+            failure.recv_timeout(Duration::from_secs(10)),
+            Err(RecvTimeoutError::Disconnected)
+        );
         handle.stop();
         assert_eq!(
             event
