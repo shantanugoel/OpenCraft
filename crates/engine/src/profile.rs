@@ -9,7 +9,7 @@ use crate::action::{Action, GestureKind};
 use opencraft_core::device::DESCRIPTORS;
 use opencraft_core::{ControlId, ControlKind, SurfaceId, SurfaceKind};
 use std::collections::hash_map::RandomState;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::hash::BuildHasher;
 use std::str::FromStr;
@@ -314,8 +314,15 @@ impl Background {
 }
 
 /// One full set of bindings and surface content for a device.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Two pages are equal if their content is equal. The identity is not part of
+/// the content: compare [`Page::id`] where the identity matters.
+#[derive(Debug, Clone)]
 pub struct Page {
+    /// The identity of the page. It stays with the page when the page moves,
+    /// and the profile file keeps it. The pages of one profile have different
+    /// identities (decision 0040).
+    id: PageId,
     pub name: String,
     /// The background of the page. `None`: the page has no background, and
     /// the display is black behind the surfaces.
@@ -330,15 +337,39 @@ pub struct Page {
     first: bool,
 }
 
+impl PartialEq for Page {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.background == other.background
+            && self.surfaces == other.surfaces
+            && self.bindings == other.bindings
+            && self.first == other.first
+    }
+}
+
+impl Eq for Page {}
+
 impl Page {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
+            id: PageId::random(),
             name: name.into(),
             background: None,
             surfaces: BTreeMap::new(),
             bindings: BTreeMap::new(),
             first: false,
         }
+    }
+
+    /// The identity of the page.
+    pub fn id(&self) -> PageId {
+        self.id
+    }
+
+    /// The same page with the identity `id`. A profile file uses this.
+    pub(crate) fn with_id(mut self, id: PageId) -> Self {
+        self.id = id;
+        self
     }
 
     pub fn binding(&self, control: ControlId, gesture: GestureKind) -> Option<&Action> {
@@ -449,63 +480,97 @@ pub struct ApplicationLink {
     pub name: String,
 }
 
-/// The identity of a folder. The text form is 16 hexadecimal digits with
-/// small letters. Zero is not an identity (decision 0036).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FolderId(u64);
+/// A random identity with the text form of 16 small hexadecimal digits.
+/// Zero is not an identity. The macro makes the identity of a folder (decision
+/// 0036) and the identity of a page (decision 0040).
+macro_rules! hex_identity {
+    ($(#[$meta:meta])* $name:ident, $error:ident, $what:literal) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(u64);
 
-impl FolderId {
-    /// A new identity: a random number that is not 0. It uses
-    /// [`RandomState`] and needs no new crate.
-    pub fn random() -> Self {
-        loop {
-            let value = RandomState::new().hash_one(0u8);
-            if let Some(id) = Self::from_raw(value) {
-                return id;
+        impl $name {
+            /// A new identity: a random number that is not 0. It uses
+            /// [`RandomState`] and needs no new crate.
+            pub fn random() -> Self {
+                loop {
+                    let value = RandomState::new().hash_one(0u8);
+                    if let Some(id) = Self::from_raw(value) {
+                        return id;
+                    }
+                }
+            }
+
+            /// The identity of `value`. Zero is not an identity.
+            pub const fn from_raw(value: u64) -> Option<Self> {
+                if value == 0 {
+                    None
+                } else {
+                    Some(Self(value))
+                }
             }
         }
-    }
 
-    /// The identity of `value`. Zero is not an identity.
-    pub const fn from_raw(value: u64) -> Option<Self> {
-        if value == 0 {
-            None
-        } else {
-            Some(Self(value))
+        #[doc = concat!("The text is not the text form of ", $what, " identity.")]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct $error;
+
+        impl fmt::Display for $error {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{} identity is 16 hexadecimal digits", $what)
+            }
         }
-    }
-}
 
-/// The text is not the text form of a folder identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParseFolderIdError;
-
-impl fmt::Display for ParseFolderIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("a folder identity is 16 hexadecimal digits")
-    }
-}
-
-impl fmt::Display for FolderId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:016x}", self.0)
-    }
-}
-
-impl FromStr for FolderId {
-    type Err = ParseFolderIdError;
-
-    /// Read 16 hexadecimal digits with small letters. Zero is not an identity.
-    fn from_str(text: &str) -> Result<Self, Self::Err> {
-        if text.len() != 16
-            || !text
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        {
-            return Err(ParseFolderIdError);
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{:016x}", self.0)
+            }
         }
-        let value = u64::from_str_radix(text, 16).map_err(|_| ParseFolderIdError)?;
-        Self::from_raw(value).ok_or(ParseFolderIdError)
+
+        impl FromStr for $name {
+            type Err = $error;
+
+            /// Read 16 hexadecimal digits with small letters. Zero is not an
+            /// identity.
+            fn from_str(text: &str) -> Result<Self, Self::Err> {
+                if text.len() != 16
+                    || !text
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                {
+                    return Err($error);
+                }
+                let value = u64::from_str_radix(text, 16).map_err(|_| $error)?;
+                Self::from_raw(value).ok_or($error)
+            }
+        }
+    };
+}
+
+hex_identity!(
+    /// The identity of a folder. The text form is 16 hexadecimal digits with
+    /// small letters. Zero is not an identity (decision 0036).
+    FolderId,
+    ParseFolderIdError,
+    "a folder"
+);
+
+hex_identity!(
+    /// The identity of a page. It stays with the page when the page moves, and
+    /// the profile file keeps it (decision 0040). The text form is 16
+    /// hexadecimal digits with small letters. Zero is not an identity.
+    PageId,
+    ParsePageIdError,
+    "a page"
+);
+
+impl PageId {
+    /// The identity of the page at `index` in a profile file that has no
+    /// identities (schema version 5 or lower). The identity depends on the
+    /// place only, thus a profile that no one saved has the same identities
+    /// each time that it loads.
+    pub(crate) fn of_old_page(index: usize) -> Self {
+        Self::from_raw(index as u64 + 1).expect("an index plus one is not 0")
     }
 }
 
@@ -570,6 +635,14 @@ impl Profile {
         if pages.is_empty() {
             pages.push(Page::new(DEFAULT_PAGE_NAME));
         }
+        // The pages of a profile have different identities, also if the caller
+        // made them as copies of one page.
+        let mut seen = HashSet::new();
+        for page in &mut pages {
+            while !seen.insert(page.id) {
+                page.id = PageId::random();
+            }
+        }
         Self {
             name: name.into(),
             model: model.into(),
@@ -589,6 +662,11 @@ impl Profile {
         self.pages.get(page)
     }
 
+    /// The number of the page with the identity `id`.
+    pub fn page_number(&self, id: PageId) -> Option<usize> {
+        self.pages.iter().position(|page| page.id == id)
+    }
+
     /// Get one page for a change. Page numbers start at 0.
     pub fn page_mut(&mut self, page: usize) -> Option<&mut Page> {
         self.pages.get_mut(page)
@@ -599,6 +677,10 @@ impl Profile {
     /// page.
     pub fn add_page(&mut self, mut page: Page) -> usize {
         page.first = false;
+        // A copy of a page has a new identity.
+        while self.pages.iter().any(|p| p.id == page.id) {
+            page.id = PageId::random();
+        }
         self.pages.push(page);
         self.pages.len() - 1
     }

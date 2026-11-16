@@ -202,6 +202,8 @@ impl ViewState {
                 location,
                 first,
                 folders,
+                // The window names a page by its number.
+                ids: _,
             } => {
                 // The engine sends each binding of the location next.
                 self.location = location;

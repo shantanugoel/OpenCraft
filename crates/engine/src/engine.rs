@@ -61,7 +61,8 @@ use crate::location::{Holder, Location};
 use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
     image_uses_of, ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry,
-    FolderId, LabelChange, Page, Profile, SurfaceContent, SurfaceIcon, DEFAULT_PROFILE_NAME,
+    FolderId, LabelChange, Page, PageId, Profile, SurfaceContent, SurfaceIcon,
+    DEFAULT_PROFILE_NAME,
 };
 use crate::profile_list::ProfileList;
 use crate::profiles::{ProfileEntry, ProfilesDir};
@@ -685,6 +686,9 @@ pub enum Event {
     /// [`Event::Profiles`] comes between the surfaces and this event.
     Pages {
         names: Vec<String>,
+        /// The identities of the pages, in the same order as `names`
+        /// (decision 0040).
+        ids: Vec<PageId>,
         location: Location,
         first: usize,
         folders: Vec<FolderEntry>,
@@ -1134,8 +1138,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .collect();
         // The entry of the active profile follows the pages.
         self.update_entry();
+        let ids = self.profile.pages().iter().map(Page::id).collect();
         (self.sink)(Event::Pages {
             names,
+            ids,
             location: self.location.clone(),
             first: self.profile.first_page(),
             folders,
@@ -2688,8 +2694,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let before_folders = self.profile.folders().to_vec();
         let undo_place = self.location.clone();
         let go_on = self.obey(command);
+        // The identity is not part of the equality of a page: a move of two
+        // pages that are equal is a change, too.
         if self.profile.pages() != before_pages.as_slice()
             || self.profile.folders() != before_folders.as_slice()
+            || !self
+                .profile
+                .pages()
+                .iter()
+                .map(Page::id)
+                .eq(before_pages.iter().map(Page::id))
         {
             self.history.push(
                 name,

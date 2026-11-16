@@ -93,6 +93,7 @@ fn a_profile_starts_on_its_first_page() {
     let events = rig.take_events();
     assert!(events.contains(&Event::Pages {
         names: vec!["Main".into(), "Media".into(), "Calls".into()],
+        ids: Vec::new(),
         location: Location {
             page: 1,
             open: Vec::new()
@@ -173,6 +174,7 @@ fn the_first_page_of_the_active_profile_is_a_step_of_the_history() {
     let events = rig.take_events();
     assert!(events.contains(&Event::Pages {
         names: vec!["Main".into(), "Media".into(), "Calls".into()],
+        ids: Vec::new(),
         location: Location {
             page: 1,
             open: Vec::new()

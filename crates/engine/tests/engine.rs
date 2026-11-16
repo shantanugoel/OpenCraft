@@ -312,7 +312,47 @@ impl Rig {
         self.world.asleep.set(self.world.asleep.get() + duration);
     }
 
+    /// The events, with no page identities: they are random, and most tests
+    /// compare whole events. [`Rig::take_raw_events`] keeps them.
     fn take_events(&mut self) -> Vec<Event> {
+        self.take_raw_events()
+            .into_iter()
+            .map(|event| match event {
+                Event::Pages {
+                    names,
+                    location,
+                    first,
+                    folders,
+                    ..
+                } => Event::Pages {
+                    names,
+                    ids: Vec::new(),
+                    location,
+                    first,
+                    folders,
+                },
+                Event::Profiles {
+                    mut profiles,
+                    active,
+                    default,
+                    cause,
+                } => {
+                    profiles
+                        .iter_mut()
+                        .for_each(|entry| entry.page_ids.clear());
+                    Event::Profiles {
+                        profiles,
+                        active,
+                        default,
+                        cause,
+                    }
+                }
+                other => other,
+            })
+            .collect()
+    }
+
+    fn take_raw_events(&mut self) -> Vec<Event> {
         std::mem::take(&mut *self.events.borrow_mut())
     }
 
@@ -542,6 +582,7 @@ fn the_engine_starts_with_no_device_and_sends_the_layout_and_each_surface() {
         events[18],
         Event::Pages {
             names: vec!["Page 1".into()],
+            ids: Vec::new(),
             location: Location {
                 page: 0,
                 open: Vec::new()
