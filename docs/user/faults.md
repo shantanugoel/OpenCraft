@@ -33,6 +33,7 @@ gets each message. See [The log file](background.md#the-log-file).
 | "stays linked to" | You imported a profile that links an application another profile already has | The profile that already has the application keeps it. Remove that link first if you want the new profile to have it. |
 | "OpenCraft could not change the links" | OpenCraft cannot write the profile file | See the rest of the message. Check that you can change the profiles folder. |
 | "OpenCraft could not record the default profile" | OpenCraft cannot write the default-profile mark | See the rest of the message. Select **Default profile** again. |
+| "OpenCraft cannot change the control socket" | OpenCraft cannot make or remove the socket when you change **Allow control by other programs**. The message gives the cause. The switch stays off. | Read the cause in the message. Check that you can change the folder `~/Library/Application Support/OpenCraft`. Then turn the switch on again. |
 | "OpenCraft could not record the setting" | OpenCraft cannot write "Change the profile with the front application" | See the rest of the message. Turn the switch again. |
 | "OpenCraft did not change the default profile, because no profile has the identity" | The default mark names a profile that does not exist | Select **Default profile** on a profile that you see in the sidebar |
 
@@ -124,6 +125,22 @@ ignore that hotkey. Try the hotkey on the keyboard of the computer.
 If an action that needs the Accessibility permission does nothing after a
 start at login, quit OpenCraft and open it from the Applications folder. Then
 do the action again.
+
+## The control by other programs does not work
+
+A program or a script uses `opencraft ctl`, and the command does not do its
+work. The exit status of the client tells the cause. See
+[Use the command-line client](control.md#use-the-command-line-client).
+
+| Status | The standard error says | Cause | Correction |
+|---|---|---|---|
+| 3 | "OpenCraft does not run. Start OpenCraft, and try again." | OpenCraft does not run. The client does not start it. | Start OpenCraft. Then do the command again. |
+| 4 | "OpenCraft runs, but it does not allow control by other programs. In the Settings window of OpenCraft, turn on \"Allow control by other programs\"." | OpenCraft runs, and the control is off | Turn on **Allow control by other programs**. See [Turn on the control](control.md#turn-on-the-control). |
+| 5 | "The client uses protocol version" and two numbers, then "OpenCraft uses version" and a number | The client and OpenCraft that runs are two different versions | Quit OpenCraft, and start the one that you installed. Use the `opencraft` of the same installation. If you updated OpenCraft, quit the old process first. |
+
+Status 3 also occurs when the socket file is there and no program serves it.
+This is the case after OpenCraft stopped in an abnormal way. Start OpenCraft
+again. It removes the old file.
 
 ## The device goes dark
 
