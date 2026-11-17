@@ -6,7 +6,7 @@
 # Usage: scripts/homebrew-cask.sh [options] OUTPUT
 #
 #   OUTPUT                 The path of the cask file to write, for example
-#                          ../homebrew-opencraft/Casks/opencraft.rb
+#                          ../homebrew-tap/Casks/opencraft.rb
 #   --version VERSION      The version, three numbers. Use it only together
 #                          with --sha256.
 #   --sha256 SHA256        The SHA-256 of the disk image, 64 hexadecimal

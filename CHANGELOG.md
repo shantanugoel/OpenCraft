@@ -4,6 +4,14 @@ This file lists the changes for each version. Its form follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The Homebrew cask is in the tap `shantanugoel/tap`. The command to install
+  is now `brew install --cask shantanugoel/tap/opencraft`. The tap
+  `shantanugoel/opencraft` does not exist any more.
+
 ## [0.5.0] - 2026-11-16
 
 This version lets another program on your Mac configure OpenCraft, when you

@@ -1,6 +1,6 @@
 # Homebrew
 
-Last update: 2026-11-12
+Last update: 2026-11-17
 
 The decision that uses these facts is
 [decision 0027](../decisions/0027-homebrew-cask.md). The script is
@@ -34,10 +34,10 @@ tap, the cached download, and the application were gone.
 | Fact | Confidence | Source |
 |---|---|---|
 | A tap on GitHub is a repository whose name starts with `homebrew-`. Casks are in the directory `Casks` at the top of the repository. | Source | [How to Create and Maintain a Tap] |
-| `brew install user/repository/name` adds the tap, and then installs. The repository `shantanugoel/homebrew-opencraft` therefore gives the command `brew install --cask shantanugoel/opencraft/opencraft`. | Source | [How to Create and Maintain a Tap] |
+| `brew install user/repository/name` adds the tap, and then installs. The repository `shantanugoel/homebrew-tap` therefore gives the command `brew install --cask shantanugoel/tap/opencraft`. The repository `shantanugoel/homebrew-opencraft` gave the command `brew install --cask shantanugoel/opencraft/opencraft` until 2026-11-17. | Source | [How to Create and Maintain a Tap] |
 | Homebrew 6.0.0 and later need the user to trust a tap that is not official, before Homebrew runs the code of the cask. A direct install trusts only the cask that it installs. | Source | [Homebrew 6.0.0]; [How to Create and Maintain a Tap] |
 | `brew install --cask shantanugoel/opencraft-localtest/opencraft` with no earlier trust printed "Trusted cask", installed the cask, and added only that cask to `trust.json`. `brew audit` of a cask in an untrusted tap stopped with "Refusing to load cask". | Measured | Local tap; `brew install`; `brew audit` |
-| The owner has a tap, `shantanugoel/homebrew-ganit`, with the file `Casks/ganit.rb` and a `README.md`. The cask has `version`, `sha256`, `url` with `v#{version}`, `name`, `desc`, `homepage`, `livecheck` with `strategy :github_latest`, `depends_on`, `app`, `uninstall quit:`, `caveats`, and `zap trash:`. The release workflow of that project updates the file. | Measured | `gh api` of the public repository |
+| The owner had a tap, `shantanugoel/homebrew-ganit`, with the file `Casks/ganit.rb` and a `README.md`. Since 2026-11-17 the cask of Ganit is in `shantanugoel/homebrew-tap`, and the old tap copies it. The cask has `version`, `sha256`, `url` with `v#{version}`, `name`, `desc`, `homepage`, `livecheck` with `strategy :github_latest`, `depends_on`, `app`, `uninstall quit:`, `caveats`, and `zap trash:`. The release workflow of that project updates the file. | Measured | `gh api` of the public repository |
 
 ## The stanzas
 
@@ -70,7 +70,9 @@ owner, who ran development bundles and the release bundle.
 ## The published cask
 
 Date: 2026-11-12, after the repository became public. Homebrew 7.0.13,
-macOS 27.2.
+macOS 27.2. The tap was `shantanugoel/homebrew-opencraft`. The cask is now in
+`shantanugoel/homebrew-tap` ([decision 0041](../decisions/0041-cask-in-the-shared-tap.md)).
+The rows below are not measured again with the new tap name.
 
 | Fact | Confidence | Source |
 |---|---|---|

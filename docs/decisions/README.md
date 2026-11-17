@@ -42,7 +42,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0024](0024-log-file-with-no-terminal.md) | The messages go to a log file when the process has no terminal | Accepted |
 | [0025](0025-release-form.md) | The release is a signed and notarized bundle in one disk image for Apple silicon | Accepted. 0026 makes the notices file necessary. |
 | [0026](0026-licence-notices.md) | cargo-about makes a committed notices file, CI checks it, and the menu bar item opens it | Accepted |
-| [0027](0027-homebrew-cask.md) | Homebrew installs OpenCraft with a cask in a tap of the owner | Accepted |
+| [0027](0027-homebrew-cask.md) | Homebrew installs OpenCraft with a cask in a tap of the owner | Accepted. 0041 moves the cask to the shared tap `shantanugoel/homebrew-tap`. |
 | [0028](0028-second-start-opens-the-window.md) | A second start opens the window of the OpenCraft that runs | Accepted |
 | [0029](0029-window-layout.md) | The main window has a sidebar, a canvas, and a right panel, and each new feature has one place in it | Accepted. It is the text specification of the UI overhaul, thus it is longer than the other records. [DESIGN.md](../DESIGN.md) replaces its section 3. 0035 and 0036 use places of its section 21. |
 | [0030](0030-undo-and-redo-in-the-engine.md) | The engine keeps the history of undo and redo, as copies of the pages | Accepted. 0036 adds the folders and the open folders to a step. |
@@ -56,6 +56,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0038](0038-field-shown-for-the-values-that-use-it.md) | The shell shows a field only for the values that use it | Accepted |
 | [0039](0039-start-with-the-last-connected-model.md) | The engine starts with the model of the last device that connected | Accepted |
 | [0040](0040-control-socket.md) | A different program controls OpenCraft through a socket, when the user permits it | Accepted |
+| [0041](0041-cask-in-the-shared-tap.md) | The cask of OpenCraft is in the shared tap of the owner | Accepted |
 
 ## Template
 

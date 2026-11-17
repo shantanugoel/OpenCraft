@@ -40,7 +40,7 @@ The limits are in the [user guide](docs/user/faults.md#limits).
 With Homebrew:
 
 ```sh
-brew install --cask shantanugoel/opencraft/opencraft
+brew install --cask shantanugoel/tap/opencraft
 ```
 
 Or download `OpenCraft-<version>-arm64.dmg` from the

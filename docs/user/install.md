@@ -19,7 +19,7 @@ Use one of the two procedures.
 2. Type this command and push Return:
 
    ```sh
-   brew install --cask shantanugoel/opencraft/opencraft
+   brew install --cask shantanugoel/tap/opencraft
    ```
 
 Homebrew puts `OpenCraft.app` in the Applications folder.

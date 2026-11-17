@@ -1,6 +1,6 @@
 # 0027: Homebrew installs OpenCraft with a cask in a tap of the owner
 
-- Status: Accepted
+- Status: Accepted. 0041 moves the cask to the shared tap `shantanugoel/homebrew-tap`. The repository and command in this record are the old ones.
 - Date: 2026-11-12
 
 ## Context

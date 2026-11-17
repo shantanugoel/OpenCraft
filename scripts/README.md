@@ -290,7 +290,7 @@ holds the only copy of the cask text. The decision is
 [kb/homebrew.md](../docs/kb/homebrew.md).
 
 ```sh
-scripts/homebrew-cask.sh ../homebrew-opencraft/Casks/opencraft.rb
+scripts/homebrew-cask.sh ../homebrew-tap/Casks/opencraft.rb
 ```
 
 With no other argument, the script reads the version and the SHA-256 from the
@@ -314,24 +314,23 @@ does not publish the cask: see the next section.
 
 ### Publish the Homebrew cask
 
-The owner does these steps. The tap is public only after this repository is
-public. The disk image must be the notarized one: the script stops
-otherwise.
+The owner does these steps. The cask is in the tap `shantanugoel/homebrew-tap`
+([decision 0041](../docs/decisions/0041-cask-in-the-shared-tap.md)). That tap
+also holds other casks and formulae of the owner. Change only
+`Casks/opencraft.rb` in it. The disk image must be the notarized one: the
+script stops otherwise.
 
-For the first release:
-
-1. Make this repository public.
-2. Make the release. `OPENCRAFT_NOTARY_PROFILE=<profile> scripts/release.sh`
+1. Make the release. `OPENCRAFT_NOTARY_PROFILE=<profile> scripts/release.sh`
    prints the SHA-256 and writes the disk image.
-3. Make the GitHub release with the tag `v<version>`, where `<version>` is
-   the version in `target/release-bundle` (for example `0.1.0`). Attach the
+2. Make the GitHub release with the tag `v<version>`, where `<version>` is
+   the version in `target/release-bundle` (for example `0.5.0`). Attach the
    disk image and the `.sha256` file:
 
    ```sh
    gh release create v<version> target/release-bundle/OpenCraft-<version>-arm64.dmg target/release-bundle/OpenCraft-<version>-arm64.dmg.sha256 --title "OpenCraft <version>"
    ```
 
-4. Download the disk image from the release. Its SHA-256 must be the same
+3. Download the disk image from the release. Its SHA-256 must be the same
    as the content of the `.sha256` file:
 
    ```sh
@@ -341,41 +340,40 @@ For the first release:
    rm /tmp/opencraft-check.dmg
    ```
 
-5. Make the tap repository and a checkout of it:
+4. Get a checkout of the tap that is up to date, next to this repository:
 
    ```sh
    cd ..
-   gh repo create shantanugoel/homebrew-opencraft --public --description "Homebrew tap for OpenCraft" --clone
+   [ -d homebrew-tap ] && git -C homebrew-tap pull || gh repo clone shantanugoel/homebrew-tap
    cd OpenCraft
    ```
 
-   The tap is then next to this repository, in `../homebrew-opencraft`.
+   The tap is then in `../homebrew-tap`.
 
-6. Copy `scripts/homebrew-tap/README.md` of this repository to
-   `../homebrew-opencraft/README.md`. After this step, the copy in the tap
-   is the only one.
-7. Write the cask into the tap, from the root of this repository:
+5. Write the cask into the tap, from the root of this repository:
 
    ```sh
-   mkdir -p ../homebrew-opencraft/Casks
-   scripts/homebrew-cask.sh ../homebrew-opencraft/Casks/opencraft.rb
+   mkdir -p ../homebrew-tap/Casks
+   scripts/homebrew-cask.sh ../homebrew-tap/Casks/opencraft.rb
    ```
 
-8. Commit and push in the tap:
+6. Commit and push in the tap. Use the message "Update the cask opencraft to
+   <version>":
 
    ```sh
-   cd ../homebrew-opencraft
-   git add README.md Casks/opencraft.rb
-   git commit -m "Add the cask opencraft <version>"
-   git push -u origin HEAD
+   cd ../homebrew-tap
+   git add Casks/opencraft.rb
+   git commit -m "Update the cask opencraft to <version>"
+   git push
    ```
 
-9. Test as a user. Quit VSD Craft and OpenCraft first.
+7. Test as a user. Quit VSD Craft and OpenCraft first.
 
    ```sh
-   brew install --cask shantanugoel/opencraft/opencraft
-   brew audit --cask --online --strict shantanugoel/opencraft/opencraft
-   brew style --cask shantanugoel/opencraft/opencraft
+   brew update
+   brew install --cask shantanugoel/tap/opencraft
+   brew audit --cask --online --strict shantanugoel/tap/opencraft
+   brew style --cask shantanugoel/tap/opencraft
    spctl --assess --type exec --verbose /Applications/OpenCraft.app
    ```
 
@@ -385,9 +383,8 @@ For the first release:
    `source=Notarized Developer ID`. Then start OpenCraft from the
    Applications folder.
 
-For a later release, do steps 2, 3, 4, and 7 in a checkout of the tap that
-is up to date, then step 8 with the message "Update the cask opencraft to
-<version>", and then step 9. The tap needs no other change.
+The README of the tap lives in the tap. Change it there, not in this
+repository.
 
 ## make-icon.swift
 
