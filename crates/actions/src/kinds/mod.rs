@@ -32,6 +32,7 @@
 //! [`Work::binding`], the memory of the handler with [`Work::memory`], and
 //! the shared system port with [`Work::shared_system`].
 
+pub(crate) mod clock;
 mod close_folder;
 pub(crate) mod cycle;
 mod device_brightness;
@@ -108,6 +109,9 @@ pub(crate) enum Group {
     KnobFunctions,
     /// Timer. The handler keeps each countdown or stopwatch.
     Timer,
+    /// Clock and date. The handler reads the wall time for each visible
+    /// clock.
+    Clock,
     /// Screen off and device brightness. These kinds only ask the engine for
     /// work.
     Device,
@@ -378,6 +382,10 @@ const REGISTERED: &[Registered] = &[
         group: Group::Timer,
         kind: &timer::KIND,
     },
+    Registered {
+        group: Group::Clock,
+        kind: &clock::KIND,
+    },
 ];
 
 /// Each registered kind, in library order.
@@ -568,6 +576,7 @@ mod tests {
         assert_eq!(ids(Group::Sequence), [sequence::ID]);
         assert_eq!(ids(Group::Cycle), [cycle::ID]);
         assert_eq!(ids(Group::Timer), [timer::ID]);
+        assert_eq!(ids(Group::Clock), [clock::ID]);
         assert_eq!(ids(Group::Device), [screen_off::ID, device_brightness::ID]);
         let handlers = handlers::build(
             Arc::new(crate::tests::support::Fake::default()),
@@ -586,6 +595,7 @@ mod tests {
             (cycle::ID, Group::Cycle),
             (knob_functions::ID, Group::KnobFunctions),
             (timer::ID, Group::Timer),
+            (clock::ID, Group::Clock),
             (screen_off::ID, Group::Device),
         ] {
             let handler = handlers

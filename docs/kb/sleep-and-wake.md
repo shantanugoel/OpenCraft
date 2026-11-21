@@ -18,6 +18,8 @@ Date: 2026-11-12.
 | `std::time::Instant` on Apple platforms reads `CLOCK_UPTIME_RAW` | Source | Rust 1.99.1, `library/std/src/sys/time/unix.rs`, `Instant::CLOCK_ID` |
 | `CLOCK_UPTIME_RAW` does not count while the computer sleeps. Its value is the value of `mach_absolute_time()`. | Source | macOS manual page `clock_gettime(3)` |
 | Thus `Instant` does not count the time of a sleep on macOS. A timer that uses `Instant` is late by the time of the sleep. | Inference | The two rows above |
+| A wait of `std::sync::mpsc::Receiver::recv_timeout` does not count the time of a sleep on macOS, because the wait uses `Instant`. | Inference | The rows above; ACT-31 did not measure it on 2026-11-22, because a sleep of the computer is not permitted there |
+| A clock key, whose handler waits at most 10 seconds, shows the correct local time within 10 seconds after a wake of the computer. A wait to the next minute only would be wrong for up to 59 seconds. | Inference | The row above; decision 0043, section 6 |
 | `CLOCK_MONOTONIC_RAW` counts at the same rate as `CLOCK_UPTIME_RAW`, and it continues while the computer sleeps. Frequency and time adjustments do not change it. | Source | macOS manual page `clock_gettime(3)`: `CLOCK_UPTIME_RAW` counts "in the same manner as `CLOCK_MONOTONIC_RAW`, but … does not increment while the system is asleep" |
 | `CLOCK_MONOTONIC` also continues during a sleep, but it is adjusted. On a computer that did not sleep for 6.9 days, it was 5.4 seconds less than `CLOCK_UPTIME_RAW`. | Source, and Measured | Manual page; the computer of the owner, 2026-11-12 |
 | On the same computer, `CLOCK_MONOTONIC_RAW` minus `CLOCK_UPTIME_RAW` was less than 0.001 ms after 6.9 days with no sleep | Measured | The computer of the owner, 2026-11-12 |

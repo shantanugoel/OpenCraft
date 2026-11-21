@@ -44,6 +44,7 @@
 mod audio;
 mod audio_output;
 pub mod backend;
+mod clock;
 mod descriptions;
 mod flow;
 mod handlers;
@@ -53,6 +54,7 @@ mod sound;
 pub mod system;
 mod timer;
 
+pub use clock::{ClockHandler, LocalTime, WallClock};
 pub use timer::{Clock, TimerHandler};
 
 use opencraft_engine::Handler;
@@ -76,6 +78,17 @@ pub fn handlers_with_clock(
     clock: Clock,
 ) -> Vec<Box<dyn Handler>> {
     handlers::build_with_clock(system, handlers::Intervals::default(), clock)
+}
+
+/// The built-in handlers with a caller-supplied monotonic timer clock and a
+/// caller-supplied wall clock for the clock kind. The tests use this function,
+/// so that a clock key needs no real time.
+pub fn handlers_with_clocks(
+    system: Arc<dyn backend::System>,
+    clock: Clock,
+    wall: WallClock,
+) -> Vec<Box<dyn Handler>> {
+    handlers::build_with_clocks(system, handlers::Intervals::default(), clock, wall)
 }
 
 #[cfg(test)]
