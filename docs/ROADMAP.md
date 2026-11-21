@@ -27,6 +27,7 @@ application that other persons can adopt.
 | 7 | A reliable daily driver | Complete, with owner checks open |
 | 8 | Everyday actions | Complete |
 | 9 | Profiles that follow the work | Complete |
+| 10 | Long press, double press, and key states | In progress |
 
 ## Checks for each phase
 
@@ -636,6 +637,57 @@ decisions), [#337](https://github.com/shantanugoel/OpenCraft/issues/337)
 (PAGE-05), [#340](https://github.com/shantanugoel/OpenCraft/issues/340)
 (PLUG-31), and [#341](https://github.com/shantanugoel/OpenCraft/issues/341)
 (P9-M1).
+
+## Phase 10: Long press, double press, and key states (in progress)
+
+**Goal.** One key does more: a long press, a double press, a hold for
+push-to-talk, and states with their own faces. The phase issue is
+[#202](https://github.com/shantanugoel/OpenCraft/issues/202). The umbrella
+issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
+
+**Scope.**
+
+- Long press and double press gestures as engine timers over press and release
+  (KEY-10).
+- Hold a hotkey while the key is down, for push-to-talk (P10-T1, ACT-01).
+- Two-state key faces: give each state of a two-state key its own image, icon,
+  colour, label, and label style (KEY-09).
+- Multi-step action cycle with N steps, and the active step in the editor
+  (AUTO-10).
+- Timer and countdown keys that sound a bell at the end and reset on a long
+  press (PLUG-26).
+- Multi-function knob with a list of functions, a push that selects the next
+  function, and the active function on the bar panel (KNOB-03).
+- Measure the latency of a single press with and without a double-press
+  binding, and measure the footprint (P10-M1).
+
+**Exit criteria.**
+
+- [ ] A key with no long-press and no double-press binding runs its Press
+  action with no added delay. A test with the fake clock and the owner check
+  show it.
+- [ ] A long press runs its own action, and the short-press action does not
+  run.
+- [ ] A double press runs only on a key that has a double-press binding.
+- [ ] The push-to-talk key holds the microphone open in a call app while the
+  key is down. The owner did this check.
+- [ ] A two-state key shows the image of each state on the device and in the
+  window (rule 11).
+- [ ] The timer counts down, rings at the end, and resets with a long press.
+- [ ] Old profiles load. An engine test covers each old schema.
+
+**Decisions that this phase forces.** The gesture timers for long press,
+double press, and hold (P10-D1), and the schema changes of Phase 10.
+
+**Task issues.** [#430](https://github.com/shantanugoel/OpenCraft/issues/430)
+(P10-D1), [#431](https://github.com/shantanugoel/OpenCraft/issues/431)
+(KEY-10), [#432](https://github.com/shantanugoel/OpenCraft/issues/432)
+(P10-T1), [#433](https://github.com/shantanugoel/OpenCraft/issues/433)
+(KEY-09), [#434](https://github.com/shantanugoel/OpenCraft/issues/434)
+(AUTO-10), [#435](https://github.com/shantanugoel/OpenCraft/issues/435)
+(PLUG-26), [#436](https://github.com/shantanugoel/OpenCraft/issues/436)
+(KNOB-03), and [#437](https://github.com/shantanugoel/OpenCraft/issues/437)
+(P10-M1).
 
 ## Not in a phase
 
