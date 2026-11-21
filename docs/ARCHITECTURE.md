@@ -35,7 +35,7 @@ for the same thing.
 | Descriptor | The static data that describes one device model. |
 | Surface | An area of the device on which the application can draw. Examples: a key face, a bar panel, the background. |
 | Control | A part of the device that the user operates. Examples: a key, a knob, a bar panel, the touch bar. |
-| Gesture | One thing that the user does to a control. Examples: press, release, turn left, turn right, tap, swipe. |
+| Gesture | One thing that the user does to a control. Examples: press, release, turn left, turn right, tap, swipe. `LongPress` and `DoublePress` are gestures that the `gestures` module of the engine makes from press, release, and timers. See [decision 0042](decisions/0042-gesture-timers.md). |
 | Input event | One gesture on one control, decoded from a device report. |
 | Action | A unit of work, given as data: a kind and its settings. |
 | Binding | The link from one gesture on one control to one action. |
@@ -146,8 +146,9 @@ These rules stay true in all phases.
    [0012](decisions/0012-action-handler-interface.md),
    [0013](decisions/0013-action-feedback-on-a-surface.md),
    [0014](decisions/0014-action-settings-description.md),
-   [0016](decisions/0016-pages-and-engine-requests-from-a-handler.md), and
-   [0017](decisions/0017-toggle-and-sequence-actions.md).
+   [0016](decisions/0016-pages-and-engine-requests-from-a-handler.md),
+   [0017](decisions/0017-toggle-and-sequence-actions.md), and
+   [0042](decisions/0042-gesture-timers.md).
    - An action has a kind and settings. The kind is an identifier with a
      namespace, for example `opencraft.hotkey`.
    - The engine sends the settings to the handler for that kind and does not
