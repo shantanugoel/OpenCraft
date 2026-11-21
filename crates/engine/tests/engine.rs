@@ -39,6 +39,8 @@ mod device_settings;
 mod folders;
 #[path = "engine/front.rs"]
 mod front;
+#[path = "engine/gestures.rs"]
+mod gestures;
 #[path = "engine/history.rs"]
 mod history;
 #[path = "engine/icons.rs"]

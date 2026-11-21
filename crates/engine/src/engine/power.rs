@@ -14,8 +14,15 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         };
     }
 
+    pub(super) fn idle_deadline(&self) -> Option<Instant> {
+        // Do not use an expired idle deadline as the wait while a key is down.
+        self.power
+            .idle_deadline
+            .filter(|_| !self.gestures.any_key_down())
+    }
+
     pub(super) fn check_idle(&mut self) {
-        if self.power.idle_deadline.is_some_and(|at| self.now() >= at) {
+        if self.idle_deadline().is_some_and(|at| self.now() >= at) {
             self.set_display_state(DisplayState::ScreenOff);
         }
     }
@@ -36,6 +43,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.set_display_state(DisplayState::DeviceSleep);
             }
             PowerNotice::DidWake => {
+                // The link can detect a sleep that had no WillSleep notice.
+                self.gestures.cancel_all();
                 self.power.sleeping = false;
                 // A wake of the computer is not a wake of its displays: a
                 // maintenance wake leaves them dark. `DisplaysWake`, an
@@ -109,6 +118,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.wake_device();
             return;
         }
+        self.gestures.cancel_all();
         if self.power.state == state {
             return;
         }

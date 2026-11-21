@@ -1127,8 +1127,8 @@ impl DeviceView {
         let menu = Menu::Card(gesture);
         let current = self.state.bindings.get(&binding);
         let toggle = menu.clone();
-        // A swipe has the wider name column of section 10.6.
-        let name_width = if control.kind == ControlKind::TouchBar {
+        // Key and swipe cards use the wider name column (decision 0042 and section 10.6).
+        let name_width = if matches!(control.kind, ControlKind::Key | ControlKind::TouchBar) {
             theme::GESTURE_NAME_WIDE
         } else {
             theme::FORM_LABEL

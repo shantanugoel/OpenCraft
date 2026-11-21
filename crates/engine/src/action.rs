@@ -108,17 +108,25 @@ pub enum GestureKind {
     Tap,
     SwipeLeft,
     SwipeRight,
+    LongPress,
+    DoublePress,
 }
 
 impl GestureKind {
     /// The gestures that a binding of a control of this kind can have. A key
-    /// has a press and a release, a knob has two turns and a push, a bar panel
-    /// has a tap, and the touch bar has two swipes (decision 0015). A binding
-    /// with another gesture can never run.
+    /// has press, release, long press, and double press (decision 0042), a
+    /// knob has two turns and a push, a bar panel has a tap, and the touch bar
+    /// has two swipes (decision 0015). A binding with another gesture can never
+    /// run.
     pub fn of_control(kind: opencraft_core::ControlKind) -> &'static [GestureKind] {
         use opencraft_core::ControlKind;
         match kind {
-            ControlKind::Key => &[Self::Press, Self::Release],
+            ControlKind::Key => &[
+                Self::Press,
+                Self::Release,
+                Self::LongPress,
+                Self::DoublePress,
+            ],
             ControlKind::Knob => &[Self::TurnLeft, Self::TurnRight, Self::Push],
             ControlKind::BarPanel => &[Self::Tap],
             ControlKind::TouchBar => &[Self::SwipeLeft, Self::SwipeRight],

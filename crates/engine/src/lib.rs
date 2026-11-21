@@ -36,6 +36,7 @@ pub mod engine;
 pub mod error;
 pub mod front;
 pub mod front_switch;
+mod gestures;
 pub mod history;
 pub mod icons;
 pub mod label;

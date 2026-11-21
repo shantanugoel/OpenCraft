@@ -54,6 +54,7 @@ mod power;
 use crate::device_settings::{self, DeviceSettings, SettingCommands, SettingsFile};
 use crate::front::{ActiveCause, FrontApplication};
 use crate::front_switch::{Decision, FrontSwitch, Situation};
+use crate::gestures::{Dispatch, Gestures, KeyFacts};
 use crate::history::{History, SavedProfile, Target};
 use crate::icons;
 use crate::layout::DeviceLayout;
@@ -876,6 +877,7 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     /// engine does not write the file until the user changes a setting.
     settings: SavedDocument<DeviceSettings>,
     power: Power,
+    gestures: Gestures,
     /// The state machine of the automatic switch, and the setting of section
     /// 7 (decision 0035). It does no I/O: the engine carries out its
     /// decisions.
@@ -1013,6 +1015,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 now,
             ),
             power: Power::default(),
+            gestures: Gestures::default(),
             front_switch: FrontSwitch::new(true),
             cause: ActiveCause::Selected,
             history: History::default(),
@@ -1295,6 +1298,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let after = self.location.bindings(&self.profile);
         let gone = bindings_that_change(&before, &after, &before_at, &after_at);
         let arrived = bindings_that_change(&after, &before, &after_at, &before_at);
+        for (binding, _) in gone.iter().chain(&arrived) {
+            self.gestures.cancel(binding.control);
+        }
         self.disappear_bindings(&gone);
         for (binding, _) in &gone {
             self.feedback.remove(binding);
@@ -1714,6 +1720,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !changed {
             return;
         }
+        self.gestures.cancel(binding.control);
         if let Some(before) = before {
             self.request(&before.kind, Request::Disappear { binding });
         }
@@ -1728,13 +1735,36 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
-    fn invoke(&mut self, event: InputEvent) {
-        let Some(gesture) = GestureKind::from_gesture(event.gesture) else {
-            return;
-        };
+    fn handle_input(&mut self, event: InputEvent) {
+        let now = self.now();
+        let location = &self.location;
+        let profile = &self.profile;
+        let dispatches = self.gestures.input(event, now, |control| KeyFacts {
+            long_press: location
+                .binding(profile, control, GestureKind::LongPress)
+                .is_some(),
+            double_press: location
+                .binding(profile, control, GestureKind::DoublePress)
+                .is_some(),
+        });
+        self.dispatch_gestures(dispatches);
+    }
+
+    fn check_gestures(&mut self) {
+        let dispatches = self.gestures.tick(self.now());
+        self.dispatch_gestures(dispatches);
+    }
+
+    fn dispatch_gestures(&mut self, dispatches: Vec<Dispatch>) {
+        for Dispatch::Invoke { control, gesture } in dispatches {
+            self.invoke(control, gesture);
+        }
+    }
+
+    fn invoke(&mut self, control: ControlId, gesture: GestureKind) {
         let Some((binding, action)) = self
             .location
-            .binding(&self.profile, event.control, gesture)
+            .binding(&self.profile, control, gesture)
             .map(|(binding, action)| (binding, action.clone()))
         else {
             return;
@@ -3214,6 +3244,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             control,
             parts,
         );
+        if surface.is_some() || !bindings.is_empty() {
+            self.gestures.cancel(control);
+        }
         // The surface first: a shell then gets the new content before the
         // bindings, for example for the text field of the label.
         if let Some((id, new)) = surface {
@@ -3239,7 +3272,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         };
         let content = ControlContent::read(self.page(), control, parts);
         let active = self.location.page;
-        self.profile.edit_if(|profile| {
+        let changed = self.profile.edit_if(|profile| {
             let mut changed = false;
             for number in (0..profile.pages().len()).filter(|n| *n != active) {
                 if let Some(page) = profile.page_mut(number) {
@@ -3248,6 +3281,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             changed
         });
+        if changed {
+            self.gestures.cancel(control);
+        }
     }
 
     /// Change the content of the surface `id`. If the content is different
@@ -3283,10 +3319,19 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if self.needs_draw && self.link.is_connected() {
             self.draw_all();
         }
-        let timeout = self.power.idle_deadline.map_or(timeout, |at| {
-            timeout.min(at.saturating_duration_since(self.now()))
-        });
-        match self.link.next_event(timeout) {
+        let now = self.now();
+        let timeout = self
+            .idle_deadline()
+            .into_iter()
+            .chain(self.gestures.deadline())
+            .fold(timeout, |wait, at| {
+                wait.min(at.saturating_duration_since(now))
+            });
+        let event = self.link.next_event(timeout);
+        if !matches!(event, Ok(LinkEvent::Disconnected | LinkEvent::Woke { .. })) {
+            self.check_gestures();
+        }
+        match event {
             Ok(LinkEvent::Connected) => {
                 self.link_problem = None;
                 let model = self.link.device().map(|d| d.descriptor());
@@ -3309,6 +3354,10 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.power_notice(PowerNotice::DidWake);
             }
             Ok(LinkEvent::Disconnected) => {
+                self.gestures.cancel_all();
+                self.power.down_key = None;
+                self.power.consumed_key = None;
+                self.power.consumed_touch = false;
                 log("disconnected");
                 self.needs_draw = false;
                 (self.sink)(Event::Disconnected);
@@ -3319,7 +3368,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     self.counters.input_events += 1;
                     if !self.consume_dark_input(event) {
                         (self.sink)(Event::Input(event));
-                        self.invoke(event);
+                        self.handle_input(event);
                     }
                 }
             }
@@ -3371,6 +3420,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     fn change_model(&mut self, descriptor: &'static Descriptor) {
         let new_model = descriptor.model != self.descriptor.model;
         if new_model {
+            self.gestures.cancel_all();
             // The device of the new model must show its own profile, so the
             // change continues after a failed write.
             if let Err(e) = self.write_now() {
@@ -3562,6 +3612,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// time, when the engine stops. [`crate::runtime`] calls it at
     /// [`Command::Stop`] and when each sender of commands is gone.
     pub fn finish(&mut self) {
+        self.gestures.cancel_all();
         let now = self.now();
         self.save_profile(now);
         self.save_settings(now);

@@ -29,6 +29,8 @@ menu of the action kinds show the groups and the kinds in this order:
 The permission is in
 [Install and first start](install.md#give-the-accessibility-permission).
 
+For the times at which key actions run, see [Key gestures](controls.md#key-gestures).
+
 ## The library
 
 The tab **Library** of the right panel shows all action kinds in their

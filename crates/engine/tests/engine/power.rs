@@ -104,6 +104,8 @@ fn the_idle_deadline_uses_device_input_and_wake_restarts_it() {
     rig.poll_for(Duration::from_secs(40));
     device.borrow_mut().push_input(control_report(3, 1));
     rig.engine.poll(Duration::ZERO);
+    device.borrow_mut().push_input(control_report(3, 0));
+    rig.engine.poll(Duration::ZERO);
     rig.poll_for(Duration::from_secs(59));
     assert_eq!(rig.engine.display_state(), DisplayState::Awake);
     rig.engine.poll(Duration::from_secs(10));
@@ -119,6 +121,28 @@ fn the_idle_deadline_uses_device_input_and_wake_restarts_it() {
     rig.poll_for(Duration::from_secs(59));
     assert_eq!(rig.engine.display_state(), DisplayState::Awake);
     rig.poll_for(Duration::from_secs(2));
+    assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
+}
+
+#[test]
+fn a_held_key_keeps_the_device_awake_until_release() {
+    let mut rig = Rig::new();
+    let device = rig.connect();
+    let mut settings = rig.engine.device_settings().clone();
+    settings.screen_off_minutes = 1;
+    rig.engine.command(Command::SetDeviceSettings(settings));
+    device.borrow_mut().push_input(control_report(3, 1));
+    rig.engine.poll(Duration::ZERO);
+    let now = rig.world.now.get() + Duration::from_secs(120);
+    rig.world.now.set(now);
+    rig.engine.poll(POLL_INTERVAL);
+    assert_eq!(rig.world.now.get(), now + POLL_INTERVAL);
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    device.borrow_mut().push_input(control_report(3, 0));
+    rig.engine.poll(Duration::ZERO);
+    rig.poll_for(Duration::from_secs(59));
+    assert_eq!(rig.engine.display_state(), DisplayState::Awake);
+    rig.poll_for(Duration::from_secs(1));
     assert_eq!(rig.engine.display_state(), DisplayState::ScreenOff);
 }
 

@@ -521,7 +521,7 @@ fn a_loaded_old_profile_is_written_as_schema_5_with_no_folders() {
         rig.poll_for(SAVE_DELAY + Duration::from_secs(1));
         let text = rig.profile_text().unwrap();
         assert!(
-            text.starts_with("schema_version = 6\n"),
+            text.starts_with("schema_version = 7\n"),
             "version {version}: {text}"
         );
         assert!(text.contains("name = \"Renamed\""), "{text}");

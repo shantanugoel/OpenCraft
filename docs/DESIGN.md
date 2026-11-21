@@ -163,6 +163,7 @@ The font is the system font. The window has no font file.
 | `HEIGHT_ACTION_POPUP`, `HEIGHT_SEARCH_FIELD`, `HEIGHT_SHEET_CONTROL` | 30 | The action popup, a search field of a panel, a field and a button of a sheet, a main button |
 | `HEIGHT_LIBRARY_ROW`, `HEIGHT_STEP_ROW` | 34 | A library row, a step row |
 | `HEIGHT_PALETTE_ROW` | 36 | A palette row |
+| `GESTURE_NAME_WIDE` | 84 | The gesture name column of key and touch bar cards |
 | `HEIGHT_EMPTY_CARD` | 40 | A gesture card with no action |
 | `SWITCH_INSPECTOR`, `SWITCH_SETTINGS` | 30 × 18, 32 × 19 | A switch in the inspector, in the Settings window |
 | `WIDTH_ICON_BUTTON` | 30 | A transparent icon button (toolbar, sidebar top) |
@@ -408,7 +409,7 @@ Use one name for each thing. The user guide uses the same names.
 | page | folder, screen | One set of key faces and bindings |
 | profile | preset, layout | A set of pages |
 | action, action kind | plug-in action, macro | What a gesture does; its kind ("Open a URL") |
-| gesture | event, trigger | Press, Release, Tap, Turn, Turn left, Turn right, Push, Swipe left, Swipe right |
+| gesture | event, trigger | Press, Release, Long press, Double press, Tap, Turn, Turn left, Turn right, Push, Swipe left, Swipe right |
 | inspector | properties | The tab of the right panel that edits the selection |
 | library | actions panel | The tab of the right panel with the action kinds |
 | command palette | search window | The window of ⌘K |

@@ -385,7 +385,7 @@ pub const EMPTY_STATE_TOP: Pixels = px(40.);
 pub const FORM_LABEL: Pixels = px(64.);
 /// The label column of a form in the page and the device inspector.
 pub const FORM_LABEL_WIDE: Pixels = px(72.);
-/// The gesture name of a swipe card (section 10.6).
+/// The gesture name of a key or swipe card.
 pub const GESTURE_NAME_WIDE: Pixels = px(84.);
 /// The action popup of a gesture card.
 pub const HEIGHT_ACTION_POPUP: Pixels = px(30.);

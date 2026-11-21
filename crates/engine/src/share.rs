@@ -15,7 +15,7 @@
 //! "images/4f1c2a9be07d3356.png" = "iVBORw0KGgo..."
 //!
 //! [profile]
-//! schema_version = 6
+//! schema_version = 7
 //! name = "Work"
 //! model = "n4-pro"
 //!
@@ -779,5 +779,42 @@ mod tests {
             }],
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn an_export_keeps_long_and_double_press_and_rejects_them_in_version_six() {
+        use crate::action::GestureKind;
+        use opencraft_core::{ControlId, ControlKind};
+
+        let dir = TempDir::new().unwrap();
+        let store = ProfileStore::new(dir.path().join("work"));
+        let mut profile = Profile::new("Work", vec![Page::new("Main")]);
+        let key = ControlId::new(ControlKind::Key, 1);
+        let action = Action {
+            kind: "opencraft.open-url".into(),
+            settings: [("url".into(), Value::Text("https://example.com".into()))].into(),
+        };
+        profile
+            .page_mut(0)
+            .unwrap()
+            .set_binding(key, GestureKind::LongPress, Some(action.clone()));
+        profile
+            .page_mut(0)
+            .unwrap()
+            .set_binding(key, GestureKind::DoublePress, Some(action));
+        let file = dir.path().join("Gestures.opencraft");
+        export(&profile, &store, &file, &[]).unwrap();
+
+        let package = import(&file).unwrap();
+        assert_eq!(package.profile.pages()[0], profile.pages()[0]);
+
+        let text = fs::read_to_string(&file).unwrap();
+        let bad = text.replace(
+            &format!("schema_version = {}", store::SCHEMA_VERSION),
+            "schema_version = 6",
+        );
+        assert_ne!(bad, text);
+        fs::write(&file, bad).unwrap();
+        assert!(import(&file).is_err());
     }
 }

@@ -514,6 +514,8 @@ pub fn gestures(kind: ControlKind) -> Vec<(GestureKind, &'static str)> {
                 match gesture {
                     GestureKind::Press => "Press",
                     GestureKind::Release => "Release",
+                    GestureKind::LongPress => "Long press",
+                    GestureKind::DoublePress => "Double press",
                     GestureKind::TurnLeft => "Turn left",
                     GestureKind::TurnRight => "Turn right",
                     GestureKind::Push => "Push",
