@@ -28,6 +28,7 @@ application that other persons can adopt.
 | 8 | Everyday actions | Complete |
 | 9 | Profiles that follow the work | Complete |
 | 10 | Long press, double press, and key states | Complete |
+| 11 | Faces and editing | In progress |
 
 ## Checks for each phase
 
@@ -704,6 +705,74 @@ keys to version 6.
 (PLUG-26), [#436](https://github.com/shantanugoel/OpenCraft/issues/436)
 (KNOB-03), and [#437](https://github.com/shantanugoel/OpenCraft/issues/437)
 (P10-M1).
+
+## Phase 11: Faces and editing (in progress)
+
+**Goal.** The user makes a key look correct quickly: an image from Finder
+or the clipboard, crop and zoom, installed fonts, a default title style, a
+clock face, and a light theme. The phase issue is
+[#203](https://github.com/shantanugoel/OpenCraft/issues/203). The umbrella
+issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198). The
+release is 0.7.0.
+
+**Scope.**
+
+- Decide the fonts of the labels. Use installed fonts through Core Text, and
+  bundle no fonts (P11-D1).
+- A key image from a file: a drop from Finder and a paste from the clipboard,
+  and the BMP and WebP formats (KEY-01).
+- A drop of an application from Finder onto a key. The key makes an "Open an
+  application" action with the icon of the application (KEY-13).
+- Crop and zoom of an image, and a warning when the image is too small
+  (KEY-02).
+- Move a key to another position by a drag, with one undo step (KEY-14).
+- An installed font for a label, with a fallback to the system font when the
+  font is missing (ICON-06).
+- Italic and underline in the label options (P11-T1).
+- A default title style for the profile, with a fallback in the engine
+  (KEY-04).
+- An emoji that fills the key face (ICON-04).
+- A clock key and a date key. The handler sends a label each minute (ACT-31).
+- A light theme that follows the setting of macOS. All colours of the shell
+  use tokens (APP-21).
+- An audit of the window with VoiceOver and the keyboard only (P11-M1).
+- A measurement of the footprint with a clock key and three fonts in use
+  (P11-M2).
+
+**Exit criteria.**
+
+- [ ] A PNG, JPEG, BMP, or WebP image dropped from Finder or pasted from the
+  clipboard shows on the key, on the device and in the window.
+- [ ] An application dropped from Finder makes a key that opens it, with its
+  icon.
+- [ ] Crop and zoom stay with the image after a restart.
+- [ ] A label uses an installed font, italic, and underline. A missing font
+  falls back to the system font with no error.
+- [ ] A key with no own style uses the default title style of the profile.
+- [ ] The clock key changes each minute, and the idle processor use stays
+  below 0.5 % of one core.
+- [ ] The window follows the light or dark setting of macOS. The audit result
+  is in [kb/gpui.md](kb/gpui.md).
+
+**Decisions that this phase forces.** The fonts of the labels, the label
+styles, the crop and zoom of an image, the clock handler, and the new profile
+fields: decision 0043 (P11-D1). That record makes profile schema version 8.
+Release 0.6.0 writes version 7, thus the phase cannot add keys to version 7.
+
+**Task issues.** [#447](https://github.com/shantanugoel/OpenCraft/issues/447)
+(P11-D1), [#448](https://github.com/shantanugoel/OpenCraft/issues/448)
+(KEY-01), [#449](https://github.com/shantanugoel/OpenCraft/issues/449)
+(KEY-13), [#450](https://github.com/shantanugoel/OpenCraft/issues/450)
+(KEY-02), [#451](https://github.com/shantanugoel/OpenCraft/issues/451)
+(KEY-14), [#452](https://github.com/shantanugoel/OpenCraft/issues/452)
+(ICON-06), [#453](https://github.com/shantanugoel/OpenCraft/issues/453)
+(P11-T1), [#454](https://github.com/shantanugoel/OpenCraft/issues/454)
+(KEY-04), [#455](https://github.com/shantanugoel/OpenCraft/issues/455)
+(ICON-04), [#456](https://github.com/shantanugoel/OpenCraft/issues/456)
+(ACT-31), [#457](https://github.com/shantanugoel/OpenCraft/issues/457)
+(APP-21), [#458](https://github.com/shantanugoel/OpenCraft/issues/458)
+(P11-M1), and [#459](https://github.com/shantanugoel/OpenCraft/issues/459)
+(P11-M2).
 
 ## Not in a phase
 
