@@ -86,21 +86,23 @@ fn check(action: &e::Action, kinds: &[w::Kind], at: &At, timed: bool) -> Result<
 /// (decision 0038). A field with no rule is shown. A value that is not text
 /// shows no field.
 fn shown(kind: &w::Kind, settings: &e::Settings, key: &str) -> bool {
-    let Some(rule) = kind.shown_when.iter().find(|rule| rule.field == key) else {
-        return true;
-    };
-    let value = match settings.get(&rule.key) {
-        Some(e::Value::Text(text)) => Some(text.clone()),
-        Some(_) => None,
-        // A field that the request does not give has the default of its kind.
-        None => kind
-            .fields
-            .iter()
-            .find(|field| field.key == rule.key)
-            .and_then(|field| field.default.as_ref())
-            .and_then(|value| value.as_str().map(str::to_string)),
-    };
-    value.is_some_and(|value| rule.values.contains(&value))
+    kind.shown_when
+        .iter()
+        .filter(|rule| rule.field == key)
+        .all(|rule| {
+            let value = match settings.get(&rule.key) {
+                Some(e::Value::Text(text)) => Some(text.clone()),
+                Some(_) => None,
+                // A field that the request does not give has the default of its kind.
+                None => kind
+                    .fields
+                    .iter()
+                    .find(|field| field.key == rule.key)
+                    .and_then(|field| field.default.as_ref())
+                    .and_then(|value| value.as_str().map(str::to_string)),
+            };
+            value.is_some_and(|value| rule.values.contains(&value))
+        })
 }
 
 fn value_of(input: &w::Input, value: &e::Value, kinds: &[w::Kind], at: &At) -> Result<(), String> {

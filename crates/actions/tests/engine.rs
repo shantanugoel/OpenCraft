@@ -8,7 +8,7 @@
 
 mod support;
 
-use opencraft_actions::handlers_with_system;
+use opencraft_actions::handlers_with_clock;
 use opencraft_core::device::DESCRIPTORS;
 use opencraft_core::{Clock, Connector, Device, FakeTransport, Link, Transport};
 use opencraft_engine::{
@@ -56,14 +56,14 @@ impl Connector for OneDevice {
 
 /// A clock that moves only when the link sleeps. The tests need no real
 /// wait.
-struct StillClock(Instant);
+struct StillClock(Arc<Mutex<Instant>>);
 
 impl Clock for StillClock {
     fn now(&self) -> Instant {
-        self.0
+        *self.0.lock().unwrap()
     }
     fn sleep(&mut self, duration: Duration) {
-        self.0 += duration;
+        *self.0.lock().unwrap() += duration;
     }
 }
 
@@ -128,7 +128,12 @@ impl World {
     fn open(dir: TempDir) -> Self {
         let nested = Arc::new(Mutex::new(Vec::new()));
         let system = Arc::new(Fake::default());
-        let mut all = handlers_with_system(system.clone());
+        let clock = Arc::new(Mutex::new(Instant::now()));
+        let timer_clock = Arc::clone(&clock);
+        let mut all = handlers_with_clock(
+            system.clone(),
+            Arc::new(move || *timer_clock.lock().unwrap()),
+        );
         all.push(Box::new(Recorder(nested.clone())));
         let (sender, messages) = mpsc::channel();
         let (mut ports, mut handlers) = (Vec::new(), Vec::new());
@@ -142,10 +147,7 @@ impl World {
             handlers.push((handler, receiver));
         }
         let device = Rc::new(RefCell::new(FakeTransport::new()));
-        let link = Link::with_clock(
-            OneDevice(Some(Shared(device.clone()))),
-            StillClock(Instant::now()),
-        );
+        let link = Link::with_clock(OneDevice(Some(Shared(device.clone()))), StillClock(clock));
         let events = Rc::new(RefCell::new(Vec::new()));
         let sink_events = events.clone();
         let sink: Sink = Box::new(move |event| sink_events.borrow_mut().push(event));
@@ -264,6 +266,71 @@ impl World {
     fn take_nested(&self) -> Vec<Request> {
         std::mem::take(&mut *self.nested.lock().unwrap())
     }
+}
+
+#[test]
+fn a_timer_key_starts_on_short_press_resets_on_hold_and_rings_at_zero() {
+    let mut world = World::new();
+    world.bind_key_3(built_in("timer", vec![("seconds", Value::Integer(2))]));
+    let saw_face = |world: &World, on| {
+        world
+            .events
+            .borrow()
+            .iter()
+            .rev()
+            .find_map(|event| match event {
+                Event::Surface(state) if state.id == KEY_3 => Some(has_frame(&state.image) == on),
+                _ => None,
+            })
+            .unwrap_or(false)
+    };
+    let advance = |world: &World, duration| {
+        *world.engine.link().clock().0.lock().unwrap() += duration;
+    };
+    world.pump_until(|world| saw_face(world, false));
+    world.take_events();
+
+    world.key_3_edge(1);
+    advance(&world, Duration::from_millis(50));
+    world.key_3_edge(0);
+    world.pump_until(|world| saw_face(world, true));
+    world.take_events();
+
+    world.key_3_edge(1);
+    advance(&world, Duration::from_millis(500));
+    world.engine.poll(Duration::ZERO);
+    world.pump();
+    world.pump_until(|world| saw_face(world, false));
+    world.key_3_edge(0);
+    assert!(!world.system.calls().contains(&support::Call::Bell));
+    world.take_events();
+
+    world.press_key_3();
+    world.pump_until(|world| saw_face(world, true));
+    world.take_events();
+    advance(&world, Duration::from_secs(2));
+    // Wake the worker after moving the fake clock. Production wakes at the deadline.
+    for (handler, _) in &mut world.handlers {
+        if handler
+            .kinds()
+            .iter()
+            .any(|kind| kind.kind == "opencraft.timer")
+        {
+            handler.handle(Request::Resolve {
+                kind: "opencraft.timer".into(),
+            });
+        }
+    }
+    world.pump_until(|world| saw_face(world, false));
+    assert_eq!(
+        world
+            .system
+            .calls()
+            .iter()
+            .filter(|call| **call == support::Call::Bell)
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -475,6 +542,7 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Toggle", "Logic", None, false),
             ("Sequence of actions", "Logic", None, false),
             ("Action cycle", "Logic", None, false),
+            ("Timer", "Logic", None, false),
         ]
     );
 }
@@ -525,6 +593,7 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Toggle", "toggle-left"),
             ("Sequence of actions", "list"),
             ("Action cycle", "repeat"),
+            ("Timer", "timer"),
         ]
     );
     for (_, icon) in icons {

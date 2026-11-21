@@ -53,6 +53,7 @@ mod sequence;
 mod shell_command;
 pub(crate) mod sound_output;
 mod stop_sound;
+pub(crate) mod timer;
 mod toggle;
 mod type_text;
 mod volume;
@@ -102,6 +103,8 @@ pub(crate) enum Group {
     Sequence,
     /// Action cycle. The handler keeps the position of each cycle.
     Cycle,
+    /// Timer. The handler keeps each countdown or stopwatch.
+    Timer,
     /// Screen off and device brightness. These kinds only ask the engine for
     /// work.
     Device,
@@ -363,6 +366,10 @@ const REGISTERED: &[Registered] = &[
         group: Group::Cycle,
         kind: &cycle::KIND,
     },
+    Registered {
+        group: Group::Timer,
+        kind: &timer::KIND,
+    },
 ];
 
 /// Each registered kind, in library order.
@@ -552,6 +559,7 @@ mod tests {
         assert_eq!(ids(Group::Toggle), [toggle::ID]);
         assert_eq!(ids(Group::Sequence), [sequence::ID]);
         assert_eq!(ids(Group::Cycle), [cycle::ID]);
+        assert_eq!(ids(Group::Timer), [timer::ID]);
         assert_eq!(ids(Group::Device), [screen_off::ID, device_brightness::ID]);
         let handlers = handlers::build(
             Arc::new(crate::tests::support::Fake::default()),
@@ -568,6 +576,7 @@ mod tests {
             (toggle::ID, Group::Toggle),
             (sequence::ID, Group::Sequence),
             (cycle::ID, Group::Cycle),
+            (timer::ID, Group::Timer),
             (screen_off::ID, Group::Device),
         ] {
             let handler = handlers

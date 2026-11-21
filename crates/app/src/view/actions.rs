@@ -207,11 +207,10 @@ fn choice_text_of(fields: &[Field], settings: &Settings, key: &str) -> Option<St
 /// True when the shell shows the field `key` (decision 0038). A field with
 /// no rule is shown.
 fn field_shown(fields: &[Field], rules: &[ShownWhen], settings: &Settings, key: &str) -> bool {
-    let Some(rule) = rules.iter().find(|rule| rule.field == key) else {
-        return true;
-    };
-    choice_text_of(fields, settings, &rule.key)
-        .is_some_and(|value| rule.values.iter().any(|item| item == &value))
+    rules.iter().filter(|rule| rule.field == key).all(|rule| {
+        choice_text_of(fields, settings, &rule.key)
+            .is_some_and(|value| rule.values.contains(&value))
+    })
 }
 
 /// Remove each hidden field. When a rule shows a field that has a default
@@ -2175,6 +2174,20 @@ mod shown_when_tests {
         let settings = Settings::new();
         assert!(field_shown(&fields, &rules(), &settings, "step"));
         assert!(field_shown(&fields, &rules(), &settings, "operation"));
+    }
+
+    #[test]
+    fn a_field_with_two_rules_requires_both_to_match() {
+        let mut fields = vec![operation(), step()];
+        let mut secondary = operation();
+        secondary.key = "secondary".into();
+        fields.push(secondary);
+        let mut rules = rules();
+        rules.push(ShownWhen::new("step", "secondary", &["up"]));
+        let mut settings = Settings::from([("secondary".into(), Value::Text("down".into()))]);
+        assert!(!field_shown(&fields, &rules, &settings, "step"));
+        settings.clear();
+        assert!(field_shown(&fields, &rules, &settings, "step"));
     }
 
     #[test]

@@ -79,6 +79,9 @@ pub fn watch_output(_: std::sync::mpsc::Sender<()>) -> Result<Box<dyn super::Aud
 pub fn play_sound(_: &std::path::Path, _: u8, _: Option<&str>) -> Result<()> {
     Err(Error::NotSupported)
 }
+pub fn play_bell() -> Result<()> {
+    Err(Error::NotSupported)
+}
 pub fn stop_sounds() -> Result<()> {
     Err(Error::NotSupported)
 }

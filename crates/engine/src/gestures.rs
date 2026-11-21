@@ -13,6 +13,7 @@ const DOUBLE_PRESS_WINDOW: Duration = Duration::from_millis(300);
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct KeyFacts {
     pub press_receives_release: bool,
+    /// An explicit LongPress binding or a Press kind that handles long press.
     pub long_press: bool,
     pub double_press: bool,
 }

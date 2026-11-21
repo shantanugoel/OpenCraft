@@ -23,6 +23,7 @@ pub enum Call {
     MicrophoneMuted(bool),
     Output(String),
     /// A sound: the file, the volume in percent, and the output.
+    Bell,
     PlaySound(String, u8, Option<String>),
     StopSounds,
     Application(String, Vec<String>),
@@ -319,6 +320,10 @@ impl System for Fake {
         self.output_notifications.lock().unwrap().push(changed);
         Ok(Box::new(FakeWatch))
     }
+    fn play_bell(&self) -> Result<()> {
+        self.record(Call::Bell, "bell")
+    }
+
     fn play_sound(&self, file: &std::path::Path, volume: u8, device: Option<&str>) -> Result<()> {
         self.record(
             Call::PlaySound(

@@ -1756,6 +1756,13 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .is_some_and(|p| p.sender.send(request).is_ok())
     }
 
+    fn kind_handles_long_press(&self, id: &str) -> bool {
+        self.ports
+            .iter()
+            .flat_map(|p| &p.kinds)
+            .any(|kind| kind.kind == id && kind.handles_long_press)
+    }
+
     fn kind_receives_release(&self, id: &str) -> bool {
         self.ports
             .iter()
@@ -1833,11 +1840,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let location = &self.location;
         let profile = &self.profile;
         let press_receives_release = self.control_holds(event.control);
+        let press_handles_long_press = event.control.kind == ControlKind::Key
+            && location
+                .binding(profile, event.control, GestureKind::Press)
+                .is_some_and(|(_, action)| self.kind_handles_long_press(&action.kind));
         let dispatches = self.gestures.input(event, now, |control| KeyFacts {
             press_receives_release,
             long_press: location
                 .binding(profile, control, GestureKind::LongPress)
-                .is_some(),
+                .is_some()
+                || press_handles_long_press,
             double_press: location
                 .binding(profile, control, GestureKind::DoublePress)
                 .is_some(),
@@ -1902,15 +1914,35 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     fn invoke(&mut self, control: ControlId, gesture: GestureKind) {
-        let Some((binding, action)) = self
-            .location
-            .binding(&self.profile, control, gesture)
-            .map(|(binding, action)| (binding, action.clone()))
-        else {
+        let (kind, request) = if let Some((binding, action)) =
+            self.location.binding(&self.profile, control, gesture)
+        {
+            (
+                &action.kind,
+                Request::Invoke {
+                    binding,
+                    action: action.clone(),
+                },
+            )
+        } else if gesture == GestureKind::LongPress && control.kind == ControlKind::Key {
+            let Some((binding, action)) = self
+                .location
+                .binding(&self.profile, control, GestureKind::Press)
+                .filter(|(_, action)| self.kind_handles_long_press(&action.kind))
+            else {
+                return;
+            };
+            (
+                &action.kind,
+                Request::LongPress {
+                    binding,
+                    action: action.clone(),
+                },
+            )
+        } else {
             return;
         };
-        let kind = action.kind.clone();
-        if self.request(&kind, Request::Invoke { binding, action }) {
+        if self.request(kind, request) {
             self.counters.invokes_sent += 1;
         }
     }

@@ -53,6 +53,12 @@ pub fn play_sound(file: &std::path::Path, volume: u8, device: Option<&str>) -> R
     super::macos_sound::play(file, volume, device)
 }
 
+pub fn play_bell() -> Result<()> {
+    // SAFETY: NSBeep takes no arguments and uses the system alert sound.
+    unsafe { NSBeep() };
+    Ok(())
+}
+
 pub fn stop_sounds() -> Result<()> {
     super::macos_sound::stop_all()
 }
@@ -334,7 +340,9 @@ pub fn paste_text(text: &str) -> Result<()> {
 // --- Media keys --------------------------------------------------------------
 
 #[link(name = "AppKit", kind = "framework")]
-extern "C" {}
+extern "C" {
+    fn NSBeep();
+}
 
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {

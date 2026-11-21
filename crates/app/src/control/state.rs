@@ -260,6 +260,7 @@ impl From<&e::KindDescription> for w::Kind {
             icon: kind.icon.clone(),
             needs_accessibility: kind.needs_accessibility,
             receives_release: kind.receives_release,
+            handles_long_press: kind.handles_long_press,
             fields: kind
                 .fields
                 .iter()

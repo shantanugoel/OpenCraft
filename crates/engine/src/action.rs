@@ -182,6 +182,12 @@ pub enum Request {
         binding: BindingId,
         action: Action,
     },
+    /// The key's Press binding handles a long press and has no explicit
+    /// LongPress binding (decision 0042). `binding` identifies the Press binding.
+    LongPress {
+        binding: BindingId,
+        action: Action,
+    },
     /// A Press binding of a kind that receives release went down.
     HoldStart {
         binding: BindingId,
@@ -365,6 +371,9 @@ pub struct KindDescription {
     /// A key's Press binding receives a hold start and end (decision 0042).
     /// Other gestures, tests and nested actions still receive Invoke.
     pub receives_release: bool,
+    /// The Press binding receives [`Request::LongPress`] on a key with no
+    /// explicit LongPress binding (decision 0042).
+    pub handles_long_press: bool,
     pub fields: Vec<Field>,
     /// The direction of a turn of a knob, if the kind has one. The shell
     /// then shows one "Turn" card for the two turn gestures, and writes the
@@ -383,7 +392,8 @@ pub struct KindDescription {
     /// The shell marks that row for the top-level action only.
     pub steps: Option<String>,
     /// Fields that the shell shows only for some values of a choice
-    /// (decision 0038). A field with no rule is always shown.
+    /// (decision 0038). All rules for a field must match. A field with no
+    /// rule is always shown.
     pub shown_when: Vec<ShownWhen>,
     /// For a kind that needs the permission only for some values of a
     /// choice: the rule that names those values. The field of the rule
@@ -404,6 +414,12 @@ impl KindDescription {
     /// Declare that a Press binding starts a hold and receives its end.
     pub fn with_receives_release(mut self) -> Self {
         self.receives_release = true;
+        self
+    }
+
+    /// Declare that a Press binding can handle a long press.
+    pub fn with_handles_long_press(mut self) -> Self {
+        self.handles_long_press = true;
         self
     }
 

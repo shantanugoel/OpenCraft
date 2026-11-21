@@ -76,6 +76,9 @@ fn each_kind_with_a_path_field_gives_the_full_path_after_an_export_and_an_import
                 Value::Text(format!("{home}/Test/{}.app", field.key)),
             );
         }
+        if description.kind == super::timer::ID {
+            settings.insert("bell".into(), Value::Text("file".into()));
+        }
         let action = Action {
             kind: description.kind.clone(),
             settings,
@@ -108,8 +111,7 @@ fn each_kind_with_a_path_field_gives_the_full_path_after_an_export_and_an_import
         );
         checked += 1;
     }
-    // Open an application, quit an application, open a URL, and play a sound.
-    assert_eq!(checked, 4);
+    assert_eq!(checked, 5);
 }
 
 #[test]
