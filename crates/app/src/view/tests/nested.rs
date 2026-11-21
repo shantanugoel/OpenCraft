@@ -672,15 +672,14 @@ fn a_kind_with_two_states_shows_the_appearance_of_each_state(cx: &mut TestAppCon
     cx.update(|window, cx| window.focus(&input.focus_handle(cx), cx));
     cx.run_until_parked();
     assert_eq!(sent.borrow().last(), Some(&Command::StartTextEdit));
-    cx.simulate_keystrokes("cmd-a");
-    cx.simulate_input("L");
+    cx.simulate_input("!");
     cx.run_until_parked();
     assert!(sent.borrow().contains(&Command::Group {
         name: "Set Title".into(),
         commands: vec![
             Command::SetLabel {
                 surface,
-                label: Some("L".into())
+                label: Some("Old!".into())
             }
             .for_face(true),
             Command::SetBinding {
@@ -689,12 +688,12 @@ fn a_kind_with_two_states_shows_the_appearance_of_each_state(cx: &mut TestAppCon
             },
         ],
     }));
-    cx.simulate_input("ive");
+    cx.simulate_input("?");
     cx.run_until_parked();
     assert!(sent.borrow().contains(
         &Command::SetLabel {
             surface,
-            label: Some("Live".into())
+            label: Some("Old!?".into())
         }
         .for_face(true)
     ));
