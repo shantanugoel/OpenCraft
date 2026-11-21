@@ -101,6 +101,7 @@ fn reply(tx: &async_channel::Sender<Event>, right: Option<Action>, left: Option<
         tx.try_send(Event::Binding(BindingState {
             binding: turn(gesture),
             available: action.is_some(),
+            inert_by: None,
             action,
         }))
         .unwrap();

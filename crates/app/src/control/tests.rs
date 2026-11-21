@@ -311,6 +311,7 @@ fn results_hide_home_paths_in_nested_actions_and_never_include_engine_logs() {
                 )]),
             }),
             available: false,
+            inert_by: None,
         }));
     rig.enable(true);
     let mut client = rig.client();
@@ -319,6 +320,56 @@ fn results_hide_home_paths_in_nested_actions_and_never_include_engine_logs() {
     assert!(!state.contains(&home));
     assert!(!state.contains("PRIVATE-SERIAL"));
     assert!(state.contains("~/Documents/test"));
+}
+
+#[test]
+fn hold_metadata_is_visible_on_the_control_socket() {
+    let rig = Rig::new();
+    let control = rig.control.borrow();
+    control.observe(&e::Event::Kinds(vec![
+        e::KindDescription {
+            kind: "test.hold".into(),
+            ..Default::default()
+        }
+        .with_receives_release(),
+        e::KindDescription {
+            kind: "test.tap".into(),
+            ..Default::default()
+        },
+    ]));
+    for (gesture, kind, inert_by) in [
+        (e::GestureKind::Press, "test.hold", None),
+        (
+            e::GestureKind::LongPress,
+            "test.tap",
+            Some(e::GestureKind::Press),
+        ),
+    ] {
+        control.observe(&e::Event::Binding(e::BindingState {
+            binding: e::BindingId {
+                page: 0,
+                folder: None,
+                control: e::ControlId::new(e::ControlKind::Key, 1),
+                gesture,
+            },
+            action: Some(e::Action {
+                kind: kind.into(),
+                settings: Default::default(),
+            }),
+            available: true,
+            inert_by,
+        }));
+    }
+    drop(control);
+    rig.enable(true);
+    let mut client = rig.client();
+    client.hello();
+    let kinds = client.request("kinds");
+    assert_eq!(kinds[0]["receives_release"], true);
+    assert_eq!(kinds[1]["receives_release"], false);
+    let content = client.request("content");
+    assert!(content["bindings"][0].get("inert_by").is_none());
+    assert_eq!(content["bindings"][1]["inert_by"], "press");
 }
 
 #[test]
@@ -405,6 +456,7 @@ fn pages_clear_bindings_and_model_changes_clear_model_state() {
             settings: Default::default(),
         }),
         available: false,
+        inert_by: None,
     }));
     assert_eq!(control.feed.read(|s| s.content.bindings.len()), 1);
     control.observe(&e::Event::Pages {

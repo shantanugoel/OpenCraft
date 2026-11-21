@@ -161,8 +161,28 @@ fn hotkey_events(hotkey: &Hotkey) -> Result<Vec<CGEvent>> {
 }
 
 fn extended_hotkey_events(hotkey: &Hotkey) -> Result<Vec<CGEvent>> {
+    let mut events = hotkey_down_events(hotkey)?;
+    events.extend(hotkey_up_events(hotkey)?);
+    Ok(events)
+}
+
+pub fn hotkey_down(hotkey: &Hotkey) -> Result<()> {
+    for event in hotkey_down_events(hotkey)? {
+        event.post(CGEventTapLocation::HID);
+    }
+    Ok(())
+}
+
+pub fn hotkey_up(hotkey: &Hotkey) -> Result<()> {
+    for event in hotkey_up_events(hotkey)? {
+        event.post(CGEventTapLocation::HID);
+    }
+    Ok(())
+}
+
+fn active_modifiers(hotkey: &Hotkey) -> Vec<(u16, u64)> {
     // Virtual codes: Events.h. Device-side masks: IOLLEvent.h.
-    let modifiers: Vec<(u16, u64)> = [
+    [
         (hotkey.ctrl, 0x3B, (1 << 18) | 0x01),
         (hotkey.right_ctrl, 0x3E, (1 << 18) | 0x2000),
         (hotkey.alt, 0x3A, (1 << 19) | 0x20),
@@ -175,37 +195,52 @@ fn extended_hotkey_events(hotkey: &Hotkey) -> Result<Vec<CGEvent>> {
     ]
     .into_iter()
     .filter_map(|(on, code, mask)| on.then_some((code, mask)))
-    .collect();
+    .collect()
+}
+
+fn hotkey_down_events(hotkey: &Hotkey) -> Result<Vec<CGEvent>> {
+    hotkey_edge_events(hotkey, true)
+}
+
+fn hotkey_up_events(hotkey: &Hotkey) -> Result<Vec<CGEvent>> {
+    hotkey_edge_events(hotkey, false)
+}
+
+fn hotkey_edge_events(hotkey: &Hotkey, down: bool) -> Result<Vec<CGEvent>> {
+    let modifiers = active_modifiers(hotkey);
     if modifiers.is_empty() && hotkey.key.is_empty() {
         return Err(Error::NotSupported);
     }
-    let mut events = Vec::new();
-    let flags = |count: usize| {
+    let flags = |count| {
         CGEventFlags::from_bits_retain(
-            modifiers[..count]
+            modifiers
                 .iter()
+                .take(count)
                 .fold(0, |flags, (_, mask)| flags | mask),
         )
     };
-    for (index, &(code, _)) in modifiers.iter().enumerate() {
-        let event = key_event(code, true)?;
+    let modifier = |index: usize| {
+        let event = key_event(modifiers[index].0, down)?;
         event.set_type(CGEventType::FlagsChanged);
-        event.set_flags(flags(index + 1));
-        events.push(event);
+        event.set_flags(flags(index + usize::from(down)));
+        Ok::<_, Error>(event)
+    };
+    let mut events = Vec::new();
+    if down {
+        for index in 0..modifiers.len() {
+            events.push(modifier(index)?);
+        }
     }
     if !hotkey.key.is_empty() {
         let code = key_code(&hotkey.key).ok_or(Error::NotSupported)?;
-        for down in [true, false] {
-            let event = key_event(code, down)?;
-            event.set_flags(flags(modifiers.len()));
-            events.push(event);
-        }
-    }
-    for (index, &(code, _)) in modifiers.iter().enumerate().rev() {
-        let event = key_event(code, false)?;
-        event.set_type(CGEventType::FlagsChanged);
-        event.set_flags(flags(index));
+        let event = key_event(code, down)?;
+        event.set_flags(flags(modifiers.len()));
         events.push(event);
+    }
+    if !down {
+        for index in (0..modifiers.len()).rev() {
+            events.push(modifier(index)?);
+        }
     }
     Ok(events)
 }
@@ -971,6 +1006,67 @@ mod tests {
         assert!(events
             .iter()
             .all(|e| e.get_flags() == CGEventFlags::CGEventFlagCommand));
+    }
+
+    #[test]
+    fn hotkey_down_and_up_build_symmetric_events_with_key_released_before_modifiers() {
+        use core_graphics::event::EventField;
+        let hotkey = "cmd+shift+k".parse().unwrap();
+        let down = hotkey_down_events(&hotkey).unwrap();
+        let up = hotkey_up_events(&hotkey).unwrap();
+        let events = |events: &[CGEvent]| {
+            events
+                .iter()
+                .map(|e| {
+                    (
+                        e.get_type() as u32,
+                        e.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE),
+                        e.get_flags().bits(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let modifier = CGEventType::FlagsChanged as u32;
+        let shift = (1 << 17) | 0x02;
+        let both = shift | (1 << 20) | 0x08;
+        let key = i64::from(key_code("k").unwrap());
+        assert_eq!(
+            events(&down),
+            [
+                (modifier, 0x38, shift),
+                (modifier, 0x37, both),
+                (CGEventType::KeyDown as u32, key, both)
+            ]
+        );
+        assert_eq!(
+            events(&up),
+            [
+                (CGEventType::KeyUp as u32, key, both),
+                (modifier, 0x37, shift),
+                (modifier, 0x38, 0)
+            ]
+        );
+    }
+
+    #[test]
+    fn hotkey_down_and_up_support_modifier_only_holds() {
+        use core_graphics::event::EventField;
+        let hotkey = "rightcmd+fn".parse().unwrap();
+        let down = hotkey_down_events(&hotkey).unwrap();
+        let up = hotkey_up_events(&hotkey).unwrap();
+        let codes = |events: &[CGEvent]| {
+            events
+                .iter()
+                .map(|e| {
+                    assert_eq!(e.get_type() as u32, CGEventType::FlagsChanged as u32);
+                    e.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE)
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(codes(&down), [0x36, 0x3f]);
+        assert_eq!(codes(&up), [0x3f, 0x36]);
+        assert_eq!(up[0].get_flags(), down[0].get_flags());
+        assert_eq!(up[1].get_flags(), CGEventFlags::CGEventFlagNull);
     }
 
     #[test]

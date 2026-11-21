@@ -432,6 +432,7 @@ fn a_move_that_changes_the_number_of_the_active_page_gives_new_numbers() {
                 binding: key_3(2),
                 action: Some(action(KIND)),
                 available: true,
+                inert_by: None,
             }),
             Event::History {
                 undo: Some("Move Page".into()),

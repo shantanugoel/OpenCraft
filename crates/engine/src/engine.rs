@@ -878,6 +878,8 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     settings: SavedDocument<DeviceSettings>,
     power: Power,
     gestures: Gestures,
+    // Keep the original binding and handler, even after an edit.
+    held: BTreeMap<ControlId, (BindingId, String)>,
     /// The state machine of the automatic switch, and the setting of section
     /// 7 (decision 0035). It does no I/O: the engine carries out its
     /// decisions.
@@ -1016,6 +1018,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             ),
             power: Power::default(),
             gestures: Gestures::default(),
+            held: BTreeMap::new(),
             front_switch: FrontSwitch::new(true),
             cause: ActiveCause::Selected,
             history: History::default(),
@@ -1299,7 +1302,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let gone = bindings_that_change(&before, &after, &before_at, &after_at);
         let arrived = bindings_that_change(&after, &before, &after_at, &before_at);
         for (binding, _) in gone.iter().chain(&arrived) {
-            self.gestures.cancel(binding.control);
+            self.cancel_control(binding.control);
         }
         self.disappear_bindings(&gone);
         for (binding, _) in &gone {
@@ -1691,12 +1694,29 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             .is_some_and(|p| p.sender.send(request).is_ok())
     }
 
+    fn kind_receives_release(&self, id: &str) -> bool {
+        self.ports
+            .iter()
+            .flat_map(|p| &p.kinds)
+            .any(|kind| kind.kind == id && kind.receives_release)
+    }
+
+    fn control_holds(&self, control: ControlId) -> bool {
+        self.location.press_holds(&self.profile, control, |kind| {
+            self.kind_receives_release(kind)
+        })
+    }
+
     fn binding_event(&mut self, binding: BindingId, action: Option<Action>) {
+        let inert_by = self.location.inert_by(&self.profile, binding, |kind| {
+            self.kind_receives_release(kind)
+        });
         let available = action.as_ref().is_some_and(|a| self.available(&a.kind));
         (self.sink)(Event::Binding(BindingState {
             binding,
             action,
             available,
+            inert_by,
         }));
     }
 
@@ -1720,7 +1740,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if !changed {
             return;
         }
-        self.gestures.cancel(binding.control);
+        self.cancel_control(binding.control);
         if let Some(before) = before {
             self.request(&before.kind, Request::Disappear { binding });
         }
@@ -1733,13 +1753,25 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if had_feedback {
             self.refresh_feedback_surface(binding.control);
         }
+        if binding.gesture == GestureKind::Press && binding.control.kind == ControlKind::Key {
+            for gesture in [GestureKind::LongPress, GestureKind::DoublePress] {
+                if let Some((id, action)) =
+                    self.location
+                        .binding(&self.profile, binding.control, gesture)
+                {
+                    self.binding_event(id, Some(action.clone()));
+                }
+            }
+        }
     }
 
     fn handle_input(&mut self, event: InputEvent) {
         let now = self.now();
         let location = &self.location;
         let profile = &self.profile;
+        let press_receives_release = self.control_holds(event.control);
         let dispatches = self.gestures.input(event, now, |control| KeyFacts {
+            press_receives_release,
             long_press: location
                 .binding(profile, control, GestureKind::LongPress)
                 .is_some(),
@@ -1756,8 +1788,53 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     }
 
     fn dispatch_gestures(&mut self, dispatches: Vec<Dispatch>) {
-        for Dispatch::Invoke { control, gesture } in dispatches {
-            self.invoke(control, gesture);
+        for dispatch in dispatches {
+            match dispatch {
+                Dispatch::Invoke { control, gesture } => self.invoke(control, gesture),
+                Dispatch::HoldStart(control) => self.hold_start(control),
+                Dispatch::HoldEnd(control) => self.hold_end(control),
+            }
+        }
+    }
+
+    fn hold_start(&mut self, control: ControlId) {
+        if !self.control_holds(control) {
+            return;
+        }
+        self.hold_end(control);
+        if let Some((binding, action)) =
+            self.location
+                .binding(&self.profile, control, GestureKind::Press)
+        {
+            let kind = action.kind.clone();
+            if self.request(
+                &kind,
+                Request::HoldStart {
+                    binding,
+                    action: action.clone(),
+                },
+            ) {
+                self.counters.invokes_sent += 1;
+                self.held.insert(control, (binding, kind));
+            }
+        }
+    }
+
+    fn hold_end(&mut self, control: ControlId) {
+        if let Some((binding, kind)) = self.held.remove(&control) {
+            self.request(&kind, Request::HoldEnd { binding });
+        }
+    }
+
+    fn cancel_control(&mut self, control: ControlId) {
+        self.gestures.cancel(control);
+        self.hold_end(control);
+    }
+
+    fn cancel_all_gestures(&mut self) {
+        self.gestures.cancel_all();
+        for (_, (binding, kind)) in std::mem::take(&mut self.held) {
+            self.request(&kind, Request::HoldEnd { binding });
         }
     }
 
@@ -3245,7 +3322,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             parts,
         );
         if surface.is_some() || !bindings.is_empty() {
-            self.gestures.cancel(control);
+            self.cancel_control(control);
         }
         // The surface first: a shell then gets the new content before the
         // bindings, for example for the text field of the label.
@@ -3282,7 +3359,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             changed
         });
         if changed {
-            self.gestures.cancel(control);
+            self.cancel_control(control);
         }
     }
 
@@ -3354,7 +3431,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.power_notice(PowerNotice::DidWake);
             }
             Ok(LinkEvent::Disconnected) => {
-                self.gestures.cancel_all();
+                self.cancel_all_gestures();
                 self.power.down_key = None;
                 self.power.consumed_key = None;
                 self.power.consumed_touch = false;
@@ -3420,7 +3497,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     fn change_model(&mut self, descriptor: &'static Descriptor) {
         let new_model = descriptor.model != self.descriptor.model;
         if new_model {
-            self.gestures.cancel_all();
+            self.cancel_all_gestures();
             // The device of the new model must show its own profile, so the
             // change continues after a failed write.
             if let Err(e) = self.write_now() {
@@ -3612,7 +3689,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// time, when the engine stops. [`crate::runtime`] calls it at
     /// [`Command::Stop`] and when each sender of commands is gone.
     pub fn finish(&mut self) {
-        self.gestures.cancel_all();
+        self.cancel_all_gestures();
+        // Close the queues so the runtime can join the handlers after they drain.
+        self.ports.clear();
         let now = self.now();
         self.save_profile(now);
         self.save_settings(now);

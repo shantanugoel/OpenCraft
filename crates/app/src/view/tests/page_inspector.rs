@@ -264,6 +264,7 @@ fn the_swipe_cards_of_the_page_set_the_touch_bar_bindings(cx: &mut TestAppContex
             binding: swipe(GestureKind::SwipeRight),
             action: Some(test_action("start")),
             available: true,
+            inert_by: None,
         }),
     );
     assert!(page_selected(&view, cx));

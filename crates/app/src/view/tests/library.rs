@@ -440,6 +440,7 @@ fn a_drop_replaces_the_action_of_the_first_gesture(cx: &mut TestAppContext) {
                 binding: binding(gesture),
                 action: Some(default_action("test.open")),
                 available: true,
+                inert_by: None,
             }),
         );
     }

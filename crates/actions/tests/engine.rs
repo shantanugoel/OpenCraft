@@ -112,6 +112,7 @@ struct World {
     events: Rc<RefCell<Vec<Event>>>,
     device: Rc<RefCell<FakeTransport>>,
     nested: Arc<Mutex<Vec<Request>>>,
+    system: Arc<Fake>,
     _dir: TempDir,
 }
 
@@ -126,7 +127,8 @@ impl World {
     /// with the device connected.
     fn open(dir: TempDir) -> Self {
         let nested = Arc::new(Mutex::new(Vec::new()));
-        let mut all = handlers_with_system(Arc::new(Fake::default()));
+        let system = Arc::new(Fake::default());
+        let mut all = handlers_with_system(system.clone());
         all.push(Box::new(Recorder(nested.clone())));
         let (sender, messages) = mpsc::channel();
         let (mut ports, mut handlers) = (Vec::new(), Vec::new());
@@ -161,6 +163,7 @@ impl World {
             events,
             device,
             nested,
+            system,
             _dir: dir,
         };
         for _ in 0..10 {
@@ -227,15 +230,16 @@ impl World {
 
     /// Press and release key 3 on the device.
     fn press_key_3(&mut self) {
+        self.key_3_edge(1);
+        self.key_3_edge(0);
+    }
+
+    fn key_3_edge(&mut self, state: u8) {
         let mut report = vec![0u8; 512];
         report[..3].copy_from_slice(b"ACK");
         report[5..7].copy_from_slice(b"OK");
         report[9] = 3;
-        report[10] = 1;
-        self.device.borrow_mut().push_input(report.clone());
-        self.engine.poll(Duration::ZERO);
-        self.pump();
-        report[10] = 0;
+        report[10] = state;
         self.device.borrow_mut().push_input(report);
         self.engine.poll(Duration::ZERO);
         self.pump();
@@ -260,6 +264,40 @@ impl World {
     fn take_nested(&self) -> Vec<Request> {
         std::mem::take(&mut *self.nested.lock().unwrap())
     }
+}
+
+#[test]
+fn a_hold_hotkey_spans_device_reports_and_shows_its_state() {
+    use opencraft_engine::FeedbackState::{Off, On};
+    use support::Call::{HotkeyDown, HotkeyUp};
+
+    let mut world = World::new();
+    world.bind_key_3(built_in(
+        "hold-hotkey",
+        vec![("hotkey", Value::Text("cmd+space".into()))],
+    ));
+    world.take_events();
+    let state = |world: &mut World| {
+        world
+            .take_events()
+            .into_iter()
+            .rev()
+            .find_map(|event| match event {
+                Event::Surface(surface) if surface.id == KEY_3 => {
+                    surface.states.map(|states| states.now)
+                }
+                _ => None,
+            })
+    };
+    world.key_3_edge(1);
+    assert_eq!(world.system.calls(), [HotkeyDown("cmd+space".into())]);
+    assert_eq!(state(&mut world), Some(On));
+    world.key_3_edge(0);
+    assert_eq!(
+        world.system.calls(),
+        [HotkeyDown("cmd+space".into()), HotkeyUp("cmd+space".into())]
+    );
+    assert_eq!(state(&mut world), Some(Off));
 }
 
 #[test]
@@ -418,6 +456,7 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Open a URL", "System", None, false),
             ("Run a shell command", "System", None, false),
             ("Send a hotkey", "System", accessibility, true),
+            ("Hold a hotkey", "System", accessibility, true),
             ("Type text", "System", accessibility, true),
             ("Media key", "Media", accessibility, true),
             ("Mouse event", "System", accessibility, true),
@@ -466,6 +505,7 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Open a URL", "globe"),
             ("Run a shell command", "terminal"),
             ("Send a hotkey", "keyboard"),
+            ("Hold a hotkey", "keyboard"),
             ("Type text", "type"),
             ("Media key", "play"),
             ("Mouse event", "mouse-pointer-2"),

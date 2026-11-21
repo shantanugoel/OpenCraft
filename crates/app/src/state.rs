@@ -716,6 +716,7 @@ pub(crate) mod tests {
                 settings: Settings::new(),
             }),
             available: false,
+            inert_by: None,
         };
         s.apply(Event::Binding(binding.clone()), now);
         assert_eq!(s.bindings.get(&id), Some(&binding));
@@ -746,6 +747,7 @@ pub(crate) mod tests {
                 binding: id,
                 action: None,
                 available: false,
+                inert_by: None,
             }),
             now,
         );
@@ -839,6 +841,7 @@ pub(crate) mod tests {
                     settings: Settings::new(),
                 }),
                 available: true,
+                inert_by: None,
             }),
             now,
         );
@@ -878,6 +881,7 @@ pub(crate) mod tests {
                     settings: Settings::new(),
                 }),
                 available: true,
+                inert_by: None,
             })
         };
         // With no action, no card is open.

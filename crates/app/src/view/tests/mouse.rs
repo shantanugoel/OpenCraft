@@ -32,6 +32,7 @@ fn mouse_form_comes_from_its_description(cx: &mut TestAppContext) {
         },
         action: Some(action),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();

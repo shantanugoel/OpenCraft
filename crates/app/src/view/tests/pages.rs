@@ -97,6 +97,7 @@ fn bound(id: BindingId, action: Action) -> Event {
         binding: id,
         action: Some(action),
         available: true,
+        inert_by: None,
     })
 }
 

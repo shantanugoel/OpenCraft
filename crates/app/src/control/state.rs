@@ -259,6 +259,7 @@ impl From<&e::KindDescription> for w::Kind {
             help: kind.help.clone(),
             icon: kind.icon.clone(),
             needs_accessibility: kind.needs_accessibility,
+            receives_release: kind.receives_release,
             fields: kind
                 .fields
                 .iter()
@@ -551,6 +552,7 @@ impl w::State {
                         gesture,
                         action: action.into(),
                         available: binding.available,
+                        inert_by: binding.inert_by.map(Into::into),
                     });
                 }
             }

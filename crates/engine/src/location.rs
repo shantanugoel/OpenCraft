@@ -77,6 +77,33 @@ impl Location {
         Some((self.binding_id(control, gesture), action))
     }
 
+    /// True when this key's Press binding starts a hold (decision 0042).
+    pub fn press_holds(
+        &self,
+        profile: &Profile,
+        control: ControlId,
+        receives_release: impl FnOnce(&str) -> bool,
+    ) -> bool {
+        control.kind == ControlKind::Key
+            && self
+                .binding(profile, control, GestureKind::Press)
+                .is_some_and(|(_, action)| receives_release(&action.kind))
+    }
+
+    /// The gesture that prevents the given binding from running.
+    pub fn inert_by(
+        &self,
+        profile: &Profile,
+        binding: BindingId,
+        receives_release: impl FnOnce(&str) -> bool,
+    ) -> Option<GestureKind> {
+        (matches!(
+            binding.gesture,
+            GestureKind::LongPress | GestureKind::DoublePress
+        ) && self.press_holds(profile, binding.control, receives_release))
+        .then_some(GestureKind::Press)
+    }
+
     /// The bindings at this location.
     ///
     /// The keys come from the last open folder. The other controls come

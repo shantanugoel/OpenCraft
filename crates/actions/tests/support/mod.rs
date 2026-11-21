@@ -11,6 +11,8 @@ use std::time::{Duration, Instant};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Call {
     Hotkey(String),
+    HotkeyDown(String),
+    HotkeyUp(String),
     Mouse(opencraft_actions::system::MouseEvent),
     MacFunction(opencraft_actions::system::MacFunction),
     Text(String),
@@ -229,6 +231,12 @@ impl System for Fake {
     }
     fn send_hotkey(&self, hotkey: &Hotkey) -> Result<()> {
         self.record(Call::Hotkey(hotkey.to_string()), "hotkey")
+    }
+    fn hotkey_down(&self, hotkey: &Hotkey) -> Result<()> {
+        self.record(Call::HotkeyDown(hotkey.to_string()), "hotkey-down")
+    }
+    fn hotkey_up(&self, hotkey: &Hotkey) -> Result<()> {
+        self.record(Call::HotkeyUp(hotkey.to_string()), "hotkey-up")
     }
     fn mouse_event(&self, event: opencraft_actions::system::MouseEvent) -> Result<()> {
         self.record(Call::Mouse(event), "mouse")

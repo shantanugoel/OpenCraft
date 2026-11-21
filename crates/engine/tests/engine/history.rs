@@ -299,6 +299,7 @@ fn undo_of_a_binding_gives_the_old_action_to_the_handler_and_the_shell() {
         binding: key_3(0),
         action: Some(action(KIND)),
         available: true,
+        inert_by: None,
     })));
 }
 

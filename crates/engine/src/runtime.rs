@@ -223,20 +223,31 @@ pub fn spawn(
     handlers: Vec<Box<dyn Handler>>,
     sink: impl FnMut(Event) + Send + 'static,
 ) -> io::Result<EngineHandle> {
-    let (ports, messages) = start_handlers(handlers)?;
+    spawn_with_connector(
+        ProfilesDir::new(config.profiles_dir),
+        DeviceConnector {
+            no_device: config.no_device,
+        },
+        handlers,
+        sink,
+    )
+}
+
+fn spawn_with_connector<C: Connector + Send + 'static>(
+    profiles: ProfilesDir,
+    connector: C,
+    handlers: Vec<Box<dyn Handler>>,
+    sink: impl FnMut(Event) + Send + 'static,
+) -> io::Result<EngineHandle> {
+    let (ports, messages, threads) = start_handlers_with_threads(handlers)?;
     start_thread(STOP_TIMEOUT, move |commands| {
-        let profiles = ProfilesDir::new(config.profiles_dir);
         let start = start_descriptor(DESCRIPTORS, &profiles);
-        let mut engine = Engine::with_handlers(
-            Link::new(DeviceConnector {
-                no_device: config.no_device,
-            }),
-            profiles,
-            start,
-            ports,
-            sink,
-        );
+        let mut engine = Engine::with_handlers(Link::new(connector), profiles, start, ports, sink);
         run_loop(&mut engine, || commands.try_recv(), &messages);
+        drop(engine);
+        for thread in threads {
+            let _ = thread.join();
+        }
     })
 }
 
@@ -300,10 +311,22 @@ pub fn run<C: Connector, S: FnMut(Event), K: Clock>(
 
 /// Connect each handler to an unbounded request queue and the shared message queue.
 /// Descriptions are read here, before the engine thread starts.
-/// Handler threads stop when their request sender goes away. The engine never joins them.
+/// Handler threads drain their queues and stop when their request sender goes away.
 pub fn start_handlers(
     handlers: Vec<Box<dyn Handler>>,
 ) -> io::Result<(Vec<HandlerPort>, Receiver<Message>)> {
+    let (ports, messages, _) = start_handlers_with_threads(handlers)?;
+    Ok((ports, messages))
+}
+
+type StartedHandlers = (
+    Vec<HandlerPort>,
+    Receiver<Message>,
+    Vec<thread::JoinHandle<()>>,
+);
+
+fn start_handlers_with_threads(handlers: Vec<Box<dyn Handler>>) -> io::Result<StartedHandlers> {
+    let mut threads = Vec::new();
     let (sender, messages) = mpsc::channel();
     let mut ports = Vec::new();
     let mut kinds = std::collections::BTreeSet::new();
@@ -323,7 +346,7 @@ pub fn start_handlers(
     for (mut handler, descriptions) in prepared {
         let (requests, receiver) = mpsc::channel();
         let sender = sender.clone();
-        thread::Builder::new()
+        let thread = thread::Builder::new()
             .name("opencraft-handler".into())
             .spawn(move || {
                 handler.start(sender);
@@ -331,12 +354,13 @@ pub fn start_handlers(
                     handler.handle(request);
                 }
             })?;
+        threads.push(thread);
         ports.push(HandlerPort {
             kinds: descriptions,
             sender: requests,
         });
     }
-    Ok((ports, messages))
+    Ok((ports, messages, threads))
 }
 
 /// Read commands and handler messages before each device poll.
@@ -408,6 +432,79 @@ mod tests {
             run_loop(&mut engine, || commands.try_recv(), &messages);
         })
         .unwrap()
+    }
+
+    #[test]
+    fn runtime_stop_delivers_queued_hold_end_before_joining_handler_threads() {
+        use crate::{
+            Action, ControlId, ControlKind, GestureKind, KindDescription, MessageSender, Page,
+            Profile, Request,
+        };
+
+        struct OneDevice(Option<opencraft_core::FakeTransport>);
+        impl Connector for OneDevice {
+            type Transport = opencraft_core::FakeTransport;
+
+            fn connect(&mut self) -> opencraft_core::Result<Option<Device<Self::Transport>>> {
+                Ok(self.0.take().map(|t| Device::new(t, &DESCRIPTORS[0])))
+            }
+        }
+
+        struct Recorder(Sender<Request>);
+        impl Handler for Recorder {
+            fn kinds(&self) -> Vec<KindDescription> {
+                vec![KindDescription {
+                    kind: "test.hold".into(),
+                    ..Default::default()
+                }
+                .with_receives_release()]
+            }
+            fn start(&mut self, _: MessageSender) {}
+            fn handle(&mut self, request: Request) {
+                self.0.send(request).unwrap();
+            }
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let profiles = ProfilesDir::new(dir.path());
+        let control = ControlId::new(ControlKind::Key, 1);
+        let mut page = Page::new("Main");
+        page.set_binding(
+            control,
+            GestureKind::Press,
+            Some(Action {
+                kind: "test.hold".into(),
+                settings: Default::default(),
+            }),
+        );
+        profiles
+            .store("default")
+            .save(&Profile::new("Default", vec![page]))
+            .unwrap();
+        let mut transport = opencraft_core::FakeTransport::new();
+        let mut report = vec![0; 512];
+        report[..3].copy_from_slice(b"ACK");
+        report[5..7].copy_from_slice(b"OK");
+        report[9] = 1;
+        report[10] = 1;
+        transport.push_input(report);
+        let (send, received) = mpsc::channel();
+        let handle = spawn_with_connector(
+            profiles,
+            OneDevice(Some(transport)),
+            vec![Box::new(Recorder(send))],
+            |_| {},
+        )
+        .unwrap();
+        let wait = Duration::from_secs(10);
+        let binding = loop {
+            if let Request::HoldStart { binding, .. } = received.recv_timeout(wait).unwrap() {
+                break binding;
+            }
+        };
+        handle.stop();
+        assert_eq!(received.try_recv(), Ok(Request::HoldEnd { binding }));
+        assert_eq!(received.try_recv(), Err(TryRecvError::Disconnected));
     }
 
     #[test]

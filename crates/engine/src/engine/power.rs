@@ -18,7 +18,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         // Do not use an expired idle deadline as the wait while a key is down.
         self.power
             .idle_deadline
-            .filter(|_| !self.gestures.any_key_down())
+            .filter(|_| !self.gestures.any_key_down() && self.held.is_empty())
     }
 
     pub(super) fn check_idle(&mut self) {
@@ -44,7 +44,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             PowerNotice::DidWake => {
                 // The link can detect a sleep that had no WillSleep notice.
-                self.gestures.cancel_all();
+                self.cancel_all_gestures();
                 self.power.sleeping = false;
                 // A wake of the computer is not a wake of its displays: a
                 // maintenance wake leaves them dark. `DisplaysWake`, an
@@ -118,7 +118,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.wake_device();
             return;
         }
-        self.gestures.cancel_all();
+        self.cancel_all_gestures();
         if self.power.state == state {
             return;
         }

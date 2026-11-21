@@ -1169,9 +1169,16 @@ impl DeviceView {
             (None, Vec::new())
         };
         let label = self.kind_label(&action, current.available);
-        let mut card = card.action(label.clone()).open(open).lead(lead).on_toggle(
-            cx.listener(move |view, _, window, cx| view.toggle_card(gesture, window, cx)),
-        );
+        let notice = (current.inert_by == Some(GestureKind::Press))
+            .then_some("Does not run: the Press action holds the key");
+        let mut card = card
+            .inert_notice(notice)
+            .action(label.clone())
+            .open(open)
+            .lead(lead)
+            .on_toggle(
+                cx.listener(move |view, _, window, cx| view.toggle_card(gesture, window, cx)),
+            );
         // An action with no handler cannot run (rule 8).
         if current.available {
             let name = name.to_string();

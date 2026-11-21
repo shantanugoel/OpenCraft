@@ -3,8 +3,11 @@
 use crate::backend::{RealSystem, System};
 use crate::descriptions::*;
 use crate::flow::RequestHandler;
+use crate::hotkey::Hotkey;
+use crate::kinds::hold_hotkey;
 use crate::kinds::{problem, send, Group};
 use crate::system::Volume;
+use opencraft_engine::FeedbackState;
 use opencraft_engine::{
     Action, BindingId, Feedback, Handler, KindDescription, Message, MessageSender, Request, Status,
 };
@@ -45,6 +48,7 @@ pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dy
         }),
         Box::new(KeyHandler {
             system: system.clone(),
+            held: BTreeMap::new(),
             sender: None,
             ready: Arc::new(Mutex::new(false)),
             poll: None,
@@ -165,6 +169,7 @@ pub(crate) fn no_permission() -> String {
 
 struct KeyHandler {
     system: Arc<dyn System>,
+    held: BTreeMap<BindingId, Hotkey>,
     sender: Option<MessageSender>,
     ready: Arc<Mutex<bool>>,
     poll: Option<Worker>,
@@ -172,6 +177,55 @@ struct KeyHandler {
 }
 
 impl KeyHandler {
+    fn hold_feedback(&self, binding: BindingId, state: FeedbackState) {
+        send(
+            &self.sender,
+            Message::Feedback {
+                binding,
+                feedback: Some(Feedback {
+                    state: Some(state),
+                    ..Feedback::default()
+                }),
+            },
+        );
+    }
+
+    fn hold_error(&self, error: crate::system::Error) -> String {
+        if self.check_permission() {
+            format!("Cannot send keys or mouse events: {error}.")
+        } else {
+            no_permission()
+        }
+    }
+
+    fn start_hold(&mut self, binding: BindingId, action: &Action) -> Result<()> {
+        self.end_hold(binding);
+        if action.kind != hold_hotkey::ID {
+            return Ok(());
+        }
+        let hotkey = hold_hotkey::read(&action.settings)?;
+        if !self.check_permission() {
+            return Err(no_permission());
+        }
+        self.system
+            .hotkey_down(&hotkey)
+            .map_err(|error| self.hold_error(error))?;
+        self.held.insert(binding, hotkey);
+        self.hold_feedback(binding, FeedbackState::On);
+        Ok(())
+    }
+
+    fn end_hold(&mut self, binding: BindingId) {
+        if let Some(hotkey) = self.held.remove(&binding) {
+            let result = self
+                .system
+                .hotkey_up(&hotkey)
+                .map_err(|error| self.hold_error(error));
+            self.hold_feedback(binding, FeedbackState::Off);
+            problem(&self.sender, result);
+        }
+    }
+
     fn check_permission(&self) -> bool {
         permission_now(self.system.as_ref(), &self.ready, &self.sender)
     }
@@ -234,9 +288,16 @@ impl Handler for KeyHandler {
     }
     fn handle(&mut self, request: Request) {
         match request {
-            Request::Invoke { action, .. } => {
-                problem(&self.sender, self.invoke(&action));
+            Request::Invoke { binding, action } => {
+                if !self.held.contains_key(&binding) {
+                    problem(&self.sender, self.invoke(&action));
+                }
             }
+            Request::HoldStart { binding, action } => {
+                let result = self.start_hold(binding, &action);
+                problem(&self.sender, result);
+            }
+            Request::HoldEnd { binding } | Request::Disappear { binding } => self.end_hold(binding),
             Request::Resolve { kind }
                 if crate::kinds::find_in(crate::kinds::Group::Key, &kind).is_some() =>
             {
@@ -250,6 +311,9 @@ impl Handler for KeyHandler {
 
 impl Drop for KeyHandler {
     fn drop(&mut self) {
+        for hotkey in std::mem::take(&mut self.held).into_values() {
+            let _ = self.system.hotkey_up(&hotkey);
+        }
         if let Some(worker) = self.poll.take() {
             worker.stop();
         }

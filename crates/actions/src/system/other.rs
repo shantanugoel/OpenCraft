@@ -10,6 +10,14 @@ pub fn can_send_keys() -> bool {
 
 pub fn ask_to_send_keys() {}
 
+pub fn hotkey_down(_: &Hotkey) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
+pub fn hotkey_up(_: &Hotkey) -> Result<()> {
+    Err(Error::NotSupported)
+}
+
 pub fn send_hotkey(_: &Hotkey) -> Result<()> {
     Err(Error::NotSupported)
 }

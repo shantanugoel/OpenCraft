@@ -16,6 +16,9 @@ own card, and each gesture can have a different action. The procedure is in
 
 ## Key gestures
 
+For the exception to these rules on a key that holds a hotkey, see
+[Hold a hotkey](actions.md#hold-a-hotkey).
+
 - **Press** runs when you push the key down if the key has no **Long press**
   or **Double press** action.
 - **Release** belongs to that press. It runs when you lift your finger on a

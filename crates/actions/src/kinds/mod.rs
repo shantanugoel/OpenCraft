@@ -34,6 +34,7 @@
 
 mod close_folder;
 mod device_brightness;
+pub(crate) mod hold_hotkey;
 mod hotkey;
 mod mac_function;
 mod media_key;
@@ -283,6 +284,10 @@ const REGISTERED: &[Registered] = &[
     },
     Registered {
         group: Group::Key,
+        kind: &hold_hotkey::KIND,
+    },
+    Registered {
+        group: Group::Key,
         kind: &type_text::KIND,
     },
     Registered {
@@ -519,6 +524,7 @@ mod tests {
             key_ids,
             [
                 hotkey::ID,
+                hold_hotkey::ID,
                 type_text::ID,
                 media_key::ID,
                 mouse::ID,
@@ -543,6 +549,7 @@ mod tests {
         );
         for (id, group) in [
             (hotkey::ID, Group::Key),
+            (hold_hotkey::ID, Group::Key),
             (volume::ID, Group::Volume),
             (microphone_mute::ID, Group::Microphone),
             (sound_output::ID, Group::Output),

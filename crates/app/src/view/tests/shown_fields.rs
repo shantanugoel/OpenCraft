@@ -21,6 +21,7 @@ fn show(cx: &mut VisualTestContext, tx: &async_channel::Sender<Event>, action: A
         binding: press(),
         action: Some(action),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();

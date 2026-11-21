@@ -313,6 +313,7 @@ fn event(id: BindingId, action: Action, available: bool) -> Event {
         binding: id,
         action: Some(action),
         available,
+        inert_by: None,
     })
 }
 
@@ -617,6 +618,7 @@ fn cards_open_set_a_kind_change_a_setting_and_clear_an_action(cx: &mut TestAppCo
         binding: binding(GestureKind::Press),
         action: None,
         available: false,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();
@@ -836,10 +838,49 @@ fn old_replies_keep_later_edits_and_new_events_replace_the_form(cx: &mut TestApp
         binding: binding(GestureKind::Press),
         action: None,
         available: false,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();
     assert!(cx.debug_bounds("field-0").is_none());
+}
+
+#[gpui_kit::test]
+fn closed_gesture_cards_show_when_press_blocks_the_binding(cx: &mut TestAppContext) {
+    use crate::view::controls::accessibility_log;
+    use gpui_kit::Role;
+
+    const NOTICE: &str = "Does not run: the Press action holds the key";
+    let (_, cx, tx, _) = window(cx);
+    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
+    for gesture in [GestureKind::LongPress, GestureKind::DoublePress] {
+        tx.try_send(Event::Binding(BindingState {
+            binding: binding(gesture),
+            action: Some(action()),
+            available: true,
+            inert_by: Some(GestureKind::Press),
+        }))
+        .unwrap();
+    }
+    cx.run_until_parked();
+    accessibility_log::take();
+    click(cx, "surface-key face 2");
+    let notices = accessibility_log::take()
+        .into_iter()
+        .filter(|(role, text)| *role == Role::Label && text == NOTICE)
+        .count();
+    assert!(notices >= 2);
+    for gesture in [GestureKind::LongPress, GestureKind::DoublePress] {
+        tx.try_send(event(binding(gesture), action(), true))
+            .unwrap();
+    }
+    cx.run_until_parked();
+    accessibility_log::take();
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(!accessibility_log::take()
+        .iter()
+        .any(|(_, text)| text == NOTICE));
 }
 
 #[gpui_kit::test]

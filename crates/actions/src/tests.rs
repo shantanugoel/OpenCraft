@@ -134,6 +134,90 @@ fn statuses(messages: Vec<Message>, ready: bool) {
     );
 }
 
+fn hold_action(hotkey: &str) -> opencraft_engine::Action {
+    action("hold-hotkey", &[("hotkey", Value::Text(hotkey.into()))])
+}
+
+#[test]
+fn hold_hotkey_presses_on_hold_start_and_releases_on_hold_end_with_on_off_feedback() {
+    use opencraft_engine::FeedbackState::{Off, On};
+    let mut rig = Rig::new("hold-hotkey", true);
+    let binding = binding(1);
+    let check_feedback = |rig: &Rig, state| {
+        assert_eq!(
+            rig.recv(),
+            Message::Feedback {
+                binding,
+                feedback: Some(Feedback {
+                    state: Some(state),
+                    ..Feedback::default()
+                }),
+            }
+        );
+    };
+    rig.handler.handle(Request::HoldStart {
+        binding,
+        action: hold_action("cmd+space"),
+    });
+    assert_eq!(rig.system.calls(), [Call::HotkeyDown("cmd+space".into())]);
+    check_feedback(&rig, On);
+    rig.handler.handle(Request::HoldEnd { binding });
+    assert_eq!(
+        rig.system.calls(),
+        [
+            Call::HotkeyDown("cmd+space".into()),
+            Call::HotkeyUp("cmd+space".into())
+        ]
+    );
+    check_feedback(&rig, Off);
+}
+
+#[test]
+fn hold_hotkey_invoke_taps_down_then_up() {
+    let mut rig = Rig::new("hold-hotkey", true);
+    rig.invoke(hold_action("cmd+space"));
+    assert_eq!(
+        rig.system.calls(),
+        [
+            Call::HotkeyDown("cmd+space".into()),
+            Call::HotkeyUp("cmd+space".into())
+        ]
+    );
+}
+
+#[test]
+fn hold_hotkey_four_safety_guards() {
+    use Call::{HotkeyDown, HotkeyUp};
+    let mut rig = Rig::new("hold-hotkey", true);
+    let system = rig.system.clone();
+    let binding = binding(1);
+    let start = |hotkey| Request::HoldStart {
+        binding,
+        action: hold_action(hotkey),
+    };
+    rig.handler.handle(start("cmd+space"));
+    rig.handler.handle(Request::Invoke {
+        binding,
+        action: hold_action("shift+a"),
+    });
+    rig.handler.handle(start("shift+b"));
+    rig.handler.handle(Request::Disappear { binding });
+    rig.handler.handle(Request::HoldEnd { binding });
+    rig.handler.handle(start("ctrl"));
+    drop(rig);
+    assert_eq!(
+        system.calls(),
+        [
+            HotkeyDown("cmd+space".into()),
+            HotkeyUp("cmd+space".into()),
+            HotkeyDown("shift+b".into()),
+            HotkeyUp("shift+b".into()),
+            HotkeyDown("ctrl".into()),
+            HotkeyUp("ctrl".into()),
+        ]
+    );
+}
+
 #[test]
 fn each_text_kind_does_its_work() {
     for (kind, key, value, expected) in [

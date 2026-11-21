@@ -164,6 +164,9 @@ Read it for the device model; do not assume it.
 `jq`). Each kind has:
 
 - `kind`: the identity. Use it in full: `opencraft.hotkey`, not `hotkey`.
+- `receives_release`: true for a kind that holds on Press until release.
+  Use `opencraft.hold-hotkey` with `hotkey` (for example `cmd+space`). A
+  binding with `inert_by: "press"` does not run because Press holds the key.
 - `fields`: the settings. Each field has a `key` and an `input.type`. A choice
   has its `options` in `input`. `default` is the value that OpenCraft uses when
   you give none. A field with `default: null` has no value until you give one,

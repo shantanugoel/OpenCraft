@@ -14,6 +14,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | System | [Open a URL](#open-a-url) | No |
 | System | [Run a shell command](#run-a-shell-command) | No |
 | System | [Send a hotkey](#send-a-hotkey) | Yes |
+| System | [Hold a hotkey](#hold-a-hotkey) | Yes |
 | System | [Mouse event](#mouse-event) | Yes |
 | System | [Mac system function](#mac-system-function) | Only for Launchpad, Screenshot, Lock and Show desktop |
 | System | [Type text](#type-text) | Yes |
@@ -291,6 +292,23 @@ release, not a hold. Old profiles keep their behaviour. Some applications
 do not accept a synthetic Fn event.
 
 ![The hotkey form with right Control and Fn.](images/hotkey.png)
+
+## Hold a hotkey
+
+| Setting | What to give |
+|---|---|
+| Hotkey | Record a key combination as for [Send a hotkey](#send-a-hotkey). |
+
+On macOS, give OpenCraft the Accessibility permission. Set the action on
+**Press** for a key that you use for push-to-talk.
+
+OpenCraft holds the hotkey while you hold the key on the device. It releases
+the hotkey when you release that key. It also releases the hotkey if the page,
+folder or profile changes, or if the device goes dark or disconnects.
+
+**Long press** and **Double press** on the same key do not run while this
+action is set on **Press**. On a different gesture or in a test, the action
+pushes and releases the hotkey at once.
 
 ## Mouse event
 

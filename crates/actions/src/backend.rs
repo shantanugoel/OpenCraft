@@ -22,6 +22,10 @@ pub trait System: Send + Sync + 'static {
     fn can_send_keys(&self) -> bool;
     fn ask_to_send_keys(&self);
     fn send_hotkey(&self, hotkey: &Hotkey) -> Result<()>;
+    /// Press modifiers first, then the key if any.
+    fn hotkey_down(&self, hotkey: &Hotkey) -> Result<()>;
+    /// Release the key first, then the modifiers in reverse order.
+    fn hotkey_up(&self, hotkey: &Hotkey) -> Result<()>;
     fn mouse_event(&self, event: crate::system::MouseEvent) -> Result<()> {
         let _ = event;
         Err(crate::system::Error::NotSupported)
@@ -108,6 +112,12 @@ impl System for RealSystem {
     }
     fn send_hotkey(&self, hotkey: &Hotkey) -> Result<()> {
         platform::send_hotkey(hotkey)
+    }
+    fn hotkey_down(&self, hotkey: &Hotkey) -> Result<()> {
+        platform::hotkey_down(hotkey)
+    }
+    fn hotkey_up(&self, hotkey: &Hotkey) -> Result<()> {
+        platform::hotkey_up(hotkey)
     }
     fn type_text(&self, text: &str) -> Result<()> {
         platform::type_text(text)

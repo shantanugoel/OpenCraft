@@ -12,6 +12,7 @@ const DOUBLE_PRESS_WINDOW: Duration = Duration::from_millis(300);
 
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct KeyFacts {
+    pub press_receives_release: bool,
     pub long_press: bool,
     pub double_press: bool,
 }
@@ -22,10 +23,13 @@ pub(crate) enum Dispatch {
         control: ControlId,
         gesture: GestureKind,
     },
+    HoldStart(ControlId),
+    HoldEnd(ControlId),
 }
 
 #[derive(Clone, Copy)]
 enum KeyState {
+    DownHold,
     DownImmediate,
     DownWaitingLong {
         deadline: Instant,
@@ -118,7 +122,15 @@ impl Gestures {
         match event.gesture {
             Gesture::Press => {
                 // A different key press means the preceding release was lost.
-                self.states.retain(|&other, _| other == control);
+                self.states.retain(|&other, state| {
+                    if other == control {
+                        return true;
+                    }
+                    if matches!(state, KeyState::DownHold) {
+                        out.push(Dispatch::HoldEnd(other));
+                    }
+                    false
+                });
                 let state = match self.states.get(&control) {
                     Some(state) if state.is_down() => return out,
                     Some(_) => {
@@ -127,8 +139,16 @@ impl Gestures {
                     }
                     None => match facts(control) {
                         KeyFacts {
+                            press_receives_release: true,
+                            ..
+                        } => {
+                            out.push(Dispatch::HoldStart(control));
+                            KeyState::DownHold
+                        }
+                        KeyFacts {
                             long_press: true,
                             double_press,
+                            ..
                         } => KeyState::DownWaitingLong {
                             deadline: now + LONG_PRESS_THRESHOLD,
                             double_press,
@@ -145,6 +165,10 @@ impl Gestures {
                 self.states.insert(control, state);
             }
             Gesture::Release => match self.states.remove(&control) {
+                Some(KeyState::DownHold) => {
+                    out.push(Dispatch::HoldEnd(control));
+                    out.push(invoke(GestureKind::Release));
+                }
                 Some(KeyState::DownImmediate) => out.push(invoke(GestureKind::Release)),
                 Some(KeyState::DownWaitingLong {
                     double_press: false,
@@ -210,6 +234,7 @@ mod tests {
             |_| KeyFacts {
                 long_press: l,
                 double_press: d,
+                ..KeyFacts::default()
             },
         )
     }
