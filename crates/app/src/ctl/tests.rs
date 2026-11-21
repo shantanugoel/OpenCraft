@@ -833,6 +833,36 @@ fn each_command_line_of_the_skill_makes_a_request_that_the_protocol_accepts() {
 }
 
 #[test]
+fn the_skill_sets_the_same_functions_on_all_three_knob_gestures() {
+    let commands: Vec<_> = skill::TEXT
+        .lines()
+        .filter(|line| {
+            line.starts_with("opencraft ctl binding set ")
+                && line.contains("opencraft.knob-functions")
+        })
+        .map(|line| {
+            let parse::Parsed::Run { command, flags } = parse::parse(&arguments(line)).unwrap()
+            else {
+                panic!()
+            };
+            parse::params(command, &flags, None).unwrap()
+        })
+        .collect();
+    let gestures: Vec<_> = commands
+        .iter()
+        .map(|params| params["gesture"].as_str().unwrap())
+        .collect();
+    assert_eq!(gestures, ["turn_left", "turn_right", "push"]);
+    for params in &commands {
+        assert_eq!(params["control"], json!({"kind":"knob","number":1}));
+        assert_eq!(params["action"], commands[0]["action"]);
+        let functions = &params["action"]["settings"]["functions"];
+        assert_eq!(functions[0]["left"]["settings"]["hotkey"], "cmd+c");
+        assert_eq!(functions[0]["right"]["settings"]["hotkey"], "cmd+v");
+    }
+}
+
+#[test]
 fn the_skill_has_no_personal_data() {
     for word in ["/Users/", "/home/", "@", "shantanu", "goel", "http://"] {
         assert!(

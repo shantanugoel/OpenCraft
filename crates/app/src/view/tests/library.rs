@@ -467,6 +467,31 @@ fn a_drop_replaces_the_action_of_the_first_gesture(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn a_multi_function_kind_only_drops_on_a_knob(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = library(cx);
+    let kind = super::knob::multi_kind();
+    send(cx, &tx, Event::Kinds(vec![kind.clone()]));
+    for target in [
+        "surface-key face 2",
+        "surface-bar panel 3",
+        "control-touch bar 2",
+    ] {
+        drag_to(cx, "library-0", target);
+        assert!(sent.borrow().is_empty());
+    }
+    drag_to(cx, "library-0", "control-knob 2");
+    let (name, commands) = last_group(&sent);
+    assert_eq!(name, "Drop Action");
+    assert_eq!(commands.len(), 3);
+    for command in commands {
+        assert!(
+            matches!(command, Command::SetBinding { binding, action: Some(action) }
+            if binding.control == super::knob::knob() && action.kind == kind.kind)
+        );
+    }
+}
+
+#[gpui_kit::test]
 fn a_drop_on_a_bar_panel_sets_tap(cx: &mut TestAppContext) {
     let (view, cx, _, sent) = library(cx);
     drag_to(cx, "library-0", "surface-bar panel 3");

@@ -214,6 +214,24 @@ impl DeviceView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let Some(desc) = self.kind(kind) else { return };
+        if desc.knob_group {
+            let name = desc.name.clone();
+            if control.kind != ControlKind::Knob {
+                self.show_message(format!("“{name}” is for a knob only"), window, cx);
+            } else {
+                self.close_kinds();
+                let set = |view: &mut Self| view.set_knob_group(control, Some(kind.into()));
+                match drop {
+                    Some(step) => self.one_step(step, set),
+                    None => set(self),
+                }
+                self.sync_form(window, cx);
+                self.show_message(assigned_text(control, &name, "Functions"), window, cx);
+            }
+            self.focus_workspace(window, cx);
+            return;
+        }
         // The open card can be the "Turn" card of a knob, or the "Tap" card
         // of its bar panel (section 10.4).
         let open = self
@@ -233,8 +251,16 @@ impl DeviceView {
             return;
         };
         self.close_kinds();
+        let replacing_group = self.knob_group_action(control).is_some();
+        let gesture_name = if replacing_group && gesture_name == "Functions" {
+            "Turn"
+        } else {
+            gesture_name
+        };
         let set = |view: &mut Self| {
-            if first && control.kind == ControlKind::Knob {
+            if first && replacing_group {
+                view.set_knob_group(control, Some(kind.into()));
+            } else if first && control.kind == ControlKind::Knob {
                 view.set_turn(control, Some(kind.to_string()));
             } else {
                 view.choose_card(gesture, Some(kind.to_string()));

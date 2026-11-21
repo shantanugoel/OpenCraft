@@ -72,6 +72,9 @@ device picture is smaller, down to half of its full size.
 
 ## Knobs
 
+Assign [Multi-function knob](actions.md#multi-function-knob) to use one action
+for both turn directions and Push. The inspector shows one **Functions** card.
+
 1. Click a knob, for example **Knob 1**. The header of the inspector shows
    the bar panel that gives the feedback of the knob, for example "Feedback
    on bar panel 1".

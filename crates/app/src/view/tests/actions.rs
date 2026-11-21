@@ -18,6 +18,7 @@ pub(super) fn at(steps: &[(&str, Option<usize>)], key: &str) -> FieldPath {
             .map(|(key, item)| Slot {
                 key: (*key).into(),
                 item: *item,
+                side: None,
             })
             .collect(),
         key: key.into(),

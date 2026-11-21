@@ -22,11 +22,18 @@ fn round_trip(action: &Action, kinds: &[opencraft_engine::KindDescription]) -> A
     let dir = tempfile::TempDir::new().unwrap();
     let store = ProfileStore::new(dir.path().join("work"));
     let mut profile = Profile::new("Work", vec![Page::new("Main")]);
-    let control = ControlId::new(ControlKind::Key, 1);
+    let (control, gesture) = if kinds
+        .iter()
+        .any(|kind| kind.kind == action.kind && kind.knob_group)
+    {
+        (ControlId::new(ControlKind::Knob, 1), GestureKind::Push)
+    } else {
+        (ControlId::new(ControlKind::Key, 1), GestureKind::Press)
+    };
     profile
         .page_mut(0)
         .unwrap()
-        .set_binding(control, GestureKind::Press, Some(action.clone()));
+        .set_binding(control, gesture, Some(action.clone()));
     let file = dir.path().join("Work.opencraft");
     export(&profile, &store, &file, kinds).unwrap();
     let text = std::fs::read_to_string(&file).unwrap();
@@ -36,7 +43,7 @@ fn round_trip(action: &Action, kinds: &[opencraft_engine::KindDescription]) -> A
         .profile
         .page(0)
         .unwrap()
-        .binding(control, GestureKind::Press)
+        .binding(control, gesture)
         .expect("the imported action")
         .clone()
 }
@@ -138,6 +145,40 @@ fn an_action_cycle_keeps_two_equal_steps_through_export_and_import() {
     );
     assert_eq!(imported.kind, action.kind);
     assert_eq!(cycle::read(&imported.settings).unwrap(), steps);
+}
+
+#[test]
+fn knob_functions_export_both_actions_with_portable_paths() {
+    use super::{knob_functions, Kind};
+    use opencraft_engine::TurnFunction;
+    let Some(home) = home() else { return };
+    let child = |path| Action {
+        kind: super::open_application::ID.into(),
+        settings: Settings::from([("application".into(), Value::Text(path))]),
+    };
+    let make = |home: &str| TurnFunction {
+        label: Some("Switch apps".into()),
+        left: child(format!("{home}/Test/First.app")),
+        right: child(format!("{home}/Test/Second.app")),
+    };
+    let action = Action {
+        kind: knob_functions::ID.into(),
+        settings: Settings::from([(
+            "functions".into(),
+            TurnFunction::list_to_value(&[make(&home)]),
+        )]),
+    };
+    let imported = round_trip(
+        &action,
+        &[
+            knob_functions::KIND.description(),
+            super::open_application::description(),
+        ],
+    );
+    assert_eq!(
+        TurnFunction::list_from_value(&imported.settings["functions"]),
+        Some(vec![make("~")])
+    );
 }
 
 #[test]

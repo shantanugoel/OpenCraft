@@ -690,7 +690,12 @@ impl DeviceView {
                 theme::DEVICE_PANEL_RADIUS
             };
         let empty = self.empty_key_face(id);
-        let drag = self.kind_drag(cx);
+        let control_kind = if id.kind == SurfaceKind::KeyFace {
+            ControlKind::Key
+        } else {
+            ControlKind::BarPanel
+        };
+        let drag = self.kind_drag_for(control_kind, cx);
         let group: SharedString = format!("surface-{id}").into();
         div()
             .id(format!("surface-{id}"))
@@ -813,7 +818,11 @@ impl DeviceView {
                     }
                 }),
             )
+            .can_drop(move |value, _, _| drag && value.downcast_ref::<KindDrag>().is_some())
             .on_drop(cx.listener(move |view, drag: &KindDrag, window, cx| {
+                if !view.can_drop_kind(control_kind, &drag.kind) {
+                    return;
+                }
                 view.select(id, window, cx);
                 if let Some(control) = view.state.selected_control {
                     view.drop_kind(control, &drag.kind, window, cx);
@@ -989,7 +998,7 @@ impl DeviceView {
         // A key press is in `pressed`. A turn, a push, a tap, and a swipe
         // are in `highlights`. A key face reads both through `surface_active`.
         let highlight = self.state.pressed.contains(&id) || self.state.highlights.contains_key(&id);
-        let drag = self.kind_drag(cx);
+        let drag = self.kind_drag_for(id.kind, cx);
         let group: SharedString = format!("control-{id}").into();
         let name = control_name(id);
         div()
@@ -1067,11 +1076,28 @@ impl DeviceView {
                     view.right_click_control(id, event.position, window, cx);
                 }),
             )
+            .can_drop(move |value, _, _| drag && value.downcast_ref::<KindDrag>().is_some())
             .on_drop(cx.listener(move |view, drag: &KindDrag, window, cx| {
+                if !view.can_drop_kind(id.kind, &drag.kind) {
+                    return;
+                }
                 view.select_control(id, window, cx);
                 view.drop_kind(id, &drag.kind, window, cx);
             }))
             .into_any_element()
+    }
+
+    fn can_drop_kind(&self, control: ControlKind, kind: &str) -> bool {
+        control == ControlKind::Knob || !self.kind(kind).is_some_and(|kind| kind.knob_group)
+    }
+
+    fn kind_drag_for(&self, control: ControlKind, cx: &App) -> bool {
+        self.kind_drag(cx)
+            && self
+                .library
+                .dragging
+                .as_deref()
+                .is_some_and(|kind| self.can_drop_kind(control, kind))
     }
 
     /// One knob and its label, below its feedback surface.

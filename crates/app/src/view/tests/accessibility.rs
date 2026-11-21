@@ -33,6 +33,39 @@ fn assert_has(nodes: &[(Role, String)], role: Role, label: &str) {
 }
 
 /// A window with two profiles and three pages.
+#[gpui_kit::test]
+fn knob_function_controls_expose_their_roles(cx: &mut TestAppContext) {
+    use super::knob::{functions_window, turn};
+    let (_, cx, tx, _) = functions_window(cx, &["Volume"]);
+    tx.try_send(Event::Step {
+        binding: turn(GestureKind::Push),
+        step: Some(0),
+    })
+    .unwrap();
+    cx.run_until_parked();
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::Button, "Add a function");
+    assert_has(
+        &nodes,
+        Role::Button,
+        "Function 1: Volume, Sound volume, Active",
+    );
+    assert_has(&nodes, Role::Label, "Active");
+    click(cx, "functions.0/function");
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::Group, "Function 1");
+    assert_has(&nodes, Role::TextInput, "Title");
+    assert_has(&nodes, Role::Button, "More for this function");
+    assert_has(&nodes, Role::RadioButton, "Right is up");
+    assert_has(&nodes, Role::RadioButton, "Left is up");
+    assert_has(&nodes, Role::Link, "Set left and right apart");
+    click(cx, "functions.0/turn-apart");
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::ComboBox, "Turn left");
+    assert_has(&nodes, Role::ComboBox, "Turn right");
+    assert_has(&nodes, Role::Link, "Join left and right");
+}
+
 fn named_window(
     cx: &mut TestAppContext,
 ) -> (

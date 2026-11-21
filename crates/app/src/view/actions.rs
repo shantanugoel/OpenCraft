@@ -33,7 +33,7 @@ fn bundle_key_of(input: &InputType) -> Option<&str> {
 
 use opencraft_engine::{
     Action, BindingId, ChoiceOption, Color, Field, FolderId, GestureKind, InputType,
-    KindDescription, PathKind, Settings, ShownWhen, Status, Value,
+    KindDescription, PathKind, Settings, ShownWhen, Status, TurnFunction, Value,
 };
 
 /// The function that makes the body rows of an open gesture card from its
@@ -41,12 +41,20 @@ use opencraft_engine::{
 pub(super) type CardRows<'a> =
     &'a dyn Fn(&DeviceView, &Action, bool, &Window, &mut Context<DeviceView>) -> Vec<AnyElement>;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum TurnSide {
+    Pair,
+    Left,
+    Right,
+}
+
 /// One step from an action to an action that it contains: the key of a
 /// field, and for an action list, the position in the list.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Slot {
     pub(super) key: String,
     pub(super) item: Option<usize>,
+    pub(super) side: Option<TurnSide>,
 }
 
 /// The steps from the action of the binding to a contained action. It is
@@ -116,7 +124,14 @@ impl ActionForm {
 pub(super) fn prefix(path: &[Slot]) -> String {
     path.iter()
         .map(|slot| match slot.item {
-            Some(item) => format!("{}.{item}/", slot.key),
+            Some(item) => {
+                let side = match slot.side {
+                    Some(TurnSide::Left) => ".left",
+                    Some(TurnSide::Right) => ".right",
+                    _ => "",
+                };
+                format!("{}.{item}{side}/", slot.key)
+            }
             None => format!("{}/", slot.key),
         })
         .collect()
@@ -137,8 +152,33 @@ pub(super) fn child(path: &[Slot], key: &str, item: Option<usize>) -> ActionPath
     path.push(Slot {
         key: key.into(),
         item,
+        side: None,
     });
     path
+}
+
+pub(super) fn turn_side(path: &[Slot], side: TurnSide) -> ActionPath {
+    let mut path = path.to_vec();
+    if let Some(last) = path.last_mut() {
+        last.side = Some(side);
+    }
+    path
+}
+
+pub(super) fn turn_items(action: &Action, key: &str) -> Vec<TurnFunction> {
+    action
+        .settings
+        .get(key)
+        .and_then(TurnFunction::list_from_value)
+        .unwrap_or_default()
+}
+
+fn title_slot(path: &FieldPath) -> Option<(&Slot, &[Slot], usize)> {
+    if path.key != "label" {
+        return None;
+    }
+    let (slot, parent) = path.action.split_last()?;
+    slot.side.is_none().then_some((slot, parent, slot.item?))
 }
 
 /// The action at `path` in `action`.
@@ -149,14 +189,31 @@ pub(super) fn contained(action: &Action, path: &[Slot]) -> Option<Action> {
     let value = action.settings.get(&slot.key)?;
     let inner = match slot.item {
         None => Action::from_value(value)?,
-        Some(item) => Action::list_from_value(value)?.into_iter().nth(item)?,
+        Some(item) => match slot.side {
+            Some(side) => {
+                let item = TurnFunction::list_from_value(value)?
+                    .into_iter()
+                    .nth(item)?;
+                if side == TurnSide::Left {
+                    item.left
+                } else {
+                    item.right
+                }
+            }
+            None => Action::list_from_value(value)?.into_iter().nth(item)?,
+        },
     };
     contained(&inner, rest)
 }
 
 /// Change the action at `path` in `action`, and write each action on the
 /// path again. Nothing changes if no action is at `path`.
-pub(super) fn change(action: &mut Action, path: &[Slot], f: impl FnOnce(&mut Action)) {
+fn change(
+    action: &mut Action,
+    path: &[Slot],
+    kinds: &[KindDescription],
+    f: impl FnOnce(&mut Action),
+) {
     let Some((slot, rest)) = path.split_first() else {
         f(action);
         return;
@@ -169,8 +226,27 @@ pub(super) fn change(action: &mut Action, path: &[Slot], f: impl FnOnce(&mut Act
             let Some(mut inner) = Action::from_value(value) else {
                 return;
             };
-            change(&mut inner, rest, f);
+            change(&mut inner, rest, kinds, f);
             inner.to_value()
+        }
+        Some(index) if slot.side.is_some() => {
+            let Some(mut list) = TurnFunction::list_from_value(value) else {
+                return;
+            };
+            let Some(item) = list.get_mut(index) else {
+                return;
+            };
+            match slot.side {
+                Some(TurnSide::Left) => change(&mut item.left, rest, kinds, f),
+                Some(TurnSide::Right | TurnSide::Pair) => {
+                    change(&mut item.right, rest, kinds, f);
+                    if slot.side == Some(TurnSide::Pair) {
+                        item.left = super::knob::mirror(&item.right, kinds);
+                    }
+                }
+                None => unreachable!(),
+            }
+            TurnFunction::list_to_value(&list)
         }
         Some(item) => {
             let Some(mut list) = Action::list_from_value(value) else {
@@ -179,7 +255,7 @@ pub(super) fn change(action: &mut Action, path: &[Slot], f: impl FnOnce(&mut Act
             let Some(inner) = list.get_mut(item) else {
                 return;
             };
-            change(inner, rest, f);
+            change(inner, rest, kinds, f);
             Action::list_to_value(&list)
         }
     };
@@ -399,6 +475,14 @@ impl DeviceView {
                         self.choice_fields(inner, &child(path, &field.key, Some(item)), out);
                     }
                 }
+                InputType::TurnList => {
+                    for (i, item) in turn_items(action, &field.key).iter().enumerate() {
+                        let path = child(path, &field.key, Some(i));
+                        for (side, inner) in self.turn_fields(item, &path) {
+                            self.choice_fields(inner, &turn_side(&path, side), out);
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -448,6 +532,23 @@ impl DeviceView {
                 InputType::ActionList | InputType::TimedActionList => {
                     for (item, inner) in list(action, &field.key).iter().enumerate() {
                         self.text_fields(inner, &child(path, &field.key, Some(item)), out);
+                    }
+                }
+                InputType::TurnList => {
+                    for (i, item) in turn_items(action, &field.key).iter().enumerate() {
+                        let path = child(path, &field.key, Some(i));
+                        out.push((
+                            FieldPath {
+                                action: path.clone(),
+                                key: "label".into(),
+                            },
+                            action.kind.clone(),
+                            false,
+                            item.label.clone().unwrap_or_default(),
+                        ));
+                        for (side, inner) in self.turn_fields(item, &path) {
+                            self.text_fields(inner, &turn_side(&path, side), out);
+                        }
                     }
                 }
                 _ => out.push((
@@ -506,7 +607,20 @@ impl DeviceView {
             });
             return (input.into(), subscription);
         }
-        let input = cx.new(|cx| InputState::new(window, cx));
+        let title_index = title_slot(&path).and_then(|(slot, parent, index)| {
+            self.edit_action(owner.1)
+                .and_then(|root| contained(&root, parent))
+                .filter(|action| self.is_turn_list(action, &slot.key))
+                .map(|_| index)
+        });
+        let input = cx.new(|cx| {
+            let input = InputState::new(window, cx);
+            if let Some(index) = title_index {
+                input.placeholder(format!("Function {}", index + 1))
+            } else {
+                input
+            }
+        });
         let subscription =
             cx.subscribe_in(&input, window, move |view, input, event, window, cx| {
                 view.text_edit_event(input.entity_id(), event, cx);
@@ -565,7 +679,23 @@ impl DeviceView {
         if self.form.owner != Some(owner) || self.form_binding() != Some(owner.1) {
             return None;
         }
-        let action = contained(&self.edit_action(owner.1)?, &path.action)?;
+        let root = self.edit_action(owner.1)?;
+        if let Some((slot, parent, index)) = title_slot(path) {
+            let action = contained(&root, parent)?;
+            if self.is_turn_list(&action, &slot.key) {
+                self.edit_at(owner.1, None, parent, |action| {
+                    let mut items = turn_items(action, &slot.key);
+                    if let Some(item) = items.get_mut(index) {
+                        item.label = (!text.is_empty()).then_some(text);
+                        action
+                            .settings
+                            .insert(slot.key.clone(), TurnFunction::list_to_value(&items));
+                    }
+                });
+                return None;
+            }
+        }
+        let action = contained(&root, &path.action)?;
         let timing = self.step_delay_field(&path.action);
         let field = timing.as_ref().filter(|f| f.key == path.key).or_else(|| {
             self.kind(&action.kind)?
@@ -602,11 +732,9 @@ impl DeviceView {
         }
         if let Some(bundle_key) = bundle_key {
             let key = path.key.clone();
-            self.edit(owner.1, |root| {
-                change(root, &path.action, |action| {
-                    action.settings.insert(key, value.clone());
-                    action.settings.remove(&bundle_key);
-                })
+            self.edit_at(owner.1, None, &path.action, |action| {
+                action.settings.insert(key, value.clone());
+                action.settings.remove(&bundle_key);
             });
             return Some(value);
         }
@@ -614,25 +742,20 @@ impl DeviceView {
         Some(value)
     }
 
-    /// Change the edit action of `binding`, then send the full action to the
-    /// engine. A change that changes nothing sends nothing.
-    pub(super) fn edit(&mut self, binding: BindingId, f: impl FnOnce(&mut Action)) {
-        self.edit_as(binding, None, f);
-    }
-
-    /// As [`Self::edit`]. With a `name`, the change is one step of the
-    /// history with that name, for example "Add Step" (decision 0030).
-    pub(super) fn edit_as(
+    /// Edit a contained action and send the full binding. An explicit name
+    /// names the undo step, for example "Add Function".
+    pub(super) fn edit_at(
         &mut self,
         binding: BindingId,
         name: Option<&str>,
+        path: &[Slot],
         f: impl FnOnce(&mut Action),
     ) {
         let Some(before) = self.edit_action(binding) else {
             return;
         };
         let mut action = before.clone();
-        f(&mut action);
+        change(&mut action, path, &self.state.kinds, f);
         if action == before {
             return;
         }
@@ -713,26 +836,24 @@ impl DeviceView {
     ) {
         let bundle_key = self.bundle_key(binding, path);
         let key = path.key.clone();
-        self.edit(binding, |root| {
-            change(root, &path.action, |action| {
-                action.settings.insert(key, Value::Text(text));
-                if let Some(bundle_key) = &bundle_key {
-                    match bundle_identifier
-                        .as_deref()
-                        .map(str::trim)
-                        .filter(|id| opencraft_engine::front::valid_bundle_id(id))
-                    {
-                        Some(id) => {
-                            action
-                                .settings
-                                .insert(bundle_key.clone(), Value::Text(id.to_string()));
-                        }
-                        None => {
-                            action.settings.remove(bundle_key);
-                        }
+        self.edit_at(binding, None, &path.action, |action| {
+            action.settings.insert(key, Value::Text(text));
+            if let Some(bundle_key) = &bundle_key {
+                match bundle_identifier
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|id| opencraft_engine::front::valid_bundle_id(id))
+                {
+                    Some(id) => {
+                        action
+                            .settings
+                            .insert(bundle_key.clone(), Value::Text(id.to_string()));
+                    }
+                    None => {
+                        action.settings.remove(bundle_key);
                     }
                 }
-            })
+            }
         });
     }
 
@@ -750,11 +871,9 @@ impl DeviceView {
     pub(super) fn set_field(&mut self, binding: BindingId, path: &FieldPath, value: Value) {
         let key = path.key.clone();
         let (fields, rules) = self.kind_fields(binding, &path.action);
-        self.edit(binding, |root| {
-            change(root, &path.action, |action| {
-                action.settings.insert(key.clone(), value.clone());
-                apply_shown(&fields, &rules, &mut action.settings);
-            })
+        self.edit_at(binding, None, &path.action, |action| {
+            action.settings.insert(key, value);
+            apply_shown(&fields, &rules, &mut action.settings);
         });
     }
 
@@ -815,6 +934,14 @@ impl DeviceView {
     }
 
     fn choose_in(&mut self, menu: Menu, kind: Option<String>) {
+        if !matches!(menu, Menu::Card(_))
+            && kind
+                .as_deref()
+                .and_then(|id| self.kind(id))
+                .is_some_and(|kind| kind.knob_group)
+        {
+            return;
+        }
         match menu {
             Menu::Card(gesture) => self.choose_card(gesture, kind),
             Menu::Choice(_) => {}
@@ -831,6 +958,12 @@ impl DeviceView {
                     return;
                 }
                 let mut new = kind.and_then(|kind| self.default_action(&kind));
+                if path.last().is_some_and(|slot| slot.side.is_some()) {
+                    if let Some(new) = new {
+                        self.replace_turn_side(binding, &path, new);
+                    }
+                    return;
+                }
                 if let (Some(field), Some(new)) = (self.step_delay_field(&path), new.as_mut()) {
                     if let Some(value) = current
                         .as_ref()
@@ -849,26 +982,22 @@ impl DeviceView {
                     self.open_nested(&path);
                 }
                 let name = new.is_none().then_some("Remove the Action");
-                self.edit_as(binding, name, |root| {
-                    change(root, parent, |action| match slot.item {
-                        None => {
-                            match new {
-                                Some(new) => {
-                                    action.settings.insert(slot.key.clone(), new.to_value())
-                                }
-                                None => action.settings.remove(&slot.key),
-                            };
+                self.edit_at(binding, name, parent, |action| match slot.item {
+                    None => {
+                        match new {
+                            Some(new) => action.settings.insert(slot.key.clone(), new.to_value()),
+                            None => action.settings.remove(&slot.key),
+                        };
+                    }
+                    Some(item) => {
+                        let mut items = list(action, &slot.key);
+                        if let (Some(new), Some(old)) = (new, items.get_mut(item)) {
+                            *old = new;
+                            action
+                                .settings
+                                .insert(slot.key.clone(), Action::list_to_value(&items));
                         }
-                        Some(item) => {
-                            let mut items = list(action, &slot.key);
-                            if let (Some(new), Some(old)) = (new, items.get_mut(item)) {
-                                *old = new;
-                                action
-                                    .settings
-                                    .insert(slot.key.clone(), Action::list_to_value(&items));
-                            }
-                        }
-                    })
+                    }
                 });
             }
             Menu::Add(path, key) => {
@@ -878,6 +1007,14 @@ impl DeviceView {
                 let Some(mut new) = kind.and_then(|kind| self.default_action(&kind)) else {
                     return;
                 };
+                if self
+                    .edit_action(binding)
+                    .and_then(|root| contained(&root, &path))
+                    .is_some_and(|action| self.is_turn_list(&action, &key))
+                {
+                    self.add_turn_function(binding, &path, &key, new);
+                    return;
+                }
                 let Some(count) = self
                     .edit_action(binding)
                     .and_then(|a| contained(&a, &path))
@@ -892,12 +1029,10 @@ impl DeviceView {
                 }
                 // The new step opens (section 10.3).
                 self.open_nested(&child(&path, &key, Some(count)));
-                self.edit_as(binding, Some("Add Step"), |root| {
-                    change(root, &path, |action| {
-                        let mut items = list(action, &key);
-                        items.push(new);
-                        action.settings.insert(key, Action::list_to_value(&items));
-                    })
+                self.edit_at(binding, Some("Add Step"), &path, |action| {
+                    let mut items = list(action, &key);
+                    items.push(new);
+                    action.settings.insert(key, Action::list_to_value(&items));
                 });
             }
         }
@@ -911,6 +1046,19 @@ impl DeviceView {
         let Some(binding) = self.state.binding_of(gesture) else {
             return;
         };
+        let new_group = kind
+            .as_deref()
+            .and_then(|k| self.kind(k))
+            .is_some_and(|k| k.knob_group);
+        if new_group
+            || (super::knob::KNOB_GROUP.contains(&gesture)
+                && self.knob_group_action(binding.control).is_some())
+        {
+            if binding.control.kind == ControlKind::Knob {
+                self.set_knob_group(binding.control, kind);
+            }
+            return;
+        }
         if super::knob::is_turn(gesture) && self.joined_turn(binding.control).is_some() {
             self.set_turn(binding.control, kind);
             return;
@@ -1132,11 +1280,14 @@ impl DeviceView {
         let current = self.state.bindings.get(&binding);
         let toggle = menu.clone();
         // Key and swipe cards use the wider name column (decision 0042 and section 10.6).
-        let name_width = if matches!(control.kind, ControlKind::Key | ControlKind::TouchBar) {
-            theme::GESTURE_NAME_WIDE
-        } else {
-            theme::FORM_LABEL
-        };
+        let unified =
+            super::knob::KNOB_GROUP.contains(&gesture) && self.knob_group_action(control).is_some();
+        let name_width =
+            if unified || matches!(control.kind, ControlKind::Key | ControlKind::TouchBar) {
+                theme::GESTURE_NAME_WIDE
+            } else {
+                theme::FORM_LABEL
+            };
         let card =
             GestureCard::new(format!("gesture-{id}"), name.to_string())
                 .name_width(name_width)
@@ -1188,7 +1339,16 @@ impl DeviceView {
             let name = name.to_string();
             card = card.on_test(cx.listener(move |view, _, window, cx| {
                 let text = test_text(control, label.name(), &name);
-                (view.send)(Command::TestAction { binding });
+                (view.send)(Command::TestAction {
+                    binding: if unified {
+                        BindingId {
+                            gesture: GestureKind::Push,
+                            ..binding
+                        }
+                    } else {
+                        binding
+                    },
+                });
                 view.show_message(text, window, cx);
             }));
         }
@@ -1213,7 +1373,9 @@ impl DeviceView {
         // One section for each group of the library, with the group name
         // as its title (section 10.3).
         let mut rows: Vec<AnyElement> = Vec::new();
-        let groups = super::library::groups(&self.state.kinds, |_| true);
+        let allow_knob = matches!(menu, Menu::Card(g) if self.state.binding_of(*g).is_some_and(|b| b.control.kind == ControlKind::Knob));
+        let groups =
+            super::library::groups(&self.state.kinds, |kind| !kind.knob_group || allow_knob);
         for (number, (group, members)) in groups.into_iter().enumerate() {
             let selector = format!("{id}-group-{number}");
             rows.push(
@@ -1327,7 +1489,10 @@ impl DeviceView {
                 if !field_shown(&kind.fields, &kind.shown_when, &action.settings, &field.key) {
                     continue;
                 }
-                if field.input.is_action_list() || on_label.as_ref() == Some(&field.key) {
+                if field.input.is_action_list()
+                    || field.input == InputType::TurnList
+                    || on_label.as_ref() == Some(&field.key)
+                {
                     continue;
                 }
                 if replace.as_ref().is_some_and(|(key, _)| *key == field.key) {
@@ -1659,20 +1824,16 @@ impl DeviceView {
         };
         let id = FolderId::random();
         let mut action = before;
-        change(&mut action, &path.action, |action| {
+        change(&mut action, &path.action, &self.state.kinds, |action| {
             action
                 .settings
                 .insert(path.key.clone(), Value::Text(id.to_string()));
         });
-        self.form
-            .pending
-            .entry(binding)
-            .or_default()
-            .push(action.clone());
-        let mut commands = vec![Command::SetBinding {
-            binding,
-            action: Some(action),
-        }];
+        let changes = self.turn_changes(binding, action);
+        let mut commands: Vec<_> = changes
+            .into_iter()
+            .map(|(binding, action)| self.pending_binding(binding, action))
+            .collect();
         commands.extend(self.new_folder_commands(id));
         (self.send)(Command::Group {
             name: "New Folder".into(),
@@ -1996,7 +2157,7 @@ impl DeviceView {
                 )
             }
             // A step list is above the form: see `action_rows`.
-            InputType::ActionList | InputType::TimedActionList => div(),
+            InputType::ActionList | InputType::TimedActionList | InputType::TurnList => div(),
             input => {
                 let integer = matches!(input, InputType::Integer { .. });
                 let text = self.form.inputs.get(&field_path).map(|input| {

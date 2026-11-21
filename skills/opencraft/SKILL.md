@@ -169,6 +169,8 @@ Read it for the device model; do not assume it.
   binding with `inert_by: "press"` does not run because Press holds the key.
 - `handles_long_press`: true for a kind that handles a long press on a key's
   Press binding. A separate Long press binding runs instead, if set.
+- `knob_group`: true for a kind that takes both turn directions and Push of
+  one knob. Do not set this kind on other controls or inside another action.
 - `fields`: the settings. Each field has a `key` and an `input.type`. A choice
   has its `options` in `input`. `default` is the value that OpenCraft uses when
   you give none. A field with `default: null` has no value until you give one,
@@ -184,6 +186,14 @@ Read it for the device model; do not assume it.
   show `needs_user` while OpenCraft has no Accessibility permission. `status`
   is `null` for a kind that never needs the permission, or before OpenCraft
   reads it: `null` is not a fault.
+
+For a multi-function knob, set `opencraft.knob-functions`. Its `functions`
+field has the input type `turn_list`. Give a list such as
+`[{"label":"Copy and paste","left":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+c"}},"right":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+v"}}}]`.
+Each item needs `left` and `right`. The `label` is optional. Use `binding set`
+three times on the same knob, for `turn_left`, `turn_right` and `push`.
+Give the same action and settings in each request. The window then shows one
+**Functions** card. Each request changes only the binding that it names.
 
 For a timer key, set `opencraft.timer` on Press. Its settings are `mode`
 (`countdown` or `stopwatch`), `seconds` (1 to 86400, default 300), and
@@ -241,6 +251,9 @@ opencraft ctl surface set-icon --profile demo --page 4853c7f9bf374716 --surface 
 opencraft ctl surface set-label --profile demo --page 4853c7f9bf374716 --surface key_face:3 --label Safari
 opencraft ctl surface set-icon --profile demo --page 4853c7f9bf374716 --surface key_face:3 --icon-name compass
 opencraft ctl binding set --profile demo --page 4853c7f9bf374716 --control key:1 --gesture press --action-kind opencraft.hotkey --setting hotkey=cmd+c
+opencraft ctl binding set --profile demo --page 4853c7f9bf374716 --control knob:1 --gesture turn_left --action-kind opencraft.knob-functions --setting 'functions=[{"label":"Copy and paste","left":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+c"}},"right":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+v"}}}]'
+opencraft ctl binding set --profile demo --page 4853c7f9bf374716 --control knob:1 --gesture turn_right --action-kind opencraft.knob-functions --setting 'functions=[{"label":"Copy and paste","left":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+c"}},"right":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+v"}}}]'
+opencraft ctl binding set --profile demo --page 4853c7f9bf374716 --control knob:1 --gesture push --action-kind opencraft.knob-functions --setting 'functions=[{"label":"Copy and paste","left":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+c"}},"right":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+v"}}}]'
 opencraft ctl content --profile demo --page 4853c7f9bf374716
 ```
 

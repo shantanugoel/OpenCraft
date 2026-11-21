@@ -429,6 +429,7 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                     &super::check::At {
                         state,
                         profile: &p.target.profile,
+                        allow_knob_group: control.kind == e::ControlKind::Knob,
                     },
                 )?;
             }

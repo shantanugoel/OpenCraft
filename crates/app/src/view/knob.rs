@@ -18,6 +18,12 @@ use opencraft_engine::{
 /// The two turn gestures of a knob.
 const TURNS: [GestureKind; 2] = [GestureKind::TurnLeft, GestureKind::TurnRight];
 
+pub(super) const KNOB_GROUP: [GestureKind; 3] = [
+    GestureKind::Push,
+    GestureKind::TurnRight,
+    GestureKind::TurnLeft,
+];
+
 /// True for "Turn left" and "Turn right".
 pub(super) fn is_turn(gesture: GestureKind) -> bool {
     TURNS.contains(&gesture)
@@ -109,8 +115,66 @@ pub(super) fn turn_actions(
 }
 
 impl DeviceView {
-    fn turn_binding(&self, control: ControlId, gesture: GestureKind) -> BindingId {
+    pub(super) fn turn_binding(&self, control: ControlId, gesture: GestureKind) -> BindingId {
         self.state.location.binding_id(control, gesture)
+    }
+
+    pub(super) fn knob_group_action(&self, control: ControlId) -> Option<Action> {
+        if control.kind != ControlKind::Knob {
+            return None;
+        }
+        let [push, right, left] =
+            KNOB_GROUP.map(|g| self.edit_action(self.turn_binding(control, g)));
+        let push = push?;
+        (right.as_ref() == Some(&push)
+            && left.as_ref() == Some(&push)
+            && self.kind(&push.kind).is_some_and(|kind| kind.knob_group))
+        .then_some(push)
+    }
+
+    pub(super) fn set_knob_group(&mut self, control: ControlId, kind: Option<String>) {
+        let [push, right, left] = KNOB_GROUP.map(|g| self.turn_binding(control, g));
+        self.state.turns_apart.remove(&control);
+        let (name, changes) = match kind {
+            None => {
+                self.state.open_card(None);
+                (
+                    "Remove the Action",
+                    vec![(push, None), (right, None), (left, None)],
+                )
+            }
+            Some(kind) => {
+                let Some(action) = self.default_action(&kind) else {
+                    return;
+                };
+                if self.kind(&kind).is_some_and(|kind| kind.knob_group) {
+                    self.state.open_card(Some(GestureKind::Push));
+                    if self
+                        .knob_group_action(control)
+                        .is_some_and(|a| a.kind == kind)
+                    {
+                        return;
+                    }
+                    (
+                        "Set Action",
+                        vec![
+                            (push, Some(action.clone())),
+                            (right, Some(action.clone())),
+                            (left, Some(action)),
+                        ],
+                    )
+                } else {
+                    self.state.open_card(Some(GestureKind::TurnRight));
+                    let (r, l) = turn_actions(&action, &self.state.kinds, false);
+                    (
+                        "Set Action",
+                        vec![(right, Some(r)), (left, Some(l)), (push, None)],
+                    )
+                }
+            }
+        };
+        self.drop_edits(&[push, right, left]);
+        self.send_bindings(name, changes);
     }
 
     /// The pair of the turn bindings of `control`, with the edits in
@@ -138,6 +202,13 @@ impl DeviceView {
         binding: BindingId,
         action: Action,
     ) -> Vec<(BindingId, Option<Action>)> {
+        if KNOB_GROUP.contains(&binding.gesture)
+            && self.knob_group_action(binding.control).is_some()
+        {
+            return KNOB_GROUP
+                .map(|g| (self.turn_binding(binding.control, g), Some(action.clone())))
+                .into();
+        }
         if !is_turn(binding.gesture) || self.joined_turn(binding.control).is_none() {
             return vec![(binding, Some(action))];
         }
@@ -211,6 +282,9 @@ impl DeviceView {
         control: ControlId,
         gesture: GestureKind,
     ) -> Option<&'static str> {
+        if KNOB_GROUP.contains(&gesture) && self.knob_group_action(control).is_some() {
+            return Some("Functions");
+        }
         if is_turn(gesture) && self.joined_turn(control).is_some() {
             return Some("Turn");
         }
@@ -235,6 +309,22 @@ impl DeviceView {
                 .find(|(g, _)| *g == gesture)
                 .map_or("", |(_, name)| *name)
         };
+        if self.knob_group_action(control).is_some() {
+            let owner = self
+                .state
+                .gesture
+                .filter(|g| KNOB_GROUP.contains(g))
+                .unwrap_or(GestureKind::Push);
+            return vec![self.gesture_card(
+                control,
+                owner,
+                "Functions",
+                "Functions",
+                &Self::card_rows,
+                window,
+                cx,
+            )];
+        }
         let mut cards = Vec::new();
         if let Some(reversed) = self.joined_turn(control) {
             // The card edits the binding of the open turn, or of "Turn
@@ -304,7 +394,13 @@ impl DeviceView {
             .map(|d| {
                 (
                     d.key.as_str(),
-                    self.direction_row(control, d, &action.kind, reversed, cx),
+                    self.direction_row_for(
+                        d,
+                        &action.kind,
+                        reversed,
+                        move |view, option| view.set_direction(control, option),
+                        cx,
+                    ),
                 )
             });
         let mut rows = self.action_rows_with(&[], action, available, replace, window, cx);
@@ -314,12 +410,12 @@ impl DeviceView {
 
     /// The row "Direction": "Right is *value*" and "Left is *value*", with
     /// the label of the option of a turn to the right in small letters.
-    fn direction_row(
+    pub(super) fn direction_row_for(
         &self,
-        control: ControlId,
         direction: &Direction,
         kind: &str,
         reversed: bool,
+        on_change: impl Fn(&mut Self, bool) + Clone + 'static,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let value = self
@@ -343,12 +439,14 @@ impl DeviceView {
         .into_iter()
         .map(|(id, text, option)| {
             let selected = option == reversed;
+            let on_change = on_change.clone();
             controls::segment(id, text, selected, theme::HEIGHT_SEGMENT_INSPECTOR)
                 .min_w_0()
                 .when(!selected, |d| {
                     d.on_click(cx.listener(move |view, _, window, cx| {
-                        view.set_direction(control, option);
+                        on_change(view, option);
                         view.close_kinds();
+                        view.sync_form(window, cx);
                         view.focus_workspace(window, cx);
                         cx.notify();
                     }))

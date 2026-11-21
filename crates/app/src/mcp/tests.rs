@@ -279,6 +279,21 @@ fn timed_key_gesture_arguments_make_set_and_clear_requests() {
 }
 
 #[test]
+fn the_setting_argument_keeps_the_actions_of_a_turn_list() {
+    let command = ctl::commands::find("binding set").unwrap();
+    let functions = json!([{"label":"Copy and paste",
+        "left":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+c"}},
+        "right":{"kind":"opencraft.hotkey","settings":{"hotkey":"cmd+v"}}}]);
+    let args = json!({"profile":"p", "page":"0123456789abcdef", "control":"knob:1",
+        "gesture":"push", "action-kind":"opencraft.knob-functions",
+        "setting":{"functions":functions}});
+    let flags = tools::flags(command, args.as_object().unwrap()).unwrap();
+    let params = parse::params(command, &flags, None).unwrap();
+    assert_eq!(params["action"]["settings"]["functions"], functions);
+    ctl::request(command.method, params).unwrap();
+}
+
+#[test]
 fn the_tools_cannot_drift_from_the_commands() {
     let list = tools::list();
     let list = list.as_array().unwrap();

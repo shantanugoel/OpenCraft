@@ -229,6 +229,7 @@ impl From<&e::InputType> for w::Input {
             e::InputType::Action => Self::Action,
             e::InputType::ActionList => Self::ActionList,
             e::InputType::TimedActionList => Self::TimedActionList,
+            e::InputType::TurnList => Self::TurnList,
             e::InputType::Folder => Self::Folder,
         }
     }
@@ -261,6 +262,7 @@ impl From<&e::KindDescription> for w::Kind {
             needs_accessibility: kind.needs_accessibility,
             receives_release: kind.receives_release,
             handles_long_press: kind.handles_long_press,
+            knob_group: kind.knob_group,
             fields: kind
                 .fields
                 .iter()

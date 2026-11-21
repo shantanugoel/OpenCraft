@@ -288,20 +288,25 @@ impl DeviceView {
         };
 
         // The kinds of the library, in its order.
-        let kinds = library::groups(&self.state.kinds, |kind| contains(&kind.name, &text))
-            .into_iter()
-            .flat_map(|(_, members)| members)
-            .map(|index| {
-                let kind = &self.state.kinds[index];
-                Item {
-                    group: Group::Actions,
-                    name: kind.name.clone().into(),
-                    hint: Some("Action".into()),
-                    tile: Tile::Kind(KindLabel::new(kind)),
-                    target: Target::Kind(kind.kind.clone()),
-                }
-            })
-            .collect();
+        let knob = self
+            .palette_control()
+            .is_some_and(|c| c.kind == ControlKind::Knob);
+        let kinds = library::groups(&self.state.kinds, |kind| {
+            (!kind.knob_group || knob) && contains(&kind.name, &text)
+        })
+        .into_iter()
+        .flat_map(|(_, members)| members)
+        .map(|index| {
+            let kind = &self.state.kinds[index];
+            Item {
+                group: Group::Actions,
+                name: kind.name.clone().into(),
+                hint: Some("Action".into()),
+                tile: Tile::Kind(KindLabel::new(kind)),
+                target: Target::Kind(kind.kind.clone()),
+            }
+        })
+        .collect();
         add(Group::Actions, kinds);
 
         // The controls of the layout, by name and by label. The touch bar is

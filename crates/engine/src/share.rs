@@ -40,7 +40,7 @@
 //! with a name from the data, as for an image of the user. Thus no data from
 //! the file goes to a path that the file gives.
 
-use crate::action::{Action, InputType, KindDescription, Value};
+use crate::action::{Action, InputType, KindDescription, TurnFunction, Value};
 use crate::error::{Error, Result};
 use crate::profile::{ImageUse, Profile};
 use crate::store::{self, image_name, write_and_rename, BackupReason, ProfileStore};
@@ -142,6 +142,17 @@ fn hide_action(action: &mut Action, kinds: &[KindDescription], home: &str) {
                 action
                     .settings
                     .insert(field.key.clone(), Action::list_to_value(&items));
+            }
+            InputType::TurnList => {
+                if let Some(value) = action.settings.get_mut(&field.key) {
+                    if let Some(mut items) = TurnFunction::list_from_value(value) {
+                        for item in &mut items {
+                            hide_action(&mut item.left, kinds, home);
+                            hide_action(&mut item.right, kinds, home);
+                        }
+                        *value = TurnFunction::list_to_value(&items);
+                    }
+                }
             }
             _ => {}
         }
@@ -673,6 +684,58 @@ mod tests {
         data[16..20].copy_from_slice(&100_000u32.to_be_bytes());
         data[20..24].copy_from_slice(&100_000u32.to_be_bytes());
         assert!(decode(&data).is_err());
+    }
+
+    #[test]
+    fn turn_list_paths_are_hidden_on_both_sides() {
+        use crate::action::{Field, PathKind, Settings};
+        let kind = |id: &str, key: &str, input| KindDescription {
+            kind: id.into(),
+            fields: vec![Field {
+                key: key.into(),
+                label: key.into(),
+                input,
+                default: None,
+            }],
+            ..Default::default()
+        };
+        let action = |file: &str| Action {
+            kind: "test.file".into(),
+            settings: Settings::from([("file".into(), Value::Text(file.into()))]),
+        };
+        let mut outer = Action {
+            kind: "test.knob".into(),
+            settings: Settings::from([(
+                "functions".into(),
+                TurnFunction::list_to_value(&[TurnFunction {
+                    label: Some("/example/root/Title".into()),
+                    left: action("/example/root/a"),
+                    right: action("/example/root/b"),
+                }]),
+            )]),
+        };
+        hide_action(
+            &mut outer,
+            &[
+                kind(
+                    "test.file",
+                    "file",
+                    InputType::Path {
+                        kind: PathKind::File,
+                    },
+                ),
+                kind("test.knob", "functions", InputType::TurnList),
+            ],
+            "/example/root",
+        );
+        assert_eq!(
+            TurnFunction::list_from_value(&outer.settings["functions"]),
+            Some(vec![TurnFunction {
+                label: Some("/example/root/Title".into()),
+                left: action("~/a"),
+                right: action("~/b")
+            },])
+        );
     }
 
     #[test]

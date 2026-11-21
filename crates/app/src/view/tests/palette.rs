@@ -102,6 +102,33 @@ fn rows(view: &Entity<DeviceView>, cx: &mut VisualTestContext) -> Vec<(Group, St
     })
 }
 
+#[gpui_kit::test]
+fn the_palette_only_offers_multi_function_actions_on_knobs(cx: &mut TestAppContext) {
+    let (view, cx, tx, _) = palette_window(cx);
+    let kind = super::knob::multi_kind();
+    send(cx, &tx, Event::Kinds(vec![kind.clone()]));
+    let target = Target::Kind(kind.kind);
+    for (control, visible) in [
+        ("surface-key face 2", false),
+        ("control-knob 2", true),
+        ("surface-bar panel 3", false),
+    ] {
+        click(cx, control);
+        assert_eq!(
+            rows(&view, cx).iter().any(|(_, _, item)| *item == target),
+            visible
+        );
+    }
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            if let Some(touch_bar) = view.state.touch_bar() {
+                view.select_control(touch_bar, window, cx);
+            }
+        })
+    });
+    assert!(!rows(&view, cx).iter().any(|(_, _, item)| *item == target));
+}
+
 fn selected(view: &Entity<DeviceView>, cx: &mut VisualTestContext) -> usize {
     cx.update(|_, cx| view.read(cx).palette.selected)
 }
