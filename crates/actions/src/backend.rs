@@ -68,6 +68,10 @@ pub trait System: Send + Sync + 'static {
     ) -> Result<Box<dyn system::AudioWatch>> {
         Err(system::Error::NotSupported)
     }
+    /// Play the default alert bell of the operating system.
+    fn play_bell(&self) -> Result<()> {
+        Err(system::Error::NotSupported)
+    }
     /// Start to play a sound file and return at once. The volume is a percent
     /// of the system volume. With no device, the sound uses the default output.
     fn play_sound(
@@ -173,6 +177,10 @@ impl System for RealSystem {
     fn play_sound(&self, file: &std::path::Path, volume: u8, device: Option<&str>) -> Result<()> {
         platform::play_sound(file, volume, device)
     }
+    fn play_bell(&self) -> Result<()> {
+        platform::play_bell()
+    }
+
     fn stop_sounds(&self) -> Result<()> {
         platform::stop_sounds()
     }

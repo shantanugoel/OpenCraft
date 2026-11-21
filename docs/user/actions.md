@@ -27,6 +27,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | Logic | [Toggle](#toggle) | Only for the actions that it contains |
 | Logic | [Sequence of actions](#sequence-of-actions) | Only for the actions that it contains |
 | Logic | [Action cycle](#action-cycle) | Only for the actions that it contains |
+| Logic | [Timer](#timer) | No |
 
 The permission is in
 [Install and first start](install.md#give-the-accessibility-permission).
@@ -768,3 +769,27 @@ The cycle card shows **Next** on the step that the control will do next.
 OpenCraft keeps the position in memory while it runs, also when you change
 pages or folders. The cycle starts at the first step when OpenCraft starts.
 It goes back to the first step when you change the settings of the cycle.
+
+## Timer
+
+Set **Timer** on the **Press** gesture of a key. Push and release the key
+to start or pause the timer. Hold the key for 0.5 seconds to reset the timer.
+If you set a separate **Long press** action on the key, that action runs
+instead of the reset.
+
+| Setting | What to give |
+|---|---|
+| Mode | **Countdown** counts down to zero. **Stopwatch** counts up from zero. |
+| Duration (s) | The countdown time in seconds, from 1 to 86,400. The default is 300. |
+| Bell | At zero, play the **System bell**, play a **Sound file**, or select **None** for no sound. |
+| Sound file | The file to play. If the field is empty, OpenCraft plays the system bell. |
+| Volume (%) | The sound file volume, from 0 to 100 %. The default is 100 %. |
+
+The surface shows the time as minutes and seconds, for example `05:00`.
+For one hour or more, it also shows hours, for example `1:00:00`.
+The surface uses the **On** face while the timer runs.
+
+A timer continues to run when you change pages or folders. A countdown
+sounds its bell at zero, also when its key is not visible. Push and release
+the key again to start a new countdown. A change to the timer settings
+resets the timer.

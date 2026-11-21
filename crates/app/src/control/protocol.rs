@@ -876,6 +876,8 @@ pub struct Kind {
     pub needs_accessibility: bool,
     #[serde(default)]
     pub receives_release: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub handles_long_press: bool,
     pub fields: Vec<Field>,
     pub direction: Option<Direction>,
     pub states: Option<TwoStates>,

@@ -41,6 +41,14 @@ pub(crate) fn real_handlers() -> Vec<Box<dyn Handler>> {
 }
 
 pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dyn Handler>> {
+    build_with_clock(system, intervals, Arc::new(std::time::Instant::now))
+}
+
+pub(crate) fn build_with_clock(
+    system: Arc<dyn System>,
+    intervals: Intervals,
+    clock: crate::Clock,
+) -> Vec<Box<dyn Handler>> {
     vec![
         Box::new(OpenHandler {
             system: system.clone(),
@@ -68,7 +76,8 @@ pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dy
         Box::new(RequestHandler::new(Group::Navigation, system.clone())),
         Box::new(RequestHandler::new(Group::Toggle, system.clone())),
         Box::new(RequestHandler::new(Group::Sequence, system.clone())),
-        Box::new(RequestHandler::new(Group::Cycle, system)),
+        Box::new(RequestHandler::new(Group::Cycle, system.clone())),
+        Box::new(crate::TimerHandler::with_clock(system, clock)),
     ]
 }
 

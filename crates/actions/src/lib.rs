@@ -51,6 +51,9 @@ pub mod hotkey;
 mod kinds;
 mod sound;
 pub mod system;
+mod timer;
+
+pub use timer::{Clock, TimerHandler};
 
 use opencraft_engine::Handler;
 use std::sync::Arc;
@@ -65,6 +68,14 @@ pub fn handlers() -> Vec<Box<dyn Handler>> {
 /// Tests use a fake system. This function does not start a handler thread.
 pub fn handlers_with_system(system: Arc<dyn backend::System>) -> Vec<Box<dyn Handler>> {
     handlers::build(system, handlers::Intervals::default())
+}
+
+/// The built-in handlers with a caller-supplied monotonic timer clock.
+pub fn handlers_with_clock(
+    system: Arc<dyn backend::System>,
+    clock: Clock,
+) -> Vec<Box<dyn Handler>> {
+    handlers::build_with_clock(system, handlers::Intervals::default(), clock)
 }
 
 #[cfg(test)]

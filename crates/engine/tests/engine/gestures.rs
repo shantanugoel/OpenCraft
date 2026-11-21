@@ -5,6 +5,7 @@ use GestureKind::{DoublePress, LongPress, Press, Release, TurnRight};
 
 const KIND: &str = "test.gestures";
 const HOLD: &str = "test.hold";
+const TIMER: &str = "test.timer";
 
 struct Setup {
     rig: Rig,
@@ -16,6 +17,8 @@ impl Setup {
     fn new(key: u8, gestures: &[GestureKind]) -> Self {
         let (mut port, requests) = port(KIND);
         port.kinds.push(description(HOLD).with_receives_release());
+        port.kinds
+            .push(description(TIMER).with_handles_long_press());
         let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
         for &gesture in gestures {
             set_binding(
@@ -429,6 +432,60 @@ fn randomized_sequence_balances_every_hold_start_with_one_hold_end() {
     s.requests.try_iter().for_each(check);
     assert!(active.is_empty());
     assert!(started > 10, "only {started} holds started");
+}
+
+#[test]
+fn press_kind_with_handles_long_press_sends_invoke_on_short_press_and_long_press_on_hold() {
+    let mut s = Setup::new(1, &[]);
+    s.bind(1, Press, Some(TIMER));
+    s.requests.try_iter().for_each(drop);
+    let binding = binding(ControlKind::Key, 1, Press);
+    s.edge(1, 1);
+    assert!(s.requests.try_recv().is_err());
+    s.advance(100);
+    s.edge(1, 0);
+    assert_eq!(
+        s.requests.try_recv(),
+        Ok(Request::Invoke {
+            binding,
+            action: action(TIMER)
+        })
+    );
+    s.advance(100);
+    s.edge(1, 1);
+    s.advance(499);
+    s.rig.engine.poll(Duration::ZERO);
+    assert!(s.requests.try_recv().is_err());
+    s.advance(1);
+    s.rig.engine.poll(Duration::ZERO);
+    assert_eq!(
+        s.requests.try_recv(),
+        Ok(Request::LongPress {
+            binding,
+            action: action(TIMER)
+        })
+    );
+    s.advance(100);
+    s.edge(1, 0);
+    assert!(s.requests.try_recv().is_err());
+}
+
+#[test]
+fn explicit_long_press_binding_overrides_handles_long_press_on_press_binding() {
+    let mut s = Setup::new(1, &[LongPress]);
+    s.bind(1, Press, Some(TIMER));
+    s.requests.try_iter().for_each(drop);
+    s.edge(1, 1);
+    s.advance(500);
+    s.rig.engine.poll(Duration::ZERO);
+    s.edge(1, 0);
+    assert_eq!(
+        s.requests.try_iter().collect::<Vec<_>>(),
+        [Request::Invoke {
+            binding: binding(ControlKind::Key, 1, LongPress),
+            action: action(KIND)
+        }]
+    );
 }
 
 fn reports(text: &str) -> [Report; 2] {

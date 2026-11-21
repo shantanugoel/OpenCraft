@@ -167,6 +167,8 @@ Read it for the device model; do not assume it.
 - `receives_release`: true for a kind that holds on Press until release.
   Use `opencraft.hold-hotkey` with `hotkey` (for example `cmd+space`). A
   binding with `inert_by: "press"` does not run because Press holds the key.
+- `handles_long_press`: true for a kind that handles a long press on a key's
+  Press binding. A separate Long press binding runs instead, if set.
 - `fields`: the settings. Each field has a `key` and an `input.type`. A choice
   has its `options` in `input`. `default` is the value that OpenCraft uses when
   you give none. A field with `default: null` has no value until you give one,
@@ -182,6 +184,12 @@ Read it for the device model; do not assume it.
   show `needs_user` while OpenCraft has no Accessibility permission. `status`
   is `null` for a kind that never needs the permission, or before OpenCraft
   reads it: `null` is not a fault.
+
+For a timer key, set `opencraft.timer` on Press. Its settings are `mode`
+(`countdown` or `stopwatch`), `seconds` (1 to 86400, default 300), and
+`bell` (`system`, `file` or `none`, default `system`). With `bell=file`,
+set `file` to the sound path and optionally set `volume` (0 to 100, default
+100). See the [Timer guide](../../docs/user/actions.md#timer).
 
 A key opens a folder with the kind `opencraft.open-folder`. Its setting
 `folder` is the identity of the folder. A folder opens only with such a key.

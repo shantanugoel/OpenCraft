@@ -323,7 +323,7 @@ fn results_hide_home_paths_in_nested_actions_and_never_include_engine_logs() {
 }
 
 #[test]
-fn hold_metadata_is_visible_on_the_control_socket() {
+fn gesture_metadata_is_visible_on_the_control_socket() {
     let rig = Rig::new();
     let control = rig.control.borrow();
     control.observe(&e::Event::Kinds(vec![
@@ -335,7 +335,8 @@ fn hold_metadata_is_visible_on_the_control_socket() {
         e::KindDescription {
             kind: "test.tap".into(),
             ..Default::default()
-        },
+        }
+        .with_handles_long_press(),
     ]));
     for (gesture, kind, inert_by) in [
         (e::GestureKind::Press, "test.hold", None),
@@ -367,6 +368,10 @@ fn hold_metadata_is_visible_on_the_control_socket() {
     let kinds = client.request("kinds");
     assert_eq!(kinds[0]["receives_release"], true);
     assert_eq!(kinds[1]["receives_release"], false);
+    assert!(kinds[0].get("handles_long_press").is_none());
+    assert_eq!(kinds[1]["handles_long_press"], true);
+    let hold: Kind = serde_json::from_value(kinds[0].clone()).unwrap();
+    assert!(!hold.handles_long_press);
     let content = client.request("content");
     assert!(content["bindings"][0].get("inert_by").is_none());
     assert_eq!(content["bindings"][1]["inert_by"], "press");
