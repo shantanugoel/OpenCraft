@@ -777,3 +777,140 @@ fn disconnect_or_clock_wake_at_due_deadline_cancels_without_invoking() {
     s.edge(3, 0);
     assert!(s.invokes().is_empty());
 }
+
+#[test]
+fn recorded_n4_pro_presses_match_expected_single_press_latency() {
+    let fixtures: [(u8, &str); 10] = [
+        (1, "01-key-row1-col1.txt"),
+        (2, "02-key-row1-col2.txt"),
+        (3, "03-key-row1-col3.txt"),
+        (4, "04-key-row1-col4.txt"),
+        (5, "05-key-row1-col5.txt"),
+        (6, "06-key-row2-col1.txt"),
+        (7, "07-key-row2-col2.txt"),
+        (8, "08-key-row2-col3.txt"),
+        (9, "09-key-row2-col4.txt"),
+        (10, "10-key-row2-col5.txt"),
+    ];
+    let fixture_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../core/tests/fixtures/input");
+    let parsed: Vec<(u8, Vec<Report>, u64)> = fixtures
+        .into_iter()
+        .map(|(key, name)| {
+            let text = std::fs::read_to_string(fixture_dir.join(name)).unwrap();
+            let reports = parse(&text).unwrap().reports;
+            assert_eq!(reports.len(), 2, "{name}");
+            let release_ms = reports[1].ms - reports[0].ms;
+            (key, reports, release_ms)
+        })
+        .collect();
+
+    let mut durations: Vec<u64> = parsed.iter().map(|&(_, _, d)| d).collect();
+    durations.sort_unstable();
+    assert_eq!(durations.first().copied(), Some(106));
+    assert_eq!(durations[4], 159);
+    assert_eq!(durations[5], 159);
+    assert_eq!(durations.last().copied(), Some(162));
+
+    let is_press_dispatch = |req: &Request| {
+        matches!(req, Request::Invoke { binding, .. } if binding.gesture == Press)
+            || matches!(req, Request::HoldStart { .. })
+    };
+
+    // One Setup per binding configuration, binding all 10 keys once, and using
+    // engine deadline wakeup (`poll(10s)`) for exact timing and fast execution.
+    enum Mode {
+        PressOnly,
+        HoldWithTimers,
+        PressAndLong,
+        TimerPress,
+        PressAndDouble,
+        PressLongAndDouble,
+    }
+    for mode in [
+        Mode::PressOnly,
+        Mode::HoldWithTimers,
+        Mode::PressAndLong,
+        Mode::TimerPress,
+        Mode::PressAndDouble,
+        Mode::PressLongAndDouble,
+    ] {
+        let mut s = Setup::new(1, &[]);
+        for key in 1..=10u8 {
+            match mode {
+                Mode::PressOnly => s.bind(key, Press, Some(KIND)),
+                Mode::HoldWithTimers => {
+                    s.bind(key, Press, Some(HOLD));
+                    s.bind(key, Release, Some(KIND));
+                    s.bind(key, LongPress, Some(KIND));
+                    s.bind(key, DoublePress, Some(KIND));
+                }
+                Mode::PressAndLong => {
+                    s.bind(key, Press, Some(KIND));
+                    s.bind(key, LongPress, Some(KIND));
+                }
+                Mode::TimerPress => s.bind(key, Press, Some(TIMER)),
+                Mode::PressAndDouble => {
+                    s.bind(key, Press, Some(KIND));
+                    s.bind(key, DoublePress, Some(KIND));
+                }
+                Mode::PressLongAndDouble => {
+                    s.bind(key, Press, Some(KIND));
+                    s.bind(key, LongPress, Some(KIND));
+                    s.bind(key, DoublePress, Some(KIND));
+                }
+            }
+        }
+        s.requests.try_iter().for_each(drop);
+
+        for (key, reports, release_ms) in &parsed {
+            let start = s.rig.world.now.get();
+            s.input(reports[0].bytes.clone());
+            let mut dispatched_at = s
+                .requests
+                .try_iter()
+                .any(|req| is_press_dispatch(&req))
+                .then_some(Duration::ZERO);
+            s.advance(*release_ms);
+            s.input(reports[1].bytes.clone());
+            if dispatched_at.is_none() && s.requests.try_iter().any(|req| is_press_dispatch(&req)) {
+                dispatched_at = Some(s.rig.world.now.get() - start);
+            }
+            if dispatched_at.is_none() {
+                s.rig.engine.poll(Duration::from_secs(10));
+                assert!(
+                    s.requests.try_iter().any(|req| is_press_dispatch(&req)),
+                    "Press never dispatched for key {key}"
+                );
+                dispatched_at = Some(s.rig.world.now.get() - start);
+            }
+            // Drain any remaining requests (e.g. HoldEnd / Release) before the next key.
+            s.requests.try_iter().for_each(drop);
+
+            let expected = match mode {
+                Mode::PressOnly | Mode::HoldWithTimers => 0,
+                Mode::PressAndLong | Mode::TimerPress => *release_ms,
+                Mode::PressAndDouble | Mode::PressLongAndDouble => *release_ms + 300,
+            };
+            assert_eq!(dispatched_at.unwrap(), Duration::from_millis(expected));
+        }
+    }
+
+    // Recorded 3.37 s hold triggers LongPress at exactly 500 ms while still down.
+    let hold_text = std::fs::read_to_string(fixture_dir.join("12-key-hold.txt")).unwrap();
+    let hold_reports = parse(&hold_text).unwrap().reports;
+    let mut s = Setup::new(6, &[Press, Release, LongPress]);
+    s.requests.try_iter().for_each(drop);
+    let start = s.rig.world.now.get();
+    s.input(hold_reports[0].bytes.clone());
+    assert!(s.invokes().is_empty());
+    s.advance(499);
+    s.rig.engine.poll(Duration::ZERO);
+    assert!(s.invokes().is_empty());
+    s.rig.engine.poll(Duration::from_secs(10));
+    assert_eq!(s.rig.world.now.get() - start, Duration::from_millis(500));
+    assert_eq!(s.invokes(), [LongPress]);
+    s.advance(hold_reports[1].ms - 500);
+    s.input(hold_reports[1].bytes.clone());
+    assert!(s.invokes().is_empty());
+}
