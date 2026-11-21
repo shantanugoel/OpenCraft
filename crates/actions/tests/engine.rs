@@ -745,6 +745,8 @@ fn a_multi_function_knob_replaces_turn_feedback_and_restores_its_step() {
     invoke(&mut world, GestureKind::Push);
     let second = read(&mut world, 1);
     assert_ne!(second, level);
+    // Only macOS draws label text (decision 0010).
+    #[cfg(target_os = "macos")]
     assert_ne!(second, first);
     invoke(&mut world, GestureKind::TurnLeft);
     invoke(&mut world, GestureKind::TurnRight);
