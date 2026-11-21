@@ -76,6 +76,17 @@ cards, the nested cards, and the drag picture show the icon in white. A kind
 with no icon, or with a name that the icon set does not have, shows the
 first letter of its name.
 
+Note (2026-11-21): [decision 0042](0042-gesture-timers.md) added these parts
+to the description of a kind. Each part is static data, not a setting. Thus
+the engine can read them (rule 8).
+
+| Part | Meaning |
+|---|---|
+| Receives the release | Yes or no: the kind holds a key while the user holds the key down. The engine sends `HoldStart` at the Press and `HoldEnd` at the Release. |
+| Handles a long press | Yes or no: the kind does its own work after a long press. The engine sends `LongPress` with the Press binding. |
+| Knob group | Yes or no: the kind takes TurnLeft, TurnRight, and Push with one action. The knob inspector shows one card, and the key inspector does not offer the kind. |
+| Steps | Optional. The key of the list field (`ActionList`, `TimedActionList`, or `TurnList`) whose item number is `step`. The shell marks that row. |
+
 A field has a key, a label for the user, an input type, and an optional
 default value. The key is the name of the value in the settings of the
 action.
@@ -98,6 +109,12 @@ Note (2026-11-14): decision [0036](0036-folders.md) added the Folder input
 type for the action "Open a folder". The shell shows the folders of the
 profile. A value that is not a folder stays, and the popup shows
 "(not found)".
+
+Note (2026-11-21): [decision 0042](0042-gesture-timers.md) added the input
+type `TurnList`. The user gives a list of functions. The value in the settings
+is a list of tables with `label`, `left`, and `right`. `left` and `right` are
+actions: a table with `kind` and `settings`. The window edits one item with
+the same card as a turn of a knob.
 
 Note (2026-11-14): issue
 [#336](https://github.com/shantanugoel/OpenCraft/issues/336). A path of

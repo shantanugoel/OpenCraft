@@ -27,12 +27,12 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0009](0009-profile-file-format.md) | The profile is a directory with a TOML file and its images | Accepted |
 | [0010](0010-core-text-for-surface-labels.md) | Use Core Text for surface labels on macOS | Accepted |
 | [0011](0011-engine-thread-model.md) | The engine has one thread, and the shell uses messages | Accepted |
-| [0012](0012-action-handler-interface.md) | An action handler gets requests and sends messages, on its own thread | Accepted. A note of 2026-11-14 gives the registry of kind modules. |
-| [0013](0013-action-feedback-on-a-surface.md) | An action changes a surface with feedback data, and the engine makes the image | Accepted |
-| [0014](0014-action-settings-description.md) | An action kind describes its settings as a list of fields | Accepted. 0038 says when the shell shows a field. |
+| [0012](0012-action-handler-interface.md) | An action handler gets requests and sends messages, on its own thread | Accepted. A note of 2026-11-14 gives the registry of kind modules. 0042 adds `HoldStart`, `HoldEnd`, and `LongPress`. |
+| [0013](0013-action-feedback-on-a-surface.md) | An action changes a surface with feedback data, and the engine makes the image | Accepted. 0042 adds the `step` part. |
+| [0014](0014-action-settings-description.md) | An action kind describes its settings as a list of fields | Accepted. 0038 says when the shell shows a field. 0042 adds static flags, `steps`, and `TurnList`. |
 | [0015](0015-four-bar-panels-and-touch-gestures.md) | The touch bar shows four bar panels, and the device identifies the touch gestures | Accepted |
 | [0016](0016-pages-and-engine-requests-from-a-handler.md) | The engine holds the active page, and a handler asks the engine with a message | Accepted. 0036 adds the open folders to the active page. |
-| [0017](0017-toggle-and-sequence-actions.md) | An action can contain actions, and the engine draws the state of a toggle | Accepted |
+| [0017](0017-toggle-and-sequence-actions.md) | An action can contain actions, and the engine draws the state of a toggle | Accepted. 0042 says when an On face replaces the frame. |
 | [0018](0018-many-profiles.md) | Each profile is a directory in the profiles directory, and names its device model | Accepted. 0035 changes the request "select a profile" and adds keys to `state.toml`. 0039 adds the key `last_model`. |
 | [0019](0019-engine-in-the-gui-process.md) | The engine stays in the process of the GUI application | Accepted. 0028 changes what a second start does. 0040 adds a connection between processes. |
 | [0020](0020-menu-bar-item-and-dock-icon.md) | The shell makes the menu bar item with AppKit, and has one quit path | Accepted |
@@ -57,6 +57,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0039](0039-start-with-the-last-connected-model.md) | The engine starts with the model of the last device that connected | Accepted |
 | [0040](0040-control-socket.md) | A different program controls OpenCraft through a socket, when the user permits it | Accepted |
 | [0041](0041-cask-in-the-shared-tap.md) | The cask of OpenCraft is in the shared tap of the owner | Accepted |
+| [0042](0042-gesture-timers.md) | The engine makes the long press, the double press, and the hold with timers, and a key can have two faces | Accepted |
 
 ## Template
 

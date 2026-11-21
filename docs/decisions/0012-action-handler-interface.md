@@ -42,9 +42,19 @@ as a module of the engine, and that this decision looks at that again.
 | Appear | A binding of the kind is on the active page: at the start, and after the user makes or changes the binding | The binding and the settings |
 | Disappear | The binding is gone or changed, or its page is not active | The binding |
 | Invoke | The user did the gesture of the binding | The binding and the settings |
+| HoldStart | The user pressed a key, and the Press action holds a key until the release. See [decision 0042](0042-gesture-timers.md). | The binding and the settings |
+| HoldEnd | The key went up, or the hold ended for a different cause | The binding |
+| LongPress | The key was down for the time of a long press, and the kind of the Press binding has `handles_long_press` | The Press binding and the settings |
 | Resolve | The user asked to correct the status of a kind. See [decision 0014](0014-action-settings-description.md). | The kind |
 
 A change of the settings is a Disappear and then an Appear.
+
+Note (2026-11-21): [decision 0042](0042-gesture-timers.md) added
+`HoldStart`, `HoldEnd`, and `LongPress`. Only the gesture timers send
+`HoldStart`, and only for the Press binding of a key. `Invoke` is always a
+complete action, thus a nested action and a binding on Release, LongPress, or
+DoublePress never leave a key down. Each exit path sends one `HoldEnd` to the
+same kind, before the `Disappear`.
 
 **Messages: from a handler to the engine.**
 

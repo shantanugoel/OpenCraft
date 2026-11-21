@@ -87,6 +87,11 @@ section 10.5, and rule 11):
 - The handler of the toggle sends the other state with each feedback. Thus
   in the state off, the shell can show the face on with its label.
 
+Note (2026-11-21): [decision 0042](0042-gesture-timers.md) gives a key face a
+second face for the state On. The 6 px frame then draws only when the surface
+has no On face: an On face replaces the frame. The state part above stays for
+a surface with no On face.
+
 **The sequence.** The kind `opencraft.sequence` has these settings: a list
 of actions, and a delay between two actions in milliseconds.
 

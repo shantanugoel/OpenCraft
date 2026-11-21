@@ -676,8 +676,12 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 - [ ] The timer counts down, rings at the end, and resets with a long press.
 - [ ] Old profiles load. An engine test covers each old schema.
 
-**Decisions that this phase forces.** The gesture timers for long press,
-double press, and hold (P10-D1), and the schema changes of Phase 10.
+**Decisions that this phase forces.** The gesture timers for the long press,
+the double press, and the hold, the two faces of a key, the steps of a
+multi-step action, and the multi-function knob: see
+[decision 0042](decisions/0042-gesture-timers.md). That record makes profile
+schema version 7. Release 0.5.0 writes version 6, thus the phase cannot add
+keys to version 6.
 
 **Task issues.** [#430](https://github.com/shantanugoel/OpenCraft/issues/430)
 (P10-D1), [#431](https://github.com/shantanugoel/OpenCraft/issues/431)

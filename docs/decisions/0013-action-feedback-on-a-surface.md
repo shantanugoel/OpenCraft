@@ -29,6 +29,17 @@ bindings. The feedback has these parts, and each part is optional:
 
 A Feedback message with no feedback removes the feedback of that binding.
 
+Note (2026-11-21): [decision 0042](0042-gesture-timers.md) added one more
+optional part:
+
+| Part | Meaning |
+|---|---|
+| Step | The index from 0 of the step that the next Invoke runs. The engine sends it to the shell and does not draw it, thus rule 11 does not change. |
+
+The engine sends `Event::Step { binding, step }` when the part changes. The
+value is `None` when the feedback is removed or the binding disappears. The
+engine forwards the data and reads no settings (rule 8).
+
 **The surface.** The feedback of a binding shows on the feedback surface of
 its control. For a control that has a display, this is its surface. For a
 knob, the descriptor names the surface: on the N4 Pro, knob N has bar panel
