@@ -1,0 +1,240 @@
+format = "OpenCraft profile"
+version = 1
+
+[images]
+
+[profile]
+model = "n4-pro"
+name = "Phase 10 checks"
+schema_version = 7
+
+[[profile.pages]]
+id = "1010101010101010"
+name = "Page 1"
+
+[profile.pages.bindings.key-1.press]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-1.press.settings]
+text = "now "
+
+[profile.pages.bindings.key-2.double-press]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-2.double-press.settings]
+text = "double "
+
+[profile.pages.bindings.key-2.long-press]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-2.long-press.settings]
+text = "long "
+
+[profile.pages.bindings.key-2.press]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-2.press.settings]
+text = "short "
+
+[profile.pages.bindings.key-3.long-press]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-3.long-press.settings]
+text = "inert "
+
+[profile.pages.bindings.key-3.press]
+kind = "opencraft.hold-hotkey"
+
+[profile.pages.bindings.key-3.press.settings]
+hotkey = "space"
+
+[profile.pages.bindings.key-4.press]
+kind = "opencraft.toggle"
+
+[profile.pages.bindings.key-4.press.settings.off]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-4.press.settings.off.settings]
+text = "off "
+
+[profile.pages.bindings.key-4.press.settings.on]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-4.press.settings.on.settings]
+text = "on "
+
+[profile.pages.bindings.key-5.press]
+kind = "opencraft.cycle"
+
+[[profile.pages.bindings.key-5.press.settings.steps]]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-5.press.settings.steps.settings]
+text = "one "
+
+[[profile.pages.bindings.key-5.press.settings.steps]]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-5.press.settings.steps.settings]
+text = "one "
+
+[[profile.pages.bindings.key-5.press.settings.steps]]
+kind = "opencraft.type-text"
+
+[profile.pages.bindings.key-5.press.settings.steps.settings]
+text = "two "
+
+[profile.pages.bindings.key-6.press]
+kind = "opencraft.timer"
+
+[profile.pages.bindings.key-6.press.settings]
+bell = "system"
+mode = "countdown"
+seconds = 5
+
+[profile.pages.bindings.knob-1.push]
+kind = "opencraft.knob-functions"
+
+[[profile.pages.bindings.knob-1.push.settings.functions]]
+label = "Volume"
+
+[profile.pages.bindings.knob-1.push.settings.functions.left]
+kind = "opencraft.volume"
+
+[profile.pages.bindings.knob-1.push.settings.functions.left.settings]
+operation = "down"
+step = 5
+
+[profile.pages.bindings.knob-1.push.settings.functions.right]
+kind = "opencraft.volume"
+
+[profile.pages.bindings.knob-1.push.settings.functions.right.settings]
+operation = "up"
+step = 5
+
+[[profile.pages.bindings.knob-1.push.settings.functions]]
+label = "Brightness"
+
+[profile.pages.bindings.knob-1.push.settings.functions.left]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.knob-1.push.settings.functions.left.settings]
+operation = "down"
+step = 5
+
+[profile.pages.bindings.knob-1.push.settings.functions.right]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.knob-1.push.settings.functions.right.settings]
+operation = "up"
+step = 5
+
+[profile.pages.bindings.knob-1.turn-left]
+kind = "opencraft.knob-functions"
+
+[[profile.pages.bindings.knob-1.turn-left.settings.functions]]
+label = "Volume"
+
+[profile.pages.bindings.knob-1.turn-left.settings.functions.left]
+kind = "opencraft.volume"
+
+[profile.pages.bindings.knob-1.turn-left.settings.functions.left.settings]
+operation = "down"
+step = 5
+
+[profile.pages.bindings.knob-1.turn-left.settings.functions.right]
+kind = "opencraft.volume"
+
+[profile.pages.bindings.knob-1.turn-left.settings.functions.right.settings]
+operation = "up"
+step = 5
+
+[[profile.pages.bindings.knob-1.turn-left.settings.functions]]
+label = "Brightness"
+
+[profile.pages.bindings.knob-1.turn-left.settings.functions.left]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.knob-1.turn-left.settings.functions.left.settings]
+operation = "down"
+step = 5
+
+[profile.pages.bindings.knob-1.turn-left.settings.functions.right]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.knob-1.turn-left.settings.functions.right.settings]
+operation = "up"
+step = 5
+
+[profile.pages.bindings.knob-1.turn-right]
+kind = "opencraft.knob-functions"
+
+[[profile.pages.bindings.knob-1.turn-right.settings.functions]]
+label = "Volume"
+
+[profile.pages.bindings.knob-1.turn-right.settings.functions.left]
+kind = "opencraft.volume"
+
+[profile.pages.bindings.knob-1.turn-right.settings.functions.left.settings]
+operation = "down"
+step = 5
+
+[profile.pages.bindings.knob-1.turn-right.settings.functions.right]
+kind = "opencraft.volume"
+
+[profile.pages.bindings.knob-1.turn-right.settings.functions.right.settings]
+operation = "up"
+step = 5
+
+[[profile.pages.bindings.knob-1.turn-right.settings.functions]]
+label = "Brightness"
+
+[profile.pages.bindings.knob-1.turn-right.settings.functions.left]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.knob-1.turn-right.settings.functions.left.settings]
+operation = "down"
+step = 5
+
+[profile.pages.bindings.knob-1.turn-right.settings.functions.right]
+kind = "opencraft.device-brightness"
+
+[profile.pages.bindings.knob-1.turn-right.settings.functions.right.settings]
+operation = "up"
+step = 5
+
+[profile.pages.surfaces.key-face-1]
+color = "#2D333B"
+label = "Press only"
+
+[profile.pages.surfaces.key-face-2]
+color = "#1F6FEB"
+label = "Gestures"
+
+[profile.pages.surfaces.key-face-3]
+color = "#2D333B"
+icon = "mic-off"
+label = "PTT Off"
+
+[profile.pages.surfaces.key-face-3.on]
+color = "#DA3633"
+icon = "mic"
+label = "PTT Live"
+
+[profile.pages.surfaces.key-face-4]
+color = "#1F6FEB"
+label = "Focus"
+
+[profile.pages.surfaces.key-face-4.on]
+color = "#2EA043"
+label = "Break"
+
+[profile.pages.surfaces.key-face-5]
+color = "#8957E5"
+icon = "repeat"
+label = "Cycle"
+
+[profile.pages.surfaces.key-face-6]
+color = "#D29922"
+icon = "timer"
+label = "Timer"

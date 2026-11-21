@@ -1,11 +1,87 @@
 # Footprint of OpenCraft
 
-Last update: 2026-11-16
+Last update: 2026-11-21
 
 This entry holds the measured values for the
 [product targets](../ROADMAP.md#product-targets). The reference is the vendor
 software: see [vsd-craft.md](vsd-craft.md#footprint-when-it-runs). Measure
 again at the end of each phase.
+
+## Phase 10: gesture timers, key states, and new actions (2026-11-21)
+
+Issue [#437](https://github.com/shantanugoel/OpenCraft/issues/437) measures
+the latency of a single press with and with no gesture timers, and the memory
+and idle processor use after [Phase 10](../ROADMAP.md#phase-10-long-press-double-press-and-key-states-in-progress)
+([decision 0042](../decisions/0042-gesture-timers.md)).
+
+### Single-press latency (2026-11-21)
+
+The engine test
+`gestures::recorded_n4_pro_presses_match_expected_single_press_latency`
+replays the recorded N4 Pro fixtures through the engine with the fake clock.
+It uses the ten single-press files (`01-key-row1-col1.txt` to
+`10-key-row2-col5.txt`, press-to-release time 106 to 162 ms, median 159 ms)
+and the 3,369 ms hold (`12-key-hold.txt`). The table shows the time from the
+Press report to the dispatch of `Request::Invoke` (or `Request::HoldStart`).
+
+| Bindings on the key | Delay from Press report: minimum, median, maximum | Added delay after Release report | Confidence |
+|---|---|---|---|
+| `Press` only (no `Long press`, no `Double press`) | 0, 0, 0 ms | None (runs at Press) | Measured: fake clock on recorded N4 Pro reports |
+| `Hold a hotkey` on `Press` (also with `Long press` and `Double press` present) | 0, 0, 0 ms | None (`HoldStart` runs at Press; `HoldEnd` at Release) | Measured: fake clock on recorded N4 Pro reports |
+| `Press` + `Long press` (or a `Press` kind with `handles_long_press`) | 106, 159, 162 ms | 0 ms (runs at Release) | Measured: fake clock on recorded N4 Pro reports |
+| `Press` + `Double press` | 406, 459, 462 ms | 300 ms | Measured: fake clock on recorded N4 Pro reports |
+| `Press` + `Long press` + `Double press` | 406, 459, 462 ms | 300 ms | Measured: fake clock on recorded N4 Pro reports |
+
+- On `12-key-hold.txt` (3,369 ms hold), `Long press` dispatches at 500 ms
+  while the key is still down, and `Press` and `Release` do not run.
+  (Measured: fake clock on recorded N4 Pro report)
+- The owner check procedure ([checks/phase-10-checks.md](../checks/phase-10-checks.md))
+  records a fresh `/tmp/opencraft-press.txt` with short, 1-second hold, and
+  fast double-press timings to confirm these margins on a person's hand.
+
+### Memory and processor use (2026-11-21)
+
+The program is the release binary of the workspace at commit `10d739d`. It ran
+with a scratch `OPENCRAFT_PROFILES_DIR` holding a schema-7 Phase 10 profile.
+That profile has Press, Long press, Double press, Hold a hotkey with a custom
+On face, Toggle with a custom On face, Action cycle, an idle Timer, and a
+Multi-function knob. `allow_control` was `false`. The connected N4 Pro showed
+the profile with the display awake, and no person operated the device. The
+installed application did not run during the measurement.
+
+`scripts/measure-footprint.sh --pid` made one sample each 5 seconds for 300
+seconds, starting 60 seconds after the start of the process. Each column is
+a new process.
+
+| Measurement | Window open | Start with `--login` | Confidence |
+|---|---|---|---|
+| Processes | 1 | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 52.9, 52.9, 52.9 MiB | 23.4, 23.4, 23.4 MiB | Measured |
+| Resident size, median | 115.8 MiB | 96.0 MiB | Measured |
+| Processor time in 300 seconds | 0.43 s | 0.45 s | Measured |
+| Processor use, mean (100 % is one core) | 0.14 % | 0.15 % | Measured |
+| Processor use, maximum of a sample | 0.2 % | 0.2 % | Measured |
+| Threads at the start and at the end of the measurement | 24, 24 | 21, 21 | Measured: `ps -M`, rows without the header |
+
+- The physical footprint is 55.5 MB with the window open and 24.5 MB after a
+  start with `--login`. Both meet the target of less than 80 MB.
+  (Inference from Measured)
+- The mean idle processor use is 0.14 % (window open) and 0.15 % (`--login`),
+  with no 5-second sample above 0.2 %. Both meet the target of less than
+  0.5 % of one core. Every idle handler thread (including the timer worker
+  thread) used 0.00 s in 300 seconds. (Measured: `ps -M`)
+
+### Checks with the camera (2026-11-21)
+
+A USB camera recorded the connected N4 Pro while the release binary ran the
+Phase 10 profile above and background automation clicked **Test the action**
+in the window.
+
+| Fact | Confidence |
+|---|---|
+| Key 3 (**Toggle** with a custom **On** face) changed from blue **Focus** to green **Break** with no border frame on the device | Measured: camera |
+| Key 5 (**Timer**, 5-minute countdown with no custom **On** face) showed the 6 px border frame while counting down (`04:57`) and removed the frame when paused (`04:56`) | Measured: camera |
+| Bar panel 1 (**Multi-function knob**) changed from **Volume** to **Scroll** on **Push** | Measured: camera |
 
 ## Control by other programs (2026-11-16)
 

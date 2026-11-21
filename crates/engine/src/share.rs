@@ -530,17 +530,25 @@ mod tests {
         }
     }
 
-    /// The file for the checks of the owner (`docs/checks`) is a correct
-    /// profile file with 3 pages, and it holds no personal path.
+    /// The files for the checks of the owner (`docs/checks`) are correct
+    /// profile files and hold no personal path.
     #[test]
     fn the_profile_file_of_the_owner_checks_imports() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../docs/checks/phase-7-8-checks.opencraft");
-        let package = import(&path).unwrap();
-        assert_eq!(package.image_count(), 0);
-        assert_eq!(package.profile.pages().len(), 3);
-        let text = fs::read_to_string(&path).unwrap();
-        assert!(!text.replace("/Users/Shared", "").contains("/Users/"));
+        let checks_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/checks");
+        for (name, expected_pages) in [
+            ("phase-7-8-checks.opencraft", 3),
+            ("phase-10-checks.opencraft", 1),
+        ] {
+            let path = checks_dir.join(name);
+            let package = import(&path).unwrap();
+            assert_eq!(package.image_count(), 0, "{name}");
+            assert_eq!(package.profile.pages().len(), expected_pages, "{name}");
+            let text = fs::read_to_string(&path).unwrap();
+            assert!(
+                !text.replace("/Users/Shared", "").contains("/Users/"),
+                "{name}"
+            );
+        }
     }
 
     #[test]
