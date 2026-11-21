@@ -32,6 +32,7 @@ fn rig() -> (Rig, mpsc::Receiver<Request>) {
     a.update(KEY_3, |c| {
         c.label = Some("Mail".into());
         c.color = Some(RED);
+        c.face_mut(true).label = Some("Working".into());
     });
     a.set_binding(
         control(ControlKind::Key, 3),
@@ -286,7 +287,7 @@ fn a_knob_takes_its_bar_panel_with_it() {
 }
 
 #[test]
-fn a_paste_in_a_different_profile_copies_the_image_into_it() {
+fn a_paste_in_a_different_profile_copies_the_on_image_into_it() {
     let (mut rig, _requests) = rig();
     let file = green_file(rig.dir.path());
     command(
@@ -294,7 +295,8 @@ fn a_paste_in_a_different_profile_copies_the_image_into_it() {
         Command::SetImage {
             surface: KEY_3,
             path: Some(file.clone()),
-        },
+        }
+        .for_face(true),
     );
     fs::remove_file(&file).unwrap();
     command(
@@ -320,7 +322,11 @@ fn a_paste_in_a_different_profile_copies_the_image_into_it() {
     );
     let events = rig.take_events();
     assert!(problems(&events).is_empty(), "{events:?}");
-    let image = page(&rig, 0).content(KEY_3).image.expect("an image");
+    let content = page(&rig, 0).content(KEY_3);
+    assert!(content.image.is_none());
+    let face = content.on.unwrap();
+    assert_eq!(face.label.as_deref(), Some("Working"));
+    let image = face.image.expect("an On image");
     let store = ProfilesDir::new(rig.dir.path()).store(rig.engine.active_profile());
     assert!(store.load_image(&image).is_ok());
 }

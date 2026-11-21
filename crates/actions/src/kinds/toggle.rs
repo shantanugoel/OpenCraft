@@ -143,7 +143,9 @@ pub(crate) fn perform(toggle: &Toggle, settings: &Settings, work: &Work<'_>) -> 
 /// both states for the shell.
 pub(crate) fn feedback(on: bool, on_label: Option<String>) -> Feedback {
     let state = |on: bool| Feedback {
-        label: on_label.clone().filter(|_| on),
+        label: on_label
+            .clone()
+            .filter(|label| on && !label.trim().is_empty()),
         state: Some(if on {
             FeedbackState::On
         } else {

@@ -160,11 +160,6 @@ impl ControlContent {
         }
         changed
     }
-
-    /// The image path of the surface part, if it has one.
-    pub fn image(&self) -> Option<&str> {
-        self.surface.as_ref()?.image.as_deref()
-    }
 }
 
 #[cfg(test)]

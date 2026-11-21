@@ -327,11 +327,10 @@ pub fn other_state(feedback: &Feedback) -> Feedback {
 /// - A label of the feedback replaces the label of the content.
 /// - A level is a bar at the bottom, with a dark track and a white fill. Its
 ///   area is separate from the label and the image.
-/// - The state "on" is a frame around the surface, in black or white for the
-///   fill (see [`text_color`]), also when the label has a colour of its
-///   own. The rest of the image, with the level bar,
-///   is inside the frame, so the frame covers no part of it. The state
-///   "off" draws no frame.
+/// - The state "on" uses the replacement face if present. Otherwise it
+///   draws a frame in black or white for the fill (see [`text_color`]).
+///   The frame surrounds the content and the level bar without covering
+///   them. The state "off" draws no frame.
 pub fn surface_image_with_feedback(
     size: Size,
     content: &SurfaceContent,
@@ -355,6 +354,26 @@ pub fn surface_image_on_background(
     feedback: Option<&Feedback>,
     backdrop: Option<&RgbImage>,
 ) -> RgbImage {
+    surface_image_with_on(size, content, image, None, feedback, backdrop)
+}
+
+/// Render a surface with the decoded image of its replacement On face.
+pub fn surface_image_with_on(
+    size: Size,
+    content: &SurfaceContent,
+    image: Option<&DynamicImage>,
+    on_image: Option<&DynamicImage>,
+    feedback: Option<&Feedback>,
+    backdrop: Option<&RgbImage>,
+) -> RgbImage {
+    let on = feedback.and_then(|f| f.state) == Some(FeedbackState::On);
+    let draw_frame_for_on = on && content.on.is_none();
+    let image = if on && content.on.is_some() {
+        on_image
+    } else {
+        image
+    };
+    let content = content.face(on);
     let base = Base::of(content, backdrop);
     let Some(feedback) = feedback else {
         return surface_image_on(size, content, image, &base);
@@ -363,7 +382,7 @@ pub fn surface_image_on_background(
     if let Some(label) = &feedback.label {
         content.label = Some(label.clone());
     }
-    if feedback.state != Some(FeedbackState::On) {
+    if !draw_frame_for_on {
         return with_level(size, &content, image, feedback.level, &base);
     }
     let frame = FRAME.min(size.width / 4).min(size.height / 4);
@@ -969,6 +988,39 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_replacement_on_face_draws_full_size_with_its_own_image_and_title() {
+        let mut base = content(Some("Off"), Some(RED));
+        let face = base.face_mut(true);
+        face.color = Some(Color::rgb(12, 24, 48));
+        face.label = Some("On".into());
+        face.label_style.position = Some(LabelPosition::Top);
+        face.label_style.bold = false;
+        let on_image = DynamicImage::ImageRgb8(RgbImage::from_pixel(20, 10, Rgb([9, 190, 14])));
+        let face = base.face(true);
+        let draw = |feedback: &Feedback| {
+            surface_image_with_on(KEY, &base, None, Some(&on_image), Some(feedback), None)
+        };
+        let custom = draw(&on(None, None));
+        assert_eq!(custom, surface_image(KEY, face, Some(&on_image)));
+        assert_eq!(custom.get_pixel(0, 0), &Rgb(face.color.unwrap().0));
+
+        let live = draw(&on(Some("Live"), None));
+        let mut expected = face.clone();
+        expected.label = Some("Live".into());
+        #[cfg(target_os = "macos")]
+        assert_ne!(live, custom);
+        assert_eq!(live, surface_image(KEY, &expected, Some(&on_image)));
+
+        let level = draw(&on(None, Some(60)));
+        let base = Base::of(face, None);
+        assert_ne!(level, custom);
+        assert_eq!(
+            level,
+            with_level(KEY, face, Some(&on_image), Some(60), &base)
+        );
     }
 
     #[test]

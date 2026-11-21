@@ -293,6 +293,9 @@ impl Handler for KeyHandler {
                     problem(&self.sender, self.invoke(&action));
                 }
             }
+            Request::Appear { binding, action } if action.kind == crate::kinds::hold_hotkey::ID => {
+                self.hold_feedback(binding, FeedbackState::Off);
+            }
             Request::HoldStart { binding, action } => {
                 let result = self.start_hold(binding, &action);
                 problem(&self.sender, result);

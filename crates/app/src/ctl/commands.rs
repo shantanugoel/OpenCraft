@@ -240,12 +240,20 @@ const FOLDER: &[Arg] = &[
     ),
 ];
 
-const SURFACE: &[Arg] = &[req(
-    "surface",
-    "surface",
-    Kind::Surface,
-    "The surface, as `kind:number`: `key_face`, `bar_panel`, or `background`. See `layout`.",
-)];
+const SURFACE: &[Arg] = &[
+    req(
+        "surface",
+        "surface",
+        Kind::Surface,
+        "The surface, as `kind:number`: `key_face`, `bar_panel`, or `background`. See `layout`.",
+    ),
+    arg(
+        "on",
+        "on",
+        Kind::Bool,
+        "`true` to change the On face, or `false` for the base face.",
+    ),
+];
 
 const CONTROL: &[Arg] = &[req(
     "control",

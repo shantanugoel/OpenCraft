@@ -200,6 +200,130 @@ fn each_change_of_the_pages_is_undone_and_done_again_in_memory_and_in_the_file()
 }
 
 #[test]
+fn on_face_edits_are_undone_and_redone_on_disk() {
+    use opencraft_engine::{LabelChange, LabelPosition, SurfaceIcon};
+    let dir = TempDir::new().unwrap();
+    let source = green_file(dir.path());
+    for (edit, name) in [
+        (label("On"), "Set Title"),
+        (
+            Command::SetLabelStyle {
+                surface: KEY_3,
+                change: LabelChange::Position(Some(LabelPosition::Top)),
+            },
+            "Set Title Position",
+        ),
+        (
+            Command::SetColor {
+                surface: KEY_3,
+                color: Some(GREEN),
+            },
+            "Set Fill",
+        ),
+        (
+            Command::SetImage {
+                surface: KEY_3,
+                path: Some(source),
+            },
+            "Set Image",
+        ),
+        (
+            Command::SetIcon {
+                surface: KEY_3,
+                icon: Some(SurfaceIcon::new("star")),
+            },
+            "Set Icon",
+        ),
+    ] {
+        check(0, edit.for_face(true), name);
+    }
+}
+
+#[test]
+fn an_on_image_in_redo_survives_reloading_the_profile() {
+    let (mut rig, _requests) = rig();
+    let dir = TempDir::new().unwrap();
+    let file = green_file(dir.path());
+    command(
+        &mut rig,
+        Command::SetImage {
+            surface: KEY_3,
+            path: Some(file.clone()),
+        }
+        .for_face(true),
+    );
+    let with_image = saved(&mut rig);
+    let image = with_image.pages()[0]
+        .content(KEY_3)
+        .on
+        .unwrap()
+        .image
+        .unwrap();
+    fs::remove_file(file).unwrap();
+    command(&mut rig, Command::Undo);
+    assert!(saved(&mut rig).pages()[0].content(KEY_3).on.is_none());
+    let profile = rig.engine.active_profile().to_string();
+    command(
+        &mut rig,
+        Command::AddProfile {
+            name: "Other".into(),
+            copy_of: None,
+        },
+    );
+    command(&mut rig, Command::SelectProfile { profile });
+    assert!(store_in(rig.dir.path()).load_image(&image).is_ok());
+    command(&mut rig, Command::Redo);
+    assert_eq!(saved(&mut rig), with_image);
+}
+
+#[test]
+fn legacy_on_title_migration_joins_the_on_edit_but_not_the_off_edit() {
+    let (mut rig, _requests) = rig();
+    let binding = key_3(0);
+    let mut legacy = action(KIND);
+    legacy
+        .settings
+        .insert("on_label".into(), Value::Text("Old".into()));
+    command(
+        &mut rig,
+        Command::SetBinding {
+            binding,
+            action: Some(legacy.clone()),
+        },
+    );
+    command(&mut rig, Command::StartTextEdit);
+    command(&mut rig, label("Off"));
+    command(
+        &mut rig,
+        Command::Group {
+            name: "Set Title".into(),
+            commands: vec![
+                label("O").for_face(true),
+                Command::SetBinding {
+                    binding,
+                    action: Some(action(KIND)),
+                },
+            ],
+        },
+    );
+    command(&mut rig, label("On").for_face(true));
+    command(&mut rig, Command::EndTextEdit);
+    command(&mut rig, Command::Undo);
+    let page = &rig.engine.profile().pages()[0];
+    assert_eq!(page.content(KEY_3).label.as_deref(), Some("Off"));
+    assert!(page.content(KEY_3).on.is_none());
+    assert_eq!(
+        page.binding(binding.control, binding.gesture),
+        Some(&legacy)
+    );
+    command(&mut rig, Command::Undo);
+    assert!(rig.engine.profile().pages()[0]
+        .content(KEY_3)
+        .label
+        .is_none());
+}
+
+#[test]
 fn the_undo_of_an_image_shows_the_old_image_and_the_redo_the_new_image() {
     let (mut rig, _requests) = rig();
     let device = rig.connect();

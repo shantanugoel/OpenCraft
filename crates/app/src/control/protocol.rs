@@ -138,6 +138,8 @@ pub struct PageTargetParams {
 pub struct SetLabelParams {
     pub target: Target,
     pub surface: SurfaceId,
+    #[serde(default)]
+    pub on: bool,
     pub label: Option<String>,
 }
 
@@ -146,6 +148,8 @@ pub struct SetLabelParams {
 pub struct SetLabelStyleParams {
     pub target: Target,
     pub surface: SurfaceId,
+    #[serde(default)]
+    pub on: bool,
     pub style: Option<LabelStyle>,
 }
 
@@ -154,6 +158,8 @@ pub struct SetLabelStyleParams {
 pub struct SetColorParams {
     pub target: Target,
     pub surface: SurfaceId,
+    #[serde(default)]
+    pub on: bool,
     pub color: Option<String>,
 }
 
@@ -162,6 +168,8 @@ pub struct SetColorParams {
 pub struct SetImageParams {
     pub target: Target,
     pub surface: SurfaceId,
+    #[serde(default)]
+    pub on: bool,
     pub path: Option<String>,
 }
 
@@ -170,6 +178,8 @@ pub struct SetImageParams {
 pub struct SetIconParams {
     pub target: Target,
     pub surface: SurfaceId,
+    #[serde(default)]
+    pub on: bool,
     pub icon: Option<Icon>,
 }
 
@@ -1023,6 +1033,18 @@ pub struct Folder {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Surface {
     pub id: SurfaceId,
+    pub label: Option<String>,
+    pub label_style: LabelStyle,
+    pub color: Option<String>,
+    /// A profile-relative image name, not an absolute file path.
+    pub image: Option<String>,
+    pub icon: Option<Icon>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on: Option<SurfaceFace>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SurfaceFace {
     pub label: Option<String>,
     pub label_style: LabelStyle,
     pub color: Option<String>,

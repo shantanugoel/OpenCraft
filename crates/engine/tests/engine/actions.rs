@@ -999,6 +999,87 @@ fn feedback_with_the_state_on_draws_a_frame_and_off_removes_it() {
 }
 
 #[test]
+fn the_first_on_edit_copies_off_and_uses_the_replacement_on_the_device() {
+    use opencraft_engine::FeedbackState::{Off, On};
+    let kind = "test.state";
+    let (port, _requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let binding = binding(ControlKind::Key, 3, GestureKind::Press);
+    set_binding(&mut rig, binding, Some(action(kind)));
+    rig.set_color(KEY_3, RED);
+    rig.engine.command(Command::SetLabel {
+        surface: KEY_3,
+        label: Some("Copy".into()),
+    });
+    let before = last_state(&rig.take_events(), KEY_3).clone();
+    let device = rig.connect();
+    sent(&device);
+    rig.take_events();
+
+    rig.engine.command(
+        Command::SetColor {
+            surface: KEY_3,
+            color: Some(BLUE),
+        }
+        .for_face(true),
+    );
+    let surface = last_state(&rig.take_events(), KEY_3).clone();
+    let mut expected = before.content.clone();
+    expected.face_mut(true).color = Some(BLUE);
+    assert_eq!(surface.content, expected);
+    let states = surface.states.unwrap();
+    assert_eq!(states.now, Off);
+    assert!(std::sync::Arc::ptr_eq(&states.off, &surface.image));
+    assert_eq!(states.off, before.image);
+    assert_color(&states.on, 0, 0, BLUE);
+    sent(&device);
+
+    rig.engine.handler_message(Message::Feedback {
+        binding,
+        feedback: Some(Feedback {
+            state: Some(On),
+            ..Feedback::default()
+        }),
+    });
+    let surface = last_state(&rig.take_events(), KEY_3).clone();
+    let active = surface.states.unwrap();
+    assert_eq!(active.now, On);
+    assert!(std::sync::Arc::ptr_eq(&active.on, &surface.image));
+    assert_eq!(states.on, active.on);
+    assert_eq!(states.off, active.off);
+    assert_same_picture(&shown_at(&sent(&device), KEY_3_SLOT), &surface.image);
+}
+
+#[test]
+fn clearing_an_inherited_on_image_does_not_remove_the_off_image() {
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![]);
+    let image = green_file(rig.dir.path());
+    rig.engine.command(Command::SetImage {
+        surface: KEY_3,
+        path: Some(image),
+    });
+    let off = last_state(&rig.take_events(), KEY_3).image.clone();
+    rig.engine.command(
+        Command::SetImage {
+            surface: KEY_3,
+            path: None,
+        }
+        .for_face(true),
+    );
+    let events = rig.take_events();
+    let surface = last_state(&events, KEY_3);
+    assert!(surface.content.image.is_some());
+    assert_eq!(
+        surface.content.on.as_deref(),
+        Some(&opencraft_engine::SurfaceContent::default())
+    );
+    let states = surface.states.as_ref().unwrap();
+    assert_eq!(states.off, off);
+    assert_color(&states.on, 0, 0, Color::BLACK);
+    assert_color(&states.on, 56, 56, Color::BLACK);
+}
+
+#[test]
 fn feedback_with_a_state_gives_the_image_of_each_state_to_the_shell() {
     use opencraft_engine::FeedbackState::{Off, On};
     let kind = "test.state";

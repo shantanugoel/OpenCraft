@@ -6,46 +6,42 @@
 //! The section shows the two faces "Off" and "On" next to each other. Both
 //! pictures are images of the engine (rule 11): the engine sends the image
 //! of each state with the surface (`SurfaceState::states`). The selected
-//! face chooses the form below: "Off" has the rows of "Appearance", and
-//! "On" has the label of the state On, a field of the action. The kind
-//! description tells which kind has two states and which field is the
-//! label (`KindDescription::states`), thus the window has no list of kinds
-//! (rule 8).
+//! face chooses which appearance to edit. The kind description tells which
+//! kind has two states and which setting holds a legacy On label (rule 8).
 
 use super::*;
 use crate::state::gestures;
 use gpui_kit::FontWeight;
-use opencraft_engine::{BindingId, FeedbackState, KindDescription, Value};
+use opencraft_engine::{BindingId, FeedbackState, KindDescription, SurfaceContent, Value};
 
 /// The state of the section that is not in the profile.
+#[derive(Default)]
 pub(super) struct StateFaces {
     /// The control whose face "On" is selected. The face "Off" of each
     /// other control is selected.
     on: Option<ControlId>,
-    /// The field "Title" of the face "On".
-    pub(super) input: Entity<InputState>,
-    _subscription: Subscription,
     /// The window images of the two states of each surface: Off, On.
     pub(super) images: BTreeMap<SurfaceId, (Arc<RenderImage>, Arc<RenderImage>)>,
 }
 
 impl StateFaces {
-    pub(super) fn new(window: &mut Window, cx: &mut Context<DeviceView>) -> Self {
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
-        let subscription = cx.subscribe_in(&input, window, |view, input, event, _, cx| {
-            view.text_edit_event(input.entity_id(), event, cx);
-            if matches!(event, TextEvent::Change) {
-                let text = input.read(cx).value().to_string();
-                view.set_on_label(text);
-            }
-        });
+    pub(super) fn new(state: &ViewState) -> Self {
         Self {
-            on: None,
-            input,
-            _subscription: subscription,
-            images: BTreeMap::new(),
+            images: state
+                .surfaces
+                .values()
+                .filter_map(|surface| Some((surface.id, face_images(surface)?)))
+                .collect(),
+            ..Self::default()
         }
     }
+}
+
+fn face_images(
+    surface: &opencraft_engine::SurfaceState,
+) -> Option<(Arc<RenderImage>, Arc<RenderImage>)> {
+    let states = surface.states.as_ref()?;
+    Some((images::from_rgb(&states.off), images::from_rgb(&states.on)))
 }
 
 impl DeviceView {
@@ -58,8 +54,7 @@ impl DeviceView {
         let binding = self.state.location.binding_id(control, gesture);
         let state = self.state.bindings.get(&binding).filter(|b| b.available)?;
         let kind = self.kind(&state.action.as_ref()?.kind)?;
-        // Until per-state faces are editable, this editor only edits the On title.
-        kind.states.as_ref()?.on_label.as_ref()?;
+        kind.states.as_ref()?;
         Some((binding, kind))
     }
 
@@ -98,10 +93,7 @@ impl DeviceView {
         let Event::Surface(surface) = event else {
             return;
         };
-        let new = surface
-            .states
-            .as_ref()
-            .map(|s| (images::from_rgb(&s.off), images::from_rgb(&s.on)));
+        let new = face_images(surface);
         let old = match new {
             Some(new) => self.faces.images.insert(surface.id, new),
             None => self.faces.images.remove(&surface.id),
@@ -112,47 +104,36 @@ impl DeviceView {
         }
     }
 
-    /// Put the label of the state On of the action into the field "Title"
-    /// of the face "On", unless the user types in it.
-    pub(super) fn sync_state_faces(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some((binding, kind)) = self.faces_binding() else {
-            return;
-        };
-        let Some(key) = kind.states.as_ref().and_then(|s| s.on_label.clone()) else {
-            return;
-        };
-        let input = self.faces.input.clone();
-        if gpui_kit::Focusable::focus_handle(input.read(cx), cx).is_focused(window) {
-            return;
-        }
-        let text = match self
-            .edit_action(binding)
-            .and_then(|a| a.settings.get(&key).cloned())
-        {
-            Some(Value::Text(text)) => text,
-            _ => String::new(),
-        };
-        if input.read(cx).value().as_ref() != text {
-            input.update(cx, |input, cx| input.set_value(text, window, cx));
+    pub(super) fn editing_on_face(&self, surface: SurfaceId) -> bool {
+        self.state.selected == Some(surface)
+            && self.faces.on.is_some()
+            && self.faces.on == self.state.selected_control
+            && self.faces_binding().is_some()
+    }
+
+    pub(super) fn edited_face(&self, surface: SurfaceId) -> SurfaceContent {
+        self.state
+            .surfaces
+            .get(&surface)
+            .map(|s| s.content.face(self.editing_on_face(surface)).clone())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn legacy_on_label(&self) -> Option<String> {
+        let (binding, kind) = self.faces_binding()?;
+        let key = kind.states.as_ref()?.on_label.as_ref()?;
+        match self.edit_action(binding)?.settings.get(key)? {
+            Value::Text(text) if !text.trim().is_empty() => Some(text.clone()),
+            _ => None,
         }
     }
 
-    /// The user typed in the field "Title" of the face "On". An empty text
-    /// removes the label.
-    fn set_on_label(&mut self, text: String) {
-        let Some((binding, kind)) = self.faces_binding() else {
-            return;
-        };
-        let Some(key) = kind.states.as_ref().and_then(|s| s.on_label.clone()) else {
-            return;
-        };
-        self.edit(binding, |action| {
-            if text.is_empty() {
-                action.settings.remove(&key);
-            } else {
-                action.settings.insert(key, Value::Text(text));
-            }
-        });
+    pub(super) fn clear_legacy_on_label(&mut self) -> Option<Command> {
+        let (binding, kind) = self.faces_binding()?;
+        let key = kind.states.as_ref()?.on_label.clone()?;
+        let mut action = self.edit_action(binding)?;
+        action.settings.remove(&key)?;
+        Some(self.pending_binding(binding, Some(action)))
     }
 
     /// The face button of one state: the image of the engine and the name.
@@ -229,8 +210,8 @@ impl DeviceView {
             .on_click(cx.listener(move |view, _, window, cx| {
                 view.faces.on = if on { control } else { None };
                 view.close_kinds();
-                view.sync_state_faces(window, cx);
                 view.focus_workspace(window, cx);
+                view.load_label(window, cx);
                 cx.notify();
             }))
             .into_any_element()
@@ -249,32 +230,6 @@ impl DeviceView {
             .get(&surface)
             .and_then(|s| s.states.as_ref())
             .map(|s| s.now);
-        let on = self.faces.on.is_some() && self.faces.on == self.state.selected_control;
-        let form = if on {
-            form::form(theme::FORM_GAP)
-                .child(form::row(
-                    "Title",
-                    theme::FORM_LABEL,
-                    theme::FORM_GAP,
-                    controls::text_field(
-                        &gpui_kit::component::input::AnyInputState::Input(self.faces.input.clone()),
-                        "Title",
-                        theme::BG_FIELD,
-                        window,
-                        cx,
-                    )
-                    .id("on-label-field")
-                    .debug_selector(|| "on-label-field".into()),
-                ))
-                .child(form::help(
-                    "The On face uses the fill and the image of the Off face, with a frame.",
-                ))
-                .into_any_element()
-        } else {
-            form::form(theme::FORM_GAP)
-                .children(self.appearance_rows(surface, window, cx))
-                .into_any_element()
-        };
         form::section("appearance", "Appearance for each state", None)
             .child(
                 div()
@@ -287,7 +242,7 @@ impl DeviceView {
                     .child(self.face_button(surface, false, now, cx))
                     .child(self.face_button(surface, true, now, cx)),
             )
-            .child(form)
+            .child(form::form(theme::FORM_GAP).children(self.appearance_rows(surface, window, cx)))
             .into_any_element()
     }
 }

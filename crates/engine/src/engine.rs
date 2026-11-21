@@ -164,6 +164,8 @@ pub const NO_REDO_STEP: &str = "There is no step to do again.";
 /// send commands with no reply.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
+    /// Apply a surface appearance command to the replacement On face.
+    OnFace(Box<Command>),
     /// Set the label of a surface. `None` or an empty text removes it.
     SetLabel {
         surface: SurfaceId,
@@ -432,6 +434,28 @@ pub enum Command {
     Stop,
 }
 
+impl Command {
+    /// Direct a surface appearance command to the On face when requested.
+    pub fn for_face(self, on: bool) -> Self {
+        if on {
+            Self::OnFace(Box::new(self))
+        } else {
+            self
+        }
+    }
+
+    fn is_face_edit(&self) -> bool {
+        matches!(
+            self,
+            Self::SetLabel { .. }
+                | Self::SetLabelStyle { .. }
+                | Self::SetColor { .. }
+                | Self::SetImage { .. }
+                | Self::SetIcon { .. }
+        )
+    }
+}
+
 /// The name of the step of the history that `command` makes, and the
 /// target that a later change in the same text edit can join (decision
 /// 0030). `location` is the page under the folders and the open folders.
@@ -443,12 +467,21 @@ pub enum Command {
 fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Target>)> {
     let step = |name: &str, target| Some((name.to_string(), target));
     match command {
+        Command::OnFace(command) if command.is_face_edit() => {
+            let (name, mut target) = step_of(command, location)?;
+            if let Some(Target::Label { on, .. }) = &mut target {
+                *on = true;
+            }
+            Some((name, target))
+        }
+        Command::OnFace(_) => None,
         Command::SetLabel { surface, .. } => step(
             "Set Title",
             Some(Target::Label {
                 page: location.page,
                 folder: location.folder_of_surface(*surface),
                 surface: *surface,
+                on: false,
             }),
         ),
         Command::SetLabelStyle { change, .. } => step(
@@ -546,6 +579,14 @@ fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Tar
 /// that writes two bindings, for example a setting of the "Turn" card of a
 /// knob, is one step (decision 0030).
 fn group_target(commands: &[Command], location: &Location) -> Option<Target> {
+    // An On title edit can also remove a legacy feedback label.
+    if matches!(
+        commands,
+        [Command::OnFace(edit), Command::SetBinding { action: Some(_), .. }]
+            if matches!(edit.as_ref(), Command::SetLabel { .. })
+    ) {
+        return step_of(&commands[0], location)?.1;
+    }
     let targets = commands
         .iter()
         .map(|c| step_of(c, location).and_then(|(_, target)| target))
@@ -2748,19 +2789,29 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// state of the surface.
     fn render(&mut self, surface: &Surface) {
         let content = self.location.content(&self.profile, surface.id);
-        let source = content
-            .image
-            .as_deref()
-            .and_then(|path| match self.store.load_image(path) {
-                Ok(image) => Some(image),
-                Err(e) => {
-                    self.notice(format!(
-                        "OpenCraft could not show the image of {}: {e}",
-                        surface.id
-                    ));
-                    None
-                }
-            });
+        let mut load = |face: &SurfaceContent| {
+            face.image
+                .as_deref()
+                .and_then(|path| match self.store.load_image(path) {
+                    Ok(image) => Some(image),
+                    Err(e) => {
+                        self.notice(format!(
+                            "OpenCraft could not show the image of {}: {e}",
+                            surface.id
+                        ));
+                        None
+                    }
+                })
+        };
+        let source = load(&content);
+        let on_face = content.on.as_deref();
+        let same_image = on_face.is_some_and(|on| on.image == content.image);
+        let on_source = on_face.filter(|_| !same_image).and_then(load);
+        let on_source = if same_image {
+            source.as_ref()
+        } else {
+            on_source.as_ref()
+        };
         let size = Size {
             width: u32::from(surface.width),
             height: u32::from(surface.height),
@@ -2775,28 +2826,32 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         let backdrop = self.background.as_ref().map(|background| {
             render::backdrop(background, u32::from(surface.x), u32::from(surface.y), size)
         });
-        let image = Arc::new(render::surface_image_on_background(
-            size,
-            &content,
-            source.as_ref(),
-            feedback,
-            backdrop.as_ref(),
-        ));
-        let states = feedback.and_then(|feedback| {
-            let now = feedback.state?;
-            let other = render::other_state(feedback);
-            let other = Arc::new(render::surface_image_on_background(
+        let draw = |feedback: Option<&Feedback>| {
+            Arc::new(render::surface_image_with_on(
                 size,
                 &content,
                 source.as_ref(),
-                Some(&other),
+                on_source,
+                feedback,
                 backdrop.as_ref(),
-            ));
+            ))
+        };
+        let image = draw(feedback);
+        let now = feedback
+            .and_then(|f| f.state)
+            .or_else(|| content.on.is_some().then_some(FeedbackState::Off));
+        let states = now.map(|now| {
+            let mut other = feedback.map(render::other_state).unwrap_or_default();
+            other.state = Some(match now {
+                FeedbackState::Off => FeedbackState::On,
+                FeedbackState::On => FeedbackState::Off,
+            });
+            let other = draw(Some(&other));
             let (off, on) = match now {
                 FeedbackState::Off => (Arc::clone(&image), other),
                 FeedbackState::On => (other, Arc::clone(&image)),
             };
-            Some(StateImages { now, off, on })
+            StateImages { now, off, on }
         });
         self.images.insert(surface.id, Arc::clone(&image));
         (self.sink)(Event::Surface(SurfaceState {
@@ -3078,15 +3133,30 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         (old_pages, old_folders)
     }
 
-    /// Obey one command with no step of the history. Return false if the
-    /// engine must stop.
-    fn obey(&mut self, command: Command) -> bool {
+    fn edit_face(&mut self, command: Command, on: bool) {
         match command {
-            Command::SetLabel { surface, label } => self.change(surface, |c| c.label = label),
-            Command::SetLabelStyle { surface, change } => {
-                self.change(surface, |c| c.label_style.apply(change))
+            Command::SetLabel { surface, label } => {
+                let label = label.filter(|s| !s.is_empty());
+                self.change_face(surface, on, |c| {
+                    let edited = label.is_some() || c.label.is_some();
+                    c.label = label;
+                    edited
+                });
             }
-            Command::SetColor { surface, color } => self.change(surface, |c| c.color = color),
+            Command::SetLabelStyle { surface, change } => {
+                self.change_face(surface, on, |c| {
+                    let before = c.label_style;
+                    c.label_style.apply(change);
+                    c.label_style != before
+                });
+            }
+            Command::SetColor { surface, color } => {
+                self.change_face(surface, on, |c| {
+                    let edited = color.is_some() || c.color.is_some();
+                    c.color = color;
+                    edited
+                });
+            }
             Command::SetImage { surface, path } => {
                 let image = match path {
                     None => None,
@@ -3094,15 +3164,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         Ok(copy) => Some(copy),
                         Err(e) => {
                             self.problem(format!("OpenCraft could not use the image: {e}"));
-                            return true;
+                            return;
                         }
                     },
                 };
-                self.change(surface, |c| {
-                    if image.is_some() {
+                self.change_face(surface, on, |c| {
+                    let edited = image.is_some() || c.image.is_some() || c.icon.is_some();
+                    if on || image.is_some() {
                         c.icon = None;
                     }
                     c.image = image;
+                    edited
                 });
             }
             Command::SetIcon { surface, icon } => {
@@ -3112,14 +3184,48 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                             "The icon set does not have the icon '{}'.",
                             icon.name
                         ));
-                        return true;
+                        return;
                     }
                 }
-                self.change(surface, |c| {
-                    c.image = None;
+                self.change_face(surface, on, |c| {
+                    let edited = icon.is_some() || c.icon.is_some();
+                    if !on || icon.is_some() {
+                        c.image = None;
+                    }
                     c.icon = icon;
+                    edited
                 });
             }
+            _ => self.refuse("Only surface appearance commands can edit an On face."),
+        }
+    }
+
+    fn change_face(
+        &mut self,
+        surface: SurfaceId,
+        on: bool,
+        change: impl FnOnce(&mut SurfaceContent) -> bool,
+    ) {
+        self.change(surface, |content| {
+            let first_on_edit = on && content.on.is_none();
+            if !change(content.face_mut(on)) && first_on_edit {
+                // Do not make a replacement face for an edit that clears
+                // an already empty part or leaves the label style as it was.
+                content.on = None;
+            }
+        });
+    }
+
+    /// Obey one command with no step of the history. Return false if the
+    /// engine must stop.
+    fn obey(&mut self, command: Command) -> bool {
+        match command {
+            Command::OnFace(command) => self.edit_face(*command, true),
+            command @ (Command::SetLabel { .. }
+            | Command::SetLabelStyle { .. }
+            | Command::SetColor { .. }
+            | Command::SetImage { .. }
+            | Command::SetIcon { .. }) => self.edit_face(command, false),
             Command::SetBinding { binding, action } => self.set_binding(binding, action),
             Command::SetBackground { page, background } => self.set_background(page, background),
             Command::SetBackgroundFit { page, fit } => {
@@ -3291,17 +3397,22 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         if self.parts(control).is_none() {
             return;
         }
-        if source != self.store.dir() {
-            if let Some(image) = content.image() {
-                match self.store.import_image(&source.join(image)) {
-                    Ok(copy) => {
-                        if let Some(surface) = content.surface.as_mut() {
-                            surface.image = Some(copy);
+        if let Some(surface) = content
+            .surface
+            .as_mut()
+            .filter(|_| source != self.store.dir())
+        {
+            for image in [&mut surface.image]
+                .into_iter()
+                .chain(surface.on.as_deref_mut().map(|face| &mut face.image))
+            {
+                if let Some(path) = image.as_deref() {
+                    match self.store.import_image(&source.join(path)) {
+                        Ok(copy) => *image = Some(copy),
+                        Err(e) => {
+                            self.problem(format!("OpenCraft could not use the image: {e}"));
+                            return;
                         }
-                    }
-                    Err(e) => {
-                        self.problem(format!("OpenCraft could not use the image: {e}"));
-                        return;
                     }
                 }
             }

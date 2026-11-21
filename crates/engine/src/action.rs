@@ -473,8 +473,9 @@ pub struct Direction {
 /// The two states of a kind: see [`KindDescription::states`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TwoStates {
-    /// The key of the text field with the label of the state On, if the kind
-    /// has one. The shell shows this field with the face of the state On.
+    /// The key of the legacy On label setting, if the kind has one.
+    /// An edit of the On title in the shell replaces this setting with the
+    /// stored label of the On face.
     pub on_label: Option<String>,
 }
 

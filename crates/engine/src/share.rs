@@ -481,6 +481,44 @@ mod tests {
         }
     }
 
+    #[test]
+    fn export_and_import_include_images_used_only_by_on_faces() {
+        use crate::profile::{Folder, FolderId};
+        let dir = TempDir::new().unwrap();
+        let (store, mut profile) = sample(&dir);
+        let page = profile.page_mut(0).unwrap();
+        page.update(KEY_1, |c| {
+            c.face_mut(true).image = c.image.take();
+        });
+        page.update(KEY_2, |c| c.image = None);
+
+        let image = profile.pages()[1].content(KEY_1).image.unwrap();
+        profile
+            .page_mut(1)
+            .unwrap()
+            .update(KEY_1, |c| c.image = None);
+        let mut folder = Page::new("More");
+        folder.update(KEY_1, |c| c.face_mut(true).image = Some(image));
+        assert!(profile.add_folder(Folder {
+            id: FolderId::from_raw(2).unwrap(),
+            page: folder
+        }));
+
+        let file = dir.path().join("Faces.opencraft");
+        export(&profile, &store, &file, &[]).unwrap();
+        let package = import(&file).unwrap();
+        assert_eq!(package.image_count(), 2);
+        let target = ProfileStore::new(dir.path().join("imported"));
+        let imported = package.write_images(&target, BACKGROUND).unwrap();
+        assert_eq!(imported, profile);
+        for path in imported.image_paths() {
+            assert_eq!(
+                target.image_data(path).unwrap(),
+                store.image_data(path).unwrap()
+            );
+        }
+    }
+
     /// The file for the checks of the owner (`docs/checks`) is a correct
     /// profile file with 3 pages, and it holds no personal path.
     #[test]

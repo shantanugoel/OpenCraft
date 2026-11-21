@@ -196,6 +196,8 @@ pub struct SurfaceContent {
     /// An icon of the built-in set (see [`crate::icons`]). A surface has an
     /// image or an icon, not both: the commands remove the other one.
     pub icon: Option<SurfaceIcon>,
+    /// The replacement face for On. Its own `on` is always `None`.
+    pub on: Option<Box<SurfaceContent>>,
 }
 
 /// An icon on a surface: a name of the built-in icon set and a colour
@@ -238,6 +240,44 @@ impl SurfaceContent {
             && self.color.is_none()
             && self.image.is_none()
             && self.icon.is_none()
+            && self.on.is_none()
+    }
+
+    /// Get the requested face, using the base face if On has no replacement.
+    pub fn face(&self, on: bool) -> &Self {
+        if on {
+            self.on.as_deref().unwrap_or(self)
+        } else {
+            self
+        }
+    }
+
+    /// Get the requested face. The first On edit starts with a copy of Off.
+    pub fn face_mut(&mut self, on: bool) -> &mut Self {
+        if !on {
+            return self;
+        }
+        if self.on.is_none() {
+            self.on = Some(Box::new(self.clone()));
+        }
+        self.on.as_deref_mut().expect("On face exists")
+    }
+
+    pub(crate) fn image_paths(&self) -> impl Iterator<Item = &str> {
+        self.image
+            .as_deref()
+            .into_iter()
+            .chain(self.on.as_deref().and_then(|face| face.image.as_deref()))
+    }
+
+    fn normalize(&mut self) {
+        if self.label.as_deref() == Some("") {
+            self.label = None;
+        }
+        if let Some(on) = self.on.as_deref_mut() {
+            on.on = None;
+            on.normalize();
+        }
     }
 
     /// True if the content shows a picture: an image, or an icon of the
@@ -421,6 +461,9 @@ impl Page {
                     .image
                     .as_deref()
                     .and_then(|p| map(p, ImageUse::Surface));
+                if let Some(on) = content.on.as_deref_mut() {
+                    on.image = on.image.as_deref().and_then(|p| map(p, ImageUse::Surface));
+                }
             });
         }
         if let Some(Background::Image { image, fit }) = &self.background {
@@ -436,9 +479,7 @@ impl Page {
         let before = self.content(surface);
         let mut after = before.clone();
         change(&mut after);
-        if after.label.as_deref() == Some("") {
-            after.label = None;
-        }
+        after.normalize();
         if after == before {
             return false;
         }
@@ -932,7 +973,7 @@ pub(crate) fn image_uses_of<'a>(
     let surfaces = pages
         .iter()
         .flat_map(|p| p.surfaces.values())
-        .filter_map(|c| c.image.as_deref())
+        .flat_map(SurfaceContent::image_paths)
         .map(|p| (p, ImageUse::Surface));
     let backgrounds = pages
         .iter()
@@ -941,7 +982,7 @@ pub(crate) fn image_uses_of<'a>(
     let folders = folders
         .iter()
         .flat_map(|folder| folder.page.surfaces())
-        .filter_map(|(_, content)| content.image.as_deref())
+        .flat_map(|(_, content)| content.image_paths())
         .map(|p| (p, ImageUse::Surface));
     surfaces.chain(backgrounds).chain(folders)
 }
@@ -951,6 +992,27 @@ mod tests {
     use super::*;
 
     const KEY_3: SurfaceId = SurfaceId::new(SurfaceKind::KeyFace, 3);
+
+    #[test]
+    fn an_empty_on_face_is_a_replacement_not_an_absent_face() {
+        let mut page = Page::new("Main");
+        page.update(KEY_3, |c| {
+            c.label = Some("Off".into());
+            *c.face_mut(true) = SurfaceContent {
+                label: Some(String::new()),
+                on: Some(Box::new(SurfaceContent::default())),
+                ..SurfaceContent::default()
+            };
+        });
+        let content = page.content(KEY_3);
+        assert_eq!(content.face(true), &SurfaceContent::default());
+        assert_eq!(content.face(false).label.as_deref(), Some("Off"));
+        assert!(!SurfaceContent {
+            on: content.on,
+            ..SurfaceContent::default()
+        }
+        .is_empty());
+    }
 
     #[test]
     fn a_colour_has_the_text_form_of_six_hex_digits() {

@@ -346,18 +346,21 @@ impl DeviceView {
     /// Set the icon `name` on the surface `id`, with the colour of the
     /// current icon, or the colour that the user selected in the popover.
     fn choose_icon(&mut self, id: SurfaceId, name: &'static str, cx: &mut Context<Self>) {
-        let current = self.state.surfaces.get(&id).map(|s| &s.content);
-        let color = match current.and_then(|c| c.icon.as_ref()) {
+        let current = self.edited_face(id);
+        let color = match current.icon {
             Some(icon) => icon.color,
             None => self.inspector.icon_picker.colour,
         };
-        (self.send)(Command::SetIcon {
-            surface: id,
-            icon: Some(SurfaceIcon {
-                name: name.into(),
-                color,
-            }),
-        });
+        self.send_surface(
+            id,
+            Command::SetIcon {
+                surface: id,
+                icon: Some(SurfaceIcon {
+                    name: name.into(),
+                    color,
+                }),
+            },
+        );
         self.shell
             .update(cx, |shell, cx| shell.add_recent_icon(name, cx));
         if self.inspector.icon_picker.tab == PickerTab::Recent {
@@ -369,19 +372,18 @@ impl DeviceView {
     /// Set the colour of the icon of the surface `id`. With no icon, keep
     /// the colour for the next icon.
     fn choose_icon_colour(&mut self, id: SurfaceId, color: Color, cx: &mut Context<Self>) {
-        let icon = self
-            .state
-            .surfaces
-            .get(&id)
-            .and_then(|s| s.content.icon.clone());
+        let icon = self.edited_face(id).icon;
         match icon {
-            Some(icon) => (self.send)(Command::SetIcon {
-                surface: id,
-                icon: Some(SurfaceIcon {
-                    color: Some(color),
-                    ..icon
-                }),
-            }),
+            Some(icon) => self.send_surface(
+                id,
+                Command::SetIcon {
+                    surface: id,
+                    icon: Some(SurfaceIcon {
+                        color: Some(color),
+                        ..icon
+                    }),
+                },
+            ),
             None => self.inspector.icon_picker.colour = Some(color),
         }
         cx.notify();
@@ -768,10 +770,20 @@ impl DeviceView {
                     .child(
                         footer_button("icon-no-icon", "No icon", theme::TRANSPARENT).on_click(
                             cx.listener(move |view, _, window, cx| {
-                                (view.send)(Command::SetIcon {
-                                    surface: id,
-                                    icon: None,
-                                });
+                                let command = if view.editing_on_face(id)
+                                    && view.edited_face(id).image.is_some()
+                                {
+                                    Command::SetImage {
+                                        surface: id,
+                                        path: None,
+                                    }
+                                } else {
+                                    Command::SetIcon {
+                                        surface: id,
+                                        icon: None,
+                                    }
+                                };
+                                view.send_surface(id, command);
                                 view.close_icon_picker(window, cx);
                             }),
                         ),

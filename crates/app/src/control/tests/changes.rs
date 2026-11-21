@@ -365,6 +365,60 @@ fn each_surface_request_sets_and_removes_its_part() {
 }
 
 #[test]
+fn the_surface_requests_can_write_and_read_the_on_face() {
+    let mut live = Live::new();
+    let surface = surface_1();
+    let target = live.at(0);
+    let find = |live: &mut Live| {
+        live.content(target.clone())["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == surface)
+            .unwrap()
+            .clone()
+    };
+    live.ok(
+        "set_label",
+        json!({"target": target, "surface": surface, "label": "Base"}),
+    );
+    assert!(find(&mut live).get("on").is_none());
+    for (method, key, value) in [
+        ("set_label", "label", json!("Live")),
+        (
+            "set_label_style",
+            "style",
+            json!({"position": "top", "size": 24, "color": "#ff0000", "bold": false}),
+        ),
+        ("set_color", "color", json!("#00ff00")),
+        ("set_icon", "icon", json!({"name": "star", "color": null})),
+    ] {
+        live.ok(
+            method,
+            json!({"target": target, "surface": surface, "on": true, key: value}),
+        );
+    }
+    let key = find(&mut live);
+    assert_eq!(key["on"]["icon"]["name"], "star");
+    let image = live.image("on.png");
+    live.ok(
+        "set_image",
+        json!({"target": target, "surface": surface, "on": true, "path": image}),
+    );
+    let key = find(&mut live);
+    assert_eq!(key["label"], "Base");
+    assert!(key["color"].is_null() && key["image"].is_null() && key["icon"].is_null());
+    assert_eq!(key["on"]["label"], "Live");
+    assert_eq!(
+        key["on"]["label_style"],
+        json!({"position": "top", "size": 24, "color": "#FF0000", "bold": false})
+    );
+    assert_eq!(key["on"]["color"], "#00FF00");
+    assert!(key["on"]["image"].as_str().unwrap().starts_with("images/"));
+    assert!(key["on"]["icon"].is_null());
+}
+
+#[test]
 fn binding_and_control_requests_set_remove_copy_paste_clear_and_copy_to_all_pages() {
     let mut live = Live::new();
     let profile = live.active.clone();

@@ -300,7 +300,9 @@ do not accept a synthetic Fn event.
 | Hotkey | Record a key combination as for [Send a hotkey](#send-a-hotkey). |
 
 On macOS, give OpenCraft the Accessibility permission. Set the action on
-**Press** for a key that you use for push-to-talk.
+**Press** for a key that you use for push-to-talk. Use
+[Appearance for each state](#toggle) to set the **On** face for when you
+hold the key and the **Off** face for when you do not hold it.
 
 OpenCraft holds the hotkey while you hold the key on the device. It releases
 the hotkey when you release that key. It also releases the hotkey if the page,
@@ -539,9 +541,14 @@ The two actions ask for no permission.
 ## Microphone mute
 
 Group: **Media**. This action has no settings. A push switches the mute of
-the default sound input of the Mac. The key shows **Microphone muted** with
-a frame, or **Microphone on** with no frame. A change from another program
-also changes the key. The action follows a change of the default input.
+the default sound input of the Mac. The control shows **Microphone muted**
+or **Microphone on**. A change from another program also changes the
+control. The action follows a change of the default input.
+
+Set the action on **Press** of a key or **Tap** of a bar panel to show
+[Appearance for each state](#toggle). **On** is the muted state. It shows
+a frame until you change the **On** face. The action supplies the title
+in both states.
 
 A device with no writable master mute shows **Not supported**. OpenCraft
 does not set its input volume to zero as a substitute. It opens no input
@@ -666,17 +673,20 @@ of **Tap** of a bar panel, is a toggle, the inspector shows the section
   as the device shows them. The face of the state now has the text "· now".
   The second line of the inspector header also shows the state, for example
   "Toggle · the state now is Off".
-- Click **Off** to change the image, the title, the look of the title, and
-  the fill of the key.
-- Click **On** to change the label for on in **Title**. The face On uses the
-  fill and the image of the face Off, with a frame.
+- Click **Off** or **On** to change that face. Both faces have the same
+  rows: **Icon** (or an image file), **Title**, **Position**, **Text** and
+  **Fill**.
+- Until you change the **On** face, it shows the **Off** face with a frame.
+  The first change starts with a copy of the **Off** face. The **On** face
+  then replaces the **Off** face and the frame when the state is on.
+- If a toggle has an old label for the on state, **Title** shows that
+  label. When you edit it, OpenCraft stores the new title on the **On**
+  face and removes the old setting.
 
 Notes:
 
 - A toggle starts in the state off. Thus the first operation does the
   action for on.
-- In the state on, the key face or the bar panel shows a frame. The frame
-  has the colour of the title.
 - OpenCraft keeps the state while it runs. When OpenCraft starts again, each
   toggle is off.
 - If you change the settings of a toggle, its state becomes off.

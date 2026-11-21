@@ -155,6 +155,25 @@ fn each_example_makes_a_request_that_the_protocol_accepts() {
 }
 
 #[test]
+fn each_surface_change_accepts_the_on_flag() {
+    let mut count = 0;
+    for command in COMMANDS
+        .iter()
+        .filter(|c| c.name.starts_with("surface set-"))
+    {
+        let line = format!("{} --on true", command.example);
+        let parse::Parsed::Run { command, flags } = parse::parse(&arguments(&line)).unwrap() else {
+            panic!("not a command")
+        };
+        let params = parse::params(command, &flags, None).unwrap();
+        assert_eq!(params["on"], true);
+        super::request(command.method, params).unwrap();
+        count += 1;
+    }
+    assert_eq!(count, 5);
+}
+
+#[test]
 fn the_flags_make_the_params_of_the_protocol() {
     let params = |line: &str, base: Option<Value>| {
         let parse::Parsed::Run { command, flags } = parse::parse(&arguments(line)).unwrap() else {
