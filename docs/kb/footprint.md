@@ -11,7 +11,7 @@ again at the end of each phase.
 
 Issue [#437](https://github.com/shantanugoel/OpenCraft/issues/437) measures
 the latency of a single press with and with no gesture timers, and the memory
-and idle processor use after [Phase 10](../ROADMAP.md#phase-10-long-press-double-press-and-key-states-in-progress)
+and idle processor use after [Phase 10](../ROADMAP.md#phase-10-long-press-double-press-and-key-states-complete)
 ([decision 0042](../decisions/0042-gesture-timers.md)).
 
 ### Single-press latency (2026-11-21)

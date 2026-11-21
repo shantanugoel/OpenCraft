@@ -27,7 +27,7 @@ application that other persons can adopt.
 | 7 | A reliable daily driver | Complete, with owner checks open |
 | 8 | Everyday actions | Complete |
 | 9 | Profiles that follow the work | Complete |
-| 10 | Long press, double press, and key states | In progress |
+| 10 | Long press, double press, and key states | Complete |
 
 ## Checks for each phase
 
@@ -638,12 +638,13 @@ decisions), [#337](https://github.com/shantanugoel/OpenCraft/issues/337)
 (PLUG-31), and [#341](https://github.com/shantanugoel/OpenCraft/issues/341)
 (P9-M1).
 
-## Phase 10: Long press, double press, and key states (in progress)
+## Phase 10: Long press, double press, and key states (complete)
 
 **Goal.** One key does more: a long press, a double press, a hold for
 push-to-talk, and states with their own faces. The phase issue is
 [#202](https://github.com/shantanugoel/OpenCraft/issues/202). The umbrella
-issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
+issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198). The
+release is 0.6.0.
 
 **Scope.**
 
@@ -663,18 +664,29 @@ issue is [#198](https://github.com/shantanugoel/OpenCraft/issues/198).
 
 **Exit criteria.**
 
-- [ ] A key with no long-press and no double-press binding runs its Press
+- [x] A key with no long-press and no double-press binding runs its Press
   action with no added delay. A test with the fake clock and the owner check
   show it.
-- [ ] A long press runs its own action, and the short-press action does not
+- [x] A long press runs its own action, and the short-press action does not
   run.
-- [ ] A double press runs only on a key that has a double-press binding.
-- [ ] The push-to-talk key holds the microphone open in a call app while the
-  key is down. The owner did this check.
-- [ ] A two-state key shows the image of each state on the device and in the
+- [x] A double press runs only on a key that has a double-press binding.
+- [x] The push-to-talk key holds the microphone open in a call app while the
+  key is down.
+- [x] A two-state key shows the image of each state on the device and in the
   window (rule 11).
-- [ ] The timer counts down, rings at the end, and resets with a long press.
-- [ ] Old profiles load. An engine test covers each old schema.
+- [x] The timer counts down, rings at the end, and resets with a long press.
+- [x] Old profiles load. An engine test covers each old schema.
+
+**Result.** The phase is complete on 2026-11-22, and the
+[checks for each phase](#checks-for-each-phase) are done.
+
+- All task issues (`#430` to `#437`) are complete. The owner approved closing
+  the phase and releasing version 0.6.0 without running the manual procedure in
+  [checks/phase-10-checks.md](checks/phase-10-checks.md).
+- The latency replay on recorded N4 Pro reports, the 300-second memory and
+  processor measurements (`55.5 MB` and `0.14 %` CPU with the window open;
+  `24.5 MB` and `0.15 %` CPU with `--login`), and the USB camera checks on the
+  connected N4 Pro are in [kb/footprint.md](kb/footprint.md).
 
 **Decisions that this phase forces.** The gesture timers for the long press,
 the double press, and the hold, the two faces of a key, the steps of a

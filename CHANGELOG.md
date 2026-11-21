@@ -4,13 +4,52 @@ This file lists the changes for each version. Its form follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-11-22
+
+This version adds long press and double press gestures, push-to-talk key holds,
+two-state key faces, action cycles, countdown timers, and multi-function knobs.
+
+### Added
+
+- **Long press** (500 ms) and **Double press** (300 ms) gestures on keys. A key
+  with only a **Press** binding runs immediately on press with no added delay.
+- **Hold a hotkey** (`opencraft.hold-hotkey`): holds a key or chord while you
+  hold the physical key, for push-to-talk. Releases on key release, page or
+  profile change, sleep, disconnect, or exit.
+- **Two-state key faces**: a two-state key (**Toggle**, **Microphone mute**,
+  **Hold a hotkey**, or **Timer**) can have its own **On** face image, icon,
+  colour, label, and label style. When a key has a custom **On** face, the
+  default 6 px border frame does not draw.
+- **Action cycle** (`opencraft.cycle`): runs the next action in a list on each
+  press and wraps to the first step. The inspector shows **Next** on the step
+  that runs next.
+- **Timer** (`opencraft.timer`): counts down on the key face, sounds the system
+  bell at `00:00`, pauses on a short press, and resets on a long press.
+- **Multi-function knob** (`opencraft.knob-functions`): holds a list of turn
+  functions on one knob. A push switches to the next function and shows its
+  title on the bar panel.
 
 ### Changed
 
 - The Homebrew cask is in the tap `shantanugoel/tap`. The command to install
   is now `brew install --cask shantanugoel/tap/opencraft`. The tap
   `shantanugoel/opencraft` does not exist any more.
+- OpenCraft writes profile schema 7, which adds `long-press`, `double-press`,
+  and per-surface `on` faces. A profile file from version 0.5.0 loads and
+  changes to schema 7. Version 0.5.0 cannot read a schema 7 file.
+
+### Known limits
+
+- Only the N4 Pro is supported.
+- Only Mac computers with Apple silicon and macOS 12 or later. The project
+  tested OpenCraft on macOS 27 only.
+- Send a hotkey, Hold a hotkey, Type text, Media key, Mouse event, Launchpad,
+  Screenshot, Lock, and Show desktop need the Accessibility permission.
+- The Sleep function does nothing when macOS does not allow sleep.
+  OpenCraft then names the cause.
+- OpenCraft has no plug-ins.
+- The control protocol and the commands of `opencraft ctl` can change in
+  each release before version 1.0.
 
 ## [0.5.0] - 2026-11-16
 
