@@ -474,6 +474,7 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Back", "Navigation", None, false),
             ("Toggle", "Logic", None, false),
             ("Sequence of actions", "Logic", None, false),
+            ("Action cycle", "Logic", None, false),
         ]
     );
 }
@@ -523,11 +524,52 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Back", "corner-up-left"),
             ("Toggle", "toggle-left"),
             ("Sequence of actions", "list"),
+            ("Action cycle", "repeat"),
         ]
     );
     for (_, icon) in icons {
         assert!(opencraft_engine::icon_set().get(icon).is_some(), "{icon}");
     }
+}
+
+#[test]
+fn an_action_cycle_runs_one_step_per_press_wraps_around_and_resets_when_edited() {
+    use support::Call::Hotkey;
+
+    let mut world = World::new();
+    let binding = key_3(0);
+    let hotkey = |key: &str| built_in("hotkey", vec![("hotkey", Value::Text(key.into()))]);
+    let cycle = |steps: &[Action]| built_in("cycle", vec![("steps", Action::list_to_value(steps))]);
+    let step_events = |world: &mut World| {
+        world
+            .take_events()
+            .into_iter()
+            .filter_map(|event| match event {
+                Event::Step { binding: id, step } if id == binding => Some(step),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+
+    world.bind_key_3(cycle(&[hotkey("c"), hotkey("v"), hotkey("c")]));
+    assert_eq!(step_events(&mut world), [Some(0)]);
+    let mut calls = Vec::new();
+    for (key, next) in [("c", 1), ("v", 2), ("c", 0), ("c", 1)] {
+        world.press_key_3();
+        calls.push(Hotkey(key.into()));
+        assert_eq!(world.system.calls(), calls);
+        assert_eq!(step_events(&mut world), [Some(next)]);
+    }
+
+    world.command(Command::AddPage { copy_of: None });
+    assert_eq!(step_events(&mut world), [None]);
+    world.command(Command::SelectPage { page: 0 });
+    assert_eq!(step_events(&mut world), [Some(1)]);
+    world.bind_key_3(cycle(&[hotkey("a"), hotkey("v"), hotkey("c")]));
+    assert_eq!(step_events(&mut world), [None, Some(0)]);
+    world.press_key_3();
+    calls.push(Hotkey("a".into()));
+    assert_eq!(world.system.calls(), calls);
 }
 
 #[test]

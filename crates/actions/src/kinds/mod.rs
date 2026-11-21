@@ -33,6 +33,7 @@
 //! the shared system port with [`Work::shared_system`].
 
 mod close_folder;
+pub(crate) mod cycle;
 mod device_brightness;
 pub(crate) mod hold_hotkey;
 mod hotkey;
@@ -99,6 +100,8 @@ pub(crate) enum Group {
     Toggle,
     /// Sequence of actions. A sequence waits on a thread of its own.
     Sequence,
+    /// Action cycle. The handler keeps the position of each cycle.
+    Cycle,
     /// Screen off and device brightness. These kinds only ask the engine for
     /// work.
     Device,
@@ -110,6 +113,8 @@ pub(crate) enum Group {
 pub(crate) struct Memory {
     /// The states of the toggles (decision 0017).
     pub(crate) toggles: toggle::States,
+    /// The positions of action cycles (decision 0042).
+    pub(crate) cycles: cycle::Positions,
 }
 
 /// One call of a kind: the system port, and the sender of its handler.
@@ -354,6 +359,10 @@ const REGISTERED: &[Registered] = &[
         group: Group::Sequence,
         kind: &sequence::KIND,
     },
+    Registered {
+        group: Group::Cycle,
+        kind: &cycle::KIND,
+    },
 ];
 
 /// Each registered kind, in library order.
@@ -542,6 +551,7 @@ mod tests {
         );
         assert_eq!(ids(Group::Toggle), [toggle::ID]);
         assert_eq!(ids(Group::Sequence), [sequence::ID]);
+        assert_eq!(ids(Group::Cycle), [cycle::ID]);
         assert_eq!(ids(Group::Device), [screen_off::ID, device_brightness::ID]);
         let handlers = handlers::build(
             Arc::new(crate::tests::support::Fake::default()),
@@ -557,6 +567,7 @@ mod tests {
             (page::ID, Group::Navigation),
             (toggle::ID, Group::Toggle),
             (sequence::ID, Group::Sequence),
+            (cycle::ID, Group::Cycle),
             (screen_off::ID, Group::Device),
         ] {
             let handler = handlers

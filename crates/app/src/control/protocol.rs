@@ -880,6 +880,8 @@ pub struct Kind {
     pub direction: Option<Direction>,
     pub states: Option<TwoStates>,
     pub folder_back: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steps: Option<String>,
     pub shown_when: Vec<ShownWhen>,
     pub permission_when: Option<ShownWhen>,
     pub status: Option<Status>,

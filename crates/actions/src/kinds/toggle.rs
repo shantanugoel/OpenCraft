@@ -194,7 +194,7 @@ impl States {
 
 /// True if a value in `settings`, at any depth, is the table `inner`: for
 /// example the settings of an action that the settings contain.
-fn contains(settings: &Settings, inner: &Settings) -> bool {
+pub(crate) fn contains(settings: &Settings, inner: &Settings) -> bool {
     fn value_contains(value: &Value, inner: &Settings) -> bool {
         match value {
             Value::Table(table) => table == inner || contains(table, inner),

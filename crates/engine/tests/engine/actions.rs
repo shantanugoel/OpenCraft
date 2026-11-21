@@ -425,8 +425,104 @@ fn feedback(rig: &mut Rig, binding: BindingId, label: &str, level: u8) {
             level: Some(level),
             state: None,
             other_state: None,
+            step: None,
         }),
     });
+}
+
+#[test]
+fn feedback_step_sends_a_step_event_and_clears_when_removed_or_disappeared() {
+    let kind = "test.feedback";
+    let (port, _requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let id = binding(ControlKind::Key, 1, GestureKind::DoublePress);
+    let press = binding(ControlKind::Key, 1, GestureKind::Press);
+    set_binding(&mut rig, id, Some(action(kind)));
+    set_binding(&mut rig, press, Some(action(kind)));
+    feedback(&mut rig, press, "Press", 50);
+    rig.take_events();
+    let send = |rig: &mut Rig, step: Option<usize>| {
+        rig.engine.handler_message(Message::Feedback {
+            binding: id,
+            feedback: step.map(|step| Feedback {
+                step: Some(step),
+                ..Feedback::default()
+            }),
+        });
+        rig.take_events()
+    };
+    let event = |step| Event::Step { binding: id, step };
+    assert_eq!(send(&mut rig, Some(0)), [event(Some(0))]);
+    assert!(send(&mut rig, Some(0)).is_empty());
+    assert_eq!(send(&mut rig, Some(1)), [event(Some(1))]);
+    assert_eq!(send(&mut rig, None), [event(None)]);
+
+    // Step-only feedback and visual-only feedback on the same binding coexist.
+    rig.engine.handler_message(Message::Feedback {
+        binding: press,
+        feedback: Some(Feedback {
+            step: Some(1),
+            ..Feedback::default()
+        }),
+    });
+    assert_eq!(
+        rig.take_events(),
+        [Event::Step {
+            binding: press,
+            step: Some(1),
+        }]
+    );
+    feedback(&mut rig, press, "Nested", 75);
+    let events = rig.take_events();
+    assert!(events.iter().any(|e| matches!(e, Event::Surface(_))));
+    assert!(!events.iter().any(|e| matches!(e, Event::Step { .. })));
+
+    send(&mut rig, Some(0));
+    assert!(rig.engine.command(Command::AddPage { copy_of: None }));
+    assert!(rig.take_events().contains(&event(None)));
+    assert!(rig.engine.command(Command::SelectPage { page: 0 }));
+    rig.take_events();
+    send(&mut rig, Some(1));
+    set_binding(&mut rig, id, Some(action("test.edited")));
+    assert!(rig.take_events().contains(&event(None)));
+    send(&mut rig, Some(0));
+    set_binding(&mut rig, id, None);
+    assert!(rig.take_events().contains(&event(None)));
+}
+
+#[test]
+fn step_feedback_without_a_surface_survives_a_folder_snapshot() {
+    let kind = "test.feedback";
+    let (port, _requests) = port(kind);
+    let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
+    let id = binding(ControlKind::TouchBar, 1, GestureKind::SwipeLeft);
+    set_binding(&mut rig, id, Some(action(kind)));
+    rig.take_events();
+    let step = Event::Step {
+        binding: id,
+        step: Some(2),
+    };
+    rig.engine.handler_message(Message::Feedback {
+        binding: id,
+        feedback: Some(Feedback {
+            step: Some(2),
+            ..Feedback::default()
+        }),
+    });
+    assert_eq!(rig.take_events(), std::slice::from_ref(&step));
+    let folder = opencraft_engine::FolderId::from_raw(1).unwrap();
+    assert!(rig.engine.command(Command::AddFolder {
+        id: folder,
+        name: Some("Folder".into()),
+        copy_of: None,
+    }));
+    assert_eq!(rig.engine.open_folders(), &[folder]);
+    let events = rig.take_events();
+    let pages = events
+        .iter()
+        .position(|e| matches!(e, Event::Pages { .. }))
+        .unwrap();
+    assert!(events[pages + 1..].contains(&step));
 }
 
 #[test]
@@ -977,6 +1073,7 @@ fn feedback_with_the_state_on_draws_a_frame_and_off_removes_it() {
                 level: None,
                 state: Some(state),
                 other_state: None,
+                step: None,
             }),
         });
     };

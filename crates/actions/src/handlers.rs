@@ -67,7 +67,8 @@ pub(crate) fn build(system: Arc<dyn System>, intervals: Intervals) -> Vec<Box<dy
         Box::new(crate::sound::SoundHandler::new(system.clone())),
         Box::new(RequestHandler::new(Group::Navigation, system.clone())),
         Box::new(RequestHandler::new(Group::Toggle, system.clone())),
-        Box::new(RequestHandler::new(Group::Sequence, system)),
+        Box::new(RequestHandler::new(Group::Sequence, system.clone())),
+        Box::new(RequestHandler::new(Group::Cycle, system)),
     ]
 }
 

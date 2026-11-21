@@ -219,6 +219,7 @@ fn feedback_is_gone_after_a_page_change() {
             level: Some(40),
             state: None,
             other_state: None,
+            step: None,
         }),
     });
     assert!(!is_blank(&last_state(&rig.take_events(), BAR_2).image));

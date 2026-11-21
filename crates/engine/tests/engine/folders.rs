@@ -745,6 +745,7 @@ fn a_folder_open_and_a_folder_close_write_the_same_device_reports_as_before() {
             level: Some(40),
             state: None,
             other_state: None,
+            step: None,
         }),
     });
     sent(&device);

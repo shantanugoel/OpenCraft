@@ -279,6 +279,7 @@ impl From<&e::KindDescription> for w::Kind {
                 on_label: s.on_label.clone(),
             }),
             folder_back: kind.folder_back,
+            steps: kind.steps.clone(),
             shown_when: kind.shown_when.iter().map(Into::into).collect(),
             permission_when: kind.permission_when.as_ref().map(Into::into),
             status: None,
@@ -623,7 +624,7 @@ impl w::State {
             e::Event::Firmware(firmware) => self.connection.firmware = firmware.clone(),
             e::Event::Disconnected => self.connection = w::Connection::default(),
             // Never expose input, file destinations, or arbitrary engine logs.
-            e::Event::Input(_) => {}
+            e::Event::Input(_) | e::Event::Step { .. } => {}
             e::Event::ProfileExported { .. } => {}
             e::Event::ProfileImported { .. } => {}
             e::Event::Problem(_) => {}
@@ -637,6 +638,7 @@ pub(super) fn ignored(event: &e::Event) -> bool {
     matches!(
         event,
         e::Event::Input(_)
+            | e::Event::Step { .. }
             | e::Event::Counters(_)
             | e::Event::Clipboard(_)
             | e::Event::Problem(_)

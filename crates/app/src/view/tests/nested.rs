@@ -118,6 +118,23 @@ fn toggle() -> KindDescription {
     }
 }
 
+fn cycle_kind() -> KindDescription {
+    KindDescription {
+        kind: "opencraft.cycle".into(),
+        name: "Action cycle".into(),
+        group: "Logic".into(),
+        icon: Some("repeat".into()),
+        fields: vec![Field {
+            key: "steps".into(),
+            label: "Actions".into(),
+            input: InputType::ActionList,
+            default: None,
+        }],
+        ..Default::default()
+    }
+    .with_steps("steps")
+}
+
 fn kinds() -> Event {
     let mut timed = many();
     timed.kind = "test.timed".into();
@@ -127,6 +144,7 @@ fn kinds() -> Event {
         leaf(),
         two(),
         many(),
+        cycle_kind(),
         toggle(),
         timed,
         KindDescription {
@@ -177,7 +195,7 @@ fn a_timed_step_edits_and_moves_its_delay_with_the_action(cx: &mut TestAppContex
     assert_eq!(steps[1].settings["delay_before_ms"], Value::Integer(0));
 }
 
-fn press() -> BindingId {
+pub(super) fn press() -> BindingId {
     BindingId {
         page: 0,
         control: ControlId::new(ControlKind::Key, 2),
@@ -224,7 +242,51 @@ fn sent_action(sent: &Commands) -> Action {
     sent_step(sent).0
 }
 
-fn open(
+pub(super) fn cycle_action() -> Action {
+    let step = leaf_action("same");
+    act(
+        "opencraft.cycle",
+        vec![("steps", Action::list_to_value(&[step.clone(), step]))],
+    )
+}
+
+#[gpui_kit::test]
+fn action_cycle_marks_the_next_step_and_ignores_a_nested_cycle(cx: &mut TestAppContext) {
+    use super::pages::send;
+    let (_view, cx, tx, _) = open(cx, cycle_action());
+    let step = |step| Event::Step {
+        binding: press(),
+        step: Some(step),
+    };
+
+    send(cx, &tx, step(0));
+    assert!(cx.debug_bounds("steps.0/next").is_some());
+    assert!(cx.debug_bounds("steps.1/next").is_none());
+
+    send(cx, &tx, step(1));
+    assert!(cx.debug_bounds("steps.0/next").is_none());
+    assert!(cx.debug_bounds("steps.1/next").is_some());
+    click(cx, "steps.1/step");
+    assert!(cx.debug_bounds("steps.1/next").is_some());
+
+    send(
+        cx,
+        &tx,
+        Event::Binding(BindingState {
+            binding: press(),
+            action: Some(act("test.toggle", vec![("on", cycle_action().to_value())])),
+            available: true,
+            inert_by: None,
+        }),
+    );
+    send(cx, &tx, step(0));
+    click(cx, "on/action");
+    assert!(cx.debug_bounds("on/steps.0/step").is_some());
+    assert!(cx.debug_bounds("on/steps.0/next").is_none());
+    assert!(cx.debug_bounds("steps.0/next").is_none());
+}
+
+pub(super) fn open(
     cx: &mut TestAppContext,
     action: Action,
 ) -> (

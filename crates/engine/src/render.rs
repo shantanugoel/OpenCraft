@@ -891,6 +891,7 @@ mod tests {
                 level: Some(50),
                 state: None,
                 other_state: None,
+                step: None,
             };
             let image = surface_image_with_feedback(size, &content, None, Some(&feedback));
             assert_eq!(image.dimensions(), (size.width, size.height));
@@ -918,6 +919,7 @@ mod tests {
                     level: Some(level),
                     state: None,
                     other_state: None,
+                    step: None,
                 };
                 let image = surface_image_with_feedback(size, &content, None, Some(&feedback));
                 let want = if level == 0 {
@@ -932,6 +934,7 @@ mod tests {
                 level: None,
                 state: Some(FeedbackState::Off),
                 other_state: None,
+                step: None,
             };
             assert_eq!(
                 surface_image_with_feedback(size, &content, None, Some(&feedback)),
@@ -962,6 +965,7 @@ mod tests {
             level,
             state: Some(FeedbackState::On),
             other_state: None,
+            step: None,
         }
     }
 
