@@ -542,6 +542,7 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Toggle", "Logic", None, false),
             ("Sequence of actions", "Logic", None, false),
             ("Action cycle", "Logic", None, false),
+            ("Multi-function knob", "Logic", Some("Knob"), false),
             ("Timer", "Logic", None, false),
         ]
     );
@@ -593,6 +594,7 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Toggle", "toggle-left"),
             ("Sequence of actions", "list"),
             ("Action cycle", "repeat"),
+            ("Multi-function knob", "sliders-horizontal"),
             ("Timer", "timer"),
         ]
     );
@@ -639,6 +641,149 @@ fn an_action_cycle_runs_one_step_per_press_wraps_around_and_resets_when_edited()
     world.press_key_3();
     calls.push(Hotkey("a".into()));
     assert_eq!(world.system.calls(), calls);
+}
+
+#[test]
+fn a_multi_function_knob_replaces_turn_feedback_and_restores_its_step() {
+    use opencraft_engine::TurnFunction;
+    use support::Call;
+
+    let mut world = World::new();
+    world.system.set_volume(40, false);
+    let control = ControlId::new(ControlKind::Knob, 2);
+    let panel = SurfaceId::new(SurfaceKind::BarPanel, 2);
+    let gestures = [
+        GestureKind::Push,
+        GestureKind::TurnLeft,
+        GestureKind::TurnRight,
+    ];
+    let binding = |gesture| BindingId {
+        control,
+        gesture,
+        page: 0,
+        folder: None,
+    };
+    let hotkey = |key: &str| built_in("hotkey", vec![("hotkey", Value::Text(key.into()))]);
+    let volume =
+        |operation: &str| built_in("volume", vec![("operation", Value::Text(operation.into()))]);
+    let action = built_in(
+        "knob-functions",
+        vec![(
+            "functions",
+            TurnFunction::list_to_value(&[
+                TurnFunction {
+                    label: None,
+                    left: volume("down"),
+                    right: volume("up"),
+                },
+                TurnFunction {
+                    label: Some("Copy and paste".into()),
+                    left: hotkey("cmd+c"),
+                    right: hotkey("cmd+v"),
+                },
+            ]),
+        )],
+    );
+    let read = |world: &mut World, step: usize| {
+        let events = world.take_events();
+        for gesture in gestures {
+            assert!(events.iter().any(|event| matches!(event,
+                Event::Step { binding: id, step: Some(index) } if *id == binding(gesture) && *index == step)));
+        }
+        events
+            .into_iter()
+            .rev()
+            .find_map(|event| match event {
+                Event::Surface(state) if state.id == panel => Some(state.image),
+                _ => None,
+            })
+            .unwrap()
+    };
+    world.command(Command::Group {
+        name: "Set Action".into(),
+        commands: gestures
+            .map(|gesture| Command::SetBinding {
+                binding: binding(gesture),
+                action: Some(action.clone()),
+            })
+            .into(),
+    });
+    let first = read(&mut world, 0);
+    let invoke = |world: &mut World, gesture| {
+        let (code, state) = match gesture {
+            GestureKind::TurnLeft => (0x50, 0),
+            GestureKind::TurnRight => (0x51, 0),
+            GestureKind::Push => (0x35, 1),
+            _ => unreachable!(),
+        };
+        let mut report = vec![0; 512];
+        report[..3].copy_from_slice(b"ACK");
+        report[5..7].copy_from_slice(b"OK");
+        report[9] = code;
+        report[10] = state;
+        world.device.borrow_mut().push_input(report);
+        world.engine.poll(Duration::ZERO);
+        world.pump();
+    };
+    invoke(&mut world, GestureKind::TurnRight);
+    let level = world
+        .take_events()
+        .into_iter()
+        .rev()
+        .find_map(|event| match event {
+            Event::Surface(state) if state.id == panel => Some(state.image),
+            _ => None,
+        })
+        .expect("turn renders the volume level");
+    assert_ne!(level, first);
+    assert!(world
+        .system
+        .calls()
+        .iter()
+        .any(|call| matches!(call, Call::Level(n) if *n > 40)));
+
+    invoke(&mut world, GestureKind::Push);
+    let second = read(&mut world, 1);
+    assert_ne!(second, level);
+    assert_ne!(second, first);
+    invoke(&mut world, GestureKind::TurnLeft);
+    invoke(&mut world, GestureKind::TurnRight);
+    assert!(world
+        .system
+        .calls()
+        .ends_with(&[Call::Hotkey("cmd+c".into()), Call::Hotkey("cmd+v".into())]));
+
+    world.command(Command::AddPage { copy_of: None });
+    world.take_events();
+    world.command(Command::SelectPage { page: 0 });
+    assert_eq!(read(&mut world, 1), second);
+    world.command(Command::AddProfile {
+        name: "Other".into(),
+        copy_of: None,
+    });
+    world.take_events();
+    world.command(Command::SelectProfile {
+        profile: "default".into(),
+    });
+    assert_eq!(read(&mut world, 1), second);
+    invoke(&mut world, GestureKind::Push);
+    assert_eq!(read(&mut world, 0), first);
+
+    world.command(Command::Undo); // Add Page
+    world.take_events();
+    world.command(Command::Undo); // Set Action
+    let events = world.take_events();
+    assert!(!events.iter().any(|event| matches!(event,
+        Event::Binding(state) if state.binding.control == control && state.action.is_some())));
+    assert!(events.iter().any(|event| matches!(event,
+        Event::History { redo: Some(name), .. } if name == "Set Action")));
+    invoke(&mut world, GestureKind::Push);
+    assert!(!world
+        .take_events()
+        .iter()
+        .any(|event| matches!(event, Event::Step { step: Some(_), .. })));
+    world.command(Command::Redo);
+    assert_eq!(read(&mut world, 0), first);
 }
 
 #[test]

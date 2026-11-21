@@ -92,6 +92,11 @@ pub fn add_with_contained(action: &Action, all: &mut Vec<Action>) {
             for contained in &list {
                 add_with_contained(contained, all);
             }
+        } else if let Some(items) = opencraft_engine::TurnFunction::list_from_value(value) {
+            for item in items {
+                add_with_contained(&item.left, all);
+                add_with_contained(&item.right, all);
+            }
         }
     }
 }

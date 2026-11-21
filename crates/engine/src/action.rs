@@ -93,6 +93,64 @@ impl Action {
     }
 }
 
+/// The two actions and optional title of one knob function.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurnFunction {
+    pub label: Option<String>,
+    pub left: Action,
+    pub right: Action,
+}
+
+impl TurnFunction {
+    /// Read one function from its settings table.
+    pub fn from_value(value: &Value) -> Option<Self> {
+        let Value::Table(table) = value else {
+            return None;
+        };
+        if table
+            .keys()
+            .any(|key| !matches!(key.as_str(), "label" | "left" | "right"))
+        {
+            return None;
+        }
+        let label = match table.get("label") {
+            Some(Value::Text(label)) => (!label.is_empty()).then(|| label.clone()),
+            None => None,
+            Some(_) => return None,
+        };
+        Some(Self {
+            label,
+            left: Action::from_value(table.get("left")?)?,
+            right: Action::from_value(table.get("right")?)?,
+        })
+    }
+
+    /// Write the settings table of this function.
+    pub fn to_value(&self) -> Value {
+        let mut table = Settings::from([
+            ("left".into(), self.left.to_value()),
+            ("right".into(), self.right.to_value()),
+        ]);
+        if let Some(label) = self.label.as_ref().filter(|label| !label.is_empty()) {
+            table.insert("label".into(), Value::Text(label.clone()));
+        }
+        Value::Table(table)
+    }
+
+    /// Read the ordered functions. Reject the list if any item is invalid.
+    pub fn list_from_value(value: &Value) -> Option<Vec<Self>> {
+        let Value::List(items) = value else {
+            return None;
+        };
+        items.iter().map(Self::from_value).collect()
+    }
+
+    /// Write the ordered functions as a settings value.
+    pub fn list_to_value(items: &[Self]) -> Value {
+        Value::List(items.iter().map(Self::to_value).collect())
+    }
+}
+
 /// A gesture with no position data. The text form is stable in the profile.
 ///
 /// A tap is on a bar panel control. A swipe is on the touch bar control. The
@@ -374,6 +432,8 @@ pub struct KindDescription {
     /// The Press binding receives [`Request::LongPress`] on a key with no
     /// explicit LongPress binding (decision 0042).
     pub handles_long_press: bool,
+    /// One action owns TurnLeft, TurnRight and Push (decision 0042).
+    pub knob_group: bool,
     pub fields: Vec<Field>,
     /// The direction of a turn of a knob, if the kind has one. The shell
     /// then shows one "Turn" card for the two turn gestures, and writes the
@@ -420,6 +480,12 @@ impl KindDescription {
     /// Declare that a Press binding can handle a long press.
     pub fn with_handles_long_press(mut self) -> Self {
         self.handles_long_press = true;
+        self
+    }
+
+    /// The kind takes all three gestures of a knob.
+    pub fn with_knob_group(mut self) -> Self {
+        self.knob_group = true;
         self
     }
 
@@ -581,6 +647,8 @@ pub enum InputType {
     /// `delay_before_ms`; a missing value is zero for the first step, and
     /// the parent's `delay_ms` (default 100) for each later step.
     TimedActionList,
+    /// An ordered list of turn pairs. See [`TurnFunction::list_from_value`].
+    TurnList,
     /// The identity of a folder of the active profile, as the text form of
     /// a [`crate::profile::FolderId`]. The shell shows the folders from
     /// [`crate::Event::Pages`] (decision 0036).
@@ -751,5 +819,59 @@ mod tests {
         for bad in [good.clone(), Value::List(vec![good, Value::Integer(1)])] {
             assert_eq!(Action::list_from_value(&bad), None, "{bad:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod turn_function_tests {
+    use super::*;
+
+    #[test]
+    fn functions_keep_their_two_actions_and_preserve_title_whitespace() {
+        let action = |kind: &str| Action {
+            kind: kind.into(),
+            settings: Settings::new(),
+        };
+        let mut item = TurnFunction {
+            label: Some("Copy and paste ".into()),
+            left: action("test.copy"),
+            right: action("test.paste"),
+        };
+        let items = [item.clone(), item.clone()];
+        assert_eq!(
+            TurnFunction::list_from_value(&TurnFunction::list_to_value(&items)),
+            Some(items.to_vec())
+        );
+        let Value::Table(table) = item.to_value() else {
+            panic!()
+        };
+        for key in ["left", "right"] {
+            let mut missing = table.clone();
+            missing.remove(key);
+            assert!(TurnFunction::from_value(&Value::Table(missing)).is_none());
+        }
+        for (key, value) in [
+            ("unknown", Value::Text("value".into())),
+            ("label", Value::Integer(1)),
+        ] {
+            let mut malformed = table.clone();
+            malformed.insert(key.into(), value);
+            assert!(
+                TurnFunction::list_from_value(&Value::List(vec![Value::Table(malformed)]))
+                    .is_none()
+            );
+        }
+        let mut blank = table;
+        blank.insert("label".into(), Value::Text(String::new()));
+        item.label = None;
+        assert_eq!(
+            TurnFunction::from_value(&Value::Table(blank)),
+            Some(item.clone())
+        );
+        assert_eq!(TurnFunction::from_value(&item.to_value()), Some(item));
+        assert_eq!(
+            TurnFunction::list_from_value(&TurnFunction::list_to_value(&[])),
+            Some(vec![])
+        );
     }
 }

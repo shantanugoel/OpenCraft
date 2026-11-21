@@ -46,9 +46,17 @@ impl e::Handler for Kinds {
                     field("a", e::InputType::Text),
                     field("profile", e::InputType::Profile),
                     field("folder", e::InputType::Folder),
+                    field("child", e::InputType::Action),
+                    field("actions", e::InputType::ActionList),
                 ],
                 ..Default::default()
             },
+            e::KindDescription {
+                kind: "test.knob".into(),
+                fields: vec![field("functions", e::InputType::TurnList)],
+                ..Default::default()
+            }
+            .with_knob_group(),
             // A field that another field shows (decision 0038).
             e::KindDescription {
                 kind: "test.shown".into(),
@@ -101,6 +109,76 @@ impl e::Handler for Kinds {
     fn start(&mut self, _sender: e::MessageSender) {}
 
     fn handle(&mut self, _request: e::Request) {}
+}
+
+#[test]
+fn knob_functions_are_knob_only_and_validate_both_nested_actions() {
+    let mut live = Live::new();
+    let kinds = live.read("kinds");
+    let kind = kinds
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|kind| kind["kind"] == "test.knob")
+        .unwrap();
+    assert_eq!(kind["knob_group"], true);
+    assert_eq!(kind["fields"][0]["input"]["type"], "turn_list");
+    let target = live.at(0);
+    let set = |control, gesture, action| {
+        json!({"target": target,
+        "control": {"kind": control, "number": 1}, "gesture": gesture, "action": action})
+    };
+    let pair = |left, right| json!({"kind":"test.knob","settings":{"functions":[{"label":"Copy","left":left,"right":right}]}});
+    let leaf = json!({"kind":"test", "settings":{"a":"Good"}});
+    let action = pair(leaf.clone(), leaf.clone());
+    live.ok("set_binding", set("knob", "turn_left", action.clone()));
+    assert_eq!(
+        live.content(target.clone())["bindings"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    for gesture in ["turn_right", "push"] {
+        live.ok("set_binding", set("knob", gesture, action.clone()));
+    }
+    for (control, gesture) in [
+        ("key", "press"),
+        ("bar_panel", "tap"),
+        ("touch_bar", "swipe_left"),
+    ] {
+        assert!(live
+            .fails("set_binding", set(control, gesture, action.clone()))
+            .1
+            .contains("for a knob only"));
+    }
+    let bad_leaf = json!({"kind":"test", "settings":{"a":42}});
+    for (action, error) in [
+        (pair(bad_leaf.clone(), leaf.clone()), "must be text"),
+        (pair(leaf.clone(), bad_leaf), "must be text"),
+        (pair(action.clone(), leaf.clone()), "for a knob only"),
+        (
+            json!({"kind":"test.knob","settings":{"functions":[{"left":leaf}]}}),
+            "must be a list of functions",
+        ),
+        (
+            json!({"kind":"test","settings":{"child":action.clone()}}),
+            "for a knob only",
+        ),
+        (
+            json!({"kind":"test","settings":{"actions":[action.clone()]}}),
+            "for a knob only",
+        ),
+        (
+            json!({"kind":"test.keys","settings":{"steps":[action]}}),
+            "for a knob only",
+        ),
+    ] {
+        assert!(live
+            .fails("set_binding", set("knob", "push", action))
+            .1
+            .contains(error));
+    }
 }
 
 struct Live {

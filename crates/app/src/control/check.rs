@@ -19,18 +19,31 @@ pub(super) struct At<'a> {
     pub state: &'a w::State,
     /// The identity of the profile that the request names.
     pub profile: &'a str,
+    pub allow_knob_group: bool,
 }
 
 /// Return the text of the first problem of `action`, or `Ok`.
 pub(super) fn action(action: &e::Action, kinds: &[w::Kind], at: &At) -> Result<(), String> {
-    check(action, kinds, at, false)
+    check(action, kinds, at, false, at.allow_knob_group)
 }
 
-fn check(action: &e::Action, kinds: &[w::Kind], at: &At, timed: bool) -> Result<(), String> {
+fn check(
+    action: &e::Action,
+    kinds: &[w::Kind],
+    at: &At,
+    timed: bool,
+    allow_knob_group: bool,
+) -> Result<(), String> {
     let kind = kinds
         .iter()
         .find(|k| k.kind == action.kind)
         .ok_or_else(|| format!("The action kind \"{}\" does not exist.", action.kind))?;
+    if kind.knob_group && !allow_knob_group {
+        return Err(format!(
+            "The action kind \"{}\" is for a knob only.",
+            kind.kind
+        ));
+    }
     // The key and the limits of the delay come from the engine, as the form
     // of the window reads them. A second copy here could disagree with it.
     let delay = e::Field::step_delay(0);
@@ -171,10 +184,20 @@ fn value_of(input: &w::Input, value: &e::Value, kinds: &[w::Kind], at: &At) -> R
         (I::Action, _) => {
             let action = e::Action::from_value(value)
                 .ok_or("the value must be an action with a kind and settings.")?;
-            check(&action, kinds, at, false)
+            check(&action, kinds, at, false, false)
         }
         (I::ActionList, _) => list(value, kinds, at, false),
         (I::TimedActionList, _) => list(value, kinds, at, true),
+        (I::TurnList, _) => {
+            let items = e::TurnFunction::list_from_value(value).ok_or(
+                "the value must be a list of functions, each with left, right, and optional label.",
+            )?;
+            for item in items {
+                check(&item.left, kinds, at, false, false)?;
+                check(&item.right, kinds, at, false, false)?;
+            }
+            Ok(())
+        }
     }
 }
 
@@ -183,5 +206,5 @@ fn list(value: &e::Value, kinds: &[w::Kind], at: &At, timed: bool) -> Result<(),
         .ok_or("the value must be a list of actions with a kind and settings.")?;
     actions
         .iter()
-        .try_for_each(|action| check(action, kinds, at, timed))
+        .try_for_each(|action| check(action, kinds, at, timed, false))
 }

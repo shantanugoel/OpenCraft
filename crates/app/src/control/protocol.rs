@@ -878,6 +878,8 @@ pub struct Kind {
     pub receives_release: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub handles_long_press: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub knob_group: bool,
     pub fields: Vec<Field>,
     pub direction: Option<Direction>,
     pub states: Option<TwoStates>,
@@ -914,6 +916,7 @@ pub enum Input {
     Action,
     ActionList,
     TimedActionList,
+    TurnList,
     Folder,
 }
 

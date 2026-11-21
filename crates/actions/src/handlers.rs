@@ -77,6 +77,7 @@ pub(crate) fn build_with_clock(
         Box::new(RequestHandler::new(Group::Toggle, system.clone())),
         Box::new(RequestHandler::new(Group::Sequence, system.clone())),
         Box::new(RequestHandler::new(Group::Cycle, system.clone())),
+        Box::new(RequestHandler::new(Group::KnobFunctions, system.clone())),
         Box::new(crate::TimerHandler::with_clock(system, clock)),
     ]
 }

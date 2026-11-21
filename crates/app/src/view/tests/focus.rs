@@ -69,6 +69,23 @@ fn tab_to(cx: &mut VisualTestContext, id: &str) {
     panic!("Tab does not get to {id}");
 }
 
+#[gpui_kit::test]
+fn knob_functions_are_in_the_keyboard_focus_order(cx: &mut TestAppContext) {
+    let (_, cx, _, _) = super::knob::functions_window(cx, &["Volume"]);
+    tab_to(cx, "functions.0/function");
+    push(cx, "space");
+    tab_to(cx, "functions.0/action");
+    assert_eq!(
+        order(cx, "tab", 2),
+        ["turn-direction-right", "turn-direction-left"]
+    );
+    tab_to(cx, "functions.0/turn-apart");
+    push(cx, "space");
+    tab_to(cx, "functions.0/turn-join");
+    keys(cx, "tab");
+    assert_eq!(focused(cx).as_deref(), Some("functions/add"));
+}
+
 fn workspace_has_focus(view: &Entity<DeviceView>, cx: &mut VisualTestContext) -> bool {
     cx.update(|window, cx| view.read(cx).focus.is_focused(window))
 }

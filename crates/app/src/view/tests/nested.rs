@@ -118,6 +118,70 @@ fn toggle() -> KindDescription {
     }
 }
 
+#[gpui_kit::test]
+fn functions_edit_mirrored_actions_and_keep_open_and_split_state_when_moved(
+    cx: &mut TestAppContext,
+) {
+    use super::knob::{functions_window, group_actions, turn};
+    use opencraft_engine::TurnFunction;
+    let (view, cx, tx, sent) = functions_window(cx, &["Volume", "Other"]);
+    let items = || {
+        let actions = group_actions(&sent);
+        assert!(actions.iter().all(|(_, a)| a == &actions[0].1));
+        TurnFunction::list_from_value(&actions[0].1.as_ref().unwrap().settings["functions"])
+            .unwrap()
+    };
+    tx.try_send(Event::Step {
+        binding: turn(GestureKind::Push),
+        step: Some(1),
+    })
+    .unwrap();
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("functions.1/active").is_some());
+
+    click(cx, "functions/add");
+    assert!(cx.debug_bounds("functions/add-kind-1").is_none());
+    click(cx, "functions/add-kind-0");
+    assert_eq!(items().len(), 3);
+    assert_eq!(
+        items()[2].left.settings["operation"],
+        Value::Text("down".into())
+    );
+    assert_eq!(
+        items()[2].right.settings["operation"],
+        Value::Text("up".into())
+    );
+    type_at(&view, cx, &at(&[("functions", Some(2))], "label"), "Sound ");
+    assert_eq!(items()[2].label.as_deref(), Some("Sound "));
+    click(cx, "turn-direction-left");
+    assert_eq!(
+        items()[2].left.settings["operation"],
+        Value::Text("up".into())
+    );
+    let step = at(&[("functions", Some(2))], "step");
+    let mut paired = step.clone();
+    paired.action[0].side = Some(super::super::actions::TurnSide::Pair);
+    type_at(&view, cx, &paired, "12");
+    for action in [&items()[2].left, &items()[2].right] {
+        assert_eq!(action.settings["step"], Value::Integer(12));
+    }
+    click(cx, "functions.2/turn-apart");
+    assert!(cx.debug_bounds("functions.2.left/action").is_some());
+    assert!(cx.debug_bounds("functions.2.right/action").is_some());
+    click(cx, "functions.2/turn-join");
+    assert!(cx.debug_bounds("turn-direction-left").is_some());
+    click(cx, "functions.2/turn-apart");
+    // Move and remove through the same commands as the step menu.
+    click(cx, "functions.2/more");
+    choose(&view, cx, super::super::nested::MoveStepUp);
+    assert_eq!(items()[1].label.as_deref(), Some("Sound "));
+    assert!(cx.debug_bounds("functions.1.left/action").is_some());
+    click(cx, "functions.1/more");
+    choose(&view, cx, super::super::nested::RemoveStep);
+    assert_eq!(items().len(), 2);
+    assert_eq!(items()[1].label.as_deref(), Some("Other"));
+}
+
 fn cycle_kind() -> KindDescription {
     KindDescription {
         kind: "opencraft.cycle".into(),

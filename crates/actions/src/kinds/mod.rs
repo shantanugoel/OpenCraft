@@ -37,6 +37,7 @@ pub(crate) mod cycle;
 mod device_brightness;
 pub(crate) mod hold_hotkey;
 mod hotkey;
+pub(crate) mod knob_functions;
 mod mac_function;
 mod media_key;
 pub(crate) mod microphone_mute;
@@ -103,6 +104,8 @@ pub(crate) enum Group {
     Sequence,
     /// Action cycle. The handler keeps the position of each cycle.
     Cycle,
+    /// Multi-function knob. The handler keeps one position per knob.
+    KnobFunctions,
     /// Timer. The handler keeps each countdown or stopwatch.
     Timer,
     /// Screen off and device brightness. These kinds only ask the engine for
@@ -118,6 +121,7 @@ pub(crate) struct Memory {
     pub(crate) toggles: toggle::States,
     /// The positions of action cycles (decision 0042).
     pub(crate) cycles: cycle::Positions,
+    pub(crate) knob_functions: knob_functions::Positions,
 }
 
 /// One call of a kind: the system port, and the sender of its handler.
@@ -367,6 +371,10 @@ const REGISTERED: &[Registered] = &[
         kind: &cycle::KIND,
     },
     Registered {
+        group: Group::KnobFunctions,
+        kind: &knob_functions::KIND,
+    },
+    Registered {
         group: Group::Timer,
         kind: &timer::KIND,
     },
@@ -576,6 +584,7 @@ mod tests {
             (toggle::ID, Group::Toggle),
             (sequence::ID, Group::Sequence),
             (cycle::ID, Group::Cycle),
+            (knob_functions::ID, Group::KnobFunctions),
             (timer::ID, Group::Timer),
             (screen_off::ID, Group::Device),
         ] {

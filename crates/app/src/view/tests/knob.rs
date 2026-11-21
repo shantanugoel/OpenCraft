@@ -47,11 +47,28 @@ fn volume() -> KindDescription {
     }
 }
 
-fn knob() -> ControlId {
+pub(super) fn multi_kind() -> KindDescription {
+    KindDescription {
+        kind: "opencraft.knob-functions".into(),
+        name: "Multi-function knob".into(),
+        group: "Logic".into(),
+        fields: vec![Field {
+            key: "functions".into(),
+            label: "Functions".into(),
+            input: InputType::TurnList,
+            default: None,
+        }],
+        ..Default::default()
+    }
+    .with_knob_group()
+    .with_steps("functions")
+}
+
+pub(super) fn knob() -> ControlId {
     ControlId::new(ControlKind::Knob, 2)
 }
 
-fn turn(gesture: GestureKind) -> BindingId {
+pub(super) fn turn(gesture: GestureKind) -> BindingId {
     BindingId {
         page: 0,
         control: knob(),
@@ -108,7 +125,7 @@ fn reply(tx: &async_channel::Sender<Event>, right: Option<Action>, left: Option<
     }
 }
 
-fn knob_window(
+pub(super) fn knob_window(
     cx: &mut TestAppContext,
 ) -> (
     Entity<DeviceView>,
@@ -122,6 +139,154 @@ fn knob_window(
     cx.run_until_parked();
     click(cx, "control-knob 2");
     (view, cx, tx, sent)
+}
+
+pub(super) fn functions_window<'a>(
+    cx: &'a mut TestAppContext,
+    titles: &[&str],
+) -> (
+    Entity<DeviceView>,
+    &'a mut VisualTestContext,
+    async_channel::Sender<Event>,
+    Commands,
+) {
+    let (view, cx, tx, sent) = knob_window(cx);
+    tx.try_send(Event::Kinds(vec![volume(), multi_kind()]))
+        .unwrap();
+    let functions: Vec<_> = titles
+        .iter()
+        .map(|title| opencraft_engine::TurnFunction {
+            label: Some((*title).into()),
+            left: sound("down", 5),
+            right: sound("up", 5),
+        })
+        .collect();
+    let action = Action {
+        kind: multi_kind().kind,
+        settings: Settings::from([(
+            "functions".into(),
+            opencraft_engine::TurnFunction::list_to_value(&functions),
+        )]),
+    };
+    reply_all(&tx, Some(action));
+    cx.run_until_parked();
+    (view, cx, tx, sent)
+}
+
+fn reply_all(tx: &async_channel::Sender<Event>, action: Option<Action>) {
+    reply(tx, action.clone(), action.clone());
+    tx.try_send(Event::Binding(BindingState {
+        binding: turn(GestureKind::Push),
+        available: action.is_some(),
+        action,
+        inert_by: None,
+    }))
+    .unwrap();
+}
+
+pub(super) fn group_actions(sent: &Commands) -> Vec<(BindingId, Option<Action>)> {
+    let commands = sent.borrow();
+    let group = commands
+        .iter()
+        .rev()
+        .find_map(|command| match command {
+            Command::Group { commands, .. } => Some(commands),
+            _ => None,
+        })
+        .expect("a grouped change");
+    assert_eq!(group.len(), 3);
+    group
+        .iter()
+        .map(|command| match command {
+            Command::SetBinding { binding, action } => (*binding, action.clone()),
+            _ => panic!("expected a binding change"),
+        })
+        .collect()
+}
+
+#[gpui_kit::test]
+fn a_functions_kind_replaces_all_cards_and_removes_or_replaces_all_bindings(
+    cx: &mut TestAppContext,
+) {
+    let (_view, cx, tx, sent) = knob_window(cx);
+    tx.try_send(Event::Kinds(vec![volume(), multi_kind()]))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "gesture-Turn-kind");
+    click(cx, "kind-1");
+    let commands = group_actions(&sent);
+    let action = commands[0].1.clone();
+    assert_eq!(action.as_ref().unwrap().kind, multi_kind().kind);
+    for (gesture, command) in [
+        GestureKind::Push,
+        GestureKind::TurnRight,
+        GestureKind::TurnLeft,
+    ]
+    .into_iter()
+    .zip(commands)
+    {
+        assert_eq!(command, (turn(gesture), action.clone()));
+    }
+    reply_all(&tx, action.clone());
+    cx.run_until_parked();
+    assert!(shows(cx, "gesture-Functions"));
+    assert!(!shows(cx, "gesture-Turn"));
+    assert!(!shows(cx, "gesture-Push"));
+    click(cx, "gesture-Functions-test");
+    assert!(sent.borrow().contains(&Command::TestAction {
+        binding: turn(GestureKind::Push)
+    }));
+
+    click(cx, "gesture-Functions-kind");
+    click(cx, "kind-remove");
+    assert!(group_actions(&sent)
+        .iter()
+        .all(|(_, action)| action.is_none()));
+    reply_all(&tx, None);
+    cx.run_until_parked();
+    assert!(shows(cx, "gesture-Turn"));
+    assert!(shows(cx, "gesture-Push"));
+
+    reply_all(&tx, action.clone());
+    cx.run_until_parked();
+    click(cx, "gesture-Functions-kind");
+    click(cx, "kind-0");
+    assert_eq!(
+        group_actions(&sent),
+        [
+            (turn(GestureKind::TurnRight), Some(sound("up", 5))),
+            (turn(GestureKind::TurnLeft), Some(sound("down", 5))),
+            (turn(GestureKind::Push), None),
+        ]
+    );
+    reply_all(&tx, None);
+    tx.try_send(Event::Binding(BindingState {
+        binding: turn(GestureKind::Push),
+        available: true,
+        action,
+        inert_by: None,
+    }))
+    .unwrap();
+    cx.run_until_parked();
+    assert!(shows(cx, "gesture-Turn"));
+    assert!(shows(cx, "gesture-Push"));
+    assert!(!shows(cx, "gesture-Functions"));
+}
+
+#[gpui_kit::test]
+fn assigning_a_group_to_a_key_is_refused(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = knob_window(cx);
+    tx.try_send(Event::Kinds(vec![multi_kind()])).unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.assign_kind(&multi_kind().kind, window, cx)
+        })
+    });
+    assert!(sent.borrow().is_empty());
+    click(cx, "gesture-Press-kind");
+    assert!(!shows(cx, "kind-0"));
 }
 
 fn shows(cx: &mut VisualTestContext, id: &'static str) -> bool {

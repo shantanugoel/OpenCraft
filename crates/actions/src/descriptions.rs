@@ -92,6 +92,7 @@ pub(crate) fn setting_problem(kind: &str, key: &str) -> String {
         }
         Some(InputType::Toggle) => format!("set the field \"{label}\" to On or Off"),
         Some(InputType::Hotkey) => format!("record a hotkey in the field \"{label}\""),
+        Some(InputType::TurnList) => format!("select the functions in the field \"{label}\" again"),
         Some(InputType::Action | InputType::ActionList | InputType::TimedActionList) => {
             format!("select the action in the field \"{label}\" again")
         }

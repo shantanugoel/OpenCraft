@@ -371,7 +371,7 @@ pub(super) fn square_button(
 /// A [`square_button`] with the icon size `icon_size`, for example the "⋯"
 /// button of the inspector header (icon 16).
 pub(super) fn square_icon_button(
-    id: &'static str,
+    id: impl Into<SharedString>,
     icon: IconName,
     icon_size: Pixels,
     label: impl Into<SharedString>,
@@ -379,8 +379,9 @@ pub(super) fn square_icon_button(
     height: Pixels,
 ) -> Stateful<Div> {
     let label: SharedString = label.into();
+    let id: SharedString = id.into();
     div()
-        .id(id)
+        .id(id.clone())
         .debug_selector(move || id.to_string())
         .accessible(Role::Button, label.clone())
         .flex_shrink_0()

@@ -27,6 +27,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | Logic | [Toggle](#toggle) | Only for the actions that it contains |
 | Logic | [Sequence of actions](#sequence-of-actions) | Only for the actions that it contains |
 | Logic | [Action cycle](#action-cycle) | Only for the actions that it contains |
+| Logic | [Multi-function knob](#multi-function-knob) | Only for the actions that it contains |
 | Logic | [Timer](#timer) | No |
 
 The permission is in
@@ -741,9 +742,9 @@ Notes:
 - The sequence does not wait until an action is complete. The delay is the
   only wait. For an action that needs time, for example the start of an
   application, set a longer delay before the next step.
-- A sequence and a toggle can contain each action kind, also a different
-  toggle or sequence. For example, the action "From Off to On" of a toggle
-  can be a sequence.
+- A sequence and a toggle can contain a different toggle or sequence. They
+  cannot contain a Multi-function knob. For example, the action "From Off to
+  On" of a toggle can be a sequence.
 
 ## Action cycle
 
@@ -769,6 +770,20 @@ The cycle card shows **Next** on the step that the control will do next.
 OpenCraft keeps the position in memory while it runs, also when you change
 pages or folders. The cycle starts at the first step when OpenCraft starts.
 It goes back to the first step when you change the settings of the cycle.
+
+## Multi-function knob
+
+Assign **Multi-function knob** to a knob. Turn the knob to use the active
+function. Push the knob to select the next function and show its title on
+the bar panel. After the last function, Push selects the first function.
+
+1. In the **Functions** card, click **Add a function**. Select an action kind.
+2. In **Title**, type the title to show on the bar panel. If the field is
+   empty, the panel shows the function number.
+3. Set the turn action. To use different actions for the two directions,
+   click **Set left and right apart** and set each action.
+4. Do these steps again for each function. The **Active** mark shows which
+   function the knob uses.
 
 ## Timer
 

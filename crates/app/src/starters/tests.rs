@@ -40,6 +40,9 @@ fn setting_problem(kind: &KindDescription, key: &str, value: &Value) -> Option<S
         (InputType::ActionList | InputType::TimedActionList, value) => {
             Action::list_from_value(value).is_some()
         }
+        (InputType::TurnList, value) => {
+            opencraft_engine::TurnFunction::list_from_value(value).is_some()
+        }
         _ => false,
     };
     // No path of one computer: no home folder, and no absolute path.
@@ -198,6 +201,33 @@ fn the_engine_makes_the_pictures_of_the_starter_profiles() {
         let preview = page_preview(&profile.pages()[0], &layout);
         assert_eq!(preview.len(), 14, "{}", starter.name);
     }
+}
+
+#[test]
+fn a_knob_function_contributes_both_actions_to_the_permission_check() {
+    use opencraft_engine::{Settings, TurnFunction};
+    let hotkey = Action {
+        kind: "opencraft.hotkey".into(),
+        settings: Settings::new(),
+    };
+    let text = Action {
+        kind: "opencraft.type-text".into(),
+        settings: Settings::new(),
+    };
+    let action = Action {
+        kind: "opencraft.knob-functions".into(),
+        settings: Settings::from([(
+            "functions".into(),
+            TurnFunction::list_to_value(&[TurnFunction {
+                label: None,
+                left: hotkey.clone(),
+                right: text.clone(),
+            }]),
+        )]),
+    };
+    let mut all = Vec::new();
+    add_with_contained(&action, &mut all);
+    assert_eq!(all, [action, hotkey, text]);
 }
 
 #[test]
