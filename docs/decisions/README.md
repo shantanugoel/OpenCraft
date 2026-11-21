@@ -25,7 +25,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0007](0007-jpeg-for-key-faces-and-bar-panels.md) | Send JPEG to key faces and bar panels | Accepted |
 | [0008](0008-crate-boundaries.md) | One crate for the engine and one crate for the GUI application | Accepted |
 | [0009](0009-profile-file-format.md) | The profile is a directory with a TOML file and its images | Accepted |
-| [0010](0010-core-text-for-surface-labels.md) | Use Core Text for surface labels on macOS | Accepted |
+| [0010](0010-core-text-for-surface-labels.md) | Use Core Text for surface labels on macOS | Accepted. 0043 adds installed families, italic, and underline. |
 | [0011](0011-engine-thread-model.md) | The engine has one thread, and the shell uses messages | Accepted |
 | [0012](0012-action-handler-interface.md) | An action handler gets requests and sends messages, on its own thread | Accepted. A note of 2026-11-14 gives the registry of kind modules. 0042 adds `HoldStart`, `HoldEnd`, and `LongPress`. |
 | [0013](0013-action-feedback-on-a-surface.md) | An action changes a surface with feedback data, and the engine makes the image | Accepted. 0042 adds the `step` part. |
@@ -48,7 +48,7 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0030](0030-undo-and-redo-in-the-engine.md) | The engine keeps the history of undo and redo, as copies of the pages | Accepted. 0036 adds the folders and the open folders to a step. |
 | [0031](0031-profile-export-file.md) | A profile goes to one TOML file with its images as Base64 text | Accepted. 0037 changes a path setting in an export. |
 | [0032](0032-page-background.md) | Each page has a background, and a surface with no fill shows it | Accepted |
-| [0033](0033-surface-icons.md) | The engine draws a Lucide icon on a surface from a name in the profile | Accepted |
+| [0033](0033-surface-icons.md) | The engine draws a Lucide icon on a surface from a name in the profile | Accepted. 0043 uses the same rule for a font name. |
 | [0034](0034-device-dark-state.md) | The engine holds the dark state and the computer can always wake it | Accepted |
 | [0035](0035-front-application-selects-the-profile.md) | The shell reports the front application, and the engine selects the linked profile | Accepted |
 | [0036](0036-folders.md) | A folder is a page of keys outside the page cycle, with the actions "Open a folder" and "Back" | Accepted |
@@ -57,7 +57,8 @@ a phase forces a decision. Do not write a record for a decision that can wait.
 | [0039](0039-start-with-the-last-connected-model.md) | The engine starts with the model of the last device that connected | Accepted |
 | [0040](0040-control-socket.md) | A different program controls OpenCraft through a socket, when the user permits it | Accepted |
 | [0041](0041-cask-in-the-shared-tap.md) | The cask of OpenCraft is in the shared tap of the owner | Accepted |
-| [0042](0042-gesture-timers.md) | The engine makes the long press, the double press, and the hold with timers, and a key can have two faces | Accepted |
+| [0042](0042-gesture-timers.md) | The engine makes the long press, the double press, and the hold with timers, and a key can have two faces | Accepted. 0043 makes schema version 8. |
+| [0043](0043-faces-fonts-and-schema-8.md) | Installed fonts, label styles, image crop, the clock handler, and profile schema 8 | Accepted |
 
 ## Template
 

@@ -97,6 +97,10 @@ The facts:
   Paste, Clear, Copy to All Pages, and the profile export and import cover it
   with no more code. The history names are "Set Icon" and "Remove the Icon".
 
+Note (2026-11-22): [decision 0043](0043-faces-fonts-and-schema-8.md) uses this
+rule for a font name. A family that the computer does not have stays in the
+file, and the label uses the system font.
+
 ### The kind icons are data
 
 `KindDescription` gets an optional icon name

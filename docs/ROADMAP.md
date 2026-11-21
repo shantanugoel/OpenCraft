@@ -756,8 +756,9 @@ release is 0.7.0.
 
 **Decisions that this phase forces.** The fonts of the labels, the label
 styles, the crop and zoom of an image, the clock handler, and the new profile
-fields: decision 0043 (P11-D1). That record makes profile schema version 8.
-Release 0.6.0 writes version 7, thus the phase cannot add keys to version 7.
+fields: [decision 0043](decisions/0043-faces-fonts-and-schema-8.md) (P11-D1).
+That record makes profile schema version 8. Release 0.6.0 writes version 7,
+thus the phase cannot add keys to version 7.
 
 **Task issues.** [#447](https://github.com/shantanugoel/OpenCraft/issues/447)
 (P11-D1), [#448](https://github.com/shantanugoel/OpenCraft/issues/448)

@@ -31,6 +31,10 @@ user. This record makes no SVG decision and selects no resize filter.
 The implementation is a later task. This record adds no workspace dependency
 and no engine code.
 
+Note (2026-11-22): [decision 0043](0043-faces-fonts-and-schema-8.md) adds the
+installed font families, italic, and underline. OpenCraft still ships no font
+file. The system font stays the fallback.
+
 ## Results
 
 - Core Text, COSMIC Text, and Parley passed the named script samples. The two
