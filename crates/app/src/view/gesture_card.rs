@@ -106,7 +106,7 @@ impl KindLabel {
             name: "Not available".into(),
             letter: "?".into(),
             icon: None,
-            colour: theme::KIND_TILE_UNAVAILABLE,
+            colour: theme::kind_tile_unavailable(),
             available: false,
         }
     }
@@ -155,14 +155,14 @@ impl KindLabel {
             .bg(self.colour)
             .text_size(text)
             .font_weight(FontWeight::BOLD)
-            .text_color(theme::SWITCH_KNOB_COLOUR)
+            .text_color(theme::switch_knob_colour())
             .map(|d| match &self.icon {
                 Some(path) => d.child(
                     gpui_kit::svg()
                         .path(path.clone())
                         .size(icon)
                         .flex_shrink_0()
-                        .text_color(theme::SWITCH_KNOB_COLOUR),
+                        .text_color(theme::switch_knob_colour()),
                 ),
                 None => d.child(self.letter.clone()),
             })
@@ -186,13 +186,13 @@ impl KindLabel {
             .pr(theme::SPACE_12)
             .py(theme::DRAG_PICTURE_PADDING_Y)
             .rounded(theme::RADIUS_CARD)
-            .bg(theme::BG_FIELD)
+            .bg(theme::bg_field())
             .border_1()
-            .border_color(theme::BG_SEGMENT_ON)
+            .border_color(theme::bg_segment_on())
             .shadow(theme::drag_shadow())
             .text_size(theme::TEXT_CONTROL)
             .font_weight(FontWeight::MEDIUM)
-            .text_color(theme::TEXT_PRIMARY)
+            .text_color(theme::text_primary())
             // GPUI gives the drag picture its smallest size.
             .whitespace_nowrap()
             .child(self.tile(TileSize::Drag))
@@ -224,7 +224,7 @@ impl KindLabel {
                     .flex_1()
                     .min_w_0()
                     .truncate()
-                    .when(!self.available, |d| d.text_color(theme::TEXT_TERTIARY))
+                    .when(!self.available, |d| d.text_color(theme::text_tertiary()))
                     .child(self.name.clone()),
             )
     }
@@ -425,7 +425,7 @@ impl GestureCard {
                 .w(self.name_width)
                 .text_size(theme::TEXT_LABEL)
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(theme::TEXT_PRIMARY)
+                .text_color(theme::text_primary())
                 .child(self.name.clone())
         })
     }
@@ -462,25 +462,25 @@ impl GestureCard {
                     .border_1()
                     .border_dashed()
                     .border_color(if self.menu_open {
-                        theme::ACCENT_LINE
+                        theme::accent_line()
                     } else {
-                        theme::BORDER_OVERLAY
+                        theme::border_overlay()
                     })
                     .cursor_pointer()
-                    .hover(|d| d.bg(theme::HOVER_ROW))
+                    .hover(|d| d.bg(theme::hover_row()))
                     .accessible(Role::Button, label)
                     .aria_expanded(self.menu_open)
                     .children(self.name_cell())
                     .child(
                         Icon::new(IconName::Plus)
                             .size(theme::ICON_SMALL)
-                            .text_color(theme::TEXT_SECONDARY),
+                            .text_color(theme::text_secondary()),
                     )
                     .child(
                         div()
                             .text_size(theme::TEXT_LABEL)
                             .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .child(ADD_AN_ACTION),
                     )
                     .when_some(on_menu, |d, on_menu| {
@@ -523,14 +523,14 @@ impl GestureCard {
                     .items_center()
                     .gap(theme::SPACE_8)
                     .rounded(theme::RADIUS_CONTROL)
-                    .bg(theme::BG_CONTROL)
+                    .bg(theme::bg_control())
                     .border_1()
-                    .border_color(theme::BORDER_CONTROL)
+                    .border_color(theme::border_control())
                     .text_size(theme::TEXT_CONTROL)
                     .font_weight(FontWeight::MEDIUM)
                     .cursor_pointer()
-                    .hover(|d| d.bg(theme::HOVER_CONTROL))
-                    .active(|d| d.bg(theme::PRESSED))
+                    .hover(|d| d.bg(theme::hover_control()))
+                    .active(|d| d.bg(theme::pressed()))
                     .child(action.content(true))
                     .children(self.summary.map(|summary| {
                         div()
@@ -539,7 +539,7 @@ impl GestureCard {
                             .truncate()
                             .text_size(theme::TEXT_LABEL)
                             .font_weight(FontWeight::NORMAL)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .child(summary)
                     }))
                     .when_some(on_toggle, |d, on_toggle| {
@@ -584,15 +584,15 @@ impl GestureCard {
                             .rounded(theme::RADIUS_CONTROL)
                             .border_1()
                             .border_color(if menu_open {
-                                theme::ACCENT_LINE
+                                theme::accent_line()
                             } else {
-                                theme::TRANSPARENT
+                                theme::transparent()
                             })
                             .text_size(theme::TEXT_CONTROL)
                             .font_weight(FontWeight::MEDIUM)
                             .cursor_pointer()
-                            .hover(|d| d.bg(theme::HOVER_ICON))
-                            .active(|d| d.bg(theme::PRESSED))
+                            .hover(|d| d.bg(theme::hover_icon()))
+                            .active(|d| d.bg(theme::pressed()))
                             .accessible(Role::ComboBox, ACTION)
                             .aria_value(action.name().clone())
                             .aria_expanded(menu_open)
@@ -600,7 +600,7 @@ impl GestureCard {
                             .child(
                                 Icon::new(IconName::ChevronsUpDown)
                                     .size(theme::ICON_SMALL)
-                                    .text_color(theme::TEXT_SECONDARY),
+                                    .text_color(theme::text_secondary()),
                             )
                             .when(on_menu.is_some(), |d| {
                                 controls::keyboard_focus(d, controls::Ring::Inside)
@@ -621,7 +621,7 @@ impl GestureCard {
                 div()
                     .flex_shrink_0()
                     .text_size(theme::TEXT_CAPTION)
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child(summary)
             }))
             .children(self.accessory.take())
@@ -644,14 +644,14 @@ impl RenderOnce for GestureCard {
         let (radius, background, head_x, head_y) = if self.nested {
             (
                 theme::RADIUS_CARD,
-                theme::BG_PANEL,
+                theme::bg_panel(),
                 theme::SPACE_8,
                 theme::SPACE_6,
             )
         } else {
             (
                 theme::RADIUS_GESTURE_CARD,
-                theme::BG_CARD,
+                theme::bg_card(),
                 theme::SPACE_10,
                 theme::SPACE_8,
             )
@@ -752,7 +752,7 @@ impl RenderOnce for GestureCard {
             .flex_col()
             .rounded(radius)
             .border_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .bg(background)
             .child(head)
             .when_some(self.inert_notice, |d, notice| {
@@ -763,7 +763,7 @@ impl RenderOnce for GestureCard {
                         .px(head_x)
                         .pb(head_y)
                         .text_size(theme::TEXT_HELP)
-                        .text_color(theme::WARNING)
+                        .text_color(theme::warning())
                         .child(notice),
                 )
             })
@@ -771,7 +771,7 @@ impl RenderOnce for GestureCard {
                 d.children(lead.map(|lead| {
                     div()
                         .border_t_1()
-                        .border_color(theme::LINE_PANE)
+                        .border_color(theme::line_pane())
                         .child(lead)
                 }))
             })
@@ -783,9 +783,9 @@ impl RenderOnce for GestureCard {
                         .pb(theme::SPACE_12)
                         .border_t_1()
                         .border_color(if has_lead {
-                            theme::LINE_SECTION
+                            theme::line_section()
                         } else {
-                            theme::LINE_PANE
+                            theme::line_pane()
                         })
                         .children(body),
                 )

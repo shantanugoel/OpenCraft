@@ -162,10 +162,10 @@ fn plain_header(kind: ControlKind) -> AnyElement {
         .flex_shrink_0()
         .size(theme::HEADER_PICTURE)
         .rounded(radius)
-        .bg(theme::DEVICE_DISPLAY)
+        .bg(theme::device_display())
         .border_1()
         .border_dashed()
-        .border_color(theme::DEVICE_KEY_EMPTY_BORDER)
+        .border_color(theme::device_key_empty_border())
         .into_any_element()
 }
 
@@ -269,7 +269,7 @@ impl DeviceView {
                     .px(theme::SECTION_PADDING_SIDE)
                     .text_center()
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child("Select a control, the page or the device."),
             );
         };
@@ -320,7 +320,7 @@ impl DeviceView {
                     .flex_shrink_0()
                     .size(theme::HEADER_PICTURE)
                     .rounded_full()
-                    .bg(theme::DEVICE_KNOB)
+                    .bg(theme::device_knob())
                     .border(theme::HEADER_KNOB_RING)
                     // The same ring colour as the knob on the canvas.
                     .border_color(super::canvas::knob_ring(
@@ -334,7 +334,7 @@ impl DeviceView {
                             .mt(theme::SPACE_4)
                             .size(theme::HEADER_KNOB_MARK)
                             .rounded_full()
-                            .bg(theme::DEVICE_KNOB_DOT),
+                            .bg(theme::device_knob_dot()),
                     )
                     .into_any_element(),
             );
@@ -361,9 +361,9 @@ impl DeviceView {
                 .h(height)
                 .rounded(radius)
                 .overflow_hidden()
-                .bg(theme::DEVICE_DISPLAY)
+                .bg(theme::device_display())
                 .border_1()
-                .border_color(theme::DEVICE_SURFACE_BORDER)
+                .border_color(theme::device_surface_border())
                 .children(
                     self.images
                         .get(&surface.id)
@@ -410,7 +410,7 @@ impl DeviceView {
                 controls::text_field(
                     &AnyInputState::Input(self.input.clone()),
                     "Title",
-                    theme::BG_FIELD,
+                    theme::bg_field(),
                     window,
                     cx,
                 )
@@ -455,7 +455,7 @@ impl DeviceView {
             .flex_1()
             .min_w_0()
             .border_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .into_any_element()
     }
 
@@ -592,7 +592,7 @@ impl DeviceView {
             .justify_center()
             .text_size(theme::TEXT_CAPTION)
             .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-            .text_color(theme::TEXT_SECONDARY)
+            .text_color(theme::text_secondary())
             .child("A")
             .on_click(choose_text_colour(None, cx));
             let samples: Vec<_> = TEXT_COLOURS
@@ -638,7 +638,7 @@ impl DeviceView {
                     .child(
                         div()
                             .text_size(theme::TEXT_LABEL)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .child("Text colour"),
                     )
                     .child(
@@ -653,7 +653,7 @@ impl DeviceView {
                         controls::text_field(
                             &AnyInputState::Input(self.inspector.text_colour_input.clone()),
                             "Text colour",
-                            theme::BG_FIELD,
+                            theme::bg_field(),
                             window,
                             cx,
                         )
@@ -741,10 +741,10 @@ impl DeviceView {
                 .justify_center()
                 .border_1()
                 .border_dashed()
-                .border_color(theme::BORDER_SAMPLE_OTHER)
+                .border_color(theme::border_sample_other())
                 .text_size(theme::TEXT_BODY)
                 .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-                .text_color(theme::TEXT_SECONDARY)
+                .text_color(theme::text_secondary())
                 .child("+")
         })
         .aria_expanded(self.inspector.colour_open)
@@ -791,14 +791,14 @@ impl DeviceView {
                     .child(
                         div()
                             .text_size(theme::TEXT_LABEL)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .child("Other colour"),
                     )
                     .child(
                         controls::text_field(
                             &AnyInputState::Input(self.inspector.colour_input.clone()),
                             "Other colour",
-                            theme::BG_FIELD,
+                            theme::bg_field(),
                             window,
                             cx,
                         )

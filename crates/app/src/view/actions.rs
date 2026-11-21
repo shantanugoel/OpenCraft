@@ -1474,10 +1474,10 @@ impl DeviceView {
                     .text_size(theme::TEXT_LABEL)
                     .child(
                         div()
-                            .text_color(theme::TEXT_TERTIARY)
+                            .text_color(theme::text_tertiary())
                             .child(action.kind.clone()),
                     )
-                    .child(div().text_color(theme::WARNING).child(
+                    .child(div().text_color(theme::warning()).child(
                         "This version of OpenCraft does not have this action. The binding stays \
                          in the profile.",
                     ))
@@ -1528,7 +1528,7 @@ impl DeviceView {
             rows.push(
                 div()
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::WARNING)
+                    .text_color(theme::warning())
                     .child(text.clone())
                     .into_any_element(),
             );
@@ -1600,7 +1600,7 @@ impl DeviceView {
                         .child(
                             Icon::new(IconName::Layers)
                                 .size(theme::ICON_ROW)
-                                .text_color(colour.map_or(theme::TEXT_SECONDARY, theme::colour)),
+                                .text_color(colour.map_or(theme::text_secondary(), theme::colour)),
                         )
                         .child(name.clone())
                         .on_click(cx.listener(move |view, _, window, cx| {
@@ -1658,7 +1658,8 @@ impl DeviceView {
                                         Icon::new(IconName::Layers)
                                             .size(theme::ICON_ROW)
                                             .text_color(
-                                                colour.map_or(theme::TEXT_SECONDARY, theme::colour),
+                                                colour
+                                                    .map_or(theme::text_secondary(), theme::colour),
                                             ),
                                     )
                                 })
@@ -2020,7 +2021,7 @@ impl DeviceView {
                     controls::text_field(
                         &input.state,
                         field.label.clone(),
-                        theme::BG_BAR,
+                        theme::bg_bar(),
                         window,
                         cx,
                     )
@@ -2069,11 +2070,11 @@ impl DeviceView {
                 // value of a nested card and of a step does. The profile
                 // keeps the text of decision 0014.
                 let (text, colour) = if recording {
-                    ("Push a key…".to_string(), theme::TEXT_SECONDARY)
+                    ("Push a key…".to_string(), theme::text_secondary())
                 } else if text.is_empty() {
-                    ("Record hotkey…".to_string(), theme::TEXT_TERTIARY)
+                    ("Record hotkey…".to_string(), theme::text_tertiary())
                 } else {
-                    (super::hotkey::symbols(&text), theme::TEXT_PRIMARY)
+                    (super::hotkey::symbols(&text), theme::text_primary())
                 };
                 row(div()
                     .flex_1()
@@ -2099,12 +2100,12 @@ impl DeviceView {
                             .flex()
                             .items_center()
                             .rounded(theme::RADIUS_CONTROL)
-                            .bg(theme::BG_BAR)
+                            .bg(theme::bg_bar())
                             .border_1()
                             .border_color(if recording {
-                                theme::ACCENT_LINE
+                                theme::accent_line()
                             } else {
-                                theme::BORDER_FIELD
+                                theme::border_field()
                             })
                             .text_size(theme::TEXT_BODY)
                             .text_color(colour)
@@ -2164,7 +2165,7 @@ impl DeviceView {
                     controls::text_field(
                         &input.state,
                         field.label.clone(),
-                        theme::BG_BAR,
+                        theme::bg_bar(),
                         window,
                         cx,
                     )
@@ -2227,7 +2228,7 @@ impl DeviceView {
 pub(super) fn unreadable() -> Div {
     div()
         .text_size(theme::TEXT_LABEL)
-        .text_color(theme::TEXT_TERTIARY)
+        .text_color(theme::text_tertiary())
         .child("OpenCraft cannot read the saved value. A change replaces it.")
 }
 

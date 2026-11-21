@@ -1,7 +1,7 @@
 //! The modal layer of the main window, and the parts of a sheet (decision
 //! 0029, sections 15, 16, and 18).
 //!
-//! A modal layer covers the window with [`theme::MODAL_DIM`] and shows one
+//! A modal layer covers the window with [`theme::modal_dim()`] and shows one
 //! card above it: a sheet, or the command palette. The parts:
 //!
 //! - **The dim layer.** It covers the full window and takes each click, so
@@ -85,7 +85,7 @@ impl Modal {
             label: label.into(),
             width: theme::PROFILE_SHEET_WIDTH,
             top: theme::SHEET_TOP,
-            background: theme::BG_CARD,
+            background: theme::bg_card(),
             on_key: None,
             on_click_out: None,
         }
@@ -146,7 +146,7 @@ impl Modal {
             .left_0()
             .size_full()
             .occlude()
-            .bg(theme::MODAL_DIM)
+            .bg(theme::modal_dim())
             .flex()
             .flex_col()
             .items_center()
@@ -193,10 +193,10 @@ impl Modal {
                     .rounded(theme::RADIUS_SHEET)
                     .bg(self.background)
                     .border_1()
-                    .border_color(theme::BORDER_OVERLAY)
+                    .border_color(theme::border_overlay())
                     .shadow(theme::sheet_shadow())
                     .text_size(theme::TEXT_BODY)
-                    .text_color(theme::TEXT_PRIMARY)
+                    .text_color(theme::text_primary())
                     .cursor_default()
                     .child(content)
                     .focus_trap(trap_id, &self.focus),
@@ -236,7 +236,7 @@ pub(crate) fn sheet_title(
                 .readable_text(subtitle.clone())
                 .debug_selector(|| "sheet-subtitle".into())
                 .text_size(theme::TEXT_LABEL)
-                .text_color(theme::TEXT_SECONDARY)
+                .text_color(theme::text_secondary())
                 .child(subtitle),
         )
 }
@@ -254,7 +254,7 @@ pub(crate) fn sheet_row(label: impl Into<SharedString>, control: impl IntoElemen
                 .flex_shrink_0()
                 .w(theme::SHEET_LABEL)
                 .text_size(theme::TEXT_CONTROL)
-                .text_color(theme::TEXT_SECONDARY)
+                .text_color(theme::text_secondary())
                 .child(label),
         )
         .child(
@@ -285,8 +285,8 @@ pub(crate) fn button_row(start: Option<AnyElement>, end: Vec<AnyElement>) -> Div
         .items_center()
         .gap(theme::SPACE_8)
         .border_t_1()
-        .border_color(theme::LINE_PANE)
-        .bg(theme::BG_SIDEBAR)
+        .border_color(theme::line_pane())
+        .bg(theme::bg_sidebar())
         .children(start)
         .child(div().flex_1())
         .children(end)

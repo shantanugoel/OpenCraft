@@ -195,7 +195,7 @@ impl DeviceView {
             .flex_shrink_0()
             .child(
                 controls::button("profile-add-application", "Add an application…")
-                    .when(adding, |row| row.border_color(theme::ACCENT_LINE))
+                    .when(adding, |row| row.border_color(theme::accent_line()))
                     .aria_expanded(adding)
                     .on_click(cx.listener(move |view, _, window, cx| {
                         if view.link_picker_open(&id) {
@@ -248,7 +248,7 @@ impl DeviceView {
             .child(
                 button(format!("{id}path-{index}"), "Choose…")
                     .px(theme::SPACE_10)
-                    .when(open, |row| row.border_color(theme::ACCENT_LINE))
+                    .when(open, |row| row.border_color(theme::accent_line()))
                     .aria_expanded(open)
                     .on_click(cx.listener(move |view, _, window, cx| {
                         if view.application_picker.target.as_ref()
@@ -673,13 +673,13 @@ impl DeviceView {
                                     .flex_col()
                                     .overflow_hidden()
                                     .rounded(theme::RADIUS_POPOVER)
-                                    .bg(theme::BG_FIELD)
+                                    .bg(theme::bg_field())
                                     .border_1()
-                                    .border_color(theme::BORDER_OVERLAY)
+                                    .border_color(theme::border_overlay())
                                     .shadow(theme::popover_shadow())
                                     .text_size(theme::TEXT_CONTROL)
                                     .font_weight(gpui_kit::FontWeight::NORMAL)
-                                    .text_color(theme::TEXT_PRIMARY)
+                                    .text_color(theme::text_primary())
                                     .child(self.application_picker_search(window, cx))
                                     .child(self.application_list(cx))
                                     .child(self.application_picker_footer(cx)),
@@ -703,7 +703,7 @@ impl DeviceView {
             .flex_shrink_0()
             .p(theme::SPACE_12)
             .border_b_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .child(
                 controls::search_field(
                     "application-search",
@@ -713,7 +713,7 @@ impl DeviceView {
                     window,
                     cx,
                 )
-                .bg(theme::BG_BAR),
+                .bg(theme::bg_bar()),
             )
     }
 
@@ -729,7 +729,7 @@ impl DeviceView {
                     .px(theme::SPACE_16)
                     .text_center()
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .readable_text(text.clone())
                     .child(text),
             );
@@ -822,7 +822,7 @@ impl DeviceView {
             .gap(theme::SPACE_8)
             .rounded(theme::RADIUS_CONTROL)
             .cursor_pointer()
-            .when(highlighted, |row| row.bg(theme::MENU_HIGHLIGHT))
+            .when(highlighted, |row| row.bg(theme::menu_highlight()))
             .accessible(Role::MenuItem, label)
             .child(self.application_icon_tile(application))
             .child(div().flex_1().min_w_0().truncate().child(name))
@@ -835,7 +835,7 @@ impl DeviceView {
                         .max_w(relative(0.55))
                         .truncate()
                         .text_size(theme::TEXT_CAPTION)
-                        .text_color(theme::TEXT_TERTIARY)
+                        .text_color(theme::text_tertiary())
                         .child(note),
                 )
             })
@@ -863,7 +863,7 @@ impl DeviceView {
             .pt(theme::SPACE_4)
             .pb(theme::SPACE_6)
             .border_t_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .child(
                 div()
                     .id("choose-different-application")
@@ -876,7 +876,7 @@ impl DeviceView {
                     .items_center()
                     .rounded(theme::RADIUS_CONTROL)
                     .cursor_pointer()
-                    .when(highlighted, |row| row.bg(theme::MENU_HIGHLIGHT))
+                    .when(highlighted, |row| row.bg(theme::menu_highlight()))
                     .accessible(Role::MenuItem, "Choose a different application…")
                     .child("Choose a different application…")
                     .on_mouse_move(cx.listener(move |view, _, _, cx| {
@@ -899,7 +899,7 @@ impl DeviceView {
                 mark.child(
                     Icon::new(IconName::Check)
                         .size(theme::ICON_SMALL)
-                        .text_color(theme::TEXT_SECONDARY),
+                        .text_color(theme::text_secondary()),
                 )
             })
     }
@@ -926,9 +926,9 @@ impl DeviceView {
                 tile.flex()
                     .items_center()
                     .justify_center()
-                    .bg(theme::BG_CONTROL)
+                    .bg(theme::bg_control())
                     .text_size(theme::TEXT_CAPTION)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .child(letter)
             }
         }

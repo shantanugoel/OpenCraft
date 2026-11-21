@@ -74,13 +74,13 @@ pub(super) fn header(
                         .truncate()
                         .text_size(theme::TEXT_HEADING)
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme::TEXT_PRIMARY)
+                        .text_color(theme::text_primary())
                         .child(name),
                 )
                 .child(
                     div()
                         .text_size(theme::TEXT_LABEL)
-                        .text_color(theme::TEXT_TERTIARY)
+                        .text_color(theme::text_tertiary())
                         .child(second_line),
                 ),
         )
@@ -117,7 +117,7 @@ pub(super) fn section(id: &'static str, title: &str, hint: Option<&str>) -> Stat
         .px(theme::SECTION_PADDING_SIDE)
         .pb(theme::SECTION_PADDING_BOTTOM)
         .border_t_1()
-        .border_color(theme::LINE_SECTION)
+        .border_color(theme::line_section())
         .flex()
         .flex_col()
         .gap(if hint.is_some() {
@@ -134,7 +134,7 @@ pub(super) fn section(id: &'static str, title: &str, hint: Option<&str>) -> Stat
                 .children(hint.map(|hint| {
                     div()
                         .text_size(theme::TEXT_CAPTION)
-                        .text_color(theme::TEXT_TERTIARY)
+                        .text_color(theme::text_tertiary())
                         .child(hint.to_string())
                 })),
         )
@@ -241,7 +241,7 @@ pub(super) fn stacked_row(label: impl Into<SharedString>, value: impl IntoElemen
         .child(
             div()
                 .text_size(theme::TEXT_LABEL)
-                .text_color(theme::TEXT_SECONDARY)
+                .text_color(theme::text_secondary())
                 .child(label.into()),
         )
         .child(value)
@@ -253,7 +253,7 @@ fn label_cell(label: impl Into<SharedString>, width: Pixels) -> Div {
         .flex_shrink_0()
         .w(width)
         .text_size(theme::TEXT_LABEL)
-        .text_color(theme::TEXT_SECONDARY)
+        .text_color(theme::text_secondary())
         .child(label.into())
 }
 
@@ -261,6 +261,6 @@ fn label_cell(label: impl Into<SharedString>, width: Pixels) -> Div {
 pub(super) fn help(text: impl Into<SharedString>) -> Div {
     div()
         .text_size(theme::TEXT_HELP)
-        .text_color(theme::TEXT_TERTIARY)
+        .text_color(theme::text_tertiary())
         .child(text.into())
 }

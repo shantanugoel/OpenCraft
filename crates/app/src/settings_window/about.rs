@@ -56,7 +56,7 @@ impl SettingsView {
                     .debug_selector(|| "about-version".into())
                     .readable_text(format!("Version {VERSION}"))
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .child(format!("Version {VERSION}")),
             )
             .child(div().h(theme::SPACE_12))
@@ -93,7 +93,7 @@ impl SettingsView {
                         .readable_text(no_notices_text())
                         .text_center()
                         .text_size(theme::TEXT_HELP)
-                        .text_color(theme::TEXT_TERTIARY)
+                        .text_color(theme::text_tertiary())
                         .child(no_notices_text()),
                 )
             })

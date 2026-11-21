@@ -424,7 +424,7 @@ impl FirstStartView {
             .flex_shrink_0()
             .h_full()
             .border_r_1()
-            .border_color(theme::LINE_SECTION)
+            .border_color(theme::line_section())
             .flex()
             .flex_col()
             .items_center()
@@ -454,7 +454,7 @@ impl FirstStartView {
                             .debug_selector(|| "first-start-device-text".into())
                             .readable_text(text)
                             .text_size(theme::TEXT_LABEL)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .line_height(relative(theme::LINE_HEIGHT_TEXT))
                             .child(text),
                     ),
@@ -500,9 +500,9 @@ impl FirstStartView {
                 .rounded(radius)
                 .overflow_hidden()
                 .bg(if panel {
-                    theme::PICTURE_PANEL_EMPTY
+                    theme::picture_panel_empty()
                 } else {
-                    theme::BG_TILE
+                    theme::bg_tile()
                 })
                 .children(image.map(|image| {
                     img(image)
@@ -528,9 +528,9 @@ impl FirstStartView {
                     .size_full()
                     .p(theme::PICTURE_PADDING)
                     .rounded(theme::RADIUS_PICTURE)
-                    .bg(theme::DEVICE_BODY)
+                    .bg(theme::device_body())
                     .border_1()
-                    .border_color(theme::DEVICE_BODY_BORDER)
+                    .border_color(theme::device_body_border())
                     .flex()
                     .flex_col()
                     .justify_center()
@@ -560,7 +560,7 @@ impl FirstStartView {
                                     .rounded_full()
                                     .border(theme::PICTURE_KNOB_RING)
                                     .border_color(knob_ring(settings, knob.id))
-                                    .bg(theme::DEVICE_KNOB),
+                                    .bg(theme::device_knob()),
                             )
                         })))
                     }),
@@ -575,16 +575,16 @@ impl FirstStartView {
                         .right(theme::BADGE_CHECK_OUTSIDE)
                         .size(theme::BADGE_CHECK)
                         .rounded_full()
-                        .bg(theme::SUCCESS_FILL)
+                        .bg(theme::success_fill())
                         .border(theme::BADGE_CHECK_BORDER)
-                        .border_color(theme::BG_BAR)
+                        .border_color(theme::bg_bar())
                         .flex()
                         .items_center()
                         .justify_center()
                         .child(
                             Icon::new(IconName::Check)
                                 .size(theme::ICON_BADGE_CHECK)
-                                .text_color(theme::TEXT_ON_ACCENT),
+                                .text_color(theme::text_on_accent()),
                         ),
                 )
             })
@@ -638,7 +638,7 @@ impl FirstStartView {
                     .id("first-start-intro")
                     .readable_text(INTRO)
                     .mt(theme::SPACE_6)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .line_height(relative(theme::FIRST_START_LINE_HEIGHT))
                     .child(INTRO),
             )
@@ -661,20 +661,20 @@ impl FirstStartView {
                     .py(theme::SPACE_10)
                     .px(theme::SPACE_12)
                     .rounded(theme::RADIUS_NOTE_BOX)
-                    .bg(theme::BG_CARD)
+                    .bg(theme::bg_card())
                     .border_1()
-                    .border_color(theme::LINE_PANE)
+                    .border_color(theme::line_pane())
                     .flex()
                     .items_start()
                     .gap(theme::SPACE_10)
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .line_height(relative(theme::LINE_HEIGHT_TEXT))
                     .child(
                         div().flex_shrink_0().pt(theme::SPACE_1).child(
                             Icon::new(IconName::Shield)
                                 .size(theme::ICON_NOTE)
-                                .text_color(theme::TEXT_SECONDARY),
+                                .text_color(theme::text_secondary()),
                         ),
                     )
                     .child(
@@ -712,12 +712,12 @@ impl FirstStartView {
             .flex_col()
             .overflow_hidden()
             .rounded(theme::RADIUS_POPOVER)
-            .bg(theme::BG_FIELD)
+            .bg(theme::bg_field())
             .border_1()
-            .border_color(theme::BORDER_OVERLAY)
+            .border_color(theme::border_overlay())
             .shadow(theme::popover_shadow())
             .text_size(theme::TEXT_BODY)
-            .text_color(theme::TEXT_PRIMARY)
+            .text_color(theme::text_primary())
             .capture_key_down(cx.listener(|view, event: &KeyDownEvent, _, cx| {
                 if event.keystroke.key == "escape" {
                     cx.stop_propagation();
@@ -741,7 +741,7 @@ impl FirstStartView {
                             .id("first-start-ready-help")
                             .readable_text(READY_HELP)
                             .text_size(theme::TEXT_HELP)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .line_height(relative(theme::LINE_HEIGHT_TEXT))
                             .child(READY_HELP),
                     ),
@@ -790,7 +790,7 @@ impl FirstStartView {
                         div()
                             .truncate()
                             .text_size(theme::TEXT_HELP)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .child(ready.description),
                     ),
             )
@@ -843,7 +843,7 @@ impl FirstStartView {
             let selector = format!("{id}-cell-{number}");
             let fill = surface
                 .and_then(|id| fills.and_then(|m| m.get(&id)))
-                .map_or(theme::BG_TILE, |c| theme::colour(*c));
+                .map_or(theme::bg_tile(), |c| theme::colour(*c));
             div()
                 .debug_selector(move || selector.clone())
                 .flex_1()
@@ -869,13 +869,16 @@ impl FirstStartView {
             .gap(theme::SPACE_6)
             .cursor_pointer()
             .when(selected, |d| {
-                d.bg(theme::ACCENT_TINT_START)
-                    .border_color(theme::ACCENT_LINE)
+                d.bg(theme::accent_tint_start())
+                    .border_color(theme::accent_line())
             })
             .when(!selected, |d| {
-                d.bg(theme::BG_CARD)
-                    .border_color(theme::BORDER_FIELD)
-                    .hover(|d| d.border_color(theme::BORDER_CONTROL).bg(theme::BG_FIELD))
+                d.bg(theme::bg_card())
+                    .border_color(theme::border_field())
+                    .hover(|d| {
+                        d.border_color(theme::border_control())
+                            .bg(theme::bg_field())
+                    })
             })
             .child(div().flex().flex_col().gap(theme::SPACE_3).children(
                 keys.chunks(columns).enumerate().map(|(row, keys)| {
@@ -890,7 +893,7 @@ impl FirstStartView {
             .child(
                 div()
                     .text_size(theme::TEXT_HELP)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .line_height(relative(theme::LINE_HEIGHT_TEXT))
                     .child(starter.description),
             )
@@ -920,8 +923,8 @@ impl Render for FirstStartView {
             .relative()
             .flex()
             .flex_col()
-            .bg(theme::BG_BAR)
-            .text_color(theme::TEXT_PRIMARY)
+            .bg(theme::bg_bar())
+            .text_color(theme::text_primary())
             .text_size(theme::TEXT_BODY)
             .cursor_default()
             // The title bar has the window buttons only.

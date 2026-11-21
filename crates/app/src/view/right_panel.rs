@@ -39,9 +39,9 @@ impl DeviceView {
             .h_full()
             .flex()
             .flex_col()
-            .bg(theme::BG_PANEL)
+            .bg(theme::bg_panel())
             .border_l_1()
-            .border_color(theme::LINE_PANE)
+            .border_color(theme::line_pane())
             .child(self.tab_header(cx))
             .child(content)
             .into_any_element()
@@ -55,7 +55,7 @@ impl DeviceView {
             .py(theme::SPACE_12)
             .px(theme::SPACE_16)
             .border_b_1()
-            .border_color(theme::LINE_SECTION)
+            .border_color(theme::line_section())
             .child(controls::segmented(
                 "right-tabs",
                 TABS.into_iter()

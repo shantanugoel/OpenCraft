@@ -703,7 +703,7 @@ impl DeviceView {
                     .px(theme::SPACE_8)
                     .py(theme::SPACE_6)
                     .border_b_1()
-                    .border_color(theme::LINE_SECTION)
+                    .border_color(theme::line_section())
                     .child(unreadable()),
             );
         }
@@ -749,16 +749,16 @@ impl DeviceView {
                             .border_1()
                             .border_dashed()
                             .border_color(if menu_open {
-                                theme::ACCENT_LINE
+                                theme::accent_line()
                             } else {
-                                theme::BORDER_OVERLAY
+                                theme::border_overlay()
                             })
                             .text_size(theme::TEXT_LABEL)
                             .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .cursor_pointer()
-                            .hover(|d| d.bg(theme::HOVER_ROW))
-                            .active(|d| d.bg(theme::PRESSED))
+                            .hover(|d| d.bg(theme::hover_row()))
+                            .active(|d| d.bg(theme::pressed()))
                             .accessible(Role::Button, add_text)
                             .aria_expanded(menu_open)
                             .child(Icon::new(IconName::Plus).size(theme::ICON_KIND_NESTED))
@@ -797,7 +797,7 @@ impl DeviceView {
                         "Title",
                         theme::FORM_LABEL,
                         theme::CARD_FORM_GAP,
-                        controls::text_field(&input.state, "Title", theme::BG_BAR, window, cx),
+                        controls::text_field(&input.state, "Title", theme::bg_bar(), window, cx),
                     )),
             );
         }
@@ -932,7 +932,7 @@ impl DeviceView {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .text_color(theme::TEXT_DISABLED)
+                    .text_color(theme::text_disabled())
                     .cursor_grab()
                     // The label of decision 0029, section 10.4. The handle
                     // has no click: it is a picture for VoiceOver.
@@ -953,7 +953,7 @@ impl DeviceView {
                     .flex_shrink_0()
                     .w(theme::WIDTH_STEP_NUMBER)
                     .text_size(theme::TEXT_CAPTION)
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child((item + 1).to_string()),
             )
     }
@@ -973,10 +973,10 @@ impl DeviceView {
             .px(theme::SPACE_6)
             .py(theme::SPACE_2)
             .rounded(theme::RADIUS_BADGE)
-            .bg(theme::ACCENT_TINT)
+            .bg(theme::accent_tint())
             .text_size(theme::TEXT_BADGE)
             .font_weight(FontWeight::MEDIUM)
-            .text_color(theme::ACCENT_TEXT)
+            .text_color(theme::accent_text())
             .child(text)
             .into_any_element()
     }
@@ -1018,10 +1018,10 @@ impl DeviceView {
             .flex()
             .gap(theme::SPACE_8)
             .border_b_1()
-            .border_color(theme::LINE_SECTION)
+            .border_color(theme::line_section())
             .drag_over::<StepDrag>(move |style, drag, _, _| {
                 if drag.list == target && Some(drag.binding) == binding {
-                    style.bg(theme::ACCENT_TINT_DRAG)
+                    style.bg(theme::accent_tint_drag())
                 } else {
                     style
                 }
@@ -1068,7 +1068,7 @@ impl DeviceView {
                 .h(theme::HEIGHT_STEP_ROW)
                 .items_center()
                 .cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_ROW))
+                .hover(|d| d.bg(theme::hover_row()))
                 .child(self.step_handle(list, item, &label))
                 .child(label.tile(TileSize::Nested))
                 .child(
@@ -1077,7 +1077,7 @@ impl DeviceView {
                         .min_w_0()
                         .truncate()
                         .text_size(theme::TEXT_CONTROL)
-                        .when(!available, |d| d.text_color(theme::TEXT_TERTIARY))
+                        .when(!available, |d| d.text_color(theme::text_tertiary()))
                         .child(title.to_string()),
                 )
                 .when(is_next, |d| {
@@ -1089,7 +1089,7 @@ impl DeviceView {
                         .max_w(gpui_kit::relative(0.45))
                         .truncate()
                         .text_size(theme::TEXT_LABEL)
-                        .text_color(theme::TEXT_SECONDARY)
+                        .text_color(theme::text_secondary())
                         .child(value),
                 )
                 .map(|d| controls::keyboard_focus(d, controls::Ring::Inside))
@@ -1169,10 +1169,10 @@ impl DeviceView {
             .items_center()
             .justify_center()
             .rounded(theme::RADIUS_CONTROL)
-            .text_color(theme::TEXT_SECONDARY)
+            .text_color(theme::text_secondary())
             .cursor_pointer()
-            .hover(|d| d.bg(theme::HOVER_ICON))
-            .active(|d| d.bg(theme::PRESSED))
+            .hover(|d| d.bg(theme::hover_icon()))
+            .active(|d| d.bg(theme::pressed()))
             .accessible(Role::Button, MORE_FOR_THIS_STEP)
             .tooltip(|window, cx| Tooltip::new(MORE_FOR_THIS_STEP).build(window, cx))
             .child(Icon::new(IconName::Ellipsis).size(theme::ICON_BUTTON))

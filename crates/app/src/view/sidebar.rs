@@ -129,7 +129,7 @@ fn row(id: impl Into<SharedString>, selected: bool) -> Stateful<Div> {
         .flex()
         .items_center()
         .rounded(theme::RADIUS_CONTROL)
-        .when(!selected, |d| d.hover(|d| d.bg(theme::HOVER_ROW)))
+        .when(!selected, |d| d.hover(|d| d.bg(theme::hover_row())))
 }
 
 /// The text of a row. It takes the free width, and a long text ends with
@@ -149,9 +149,9 @@ impl DeviceView {
             .h_full()
             .flex()
             .flex_col()
-            .bg(theme::BG_SIDEBAR)
+            .bg(theme::bg_sidebar())
             .border_r_1()
-            .border_color(theme::LINE_PANE)
+            .border_color(theme::line_pane())
             .child(
                 // The window buttons are at the leading side of this area.
                 div()
@@ -273,13 +273,13 @@ impl DeviceView {
             .cursor_pointer()
             .map(|d| {
                 if selected {
-                    d.bg(theme::ACCENT)
-                        .border_color(theme::ACCENT_LINE)
-                        .text_color(theme::TEXT_ON_ACCENT)
+                    d.bg(theme::accent())
+                        .border_color(theme::accent_line())
+                        .text_color(theme::text_on_accent())
                 } else {
-                    d.bg(theme::BG_FIELD)
-                        .border_color(theme::BORDER_DEVICE_CARD)
-                        .hover(|d| d.bg(theme::BG_CONTROL))
+                    d.bg(theme::bg_field())
+                        .border_color(theme::border_device_card())
+                        .hover(|d| d.bg(theme::bg_control()))
                 }
             })
             .map(|d| keyboard_focus(d, Ring::Outside))
@@ -297,8 +297,8 @@ impl DeviceView {
                     .items_center()
                     .justify_center()
                     .rounded(theme::RADIUS_CARD)
-                    .bg(theme::BG_TILE)
-                    .text_color(theme::TEXT_PRIMARY)
+                    .bg(theme::bg_tile())
+                    .text_color(theme::text_primary())
                     .child(Icon::new(IconName::Grid3x2).size(theme::ICON_DEVICE)),
             )
             .child(
@@ -323,14 +323,14 @@ impl DeviceView {
                             .gap(theme::SPACE_6)
                             .text_size(theme::TEXT_CAPTION)
                             .text_color(if selected {
-                                theme::TEXT_ON_ACCENT
+                                theme::text_on_accent()
                             } else {
-                                theme::TEXT_SECONDARY
+                                theme::text_secondary()
                             })
                             .child(dot(if connected {
-                                theme::SUCCESS
+                                theme::success()
                             } else {
-                                theme::TEXT_DISABLED
+                                theme::text_disabled()
                             }))
                             .child(state),
                     ),
@@ -344,9 +344,9 @@ impl DeviceView {
                     .cursor_pointer()
                     .flex_shrink_0()
                     .text_color(if selected {
-                        theme::TEXT_ON_ACCENT
+                        theme::text_on_accent()
                     } else {
-                        theme::TEXT_SECONDARY
+                        theme::text_secondary()
                     })
                     .child(Icon::new(IconName::ChevronsUpDown).size(theme::ICON_BUTTON))
                     // The engine knows one device now. More devices are a
@@ -395,10 +395,10 @@ impl DeviceView {
                     .items_center()
                     .justify_center()
                     .rounded(theme::RADIUS_SEGMENT)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .cursor_pointer()
-                    .hover(|d| d.bg(theme::HOVER_ICON))
-                    .active(|d| d.bg(theme::PRESSED))
+                    .hover(|d| d.bg(theme::hover_icon()))
+                    .active(|d| d.bg(theme::pressed()))
                     .accessible(Role::Button, ADD_A_PROFILE)
                     .tooltip(|window, cx| Tooltip::new(ADD_A_PROFILE).build(window, cx))
                     .child(Icon::new(IconName::Plus).size(theme::ICON_BUTTON))
@@ -499,7 +499,7 @@ impl DeviceView {
             .child(
                 triangle
                     .flex_shrink_0()
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child(
                         Icon::new(IconName::ChevronRight)
                             .size(theme::ICON_SMALL)
@@ -511,7 +511,7 @@ impl DeviceView {
                 // (section 7.3).
                 Icon::new(IconName::Layers)
                     .size(theme::ICON_ROW)
-                    .text_color(colour.map_or(theme::TEXT_SECONDARY, theme::colour)),
+                    .text_color(colour.map_or(theme::text_secondary(), theme::colour)),
             )
     }
 
@@ -591,7 +591,7 @@ impl DeviceView {
                             .flex_shrink_0()
                             .text_size(theme::TEXT_BADGE)
                             .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(theme::TEXT_TERTIARY)
+                            .text_color(theme::text_tertiary())
                             .child(note),
                     )
                 })
@@ -604,7 +604,7 @@ impl DeviceView {
                             .flex_shrink_0()
                             .text_size(theme::TEXT_BADGE)
                             .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(theme::SUCCESS)
+                            .text_color(theme::success())
                             .tooltip(move |window, cx| {
                                 Tooltip::new(cause.clone()).build(window, cx)
                             })
@@ -658,11 +658,11 @@ impl DeviceView {
             .gap(theme::SPACE_8)
             .cursor_pointer()
             .when(focused, |d| {
-                d.bg(theme::ACCENT)
-                    .text_color(theme::TEXT_ON_ACCENT)
+                d.bg(theme::accent())
+                    .text_color(theme::text_on_accent())
                     .font_weight(FontWeight::MEDIUM)
             })
-            .when(selected && !focused, |d| d.bg(theme::SELECTED_UNFOCUSED))
+            .when(selected && !focused, |d| d.bg(theme::selected_unfocused()))
             .child(if editing {
                 self.name_field(cx)
             } else {
@@ -674,9 +674,9 @@ impl DeviceView {
                     .text_size(theme::TEXT_CAPTION)
                     .font_weight(FontWeight::NORMAL)
                     .text_color(if focused {
-                        theme::TEXT_ON_ACCENT
+                        theme::text_on_accent()
                     } else {
-                        theme::TEXT_TERTIARY
+                        theme::text_tertiary()
                     })
                     .child((page + 1).to_string()),
             )
@@ -732,9 +732,9 @@ impl DeviceView {
         let shown = self.state.profile.clone();
         let menu_shown = shown.clone();
         let icon_colour = if focused {
-            theme::TEXT_ON_ACCENT
+            theme::text_on_accent()
         } else {
-            theme::TEXT_TERTIARY
+            theme::text_tertiary()
         };
         row(format!("folder-{id}"), selected)
             .accessible(Role::TreeItem, name.clone())
@@ -745,11 +745,11 @@ impl DeviceView {
             .gap(theme::SPACE_8)
             .cursor_pointer()
             .when(focused, |d| {
-                d.bg(theme::ACCENT)
-                    .text_color(theme::TEXT_ON_ACCENT)
+                d.bg(theme::accent())
+                    .text_color(theme::text_on_accent())
                     .font_weight(FontWeight::MEDIUM)
             })
-            .when(selected && !focused, |d| d.bg(theme::SELECTED_UNFOCUSED))
+            .when(selected && !focused, |d| d.bg(theme::selected_unfocused()))
             .child(if editing {
                 self.name_field(cx)
             } else {
@@ -795,7 +795,7 @@ impl DeviceView {
             .pr(theme::SPACE_8)
             .gap(theme::SPACE_6)
             .text_size(theme::TEXT_CONTROL)
-            .text_color(theme::TEXT_TERTIARY)
+            .text_color(theme::text_tertiary())
             .cursor_pointer()
             .child(Icon::new(IconName::Plus).size(theme::ICON_SMALL))
             .child(ADD_A_PAGE)
@@ -817,7 +817,7 @@ impl DeviceView {
             .pr(theme::SPACE_8)
             .gap(theme::SPACE_6)
             .text_size(theme::TEXT_CONTROL)
-            .text_color(theme::TEXT_TERTIARY)
+            .text_color(theme::text_tertiary())
             .cursor_pointer()
             .child(Icon::new(IconName::Plus).size(theme::ICON_SMALL))
             .child(ADD_A_FOLDER)
@@ -838,7 +838,7 @@ impl DeviceView {
             .flex_1()
             .min_w_0()
             .font_weight(FontWeight::NORMAL)
-            .text_color(theme::TEXT_PRIMARY)
+            .text_color(theme::text_primary())
             // The field gets no Return: after the event of the field, the
             // window puts the key into the text, and that removes a selected
             // name.
@@ -859,7 +859,7 @@ impl DeviceView {
                     .h(theme::ROW_FIELD_HEIGHT)
                     .px(theme::ROW_FIELD_INSET - theme::SPACE_1)
                     .rounded(theme::RADIUS_SEGMENT)
-                    .bg(theme::BG_FIELD)
+                    .bg(theme::bg_field())
                     .text_size(theme::TEXT_BODY),
             )
             .into_any_element()
@@ -877,13 +877,13 @@ impl DeviceView {
             .px(theme::SPACE_10)
             .pb(theme::SPACE_14)
             .border_t_1()
-            .border_color(theme::LINE_SIDEBAR)
+            .border_color(theme::line_sidebar())
             .child(
                 row("sidebar-settings", false)
                     .accessible(Role::Button, SETTINGS)
                     .px(theme::SPACE_8)
                     .gap(theme::SPACE_8)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .cursor_pointer()
                     .map(|d| keyboard_focus(d, Ring::Inside))
                     .on_click(cx.listener(|view, _, _, cx| {
@@ -897,7 +897,7 @@ impl DeviceView {
                         crate::settings_window::shortcuts::keys(&OpenSettings, cx).map(|keys| {
                             div()
                                 .text_size(theme::TEXT_CAPTION)
-                                .text_color(theme::TEXT_TERTIARY)
+                                .text_color(theme::text_tertiary())
                                 .child(keys)
                         }),
                     ),

@@ -12,12 +12,12 @@ pub(super) fn group(rows: impl IntoIterator<Item = Div>) -> Div {
         .flex()
         .flex_col()
         .rounded(theme::RADIUS_GROUP)
-        .bg(theme::BG_CARD)
+        .bg(theme::bg_card())
         .border_1()
-        .border_color(theme::LINE_PANE)
+        .border_color(theme::line_pane())
         .children(rows.into_iter().enumerate().map(|(index, row)| {
             row.when(index < last, |row| {
-                row.border_b_1().border_color(theme::LINE_PANE)
+                row.border_b_1().border_color(theme::line_pane())
             })
         }))
 }
@@ -55,7 +55,7 @@ pub(super) fn row(
                     div()
                         .truncate()
                         .text_size(theme::TEXT_HELP)
-                        .text_color(theme::TEXT_TERTIARY)
+                        .text_color(theme::text_tertiary())
                         .child(description),
                 ),
         )
@@ -80,5 +80,5 @@ pub(super) fn line_row(name: impl Into<SharedString>, value: impl Into<SharedStr
                 .readable_text(format!("{name}, {value}"))
                 .child(name),
         )
-        .child(div().text_color(theme::TEXT_SECONDARY).child(value))
+        .child(div().text_color(theme::text_secondary()).child(value))
 }

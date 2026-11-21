@@ -233,9 +233,9 @@ impl DeviceView {
             .items_center()
             .justify_center()
             .rounded(theme::RADIUS_CONTROL)
-            .bg(fill.unwrap_or(theme::BG_FIELD))
+            .bg(fill.unwrap_or(theme::bg_field()))
             .border_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .map(|d| match (icon, content.image.is_some()) {
                 (Some(icon), _) => {
                     let title: SharedString = format!("Icon “{}”", icon.title()).into();
@@ -251,7 +251,7 @@ impl DeviceView {
                     .child(
                         gpui_kit::component::Icon::new(gpui_kit::assets::IconName::Image)
                             .size(theme::ICON_BUTTON)
-                            .text_color(theme::TEXT_SECONDARY),
+                            .text_color(theme::text_secondary()),
                     )
                     .tooltip(|window, cx| Tooltip::new("Image file").build(window, cx)),
                 (None, false) => d,
@@ -261,7 +261,7 @@ impl DeviceView {
             .flex_shrink_0()
             .child(
                 button("choose-icon", "Choose icon…")
-                    .when(open, |d| d.border_color(theme::ACCENT_LINE))
+                    .when(open, |d| d.border_color(theme::accent_line()))
                     .on_click(cx.listener(move |view, _, window, cx| {
                         if view.inspector.icon_picker.open {
                             view.close_icon_picker(window, cx);
@@ -436,14 +436,14 @@ impl DeviceView {
                     .absolute()
                     .left(place.arrow_x)
                     .top(border_y)
-                    .child(arrow(data, theme::BORDER_OVERLAY)),
+                    .child(arrow(data, theme::border_overlay())),
             )
             .child(
                 div()
                     .absolute()
                     .left(place.arrow_x)
                     .top(fill_y)
-                    .child(arrow(data, theme::BG_FIELD)),
+                    .child(arrow(data, theme::bg_field())),
             );
         div()
             .child(
@@ -485,13 +485,13 @@ impl DeviceView {
                                     .flex_col()
                                     .overflow_hidden()
                                     .rounded(theme::RADIUS_POPOVER)
-                                    .bg(theme::BG_FIELD)
+                                    .bg(theme::bg_field())
                                     .border_1()
-                                    .border_color(theme::BORDER_OVERLAY)
+                                    .border_color(theme::border_overlay())
                                     .shadow(theme::popover_shadow())
                                     .text_size(theme::TEXT_CONTROL)
                                     .font_weight(gpui_kit::FontWeight::NORMAL)
-                                    .text_color(theme::TEXT_PRIMARY)
+                                    .text_color(theme::text_primary())
                                     .child(self.icon_picker_header(window, cx))
                                     .child(self.icon_grid(id, content, cx))
                                     .child(self.icon_picker_footer(id, content, cx)),
@@ -530,7 +530,7 @@ impl DeviceView {
             .flex_col()
             .gap(theme::SPACE_10)
             .border_b_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .child(
                 // The tabs "Packs" and "GIF" are places for later: more
                 // chips in this row.
@@ -549,14 +549,14 @@ impl DeviceView {
                     window,
                     cx,
                 )
-                .bg(theme::BG_BAR)
+                .bg(theme::bg_bar())
                 .child(
                     div()
                         .id("icon-count")
                         .debug_selector(|| "icon-count".into())
                         .flex_shrink_0()
                         .text_size(theme::TEXT_CAPTION)
-                        .text_color(theme::TEXT_TERTIARY)
+                        .text_color(theme::text_tertiary())
                         .child(count_text(picker.count)),
                 ),
             )
@@ -576,7 +576,7 @@ impl DeviceView {
                     .px(theme::SPACE_16)
                     .text_center()
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child(empty_text(picker.tab, &query)),
             );
         }
@@ -669,15 +669,15 @@ impl DeviceView {
             .group(CELL_GROUP)
             .map(|d| {
                 if selected {
-                    d.bg(theme::ACCENT).border_color(theme::ACCENT_LINE)
+                    d.bg(theme::accent()).border_color(theme::accent_line())
                 } else {
-                    d.bg(theme::BG_BAR)
-                        .border_color(theme::LINE_PANE)
+                    d.bg(theme::bg_bar())
+                        .border_color(theme::line_pane())
                         .hover(|d| {
-                            d.bg(theme::HOVER_ICON_CELL)
-                                .border_color(theme::BORDER_CONTROL)
+                            d.bg(theme::hover_icon_cell())
+                                .border_color(theme::border_control())
                         })
-                        .active(|d| d.bg(theme::PRESSED))
+                        .active(|d| d.bg(theme::pressed()))
                 }
             })
             .accessible(Role::RadioButton, title.clone())
@@ -692,10 +692,10 @@ impl DeviceView {
                     .size(theme::ICON_CELL_ICON)
                     .map(|d| {
                         if selected {
-                            d.text_color(theme::TEXT_ON_ACCENT)
+                            d.text_color(theme::text_on_accent())
                         } else {
-                            d.text_color(theme::TEXT_ICON_CELL)
-                                .group_hover(CELL_GROUP, |d| d.text_color(theme::TEXT_PRIMARY))
+                            d.text_color(theme::text_icon_cell())
+                                .group_hover(CELL_GROUP, |d| d.text_color(theme::text_primary()))
                         }
                     }),
             )
@@ -725,7 +725,7 @@ impl DeviceView {
                     format!("Icon colour #{value:06X}"),
                 )
                 .when(value == theme::ICON_COLOUR_WITH_BORDER, |d| {
-                    d.border_1().border_color(theme::BORDER_SAMPLE_OTHER)
+                    d.border_1().border_color(theme::border_sample_other())
                 })
                 .on_click(
                     cx.listener(move |view, _, _, cx| view.choose_icon_colour(id, colour, cx)),
@@ -739,7 +739,7 @@ impl DeviceView {
             .flex_col()
             .gap(theme::SPACE_10)
             .border_t_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .child(
                 div()
                     .flex()
@@ -750,7 +750,7 @@ impl DeviceView {
                             .flex_shrink_0()
                             .w(theme::FORM_LABEL)
                             .text_size(theme::TEXT_LABEL)
-                            .text_color(theme::TEXT_SECONDARY)
+                            .text_color(theme::text_secondary())
                             .child("Icon colour"),
                     )
                     .children(circles),
@@ -761,14 +761,14 @@ impl DeviceView {
                     .items_center()
                     .justify_between()
                     .child(
-                        footer_button("icon-image-file", "Image file…", theme::BG_IMAGE_BUTTON)
+                        footer_button("icon-image-file", "Image file…", theme::bg_image_button())
                             .on_click(cx.listener(|view, _, window, cx| {
                                 view.close_icon_picker(window, cx);
                                 view.dialog(window, cx);
                             })),
                     )
                     .child(
-                        footer_button("icon-no-icon", "No icon", theme::TRANSPARENT).on_click(
+                        footer_button("icon-no-icon", "No icon", theme::transparent()).on_click(
                             cx.listener(move |view, _, window, cx| {
                                 let command = if view.editing_on_face(id)
                                     && view.edited_face(id).image.is_some()
@@ -807,13 +807,13 @@ fn footer_button(id: &'static str, text: &'static str, background: Rgba) -> Stat
         .rounded(theme::RADIUS_CONTROL)
         .bg(background)
         .border_1()
-        .border_color(theme::BG_SEGMENT_ON)
+        .border_color(theme::bg_segment_on())
         .text_size(theme::TEXT_LABEL)
         .font_weight(gpui_kit::FontWeight::MEDIUM)
-        .text_color(theme::TEXT_PRIMARY)
+        .text_color(theme::text_primary())
         .cursor_pointer()
-        .hover(|d| d.bg(theme::HOVER_CONTROL))
-        .active(|d| d.bg(theme::PRESSED))
+        .hover(|d| d.bg(theme::hover_control()))
+        .active(|d| d.bg(theme::pressed()))
         .accessible(Role::Button, text)
         .child(text)
 }

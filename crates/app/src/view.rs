@@ -576,8 +576,8 @@ impl DeviceView {
             })
             .relative()
             .size_full()
-            .bg(theme::BG_CANVAS)
-            .text_color(theme::TEXT_PRIMARY)
+            .bg(theme::bg_canvas())
+            .text_color(theme::text_primary())
             .text_size(theme::TEXT_BODY)
             .child(self.panes_layout(window, cx))
     }

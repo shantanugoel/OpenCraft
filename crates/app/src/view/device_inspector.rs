@@ -48,8 +48,8 @@ impl DeviceView {
                             .items_center()
                             .justify_center()
                             .rounded(theme::RADIUS_HEADER_TILE)
-                            .bg(theme::BG_TILE)
-                            .text_color(theme::TEXT_PRIMARY)
+                            .bg(theme::bg_tile())
+                            .text_color(theme::text_primary())
                             .child(Icon::new(IconName::Grid3x2).size(theme::ICON_HEADER_DEVICE))
                             .into_any_element(),
                     ),
@@ -60,11 +60,11 @@ impl DeviceView {
                         .flex()
                         .items_center()
                         .gap(theme::SPACE_6)
-                        .text_color(theme::TEXT_SECONDARY)
+                        .text_color(theme::text_secondary())
                         .child(controls::dot(if connected {
-                            theme::SUCCESS
+                            theme::success()
                         } else {
-                            theme::TEXT_DISABLED
+                            theme::text_disabled()
                         }))
                         .child(if connected {
                             "Connected by USB"
@@ -82,7 +82,7 @@ impl DeviceView {
                     .px(theme::SECTION_PADDING_SIDE)
                     .pt(theme::SPACE_12)
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child("The device settings are not available yet."),
             );
         };
@@ -96,7 +96,7 @@ impl DeviceView {
                         .id("device-firmware")
                         .debug_selector(|| "device-firmware".into())
                         .text_size(theme::TEXT_LABEL)
-                        .text_color(theme::TEXT_SECONDARY)
+                        .text_color(theme::text_secondary())
                         .readable_text(format!(
                             "Firmware: {}",
                             self.state.firmware.as_deref().unwrap_or("Not available")
@@ -127,7 +127,7 @@ impl DeviceView {
                     .debug_selector(|| "device-note".into())
                     .flex_shrink_0()
                     .border_t_1()
-                    .border_color(theme::LINE_SECTION)
+                    .border_color(theme::line_section())
                     .pt(theme::SPACE_12)
                     .px(theme::SECTION_PADDING_SIDE)
                     .pb(theme::SPACE_16)
@@ -271,15 +271,15 @@ impl DeviceView {
                     .justify_center()
                     .gap(theme::SPACE_6)
                     .rounded(theme::RADIUS_CARD)
-                    .bg(theme::BG_CARD)
+                    .bg(theme::bg_card())
                     .border_1()
                     .border_color(if open {
-                        theme::ACCENT_LINE
+                        theme::accent_line()
                     } else {
-                        theme::BORDER_FIELD
+                        theme::border_field()
                     })
                     .cursor_pointer()
-                    .hover(|d| d.bg(theme::HOVER_CONTROL))
+                    .hover(|d| d.bg(theme::hover_control()))
                     .accessible(Role::Button, tooltip.clone())
                     .aria_expanded(open)
                     // A button with an open popover has no tooltip: it
@@ -294,7 +294,7 @@ impl DeviceView {
                         div()
                             .size(theme::KNOB_LIGHT_RING)
                             .rounded_full()
-                            .bg(theme::DEVICE_KNOB)
+                            .bg(theme::device_knob())
                             .border(theme::KNOB_LIGHT_RING_WIDTH)
                             .border_color(theme::colour(colour)),
                     )
@@ -302,7 +302,7 @@ impl DeviceView {
                         div()
                             .text_size(theme::TEXT_CAPTION)
                             .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme::TEXT_PRIMARY)
+                            .text_color(theme::text_primary())
                             .child(format!("Knob {number}")),
                     )
                     .child(
@@ -313,7 +313,7 @@ impl DeviceView {
                             })
                             .text_size(theme::TEXT_BADGE)
                             .font_weight(FontWeight::NORMAL)
-                            .text_color(theme::TEXT_TERTIARY)
+                            .text_color(theme::text_tertiary())
                             .child(hex),
                     )
                     .map(|d| controls::keyboard_focus(d, controls::Ring::Outside))
@@ -368,7 +368,7 @@ impl DeviceView {
                 .child(
                     div()
                         .text_size(theme::TEXT_LABEL)
-                        .text_color(theme::TEXT_SECONDARY)
+                        .text_color(theme::text_secondary())
                         .child(title.clone()),
                 )
                 .child(
@@ -397,7 +397,7 @@ impl DeviceView {
                     controls::text_field(
                         &AnyInputState::Input(self.device.colour_input.clone()),
                         title,
-                        theme::BG_FIELD,
+                        theme::bg_field(),
                         window,
                         cx,
                     )
@@ -428,7 +428,7 @@ impl DeviceView {
 fn value_label(text: &'static str) -> Div {
     div()
         .text_size(theme::TEXT_CONTROL)
-        .text_color(theme::TEXT_PRIMARY)
+        .text_color(theme::text_primary())
         .child(text)
 }
 
@@ -450,16 +450,16 @@ fn slider_row(
                 .flex()
                 .items_center()
                 .justify_between()
-                .child(value_label(text).when(disabled, |d| d.text_color(theme::TEXT_DISABLED)))
+                .child(value_label(text).when(disabled, |d| d.text_color(theme::text_disabled())))
                 .child(
                     div()
                         .id(id)
                         .debug_selector(move || format!("{id}-value"))
                         .text_size(theme::TEXT_CONTROL)
                         .text_color(if disabled {
-                            theme::TEXT_DISABLED
+                            theme::text_disabled()
                         } else {
-                            theme::TEXT_SECONDARY
+                            theme::text_secondary()
                         })
                         .child(format!("{value} %")),
                 ),

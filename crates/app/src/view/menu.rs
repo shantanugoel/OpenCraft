@@ -205,7 +205,7 @@ impl Element for MenuItem {
             };
             if nav.borrow().highlighted == index {
                 window.paint_quad(
-                    fill(bounds, theme::MENU_HIGHLIGHT).corner_radii(theme::RADIUS_CONTROL),
+                    fill(bounds, theme::menu_highlight()).corner_radii(theme::RADIUS_CONTROL),
                 );
             }
             let hitbox = hitbox.clone();

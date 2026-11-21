@@ -159,7 +159,7 @@ fn focus_look(control: Stateful<Div>, ring: Ring) -> Stateful<Div> {
             Ring::Outside => style.shadow(theme::focus_ring_outside()),
             Ring::Inside => style
                 .shadow(theme::focus_ring_inside())
-                .border_color(theme::ACCENT_LINE),
+                .border_color(theme::accent_line()),
         })
         // This listener runs before the listener that GPUI adds for the
         // focus of the element, and stops it and the one of each parent.
@@ -214,18 +214,18 @@ fn small_button_frame(id: impl Into<SharedString>, enabled: bool) -> Stateful<Di
         .items_center()
         .justify_center()
         .rounded(theme::RADIUS_CONTROL)
-        .bg(theme::BG_CONTROL)
+        .bg(theme::bg_control())
         .border_1()
-        .border_color(theme::BORDER_CONTROL)
+        .border_color(theme::border_control())
         .text_size(theme::TEXT_LABEL)
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .when(enabled, |d| {
             keyboard_focus(d, Ring::Outside)
                 .cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_CONTROL))
-                .active(|d| d.bg(theme::PRESSED))
+                .hover(|d| d.bg(theme::hover_control()))
+                .active(|d| d.bg(theme::pressed()))
         })
-        .when(!enabled, |d| d.text_color(theme::TEXT_DISABLED))
+        .when(!enabled, |d| d.text_color(theme::text_disabled()))
 }
 
 /// A normal button.
@@ -251,18 +251,18 @@ pub(crate) fn button_if(
         .flex()
         .items_center()
         .rounded(theme::RADIUS_CONTROL)
-        .bg(theme::BG_CONTROL)
+        .bg(theme::bg_control())
         .border_1()
-        .border_color(theme::BORDER_CONTROL)
+        .border_color(theme::border_control())
         .text_size(theme::TEXT_LABEL)
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .when(enabled, |d| {
             keyboard_focus(d, Ring::Outside)
                 .cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_CONTROL))
-                .active(|d| d.bg(theme::PRESSED))
+                .hover(|d| d.bg(theme::hover_control()))
+                .active(|d| d.bg(theme::pressed()))
         })
-        .when(!enabled, |d| d.text_color(theme::TEXT_DISABLED))
+        .when(!enabled, |d| d.text_color(theme::text_disabled()))
         .accessible(Role::Button, text.clone())
         .child(label(text))
 }
@@ -290,10 +290,10 @@ pub(super) fn icon_button(
         .items_center()
         .justify_center()
         .rounded(theme::RADIUS_CONTROL)
-        .text_color(theme::TEXT_SECONDARY)
+        .text_color(theme::text_secondary())
         .cursor_pointer()
-        .hover(|d| d.bg(theme::HOVER_ICON))
-        .active(|d| d.bg(theme::PRESSED))
+        .hover(|d| d.bg(theme::hover_icon()))
+        .active(|d| d.bg(theme::pressed()))
         .accessible(Role::Button, label.clone())
         .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         .child(Icon::new(icon).size(theme::ICON_PANE))
@@ -322,14 +322,14 @@ pub(super) fn toolbar_button(
         .h(theme::HEIGHT_CONTROL)
         .rounded(theme::RADIUS_CONTROL)
         .text_color(if enabled {
-            theme::TEXT_SECONDARY
+            theme::text_secondary()
         } else {
-            theme::TEXT_DISABLED
+            theme::text_disabled()
         })
         .when(enabled, |d| {
             d.cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_ICON))
-                .active(|d| d.bg(theme::PRESSED))
+                .hover(|d| d.bg(theme::hover_icon()))
+                .active(|d| d.bg(theme::pressed()))
         })
         .accessible(Role::Button, label.clone())
         .child(
@@ -391,19 +391,19 @@ pub(super) fn square_icon_button(
         .items_center()
         .justify_center()
         .rounded(theme::RADIUS_CONTROL)
-        .bg(theme::BG_FIELD)
+        .bg(theme::bg_field())
         .border_1()
-        .border_color(theme::BORDER_FIELD)
+        .border_color(theme::border_field())
         .text_color(if enabled {
-            theme::TEXT_SECONDARY
+            theme::text_secondary()
         } else {
-            theme::TEXT_DISABLED
+            theme::text_disabled()
         })
         .when(enabled, |d| {
             keyboard_focus(d, Ring::Outside)
                 .cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_CONTROL))
-                .active(|d| d.bg(theme::PRESSED))
+                .hover(|d| d.bg(theme::hover_control()))
+                .active(|d| d.bg(theme::pressed()))
         })
         .tooltip(move |window, cx| Tooltip::new(label.clone()).build(window, cx))
         .child(Icon::new(icon).size(icon_size))
@@ -434,18 +434,18 @@ pub(super) fn popup_button(
         .items_center()
         .gap(theme::SPACE_8)
         .rounded(theme::RADIUS_CONTROL)
-        .bg(theme::BG_CONTROL)
+        .bg(theme::bg_control())
         .border_1()
         .border_color(if open {
-            theme::ACCENT_LINE
+            theme::accent_line()
         } else {
-            theme::BORDER_CONTROL
+            theme::border_control()
         })
         .text_size(theme::TEXT_CONTROL)
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .cursor_pointer()
-        .hover(|d| d.bg(theme::HOVER_CONTROL))
-        .active(|d| d.bg(theme::PRESSED))
+        .hover(|d| d.bg(theme::hover_control()))
+        .active(|d| d.bg(theme::pressed()))
         .accessible(Role::ComboBox, label)
         .aria_value(value)
         .aria_expanded(open)
@@ -461,7 +461,7 @@ pub(super) fn popup_button(
         .child(
             Icon::new(IconName::ChevronsUpDown)
                 .size(theme::ICON_SMALL)
-                .text_color(theme::TEXT_SECONDARY),
+                .text_color(theme::text_secondary()),
         )
 }
 
@@ -504,9 +504,9 @@ pub(crate) fn switch_if(
         .h(size.height)
         .rounded_full()
         .bg(if on {
-            theme::ACCENT
+            theme::accent()
         } else {
-            theme::BG_SEGMENT_ON
+            theme::bg_segment_on()
         })
         .accessible(Role::Switch, label)
         .checked(on);
@@ -524,7 +524,7 @@ pub(crate) fn switch_if(
             .when(!on, |d| d.left(inset))
             .size(size.knob)
             .rounded_full()
-            .bg(theme::SWITCH_KNOB_COLOUR),
+            .bg(theme::switch_knob_colour()),
     )
 }
 
@@ -543,7 +543,7 @@ pub(crate) fn segmented(
         .flex()
         .p(theme::SPACE_2)
         .rounded(theme::RADIUS_TRACK)
-        .bg(theme::BG_FIELD)
+        .bg(theme::bg_field())
         .role(Role::RadioGroup)
         .children(segments)
 }
@@ -585,16 +585,17 @@ pub(crate) fn segment_if(
         .text_size(theme::TEXT_LABEL)
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .when(selected, |d| {
-            d.bg(theme::BG_SEGMENT_ON).text_color(theme::TEXT_ON_ACCENT)
+            d.bg(theme::bg_segment_on())
+                .text_color(theme::text_on_accent())
         })
         .when(enabled, |d| keyboard_focus(d, Ring::Inside))
         .when(!selected && enabled, |d| {
-            d.text_color(theme::TEXT_SECONDARY)
+            d.text_color(theme::text_secondary())
                 .cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_ROW))
+                .hover(|d| d.bg(theme::hover_row()))
         })
         .when(!selected && !enabled, |d| {
-            d.text_color(theme::TEXT_DISABLED)
+            d.text_color(theme::text_disabled())
         })
         .accessible(Role::RadioButton, text.clone())
         .checked(selected)
@@ -615,11 +616,11 @@ pub(super) fn slider(
         .accessibility_label(label)
         .disabled(disabled)
         .bg(if disabled {
-            theme::BG_SEGMENT_ON
+            theme::bg_segment_on()
         } else {
-            theme::ACCENT
+            theme::accent()
         })
-        .text_color(theme::SWITCH_KNOB_COLOUR);
+        .text_color(theme::switch_knob_colour());
     let keys = state.clone();
     div()
         .id(("slider-keys", state.entity_id()))
@@ -721,12 +722,12 @@ pub(super) fn text_field_sized(
         .bg(background)
         .border_1()
         .border_color(if focused {
-            theme::ACCENT_LINE
+            theme::accent_line()
         } else {
-            theme::BORDER_FIELD
+            theme::border_field()
         })
         .text_size(theme::TEXT_BODY)
-        .text_color(theme::TEXT_PRIMARY);
+        .text_color(theme::text_primary());
     // The frame draws the background and the border. The field of the kit
     // draws only the text, at the sizes of the window.
     match input {
@@ -780,11 +781,11 @@ pub(super) fn colour_sample(
             Some(fill) => d
                 .bg(fill)
                 .border_1()
-                .border_color(theme::DEVICE_SURFACE_BORDER),
+                .border_color(theme::device_surface_border()),
             None => d
-                .bg(theme::BG_FIELD)
+                .bg(theme::bg_field())
                 .border_1()
-                .border_color(theme::BORDER_OVERLAY),
+                .border_color(theme::border_overlay()),
         })
         .accessible(Role::RadioButton, label.clone())
         .checked(selected)
@@ -800,7 +801,7 @@ pub(super) fn colour_sample(
                     .size(theme::SAMPLE + outside * 2.)
                     .rounded(theme::RADIUS_SEGMENT + outside)
                     .border(theme::SAMPLE_OUTLINE)
-                    .border_color(theme::ACCENT_LINE),
+                    .border_color(theme::accent_line()),
             )
         })
 }
@@ -917,14 +918,14 @@ pub(super) fn popup_menu(
                                         .p(theme::SPACE_6)
                                         .rounded(theme::RADIUS_POPOVER)
                                         .border_1()
-                                        .border_color(theme::BORDER_OVERLAY)
-                                        .bg(theme::BG_CARD)
+                                        .border_color(theme::border_overlay())
+                                        .bg(theme::bg_card())
                                         .shadow(theme::popover_shadow())
                                         // A menu does not take the text style of
                                         // its button.
                                         .text_size(theme::TEXT_CONTROL)
                                         .font_weight(gpui_kit::FontWeight::NORMAL)
-                                        .text_color(theme::TEXT_PRIMARY)
+                                        .text_color(theme::text_primary())
                                         .children(rows)
                                         .map(|menu| {
                                             popover_focus(
@@ -983,7 +984,7 @@ pub(super) fn menu_row(id: impl Into<SharedString>) -> MenuRow {
             .gap(theme::SPACE_8)
             .rounded(theme::RADIUS_CONTROL)
             .cursor_pointer()
-            .active(|d| d.bg(theme::PRESSED)),
+            .active(|d| d.bg(theme::pressed())),
     )
 }
 
@@ -997,7 +998,7 @@ pub(crate) fn section_title(title: impl Into<SharedString>) -> Div {
         .flex_shrink_0()
         .text_size(theme::TEXT_SECTION)
         .font_weight(gpui_kit::FontWeight::SEMIBOLD)
-        .text_color(theme::TEXT_TERTIARY)
+        .text_color(theme::text_tertiary())
         .child(title.to_uppercase())
 }
 
@@ -1035,19 +1036,19 @@ pub(super) fn search_field(
         .items_center()
         .gap(theme::SPACE_8)
         .rounded(theme::RADIUS_TRACK)
-        .bg(theme::BG_FIELD)
+        .bg(theme::bg_field())
         .border_1()
         .border_color(if focused {
-            theme::ACCENT_LINE
+            theme::accent_line()
         } else {
-            theme::BORDER_FIELD
+            theme::border_field()
         })
         .text_size(theme::TEXT_CONTROL)
-        .text_color(theme::TEXT_PRIMARY)
+        .text_color(theme::text_primary())
         .child(
             Icon::new(IconName::Search)
                 .size(theme::ICON_SEARCH)
-                .text_color(theme::TEXT_TERTIARY),
+                .text_color(theme::text_tertiary()),
         )
         .child(
             Input::new(input)
@@ -1085,17 +1086,17 @@ pub(super) fn toggle_button(
         .cursor_pointer()
         .map(|d| {
             if on {
-                d.bg(theme::BG_SEGMENT_ON)
-                    .border_color(theme::BORDER_TOGGLE_ON)
-                    .text_color(theme::TEXT_ON_ACCENT)
+                d.bg(theme::bg_segment_on())
+                    .border_color(theme::border_toggle_on())
+                    .text_color(theme::text_on_accent())
             } else {
-                d.bg(theme::BG_CONTROL)
-                    .border_color(theme::BORDER_CONTROL)
-                    .text_color(theme::TEXT_SECONDARY)
-                    .hover(|d| d.bg(theme::HOVER_CONTROL))
+                d.bg(theme::bg_control())
+                    .border_color(theme::border_control())
+                    .text_color(theme::text_secondary())
+                    .hover(|d| d.bg(theme::hover_control()))
             }
         })
-        .active(|d| d.bg(theme::PRESSED))
+        .active(|d| d.bg(theme::pressed()))
         .accessible(Role::Button, tooltip.clone())
         .checked(on)
         .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
@@ -1121,9 +1122,9 @@ pub(super) fn colour_button(
         .bg(colour)
         .border_1()
         .border_color(if open {
-            theme::ACCENT_LINE
+            theme::accent_line()
         } else {
-            theme::BORDER_CONTROL
+            theme::border_control()
         })
         .cursor_pointer()
         .accessible(Role::Button, tooltip.clone())
@@ -1158,14 +1159,14 @@ pub(super) fn chip(
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .map(|d| {
             if selected {
-                d.border_color(theme::ACCENT_LINE)
-                    .bg(theme::ACCENT_TINT_CHIP)
-                    .text_color(theme::TEXT_ON_ACCENT)
+                d.border_color(theme::accent_line())
+                    .bg(theme::accent_tint_chip())
+                    .text_color(theme::text_on_accent())
             } else {
-                d.border_color(theme::BORDER_FIELD)
-                    .text_color(theme::TEXT_SECONDARY)
+                d.border_color(theme::border_field())
+                    .text_color(theme::text_secondary())
                     .cursor_pointer()
-                    .hover(|d| d.bg(theme::HOVER_ROW))
+                    .hover(|d| d.bg(theme::hover_row()))
             }
         })
         .accessible(Role::RadioButton, text.clone())
@@ -1180,7 +1181,7 @@ pub(super) fn menu_separator() -> Div {
         .my(theme::SPACE_4)
         .mx(theme::SPACE_8)
         .h(theme::SPACE_1)
-        .bg(theme::LINE_SECTION)
+        .bg(theme::line_section())
 }
 
 /// The box of a key hint, for example "⌘K" in the search field of the
@@ -1194,7 +1195,7 @@ pub(super) fn key_hint(keys: impl Into<SharedString>) -> Div {
         .px(theme::KEY_HINT_PADDING_X)
         .rounded(theme::RADIUS_BADGE)
         .border_1()
-        .border_color(theme::BORDER_OVERLAY)
+        .border_color(theme::border_overlay())
         .text_size(theme::TEXT_CAPTION)
         .child(keys)
 }
@@ -1216,9 +1217,9 @@ pub(crate) fn link(id: impl Into<SharedString>, text: impl Into<SharedString>) -
         .my(-theme::LINK_FOCUS_PADDING)
         .rounded(theme::RADIUS_BADGE)
         .text_size(theme::TEXT_LABEL)
-        .text_color(theme::ACCENT_TEXT)
+        .text_color(theme::accent_text())
         .cursor_pointer()
-        .hover(|d| d.text_color(theme::ACCENT_TEXT_HOVER))
+        .hover(|d| d.text_color(theme::accent_text_hover()))
         .accessible(Role::Link, text.clone())
         .child(text)
 }
@@ -1247,7 +1248,7 @@ pub(super) fn colour_circle(
         .cursor_pointer()
         .map(|d| match fill {
             Some(fill) => d.bg(fill),
-            None => d.border_1().border_color(theme::BORDER_NO_COLOUR),
+            None => d.border_1().border_color(theme::border_no_colour()),
         })
         .accessible(Role::RadioButton, label.clone())
         .checked(selected)
@@ -1261,7 +1262,7 @@ pub(super) fn colour_circle(
                     .size(theme::COLOUR_CIRCLE + outside * 2.)
                     .rounded_full()
                     .border(theme::SAMPLE_OUTLINE)
-                    .border_color(theme::ACCENT_LINE),
+                    .border_color(theme::accent_line()),
             )
         })
 }
@@ -1285,8 +1286,8 @@ pub(crate) fn main_button(
         .flex()
         .items_center()
         .rounded(theme::RADIUS_TRACK)
-        .bg(theme::ACCENT)
-        .text_color(theme::TEXT_ON_ACCENT)
+        .bg(theme::accent())
+        .text_color(theme::text_on_accent())
         .text_size(theme::TEXT_BODY)
         .font_weight(gpui_kit::FontWeight::SEMIBOLD)
         .cursor_pointer()
@@ -1318,19 +1319,19 @@ pub(crate) fn sheet_button(
         .items_center()
         .rounded(theme::RADIUS_TRACK)
         .border_1()
-        .border_color(theme::BORDER_CONTROL)
+        .border_color(theme::border_control())
         .text_size(theme::TEXT_CONTROL)
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .text_color(match (enabled, destructive) {
-            (false, _) => theme::TEXT_DISABLED,
-            (true, true) => theme::DESTRUCTIVE_TEXT,
-            (true, false) => theme::TEXT_PRIMARY,
+            (false, _) => theme::text_disabled(),
+            (true, true) => theme::destructive_text(),
+            (true, false) => theme::text_primary(),
         })
         .when(enabled, |d| {
             keyboard_focus(d, Ring::Inside)
                 .cursor_pointer()
-                .hover(|d| d.bg(theme::HOVER_ICON))
-                .active(|d| d.bg(theme::PRESSED))
+                .hover(|d| d.bg(theme::hover_icon()))
+                .active(|d| d.bg(theme::pressed()))
         })
         .accessible(Role::Button, text.clone())
         .child(label(text))
