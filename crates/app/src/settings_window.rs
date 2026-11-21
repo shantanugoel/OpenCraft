@@ -513,9 +513,9 @@ impl SettingsView {
             .flex_shrink_0()
             .px(theme::SPACE_16)
             .pb(theme::SPACE_8)
-            .bg(theme::BG_SIDEBAR)
+            .bg(theme::bg_sidebar())
             .border_b_1()
-            .border_color(theme::LINE_SECTION)
+            .border_color(theme::line_section())
             .child(
                 // The window buttons are at the leading side of this row.
                 div()
@@ -567,11 +567,12 @@ impl SettingsView {
             .font_weight(FontWeight::MEDIUM)
             .cursor_pointer()
             .when(selected, |d| {
-                d.bg(theme::BG_SEGMENT_ON).text_color(theme::TEXT_ON_ACCENT)
+                d.bg(theme::bg_segment_on())
+                    .text_color(theme::text_on_accent())
             })
             .when(!selected, |d| {
-                d.text_color(theme::TEXT_SECONDARY)
-                    .hover(|d| d.bg(theme::HOVER_ROW))
+                d.text_color(theme::text_secondary())
+                    .hover(|d| d.bg(theme::hover_row()))
             })
             .child(Icon::new(icon).size(theme::ICON_TAB))
             .child(pane.name())
@@ -594,14 +595,14 @@ impl SettingsView {
                 .flex()
                 .items_center()
                 .gap(theme::SPACE_10)
-                .bg(theme::DESTRUCTIVE_TINT)
+                .bg(theme::destructive_tint())
                 .border_t_1()
-                .border_color(theme::DESTRUCTIVE_LINE)
+                .border_color(theme::destructive_line())
                 .text_size(theme::TEXT_LABEL)
                 .child(
                     Icon::new(IconName::TriangleAlert)
                         .size(theme::ICON_MESSAGE)
-                        .text_color(theme::WARNING),
+                        .text_color(theme::warning()),
                 )
                 .child(
                     div()
@@ -662,8 +663,8 @@ impl Render for SettingsView {
             )
             .size_full()
             .relative()
-            .bg(theme::BG_BAR)
-            .text_color(theme::TEXT_PRIMARY)
+            .bg(theme::bg_bar())
+            .text_color(theme::text_primary())
             .text_size(theme::TEXT_BODY)
             .line_height(relative(theme::SETTINGS_LINE_HEIGHT))
             .children(measure)

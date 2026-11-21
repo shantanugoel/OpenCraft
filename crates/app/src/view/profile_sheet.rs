@@ -292,7 +292,7 @@ impl DeviceView {
                 controls::text_field_sized(
                     &AnyInputState::Input(self.sheet.name.clone()),
                     "Name",
-                    theme::BG_BAR,
+                    theme::bg_bar(),
                     FieldSize::sheet(),
                     window,
                     cx,
@@ -545,7 +545,7 @@ impl DeviceView {
                                 .id(SharedString::from(format!("profile-clash-{index}")))
                                 .readable_text(text.clone())
                                 .text_size(theme::TEXT_HELP)
-                                .text_color(theme::TEXT_TERTIARY)
+                                .text_color(theme::text_tertiary())
                                 .child(text),
                         )
                     }),

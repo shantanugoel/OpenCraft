@@ -336,7 +336,7 @@ fn a_press_of_a_key_with_no_surface_glows_until_the_release(cx: &mut TestAppCont
         &plain_borders(cx, "control-key 7"),
         1.,
         BorderStyle::Dashed,
-        theme::DEVICE_KEY_EMPTY_BORDER.into(),
+        theme::device_key_empty_border().into(),
     );
 
     send(
@@ -352,7 +352,7 @@ fn a_press_of_a_key_with_no_surface_glows_until_the_release(cx: &mut TestAppCont
         &plain_borders(cx, "control-key 7"),
         2.,
         BorderStyle::Solid,
-        theme::INPUT_GLOW.into(),
+        theme::input_glow().into(),
     );
 
     send(
@@ -368,7 +368,7 @@ fn a_press_of_a_key_with_no_surface_glows_until_the_release(cx: &mut TestAppCont
         &plain_borders(cx, "control-key 7"),
         1.,
         BorderStyle::Dashed,
-        theme::DEVICE_KEY_EMPTY_BORDER.into(),
+        theme::device_key_empty_border().into(),
     );
 }
 

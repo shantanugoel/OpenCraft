@@ -35,67 +35,72 @@ a value.
   `view::theme::tests::no_literal_colour_or_size_outside_the_theme` fails if
   you do. It reads `view/`, `settings_window*`, and `first_start*`, with no
   test code.
-- **A new value:** add one constant to `theme.rs`, in the `MARK` section of
+- **A new value:** add one token to `theme.rs`, in the `MARK` section of
   its part, with a comment that says where it is used. If a token with the
   same purpose exists, use it. Do not make a second name for the same
   purpose.
+- **A colour token is a function** with no argument, for example
+  `theme::bg_canvas()`. Its value comes from the palette of the appearance
+  of the thread. A new colour token also needs its value in each palette of
+  `theme.rs`, else the module does not build. A size token is a constant.
 - **A colour of the engine** (a fill, a knob light, a profile colour) goes
   through `theme::colour(Color)`. A colour sample of the data goes through
   `theme::sample(u32)`.
-- The window is dark only. A light appearance is a second set of values for
-  the same names (decision 0029, section 21).
+- The window is dark only. The palette `DARK` of `theme.rs` holds its
+  values. A light appearance is a second palette for the same names
+  (decision 0029, section 21).
 
 ### 2.1 Colours
 
 | Token | Use |
 |---|---|
-| `BG_CANVAS` | The canvas, the window behind all panes |
-| `BG_BAR` | The toolbar, the status bar, a text field in a gesture card, the Settings content, the first start window |
-| `BG_SIDEBAR` | The sidebar, the button row of a sheet, the Settings title area |
-| `BG_PANEL` | The right panel, a nested card |
-| `BG_CARD` | A gesture card, a group box, a sheet, a menu that the window draws |
-| `BG_CONTROL` | A button, a popup button |
-| `BG_FIELD` | A text field, a search field, a segmented control track, a square button, a popover, the palette, the device card |
-| `BG_SEGMENT_ON` | The selected segment or tab, a toggle button that is on, a switch that is off |
-| `BG_TILE` | The tile behind a device icon, a command tile of the palette |
-| `LINE_PANE` | The line between two panes, the line in a card, a group box border |
-| `LINE_SECTION` | The line above a section, below the toolbar, above the status bar, below the tab header, a menu separator |
-| `LINE_SIDEBAR` | The line above the bottom group of the sidebar |
-| `BORDER_FIELD` | A text field, a card, a square button, a chip that is not selected |
-| `BORDER_CONTROL` | A button, a popup button |
-| `BORDER_OVERLAY` | A menu, a popover, the palette, a sheet, a dashed empty card |
-| `TEXT_PRIMARY` | Normal text |
-| `TEXT_SECONDARY` | A form label, an icon button, a value at the end of a row |
-| `TEXT_TERTIARY` | A section title, a caption, a help text, an empty state, a placeholder |
-| `TEXT_DISABLED` | A disabled control, a dot of "Not connected" |
-| `TEXT_ON_ACCENT` | Text on `ACCENT` or on `BG_SEGMENT_ON` |
-| `ACCENT` | The selected row, the main button, a switch that is on, a slider fill |
-| `ACCENT_LINE` | The selection outline, the focus border of a field, the focus ring, the border of a control with an open menu or popover |
-| `ACCENT_TEXT`, `ACCENT_TEXT_HOVER` | A link; the label of a selected knob; the dot of the last input |
-| `ACCENT_TINT`, `ACCENT_TINT_START`, `ACCENT_TINT_CHIP`, `ACCENT_TINT_DRAG`, `ACCENT_TINT_DROP` | The accent at 14 % (selected card), 16 % (selected starter card), 25 % (selected chip), 18 % (library row in a drag), 28 % (drop target) |
-| `SUCCESS`, `SUCCESS_TEXT`, `SUCCESS_TINT`, `SUCCESS_FILL` | Connected; the live state pill; the check badge of the first start |
-| `WARNING` | A warning icon, a warning text, "not given" |
-| `DESTRUCTIVE_TEXT`, `DESTRUCTIVE_TINT`, `DESTRUCTIVE_LINE` | A button that removes; the message rows above the status bar |
-| `INPUT_GLOW`, `input_glow_shadow()` | A control that the user operates on the device |
-| `KIND_TILE_*`, `kind_tile(group)` | The tile of an action kind, from its group |
-| `DEVICE_*` | The device drawing only |
+| `bg_canvas()` | The canvas, the window behind all panes |
+| `bg_bar()` | The toolbar, the status bar, a text field in a gesture card, the Settings content, the first start window |
+| `bg_sidebar()` | The sidebar, the button row of a sheet, the Settings title area |
+| `bg_panel()` | The right panel, a nested card |
+| `bg_card()` | A gesture card, a group box, a sheet, a menu that the window draws |
+| `bg_control()` | A button, a popup button |
+| `bg_field()` | A text field, a search field, a segmented control track, a square button, a popover, the palette, the device card |
+| `bg_segment_on()` | The selected segment or tab, a toggle button that is on, a switch that is off |
+| `bg_tile()` | The tile behind a device icon, a command tile of the palette |
+| `line_pane()` | The line between two panes, the line in a card, a group box border |
+| `line_section()` | The line above a section, below the toolbar, above the status bar, below the tab header, a menu separator |
+| `line_sidebar()` | The line above the bottom group of the sidebar |
+| `border_field()` | A text field, a card, a square button, a chip that is not selected |
+| `border_control()` | A button, a popup button |
+| `border_overlay()` | A menu, a popover, the palette, a sheet, a dashed empty card |
+| `text_primary()` | Normal text |
+| `text_secondary()` | A form label, an icon button, a value at the end of a row |
+| `text_tertiary()` | A section title, a caption, a help text, an empty state, a placeholder |
+| `text_disabled()` | A disabled control, a dot of "Not connected" |
+| `text_on_accent()` | Text on `accent()` or on `bg_segment_on()` |
+| `accent()` | The selected row, the main button, a switch that is on, a slider fill |
+| `accent_line()` | The selection outline, the focus border of a field, the focus ring, the border of a control with an open menu or popover |
+| `accent_text()`, `accent_text_hover()` | A link; the label of a selected knob; the dot of the last input |
+| `accent_tint()`, `accent_tint_start()`, `accent_tint_chip()`, `accent_tint_drag()`, `accent_tint_drop()` | The accent at 14 % (selected card), 16 % (selected starter card), 25 % (selected chip), 18 % (library row in a drag), 28 % (drop target) |
+| `success()`, `success_text()`, `success_tint()`, `success_fill()` | Connected; the live state pill; the check badge of the first start |
+| `warning()` | A warning icon, a warning text, "not given" |
+| `destructive_text()`, `destructive_tint()`, `destructive_line()` | A button that removes; the message rows above the status bar |
+| `input_glow()`, `input_glow_shadow()` | A control that the user operates on the device |
+| `kind_tile_*()`, `kind_tile(group)` | The tile of an action kind, from its group |
+| `device_*()` | The device drawing only |
 | `FILL_COLOURS`, `TITLE_COLOURS`, `KNOB_COLOURS`, `PROFILE_COLOURS`, `ICON_COLOURS` | Colour samples. These are data: the profile keeps them. Do not change a value. |
 
 ### 2.2 States
 
 | Token | State |
 |---|---|
-| `HOVER_CONTROL` | A button or a square button under the pointer (one step lighter than `BG_CONTROL`) |
-| `HOVER_ICON` | A transparent icon button under the pointer |
-| `HOVER_ROW` | A row, a segment, a chip, or a dashed card under the pointer |
-| `PRESSED` | Each pressed control (`.active`) |
-| `MENU_HIGHLIGHT` | The highlighted row of a menu that the window draws |
-| `SELECTED_UNFOCUSED` | A selected row in a pane that does not have the selection |
-| `NEUTRAL_TINT` | The live state pill and the touch bar control when they are not active |
-| `ACCENT_LINE_HOVER` | The outline of a canvas control under the pointer |
+| `hover_control()` | A button or a square button under the pointer (one step lighter than `bg_control()`) |
+| `hover_icon()` | A transparent icon button under the pointer |
+| `hover_row()` | A row, a segment, a chip, or a dashed card under the pointer |
+| `pressed()` | Each pressed control (`.active`) |
+| `menu_highlight()` | The highlighted row of a menu that the window draws |
+| `selected_unfocused()` | A selected row in a pane that does not have the selection |
+| `neutral_tint()` | The live state pill and the touch bar control when they are not active |
+| `accent_line_hover()` | The outline of a canvas control under the pointer |
 | `MAIN_HOVER_OPACITY`, `MAIN_PRESSED_OPACITY` | The main button under the pointer, and pressed |
-| `MODAL_DIM` | The layer behind a sheet or the palette |
-| `focus_ring_outside()`, `focus_ring_inside()`, `FOCUS_RING` | The focus ring of a control with the keyboard focus: 2 in `ACCENT_LINE`, outside the edge of a control with a fill, inside the edge of a control with no fill (section 5) |
+| `modal_dim()` | The layer behind a sheet or the palette |
+| `focus_ring_outside()`, `focus_ring_inside()`, `FOCUS_RING` | The focus ring of a control with the keyboard focus: 2 in `accent_line()`, outside the edge of a control with a fill, inside the edge of a control with no fill (section 5) |
 
 ### 2.3 Text
 
@@ -221,15 +226,15 @@ not repeat "focus" for them. A text field shows its focus with its border.
 | `icon_button` | A transparent pane button with icon 17: show and hide the sidebar and the inspector | Any other icon button | hover, pressed |
 | `toolbar_button` | A transparent toolbar button with icon 16: Undo, Redo | A button in a pane | hover, pressed, disabled. The ID holds the label, so the tooltip changes. |
 | `square_button`, `square_icon_button` | A square button with a border and one icon: "Previous page", "Move the page up", the "⋯" button (`form::more_button`) | A button with text | hover, pressed, disabled |
-| `popup_button` + `popup_menu` + `menu_row` + `menu_separator` | A choice from a list (a run-time choice list uses checks, adds at the end and removes a selected value): the action popup, a choice field, the label size, the fit, "First page" | A command menu at the pointer (use a native menu) | hover, pressed, open (`ACCENT_LINE` border); the menu has the keys of `view/menu.rs` |
+| `popup_button` + `popup_menu` + `menu_row` + `menu_separator` | A choice from a list (a run-time choice list uses checks, adds at the end and removes a selected value): the action popup, a choice field, the label size, the fit, "First page" | A command menu at the pointer (use a native menu) | hover, pressed, open (`accent_line()` border); the menu has the keys of `view/menu.rs` |
 | `segmented` + `segment`, `segment_if` | Two to five choices that all show: the tabs of the right panel, "Position", "Background", "Knob lights", the direction of a turn | More than five choices (use a popup button), a command | selected, hover, disabled |
 | `switch`, `switch_if` | An on/off setting that applies at once. `switch_if` can be disabled: no focus, and the caller adds no click | A choice between two named values (use a segmented control) | on, off, disabled |
 | `slider` | A number in a range: brightness | A number that the user types | disabled (no thumb); Left, Right, Up, and Down move it one step |
-| `text_field`, `text_field_sized` (`FieldSize::sheet`) | Each text field: the inspector, a card (`BG_BAR`), a popover, a sheet | The name field in a sidebar row (it has the size of the row) | focus (`ACCENT_LINE` border) |
+| `text_field`, `text_field_sized` (`FieldSize::sheet`) | Each text field: the inspector, a card (`bg_bar()`), a popover, a sheet | The name field in a sidebar row (it has the size of the row) | focus (`accent_line()` border) |
 | `search_field` | The search field of a panel: the library, the icon picker, the application picker | The toolbar search (a button that opens the palette) | focus |
 | `colour_sample` | A fill sample of 22, "No fill" with `None` | A profile colour or an icon colour (use `colour_circle`) | selected (outline 2, 2 outside) |
 | `colour_circle` | A colour of a profile or of an icon, 20 | A fill sample | selected |
-| `colour_button` | A square button that shows a colour and opens a popover | A colour sample | open (`ACCENT_LINE`, no tooltip) |
+| `colour_button` | A square button that shows a colour and opens a popover | A colour sample | open (`accent_line()`, no tooltip) |
 | `toggle_button` | A square toggle with a short text, for example "B" | An on/off setting (use a switch) | on, off, hover, pressed |
 | `chip` | A tab chip or a filter chip: "Icons", "Recent" | The tabs of a pane (use a segmented control) | selected, hover |
 | `link` | An operation that changes the view, not the data: "Set left and right apart"; a fixed browser link in Settings > About | A command that changes the profile | hover |
@@ -270,7 +275,7 @@ engine holds the inactivity deadline; the view makes no timer.
 | `MenuKeys`, `MenuRow` | `view/menu.rs` | The keys of a drawn menu. `popup_menu` adds them. |
 | `group`, `row`, `line_row` | `settings_window/parts.rs` | The group boxes of the Settings window |
 | Icon picker popover | `view/icon_picker.rs` | Only the icon picker (it has an arrow) |
-| Application picker | `view/application_picker.rs` | A path field of kind Application, and "Add an application…" in the profile sheet. The list shows the name and the icon of each installed application, a search field, and "Choose a different application…". For a link, a row whose application is linked to a different profile shows "Linked to “*profile*”" at its end, in `TEXT_CAPTION` and `TEXT_TERTIARY`, at most 55 % of the row, with "…" (decision 0035, section 5). The row label for VoiceOver is "*name*, Linked to “*profile*”". It has no arrow. |
+| Application picker | `view/application_picker.rs` | A path field of kind Application, and "Add an application…" in the profile sheet. The list shows the name and the icon of each installed application, a search field, and "Choose a different application…". For a link, a row whose application is linked to a different profile shows "Linked to “*profile*”" at its end, in `TEXT_CAPTION` and `text_tertiary()`, at most 55 % of the row, with "…" (decision 0035, section 5). The row label for VoiceOver is "*name*, Linked to “*profile*”". It has no arrow. |
 | Native menu (`NativeMenu`) | `view/sidebar.rs`, `view/clipboard.rs`, `view/nested.rs` | A command menu at the pointer: a right-click menu, the "⋯" menu, the device switcher |
 | Native alert (`window.prompt`) | `view/pages.rs` (`confirm_remove`) | The confirmation of a destructive command |
 
@@ -339,11 +344,11 @@ an element with no role are not in the accessibility tree
 
 | Subject | Rule | Where |
 |---|---|---|
-| Selection | One selection: a control, the page, or the device. A selected control has an outline of `OUTLINE_WIDTH` in `ACCENT_LINE`. A selected row is `ACCENT` with `TEXT_ON_ACCENT`. A selected row in a pane without the selection is `SELECTED_UNFOCUSED`. The selection stays when the page changes. | `state.rs`, `view/canvas.rs`, `view/sidebar.rs` |
+| Selection | One selection: a control, the page, or the device. A selected control has an outline of `OUTLINE_WIDTH` in `accent_line()`. A selected row is `accent()` with `text_on_accent()`. A selected row in a pane without the selection is `selected_unfocused()`. The selection stays when the page changes. | `state.rs`, `view/canvas.rs`, `view/sidebar.rs` |
 | Hover | Each clickable element has a hover look and the pointer hand. A disabled element has neither. | `controls.rs` |
 | Pressed | Each button has `.active(PRESSED)`. A main button changes its opacity. | `controls.rs` |
-| Disabled | `TEXT_DISABLED`, no hover, no pointer, no click handler. Show a disabled control, do not hide it, when the user expects it at that place (for example "Move Up" on the first page). | `controls.rs` |
-| Focus | A text field with the focus has the `ACCENT_LINE` border. Each other control that the user operates takes the keyboard focus through `controls::keyboard_focus`: a shared control does this when it is enabled, and a row or a card with a click handler calls it. The control with the focus shows the focus ring (2, `ACCENT_LINE`) only when the focus came from the keyboard, as macOS does: GPUI `focus_visible` applies when the last input was a key. Outside the edge for a control with a fill (`Ring::Outside`: a button, a popup button, a switch, a sample), inside the edge for a control with no fill and for a colour circle (`Ring::Inside`: an icon button, a segment, a chip, a link, a row, a card). A click does not give a control the focus: the focus goes to the owner (`controls::FocusOwner`): the root element, the card of a sheet, or, in a popover, it stays where it is. After a click that ends an edit, call `focus_workspace`, not `window.blur`: the key commands need the focus in the root element. `focus_workspace` keeps the focus on a control that has it. When the element with the focus goes away, the focus goes to the root element (`on_focus_lost`). A popover with a field, the icon picker, the application picker, a sheet, and the command palette give the focus back to the control that had the keyboard focus when a key opened them (Space on the button, ⌘K): after Escape, Return, a choice, or a click outside, that control has the focus and the focus ring, and the next Tab goes to the next control. After a click that opened them, no control had the focus, so the focus goes to the root element and no ring shows. The code is in `view/focus_return.rs`: `popover_focus` and `Modal` do it, and a new popover or sheet needs no code. | `view/controls.rs`, `view.rs`, `view/focus_return.rs` |
+| Disabled | `text_disabled()`, no hover, no pointer, no click handler. Show a disabled control, do not hide it, when the user expects it at that place (for example "Move Up" on the first page). | `controls.rs` |
+| Focus | A text field with the focus has the `accent_line()` border. Each other control that the user operates takes the keyboard focus through `controls::keyboard_focus`: a shared control does this when it is enabled, and a row or a card with a click handler calls it. The control with the focus shows the focus ring (2, `accent_line()`) only when the focus came from the keyboard, as macOS does: GPUI `focus_visible` applies when the last input was a key. Outside the edge for a control with a fill (`Ring::Outside`: a button, a popup button, a switch, a sample), inside the edge for a control with no fill and for a colour circle (`Ring::Inside`: an icon button, a segment, a chip, a link, a row, a card). A click does not give a control the focus: the focus goes to the owner (`controls::FocusOwner`): the root element, the card of a sheet, or, in a popover, it stays where it is. After a click that ends an edit, call `focus_workspace`, not `window.blur`: the key commands need the focus in the root element. `focus_workspace` keeps the focus on a control that has it. When the element with the focus goes away, the focus goes to the root element (`on_focus_lost`). A popover with a field, the icon picker, the application picker, a sheet, and the command palette give the focus back to the control that had the keyboard focus when a key opened them (Space on the button, ⌘K): after Escape, Return, a choice, or a click outside, that control has the focus and the focus ring, and the next Tab goes to the next control. After a click that opened them, no control had the focus, so the focus goes to the root element and no ring shows. The code is in `view/focus_return.rs`: `popover_focus` and `Modal` do it, and a new popover or sheet needs no code. | `view/controls.rs`, `view.rs`, `view/focus_return.rs` |
 | Keyboard | Tab and Shift-Tab move the focus in the order of the window: the sidebar, the toolbar, the page header, the tabs of the right panel, the inspector, the status bar. A sheet, the palette, and a popover are focus traps. The cards of the first start window are one stop: the arrow keys move the selection and the focus. The controls of the device drawing and the rows of the library are not in the order: ⌘K selects a control and sets an action. Space and Return operate the control with the focus. In a sheet, Return does the main action also when a button has the focus, and Space operates that button, as in a sheet of macOS. The key commands are in the key context `Workspace`. They operate also when a control has the focus. A focused text field keeps ⌘Z, ⇧⌘Z, ⌘C, ⌘V, and Delete. With the focus on a button, Delete clears the selected control, as **Edit > Clear** does (decision 0029, "Focus rule"); undo restores it. A drawn menu has Up, Down, Home, End, Return, Space, and letters; Tab does nothing while it is open. The application picker uses Up and Down to move the highlight, and Return to select the row. Space stays in its search field. Escape closes the menu, the popover, or the sheet. | `app_menu.rs`, `view/controls.rs`, `view/menu.rs`, `view/modal.rs`, `view/application_picker.rs` |
 | Command menu | A menu of commands at the pointer is a native menu: right-click, "⋯", the device switcher. Native menu items use title case. | `view/sidebar.rs`, `view/clipboard.rs` |
 | Choice menu | A choice from a popup button is a drawn menu (`popup_menu`). It shows below the button, else above, else covers the button. The first row is highlighted. A click outside closes it and does nothing else. | `controls.rs` |
@@ -351,8 +356,8 @@ an element with no role are not in the accessibility tree
 | Sheet | A sheet uses `Modal`. Each change in it applies at once. "Done", Return, and Escape close it. A click on the dim layer does not close a sheet; it closes the palette. The key commands of the window do not operate while a sheet is open. | `view/modal.rs` |
 | Destructive command | "Remove…" of a page or a profile asks with a native alert that names the thing. The alert has "Remove" and "Cancel". A change that undo can restore (Clear, a replaced action) does not ask. | `view/pages.rs` |
 | Undo | Each change of the pages of the profile is one step with a name in title case ("Set Title"). One edit of a text field is one step: call `text_edit_event` in the subscription of a new field. A command that changes more than one binding sends one `Command::Group`. Profile add, rename, remove, select, and the device settings are not steps. Each profile keeps its history while OpenCraft runs. | [decision 0030](decisions/0030-undo-and-redo-in-the-engine.md), `view/history.rs` |
-| Empty state | A pane with nothing to show has one sentence, `TEXT_LABEL`, `TEXT_TERTIARY`, centred, `EMPTY_STATE_TOP` below the top. A gesture with no action is a dashed card "Add an action". | `view/inspector.rs`, `view/library.rs` |
-| Error | A missing Accessibility permission also shows the native menu command "Accessibility Permission Not Given…", which opens Settings at General. It follows the engine statuses. A problem of the engine is a message row above the status bar, with "Close" (`DESTRUCTIVE_TINT`, a warning icon). The Settings window shows its problems below its pane. Do not use a modal alert for an error. | `view/status_bar.rs`, `settings_window.rs` |
+| Empty state | A pane with nothing to show has one sentence, `TEXT_LABEL`, `text_tertiary()`, centred, `EMPTY_STATE_TOP` below the top. A gesture with no action is a dashed card "Add an action". | `view/inspector.rs`, `view/library.rs` |
+| Error | A missing Accessibility permission also shows the native menu command "Accessibility Permission Not Given…", which opens Settings at General. It follows the engine statuses. A problem of the engine is a message row above the status bar, with "Close" (`destructive_tint()`, a warning icon). The Settings window shows its problems below its pane. Do not use a modal alert for an error. | `view/status_bar.rs`, `settings_window.rs` |
 | Status bar | The last input at the start, "All changes saved" at the end. A short result of an operation is a message for `MESSAGE_TIME` (4 s) with `show_message`. Do not add a second bar. | `view/status_bar.rs` |
 | Drag and drop | The drag picture is `KindLabel::drag_chip` at `DRAG_PICTURE_OFFSET`. Only the control under the pointer shows the drop target. A drop and a click use one path (`assign_to`). | `view/library.rs`, `view/canvas.rs` |
 | Test command | “Test the action” ignores an input event that this process sent. A synthetic click on the test button must not invoke the command again. All action kinds use the same guard; no kind check. | `view/synthetic_input.rs`, `view/gesture_card.rs` |
@@ -454,7 +459,7 @@ corrections.
 | Write key commands in two forms ("⇧ ⌘ A" and "⇧⌘A") | One form: "⇧⌘A" |
 | Give one thing two names ("Label" and "Title", "Choose image…" and "Image file…") | Use the word list |
 | Draw a picture that hides a text of a drop target | Keep the text readable (no plus icon during a drag) |
-| Show text on an image with no backing | Use `BADGE_ON_IMAGE` behind it |
+| Show text on an image with no backing | Use `badge_on_image()` behind it |
 | Make a menu item that the palette also needs in two places | Add one row to `app_menu::commands` |
 | Use a different button size for the disabled state | `button_if(…, false)` keeps the size |
 | Move the focus to the root element at the close of a popover or a sheet, in the code of the part | Call `focus_workspace` as before: it gives the focus to the control that opened the popover, if a key opened it |
@@ -492,4 +497,4 @@ These parts do not obey this document yet. Each one has an issue.
 | Nobody listened to the window with VoiceOver. The accessibility tree was read with the Accessibility API only. The procedure for the owner is in the issue. | [#243](https://github.com/shantanugoel/OpenCraft/issues/243) |
 | A disabled control has no disabled state in the accessibility tree: GPUI 0.3.12 has no setter for it. It has no click action. | Accepted until GPUI has the setter |
 | The knob name below a knob is a second click target of the knob. It has no role, so that VoiceOver reads the knob one time. | Accepted |
-| Three highlight looks for a row that the keys select: `MENU_HIGHLIGHT` in a drawn menu, `ACCENT` in the palette, the system accent in a native menu. | Accepted: the palette row is a selection, the menu row is a highlight. |
+| Three highlight looks for a row that the keys select: `menu_highlight()` in a drawn menu, `accent()` in the palette, the system accent in a native menu. | Accepted: the palette row is a selection, the menu row is a highlight. |

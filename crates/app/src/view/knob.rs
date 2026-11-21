@@ -463,7 +463,7 @@ impl DeviceView {
                 .flex_1()
                 .min_w_0()
                 .border_1()
-                .border_color(theme::BORDER_FIELD),
+                .border_color(theme::border_field()),
         )
         .into_any_element()
     }
@@ -523,9 +523,9 @@ impl DeviceView {
             .h(height)
             .rounded(theme::RADIUS_CARD)
             .overflow_hidden()
-            .bg(theme::DEVICE_DISPLAY)
+            .bg(theme::device_display())
             .border_1()
-            .border_color(theme::LINE_PANE)
+            .border_color(theme::line_pane())
             .children(
                 self.images
                     .get(&surface.id)

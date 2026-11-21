@@ -229,7 +229,7 @@ pub(crate) fn knob_ring(settings: Option<&DeviceSettings>, knob: ControlId) -> R
                 .get(usize::from(knob.number.max(1) - 1))
         })
         .filter(|c| **c != Color::BLACK)
-        .map_or(theme::DEVICE_KNOB_RING, |c| theme::colour(*c))
+        .map_or(theme::device_knob_ring(), |c| theme::colour(*c))
 }
 
 /// An outline around an element of `width` × `height` with the corner
@@ -257,9 +257,9 @@ fn hover_outline(group: SharedString, width: f32, height: f32, radius: f32, gap:
         radius,
         gap,
         theme::HOVER_OUTLINE_WIDTH,
-        theme::TRANSPARENT,
+        theme::transparent(),
     )
-    .group_hover(group, |s| s.border_color(theme::ACCENT_LINE_HOVER))
+    .group_hover(group, |s| s.border_color(theme::accent_line_hover()))
 }
 
 /// The drop target on a control with the corner `radius` (section 12). It
@@ -274,16 +274,16 @@ fn drop_target(radius: f32) -> Div {
         .left_0()
         .size_full()
         .rounded(px(radius))
-        .bg(theme::ACCENT_TINT_DROP)
+        .bg(theme::accent_tint_drop())
         .border(theme::DROP_TARGET_BORDER)
         .border_dashed()
-        .border_color(theme::ACCENT_LINE)
+        .border_color(theme::accent_line())
         .flex()
         .items_center()
         .justify_center()
         .text_size(theme::TEXT_CAPTION)
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(theme::TEXT_ON_ACCENT)
+        .text_color(theme::text_on_accent())
         .child(DROP_HERE)
         .opacity(0.)
         .drag_over::<KindDrag>(|style, _, _, _| style.opacity(1.))
@@ -307,7 +307,7 @@ impl DeviceView {
             .h_full()
             .flex()
             .flex_col()
-            .bg(theme::BG_CANVAS)
+            .bg(theme::bg_canvas())
             .child(self.page_header(cx))
             .child(
                 div()
@@ -368,7 +368,7 @@ impl DeviceView {
                     .readable_text(page_count.clone())
                     .flex_shrink_0()
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child(page_count),
             )
             .child(div().flex_1())
@@ -410,8 +410,8 @@ impl DeviceView {
             )
             .child(
                 small_button("page-settings", "Page settings", true)
-                    .bg(theme::BG_FIELD)
-                    .border_color(theme::BORDER_FIELD)
+                    .bg(theme::bg_field())
+                    .border_color(theme::border_field())
                     .on_click(cx.listener(|view, _, window, cx| {
                         view.select_page(window, cx);
                         view.show_inspector(window, cx);
@@ -460,7 +460,7 @@ impl DeviceView {
             path = path.child(
                 div()
                     .flex_shrink_0()
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child("›"),
             );
             let last = index + 1 == open.len();
@@ -543,7 +543,7 @@ impl DeviceView {
             .px(theme::SPACE_16)
             .text_center()
             .text_size(theme::TEXT_LABEL)
-            .text_color(theme::TEXT_TERTIARY)
+            .text_color(theme::text_tertiary())
             .truncate()
             .child(text)
             .into_any_element()
@@ -709,7 +709,7 @@ impl DeviceView {
             .w(px(width))
             .h(px(height))
             .rounded(px(radius))
-            .bg(theme::DEVICE_DISPLAY)
+            .bg(theme::device_display())
             .cursor_pointer()
             .when(active, |d| d.shadow(theme::input_glow_shadow()))
             // The image of the engine, at the exact layout size (rule 11).
@@ -726,14 +726,14 @@ impl DeviceView {
                     .left_0()
                     .size_full()
                     .rounded(px(radius))
-                    .when(active, |d| d.border_2().border_color(theme::INPUT_GLOW))
+                    .when(active, |d| d.border_2().border_color(theme::input_glow()))
                     .when(!active && empty, |d| {
                         d.border_1()
                             .border_dashed()
-                            .border_color(theme::DEVICE_KEY_EMPTY_BORDER)
+                            .border_color(theme::device_key_empty_border())
                     })
                     .when(!active && !empty, |d| {
-                        d.border_1().border_color(theme::DEVICE_SURFACE_BORDER)
+                        d.border_1().border_color(theme::device_surface_border())
                     }),
             )
             // During a drag the plus icon is not there, so that the text
@@ -750,7 +750,7 @@ impl DeviceView {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .text_color(theme::DEVICE_KEY_EMPTY_ICON)
+                        .text_color(theme::device_key_empty_icon())
                         .child(
                             Icon::new(IconName::Plus)
                                 .size(px(theme::DEVICE_KEY_EMPTY_ICON_SIZE * scale)),
@@ -766,7 +766,7 @@ impl DeviceView {
                             radius,
                             theme::OUTLINE_GAP,
                             theme::OUTLINE_WIDTH,
-                            theme::ACCENT_LINE,
+                            theme::accent_line(),
                         )
                         .debug_selector(move || format!("selection-{id}")),
                     )
@@ -778,7 +778,7 @@ impl DeviceView {
                             radius,
                             theme::OUTLINE_GAP,
                             theme::OUTLINE_WIDTH,
-                            theme::ACCENT_LINE,
+                            theme::accent_line(),
                         )
                         .border_dashed()
                         .debug_selector(move || format!("feedback-{id}")),
@@ -838,7 +838,7 @@ impl DeviceView {
         let Some(layout) = &self.state.layout else {
             return Some(
                 div()
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child("The device layout is not available yet.")
                     .into_any_element(),
             );
@@ -865,7 +865,7 @@ impl DeviceView {
             .w(px(display_width))
             .h(px(display_height))
             .rounded(px(theme::DEVICE_DISPLAY_RADIUS * scale))
-            .bg(theme::DEVICE_DISPLAY)
+            .bg(theme::device_display())
             // The background of the page from the engine, behind the
             // surfaces (rule 11, #191).
             .children(self.background_image.clone().map(|image| {
@@ -900,7 +900,7 @@ impl DeviceView {
                     .top(px(y * scale - point / 2.))
                     .size(px(point))
                     .rounded_full()
-                    .bg(theme::INPUT_GLOW)
+                    .bg(theme::input_glow())
                     .shadow(theme::input_glow_shadow()),
             );
         }
@@ -933,7 +933,7 @@ impl DeviceView {
                 .w(px(body_width))
                 .h(px(body_height))
                 .rounded(px(body_radius))
-                .bg(theme::DEVICE_BODY)
+                .bg(theme::device_body())
                 .shadow(theme::device_body_shadow())
                 // A click on the body, outside the display and the knobs,
                 // selects the device. A control stops its click.
@@ -952,7 +952,7 @@ impl DeviceView {
                         .size_full()
                         .rounded(px(body_radius))
                         .border_1()
-                        .border_color(theme::DEVICE_BODY_BORDER),
+                        .border_color(theme::device_body_border()),
                 )
                 .child(display)
                 .child(
@@ -972,7 +972,7 @@ impl DeviceView {
                         body_radius,
                         theme::OUTLINE_GAP_ROUND,
                         theme::OUTLINE_WIDTH,
-                        theme::ACCENT_LINE,
+                        theme::accent_line(),
                     ))
                 })
                 .into_any_element(),
@@ -1012,7 +1012,7 @@ impl DeviceView {
             .top(px(top))
             .size(px(size))
             .rounded(px(radius))
-            .bg(theme::DEVICE_DISPLAY)
+            .bg(theme::device_display())
             .cursor_pointer()
             .when(highlight, |d| d.shadow(theme::input_glow_shadow()))
             .flex()
@@ -1025,11 +1025,13 @@ impl DeviceView {
                     .left_0()
                     .size_full()
                     .rounded(px(radius))
-                    .when(highlight, |d| d.border_2().border_color(theme::INPUT_GLOW))
+                    .when(highlight, |d| {
+                        d.border_2().border_color(theme::input_glow())
+                    })
                     .when(!highlight, |d| {
                         d.border_1()
                             .border_dashed()
-                            .border_color(theme::DEVICE_KEY_EMPTY_BORDER)
+                            .border_color(theme::device_key_empty_border())
                     }),
             )
             .child(
@@ -1040,7 +1042,7 @@ impl DeviceView {
                     .truncate()
                     .text_size(theme::TEXT_CAPTION)
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .child(name),
             )
             .map(|d| {
@@ -1052,7 +1054,7 @@ impl DeviceView {
                             radius,
                             theme::OUTLINE_GAP,
                             theme::OUTLINE_WIDTH,
-                            theme::ACCENT_LINE,
+                            theme::accent_line(),
                         )
                         .debug_selector(move || format!("selection-{id}")),
                     )
@@ -1153,10 +1155,10 @@ impl DeviceView {
                             .left_0()
                             .size_full()
                             .rounded_full()
-                            .bg(theme::DEVICE_KNOB)
+                            .bg(theme::device_knob())
                             .border(px(ring))
                             .border_color(if highlight.is_some() {
-                                theme::INPUT_GLOW
+                                theme::input_glow()
                             } else {
                                 knob_ring(self.state.device_settings.as_ref(), id)
                             }),
@@ -1169,9 +1171,9 @@ impl DeviceView {
                             .size(px(mark))
                             .rounded_full()
                             .bg(if highlight.is_some_and(|h| h.gesture == Gesture::Push) {
-                                theme::INPUT_GLOW
+                                theme::input_glow()
                             } else {
-                                theme::DEVICE_KNOB_DOT
+                                theme::device_knob_dot()
                             }),
                     )
                     .map(|d| {
@@ -1183,7 +1185,7 @@ impl DeviceView {
                                     diameter / 2.,
                                     theme::OUTLINE_GAP_ROUND,
                                     theme::OUTLINE_WIDTH,
-                                    theme::ACCENT_LINE,
+                                    theme::accent_line(),
                                 )
                                 .debug_selector(move || format!("selection-{id}")),
                             )
@@ -1237,9 +1239,9 @@ impl DeviceView {
                     .text_size(theme::TEXT_CAPTION)
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(if selected {
-                        theme::ACCENT_TEXT
+                        theme::accent_text()
                     } else {
-                        theme::TEXT_TERTIARY
+                        theme::text_tertiary()
                     })
                     .cursor_pointer()
                     .child(control_name(id))
@@ -1271,16 +1273,16 @@ impl DeviceView {
         let highlight = self.state.highlights.get(&id).map(|h| h.gesture);
         let selected = self.framed_control() == Some(id);
         let normal = if selected {
-            theme::TEXT_ON_ACCENT
+            theme::text_on_accent()
         } else {
-            theme::TEXT_SECONDARY
+            theme::text_secondary()
         };
         let arrow = |gesture: Gesture, icon: IconName| {
             div()
                 .flex()
                 .items_center()
                 .text_color(if highlight == Some(gesture) {
-                    theme::INPUT_GLOW
+                    theme::input_glow()
                 } else {
                     normal
                 })
@@ -1315,15 +1317,15 @@ impl DeviceView {
                         .cursor_pointer()
                         .map(|d| {
                             if selected {
-                                d.bg(theme::ACCENT).border_color(theme::ACCENT_LINE)
+                                d.bg(theme::accent()).border_color(theme::accent_line())
                             } else {
-                                d.bg(theme::NEUTRAL_TINT)
-                                    .border_color(theme::DEVICE_TOUCH_BAR_BORDER)
-                                    .hover(|d| d.bg(theme::DEVICE_TOUCH_BAR_HOVER))
+                                d.bg(theme::neutral_tint())
+                                    .border_color(theme::device_touch_bar_border())
+                                    .hover(|d| d.bg(theme::device_touch_bar_hover()))
                             }
                         })
                         .when(highlight.is_some(), |d| {
-                            d.border_color(theme::INPUT_GLOW)
+                            d.border_color(theme::input_glow())
                                 .shadow(theme::input_glow_shadow())
                         })
                         .tooltip(|window, cx| Tooltip::new(TOUCH_BAR_LABEL).build(window, cx))
@@ -1406,11 +1408,20 @@ mod tests {
         };
         assert_eq!(knob_ring(Some(&settings), knob(1)), gpui_kit::rgb(0xff0000));
         // A black light is off, and a knob with no light is neutral.
-        assert_eq!(knob_ring(Some(&settings), knob(2)), theme::DEVICE_KNOB_RING);
-        assert_eq!(knob_ring(Some(&settings), knob(3)), theme::DEVICE_KNOB_RING);
-        assert_eq!(knob_ring(None, knob(1)), theme::DEVICE_KNOB_RING);
+        assert_eq!(
+            knob_ring(Some(&settings), knob(2)),
+            theme::device_knob_ring()
+        );
+        assert_eq!(
+            knob_ring(Some(&settings), knob(3)),
+            theme::device_knob_ring()
+        );
+        assert_eq!(knob_ring(None, knob(1)), theme::device_knob_ring());
         settings.knob_lights.mode = KnobLightMode::Effect;
-        assert_eq!(knob_ring(Some(&settings), knob(1)), theme::DEVICE_KNOB_RING);
+        assert_eq!(
+            knob_ring(Some(&settings), knob(1)),
+            theme::device_knob_ring()
+        );
     }
 
     #[test]

@@ -123,12 +123,12 @@ impl DeviceView {
             .flex()
             .items_center()
             .gap(theme::SPACE_8)
-            .bg(theme::BG_BAR)
+            .bg(theme::bg_bar())
             .border_t_1()
-            .border_color(theme::LINE_SECTION)
+            .border_color(theme::line_section())
             .text_size(theme::TEXT_HELP)
-            .text_color(theme::TEXT_SECONDARY)
-            .children(input.map(|_| controls::dot(theme::ACCENT_TEXT)))
+            .text_color(theme::text_secondary())
+            .children(input.map(|_| controls::dot(theme::accent_text())))
             .child(
                 div()
                     .id("last-input")
@@ -176,14 +176,14 @@ impl DeviceView {
                                 .gap(theme::SPACE_10)
                                 .py(theme::SPACE_8)
                                 .px(theme::SPACE_16)
-                                .bg(theme::DESTRUCTIVE_TINT)
+                                .bg(theme::destructive_tint())
                                 .border_t_1()
-                                .border_color(theme::DESTRUCTIVE_LINE)
+                                .border_color(theme::destructive_line())
                                 .text_size(theme::TEXT_LABEL)
                                 .child(
                                     Icon::new(IconName::TriangleAlert)
                                         .size(theme::ICON_MESSAGE)
-                                        .text_color(theme::WARNING),
+                                        .text_color(theme::warning()),
                                 )
                                 .child(
                                     div()

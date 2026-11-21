@@ -326,7 +326,7 @@ impl DeviceView {
                 .px(theme::SECTION_PADDING_SIDE)
                 .text_center()
                 .text_size(theme::TEXT_LABEL)
-                .text_color(theme::TEXT_TERTIARY)
+                .text_color(theme::text_tertiary())
                 .child(no_result(&text))
                 .into_any_element()
         } else {
@@ -362,7 +362,7 @@ impl DeviceView {
                     .flex_col()
                     .gap(theme::SPACE_10)
                     .border_b_1()
-                    .border_color(theme::LINE_SECTION)
+                    .border_color(theme::line_section())
                     // The filter chips are a LATER place (section 11): while
                     // "Actions" is the only filter, the row is not drawn.
                     .child(controls::search_field(
@@ -446,16 +446,16 @@ impl DeviceView {
                     .map(|d| {
                         if in_drag {
                             // The row in a drag (section 11).
-                            d.bg(theme::ACCENT_TINT_DRAG)
+                            d.bg(theme::accent_tint_drag())
                                 .border_dashed()
-                                .border_color(theme::ACCENT_LINE)
-                                .text_color(theme::TEXT_SECONDARY)
+                                .border_color(theme::accent_line())
+                                .text_color(theme::text_secondary())
                         } else if drag.is_some() {
                             // No hover on the other rows during a drag.
                             d
                         } else {
-                            d.hover(|d| d.bg(theme::HOVER_ROW))
-                                .active(|d| d.bg(theme::PRESSED))
+                            d.hover(|d| d.bg(theme::hover_row()))
+                                .active(|d| d.bg(theme::pressed()))
                         }
                     })
                     .on_drag(
@@ -497,7 +497,7 @@ impl DeviceView {
                             .flex_shrink_0()
                             .text_size(theme::TEXT_CAPTION)
                             .font_weight(FontWeight::NORMAL)
-                            .text_color(theme::TEXT_TERTIARY)
+                            .text_color(theme::text_tertiary())
                             .child(help)
                     }))
                     .on_click(

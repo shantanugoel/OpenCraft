@@ -10,11 +10,19 @@
 //! colour or `px(..)` size in other window code. A new value gets a name here,
 //! with a comment that says where it is used.
 //!
-//! The values are for the dark appearance. A light appearance is a second
-//! set of values for the same names (decision 0029, section 21).
+//! A colour token is a function, for example `bg_canvas()`. Its value comes
+//! from the palette of the appearance of the thread: the same name gives the
+//! dark value today and the light value when decision 0029, section 21 adds
+//! the light appearance. A new colour token also gets its value in each
+//! palette, else the module does not build. A size token is a constant,
+//! because its value does not change with the appearance.
+//!
+//! The window has the dark appearance only today. A later change adds the
+//! light palette and the settings that select the appearance.
 
 use gpui_kit::{point, px, BoxShadow, Pixels, Rgba};
 use opencraft_engine::Color;
+use std::cell::Cell;
 
 /// A colour from its value `0xRRGGBB`, with full opacity.
 const fn hex(value: u32) -> Rgba {
@@ -43,154 +51,534 @@ pub const fn sample(value: u32) -> Rgba {
     hex(value)
 }
 
+// MARK: Appearance
+//
+// A colour token is a function: its value is the value of the token in the
+// appearance of the thread. The window code writes `theme::bg_canvas()`,
+// never the value.
+
+/// The appearance of the window.
+///
+/// A window has one appearance. Decision 0029, section 21 adds the light
+/// appearance. Until then each token has the dark value only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Appearance {
+    /// The dark appearance: the values of this module today.
+    Dark,
+}
+
+thread_local! {
+    /// The appearance of this thread. GPUI draws a window on one thread.
+    /// Each test thread has its own appearance, thus a test that changes
+    /// the appearance cannot change the colours of another test.
+    static APPEARANCE: Cell<Appearance> = const { Cell::new(Appearance::Dark) };
+}
+
+/// The appearance of the window of this thread.
+pub fn appearance() -> Appearance {
+    APPEARANCE.with(Cell::get)
+}
+
+/// Set the appearance of the window of this thread. The caller redraws the
+/// window. Decision 0029, section 21 uses this function.
+#[allow(dead_code)]
+pub fn set_appearance(appearance: Appearance) {
+    APPEARANCE.with(|cell| cell.set(appearance));
+}
+
+/// The colour tokens of one appearance. Each colour token of this module
+/// has a field here, thus a new token needs a value in each palette: the
+/// compiler enforces it.
+struct Palette {
+    bg_canvas: Rgba,
+    bg_bar: Rgba,
+    bg_sidebar: Rgba,
+    bg_panel: Rgba,
+    bg_card: Rgba,
+    bg_control: Rgba,
+    bg_field: Rgba,
+    bg_segment_on: Rgba,
+    bg_tile: Rgba,
+    line_pane: Rgba,
+    line_section: Rgba,
+    border_field: Rgba,
+    border_control: Rgba,
+    border_overlay: Rgba,
+    border_device_card: Rgba,
+    line_sidebar: Rgba,
+    text_primary: Rgba,
+    text_secondary: Rgba,
+    text_tertiary: Rgba,
+    text_disabled: Rgba,
+    text_on_accent: Rgba,
+    accent: Rgba,
+    accent_line: Rgba,
+    accent_text: Rgba,
+    accent_text_hover: Rgba,
+    accent_tint: Rgba,
+    accent_tint_drag: Rgba,
+    success: Rgba,
+    success_text: Rgba,
+    success_tint: Rgba,
+    destructive_text: Rgba,
+    destructive_tint: Rgba,
+    destructive_line: Rgba,
+    warning: Rgba,
+    input_glow: Rgba,
+    hover_control: Rgba,
+    hover_icon: Rgba,
+    transparent: Rgba,
+    hover_row: Rgba,
+    menu_highlight: Rgba,
+    selected_unfocused: Rgba,
+    pressed: Rgba,
+    neutral_tint: Rgba,
+    border_sample_other: Rgba,
+    switch_knob_colour: Rgba,
+    kind_tile_system: Rgba,
+    kind_tile_media: Rgba,
+    kind_tile_navigation: Rgba,
+    kind_tile_logic: Rgba,
+    kind_tile_other: Rgba,
+    kind_tile_unavailable: Rgba,
+    device_body: Rgba,
+    device_body_border: Rgba,
+    device_display: Rgba,
+    device_surface_border: Rgba,
+    device_knob: Rgba,
+    device_knob_ring: Rgba,
+    device_touch_bar_border: Rgba,
+    device_knob_dot: Rgba,
+    device_key_empty_border: Rgba,
+    device_key_empty_icon: Rgba,
+    device_touch_bar_hover: Rgba,
+    accent_line_hover: Rgba,
+    badge_on_image: Rgba,
+    accent_tint_drop: Rgba,
+    modal_dim: Rgba,
+    tile_on_accent: Rgba,
+    bg_context_chip: Rgba,
+    text_icon_cell: Rgba,
+    accent_tint_chip: Rgba,
+    picture_panel_empty: Rgba,
+    success_fill: Rgba,
+    accent_tint_start: Rgba,
+}
+
+/// The dark appearance: the values of the window today.
+const DARK: Palette = Palette {
+    bg_canvas: hex(0x18191c),
+    bg_bar: hex(0x1f2024),
+    bg_sidebar: hex(0x232428),
+    bg_panel: hex(0x202125),
+    bg_card: hex(0x26272c),
+    bg_control: hex(0x2f3036),
+    bg_field: hex(0x2a2b30),
+    bg_segment_on: hex(0x4a4c53),
+    bg_tile: hex(0x2e3036),
+    line_pane: hex(0x34363b),
+    line_section: hex(0x2c2e33),
+    border_field: hex(0x3a3c42),
+    border_control: hex(0x42444b),
+    border_overlay: hex(0x44474f),
+    border_device_card: hex(0x383a40),
+    line_sidebar: hex(0x2e3035),
+    text_primary: hex(0xececee),
+    text_secondary: hex(0xa0a3ab),
+    text_tertiary: hex(0x8b8e96),
+    text_disabled: hex(0x6b6e76),
+    text_on_accent: hex(0xffffff),
+    accent: hex(0x1a6fd8),
+    accent_line: hex(0x3b95ff),
+    accent_text: hex(0x4da3ff),
+    accent_text_hover: hex(0x7dbbff),
+    accent_tint: hex_alpha(0x1a6fd8, 0.14),
+    accent_tint_drag: hex_alpha(0x1a6fd8, 0.18),
+    success: hex(0x34c759),
+    success_text: hex(0x7ee2a0),
+    success_tint: hex_alpha(0x34c759, 0.12),
+    destructive_text: hex(0xff8a80),
+    destructive_tint: hex_alpha(0xff8a80, 0.12),
+    destructive_line: hex_alpha(0xff8a80, 0.35),
+    warning: hex(0xf5b65c),
+    input_glow: hex(0xffce73),
+    hover_control: hex(0x383a40),
+    hover_icon: hex_alpha(0xffffff, 0.06),
+    transparent: hex_alpha(0x000000, 0.),
+    hover_row: hex_alpha(0xffffff, 0.05),
+    menu_highlight: hex_alpha(0x1a6fd8, 0.32),
+    selected_unfocused: hex_alpha(0xffffff, 0.07),
+    pressed: hex(0x42444b),
+    neutral_tint: hex_alpha(0xffffff, 0.06),
+    border_sample_other: hex(0x5a5c63),
+    switch_knob_colour: hex(0xffffff),
+    kind_tile_system: hex(0x3a3f47),
+    kind_tile_media: hex(0x2350a8),
+    kind_tile_navigation: hex(0x1f6f6b),
+    kind_tile_logic: hex(0x7a3e2e),
+    kind_tile_other: hex(0x4b3b7a),
+    kind_tile_unavailable: hex(0x3a3c42),
+    device_body: hex(0x0b0c0e),
+    device_body_border: hex(0x2e3036),
+    device_display: hex(0x0f1724),
+    device_surface_border: hex_alpha(0xffffff, 0.06),
+    device_knob: hex(0x1c1e23),
+    device_knob_ring: hex(0x3a3c42),
+    device_touch_bar_border: hex_alpha(0xffffff, 0.10),
+    device_knob_dot: hex(0xececee),
+    device_key_empty_border: hex(0x3a3f4c),
+    device_key_empty_icon: hex(0x5a5f6b),
+    device_touch_bar_hover: hex_alpha(0xffffff, 0.10),
+    accent_line_hover: hex_alpha(0x3b95ff, 0.5),
+    badge_on_image: hex_alpha(0x000000, 0.55),
+    accent_tint_drop: hex_alpha(0x1a6fd8, 0.28),
+    modal_dim: hex_alpha(0x000000, 0.25),
+    tile_on_accent: hex_alpha(0xffffff, 0.18),
+    bg_context_chip: hex(0x34363c),
+    text_icon_cell: hex(0xd0d2d8),
+    accent_tint_chip: hex_alpha(0x1a6fd8, 0.25),
+    picture_panel_empty: hex(0x1a1f2a),
+    success_fill: hex(0x1e7a46),
+    accent_tint_start: hex_alpha(0x1a6fd8, 0.16),
+};
+
+/// The colours of the appearance of this thread.
+fn palette() -> &'static Palette {
+    match appearance() {
+        Appearance::Dark => &DARK,
+    }
+}
+
 // MARK: Colours (section 3.2)
 
 /// The canvas, and the window behind all panes.
-pub const BG_CANVAS: Rgba = hex(0x18191c);
+pub fn bg_canvas() -> Rgba {
+    palette().bg_canvas
+}
+
 /// The toolbar and the status bar.
-pub const BG_BAR: Rgba = hex(0x1f2024);
+pub fn bg_bar() -> Rgba {
+    palette().bg_bar
+}
+
 /// The sidebar.
-pub const BG_SIDEBAR: Rgba = hex(0x232428);
+pub fn bg_sidebar() -> Rgba {
+    palette().bg_sidebar
+}
+
 /// The right panel, and a nested card.
-pub const BG_PANEL: Rgba = hex(0x202125);
+pub fn bg_panel() -> Rgba {
+    palette().bg_panel
+}
+
 /// A card, and a menu that the window draws.
-pub const BG_CARD: Rgba = hex(0x26272c);
+pub fn bg_card() -> Rgba {
+    palette().bg_card
+}
+
 /// A button.
-pub const BG_CONTROL: Rgba = hex(0x2f3036);
+pub fn bg_control() -> Rgba {
+    palette().bg_control
+}
+
 /// A text field, the track of a segmented control, and the device card.
-pub const BG_FIELD: Rgba = hex(0x2a2b30);
+pub fn bg_field() -> Rgba {
+    palette().bg_field
+}
+
 /// The selected segment of a segmented control.
-pub const BG_SEGMENT_ON: Rgba = hex(0x4a4c53);
+pub fn bg_segment_on() -> Rgba {
+    palette().bg_segment_on
+}
+
 /// The tile behind the device icon.
-pub const BG_TILE: Rgba = hex(0x2e3036);
+pub fn bg_tile() -> Rgba {
+    palette().bg_tile
+}
 
 /// The border between two panes.
-pub const LINE_PANE: Rgba = hex(0x34363b);
+pub fn line_pane() -> Rgba {
+    palette().line_pane
+}
+
 /// The line below the toolbar, above the status bar, and below the tab header.
-pub const LINE_SECTION: Rgba = hex(0x2c2e33);
+pub fn line_section() -> Rgba {
+    palette().line_section
+}
+
 /// The border of a text field, of a card, and of a segmented control track.
-pub const BORDER_FIELD: Rgba = hex(0x3a3c42);
+pub fn border_field() -> Rgba {
+    palette().border_field
+}
+
 /// The border of a button.
-pub const BORDER_CONTROL: Rgba = hex(0x42444b);
+pub fn border_control() -> Rgba {
+    palette().border_control
+}
+
 /// The border of a menu or of a popover.
-pub const BORDER_OVERLAY: Rgba = hex(0x44474f);
+pub fn border_overlay() -> Rgba {
+    palette().border_overlay
+}
+
 /// The border of the device card when it is not selected.
-pub const BORDER_DEVICE_CARD: Rgba = hex(0x383a40);
+pub fn border_device_card() -> Rgba {
+    palette().border_device_card
+}
+
 /// The line above the bottom group of the sidebar.
-pub const LINE_SIDEBAR: Rgba = hex(0x2e3035);
+pub fn line_sidebar() -> Rgba {
+    palette().line_sidebar
+}
 
 /// Normal text.
-pub const TEXT_PRIMARY: Rgba = hex(0xececee);
+pub fn text_primary() -> Rgba {
+    palette().text_primary
+}
+
 /// Form labels, icon buttons, and a value at the right.
-pub const TEXT_SECONDARY: Rgba = hex(0xa0a3ab);
+pub fn text_secondary() -> Rgba {
+    palette().text_secondary
+}
+
 /// Section headers, captions, help text, and placeholders.
-pub const TEXT_TERTIARY: Rgba = hex(0x8b8e96);
+pub fn text_tertiary() -> Rgba {
+    palette().text_tertiary
+}
+
 /// A disabled button or icon.
-pub const TEXT_DISABLED: Rgba = hex(0x6b6e76);
+pub fn text_disabled() -> Rgba {
+    palette().text_disabled
+}
+
 /// Text on an accent fill.
-pub const TEXT_ON_ACCENT: Rgba = hex(0xffffff);
+pub fn text_on_accent() -> Rgba {
+    palette().text_on_accent
+}
 
 /// The selected row, and the main button.
-pub const ACCENT: Rgba = hex(0x1a6fd8);
-/// The selection outline, and the focus border of a field.
-pub const ACCENT_LINE: Rgba = hex(0x3b95ff);
-/// A link, and the dot of the last input.
-pub const ACCENT_TEXT: Rgba = hex(0x4da3ff);
-/// A link under the pointer.
-pub const ACCENT_TEXT_HOVER: Rgba = hex(0x7dbbff);
-/// The accent at 14 %: the background of a selected card.
-pub const ACCENT_TINT: Rgba = hex_alpha(0x1a6fd8, 0.14);
-/// The accent at 18 %: a row under a drag (section 3.2).
-pub const ACCENT_TINT_DRAG: Rgba = hex_alpha(0x1a6fd8, 0.18);
-/// The dot of a connected device.
-pub const SUCCESS: Rgba = hex(0x34c759);
-/// The text of the live state pill.
-pub const SUCCESS_TEXT: Rgba = hex(0x7ee2a0);
-/// The background of the live state pill.
-pub const SUCCESS_TINT: Rgba = hex_alpha(0x34c759, 0.12);
-/// The text of a button that removes something.
-pub const DESTRUCTIVE_TEXT: Rgba = hex(0xff8a80);
-/// The background of a message row (section 6.2).
-pub const DESTRUCTIVE_TINT: Rgba = hex_alpha(0xff8a80, 0.12);
-/// The line at the top of a message row (section 6.2).
-pub const DESTRUCTIVE_LINE: Rgba = hex_alpha(0xff8a80, 0.35);
-/// The icon of a warning, and a warning text in a gesture card.
-pub const WARNING: Rgba = hex(0xf5b65c);
-/// A control that the user operates on the device glows in this colour.
-pub const INPUT_GLOW: Rgba = hex(0xffce73);
+pub fn accent() -> Rgba {
+    palette().accent
+}
 
-/// A button under the pointer: one step lighter than [`BG_CONTROL`].
-pub const HOVER_CONTROL: Rgba = hex(0x383a40);
+/// The selection outline, and the focus border of a field.
+pub fn accent_line() -> Rgba {
+    palette().accent_line
+}
+
+/// A link, and the dot of the last input.
+pub fn accent_text() -> Rgba {
+    palette().accent_text
+}
+
+/// A link under the pointer.
+pub fn accent_text_hover() -> Rgba {
+    palette().accent_text_hover
+}
+
+/// The accent at 14 %: the background of a selected card.
+pub fn accent_tint() -> Rgba {
+    palette().accent_tint
+}
+
+/// The accent at 18 %: a row under a drag (section 3.2).
+pub fn accent_tint_drag() -> Rgba {
+    palette().accent_tint_drag
+}
+
+/// The dot of a connected device.
+pub fn success() -> Rgba {
+    palette().success
+}
+
+/// The text of the live state pill.
+pub fn success_text() -> Rgba {
+    palette().success_text
+}
+
+/// The background of the live state pill.
+pub fn success_tint() -> Rgba {
+    palette().success_tint
+}
+
+/// The text of a button that removes something.
+pub fn destructive_text() -> Rgba {
+    palette().destructive_text
+}
+
+/// The background of a message row (section 6.2).
+pub fn destructive_tint() -> Rgba {
+    palette().destructive_tint
+}
+
+/// The line at the top of a message row (section 6.2).
+pub fn destructive_line() -> Rgba {
+    palette().destructive_line
+}
+
+/// The icon of a warning, and a warning text in a gesture card.
+pub fn warning() -> Rgba {
+    palette().warning
+}
+
+/// A control that the user operates on the device glows in this colour.
+pub fn input_glow() -> Rgba {
+    palette().input_glow
+}
+
+/// A button under the pointer: one step lighter than [`bg_control()`].
+pub fn hover_control() -> Rgba {
+    palette().hover_control
+}
+
 /// A transparent icon button under the pointer.
-pub const HOVER_ICON: Rgba = hex_alpha(0xffffff, 0.06);
+pub fn hover_icon() -> Rgba {
+    palette().hover_icon
+}
+
 /// No colour: a border that shows only in a different state.
-pub const TRANSPARENT: Rgba = hex_alpha(0x000000, 0.);
+pub fn transparent() -> Rgba {
+    palette().transparent
+}
+
 /// A row under the pointer.
-pub const HOVER_ROW: Rgba = hex_alpha(0xffffff, 0.05);
+pub fn hover_row() -> Rgba {
+    palette().hover_row
+}
+
 /// The highlighted item of a menu that the window draws: the item that a key
 /// selects, and the item under the pointer.
-pub const MENU_HIGHLIGHT: Rgba = hex_alpha(0x1a6fd8, 0.32);
+pub fn menu_highlight() -> Rgba {
+    palette().menu_highlight
+}
+
 /// A selected row in a pane that does not have the selection, for example
 /// the active page row when the device is the selection.
-pub const SELECTED_UNFOCUSED: Rgba = hex_alpha(0xffffff, 0.07);
+pub fn selected_unfocused() -> Rgba {
+    palette().selected_unfocused
+}
+
 /// A pressed button.
-pub const PRESSED: Rgba = hex(0x42444b);
+pub fn pressed() -> Rgba {
+    palette().pressed
+}
+
 /// The background of the live state pill when no device is connected.
-pub const NEUTRAL_TINT: Rgba = hex_alpha(0xffffff, 0.06);
+pub fn neutral_tint() -> Rgba {
+    palette().neutral_tint
+}
+
 /// The dashed border of the fill sample "Other colour" (section 10.2).
-pub const BORDER_SAMPLE_OTHER: Rgba = hex(0x5a5c63);
+pub fn border_sample_other() -> Rgba {
+    palette().border_sample_other
+}
+
 /// The border of a toggle button that is on, for example "B" for bold
 /// (section 10.2).
-pub const BORDER_TOGGLE_ON: Rgba = BORDER_SAMPLE_OTHER;
+pub fn border_toggle_on() -> Rgba {
+    border_sample_other()
+}
+
 /// The white knob of a switch, and the text on a kind tile.
-pub const SWITCH_KNOB_COLOUR: Rgba = hex(0xffffff);
+pub fn switch_knob_colour() -> Rgba {
+    palette().switch_knob_colour
+}
+
 /// The tile of a kind of each group of section 20, and of a group that is
 /// not in that table.
-pub const KIND_TILE_SYSTEM: Rgba = hex(0x3a3f47);
-pub const KIND_TILE_MEDIA: Rgba = hex(0x2350a8);
-pub const KIND_TILE_NAVIGATION: Rgba = hex(0x1f6f6b);
-pub const KIND_TILE_LOGIC: Rgba = hex(0x7a3e2e);
-pub const KIND_TILE_OTHER: Rgba = hex(0x4b3b7a);
+pub fn kind_tile_system() -> Rgba {
+    palette().kind_tile_system
+}
+pub fn kind_tile_media() -> Rgba {
+    palette().kind_tile_media
+}
+pub fn kind_tile_navigation() -> Rgba {
+    palette().kind_tile_navigation
+}
+pub fn kind_tile_logic() -> Rgba {
+    palette().kind_tile_logic
+}
+pub fn kind_tile_other() -> Rgba {
+    palette().kind_tile_other
+}
+
 /// The tile of an action kind that has no handler (rule 8).
-pub const KIND_TILE_UNAVAILABLE: Rgba = hex(0x3a3c42);
+pub fn kind_tile_unavailable() -> Rgba {
+    palette().kind_tile_unavailable
+}
 
 /// The tile colour of a kind of the group `group` (decision 0029, section
 /// 20). The colour comes from the group, thus the window needs no colour for
-/// each kind. A group of a plug-in gets [`KIND_TILE_OTHER`].
+/// each kind. A group of a plug-in gets [`kind_tile_other()`].
 pub fn kind_tile(group: &str) -> Rgba {
     match group {
-        "System" => KIND_TILE_SYSTEM,
-        "Media" => KIND_TILE_MEDIA,
-        "Navigation" => KIND_TILE_NAVIGATION,
-        "Logic" => KIND_TILE_LOGIC,
-        _ => KIND_TILE_OTHER,
+        "System" => kind_tile_system(),
+        "Media" => kind_tile_media(),
+        "Navigation" => kind_tile_navigation(),
+        "Logic" => kind_tile_logic(),
+        _ => kind_tile_other(),
     }
 }
 
 /// The body of the device.
-pub const DEVICE_BODY: Rgba = hex(0x0b0c0e);
+pub fn device_body() -> Rgba {
+    palette().device_body
+}
+
 /// The border of the body of the device.
-pub const DEVICE_BODY_BORDER: Rgba = hex(0x2e3036);
+pub fn device_body_border() -> Rgba {
+    palette().device_body_border
+}
+
 /// The display when the page has no background image.
-pub const DEVICE_DISPLAY: Rgba = hex(0x0f1724);
+pub fn device_display() -> Rgba {
+    palette().device_display
+}
+
 /// The border of a key face and of a bar panel.
-pub const DEVICE_SURFACE_BORDER: Rgba = hex_alpha(0xffffff, 0.06);
+pub fn device_surface_border() -> Rgba {
+    palette().device_surface_border
+}
+
 /// The inside of a knob.
-pub const DEVICE_KNOB: Rgba = hex(0x1c1e23);
+pub fn device_knob() -> Rgba {
+    palette().device_knob
+}
+
 /// The ring of a knob.
-pub const DEVICE_KNOB_RING: Rgba = hex(0x3a3c42);
+pub fn device_knob_ring() -> Rgba {
+    palette().device_knob_ring
+}
+
 /// The border of the "Touch bar" control.
-pub const DEVICE_TOUCH_BAR_BORDER: Rgba = hex_alpha(0xffffff, 0.10);
+pub fn device_touch_bar_border() -> Rgba {
+    palette().device_touch_bar_border
+}
+
 /// The mark at the top of a knob.
-pub const DEVICE_KNOB_DOT: Rgba = hex(0xececee);
+pub fn device_knob_dot() -> Rgba {
+    palette().device_knob_dot
+}
+
 /// The dashed border of an empty key face.
-pub const DEVICE_KEY_EMPTY_BORDER: Rgba = hex(0x3a3f4c);
+pub fn device_key_empty_border() -> Rgba {
+    palette().device_key_empty_border
+}
+
 /// The plus icon on an empty key face.
-pub const DEVICE_KEY_EMPTY_ICON: Rgba = hex(0x5a5f6b);
+pub fn device_key_empty_icon() -> Rgba {
+    palette().device_key_empty_icon
+}
+
 /// The "Touch bar" control under the pointer.
-pub const DEVICE_TOUCH_BAR_HOVER: Rgba = hex_alpha(0xffffff, 0.10);
-/// The outline of a control under the pointer: [`ACCENT_LINE`] at 50 %.
-pub const ACCENT_LINE_HOVER: Rgba = hex_alpha(0x3b95ff, 0.5);
+pub fn device_touch_bar_hover() -> Rgba {
+    palette().device_touch_bar_hover
+}
+
+/// The outline of a control under the pointer: [`accent_line()`] at 50 %.
+pub fn accent_line_hover() -> Rgba {
+    palette().accent_line_hover
+}
 
 /// The shadow of the body of the device: 0 24 60, black at 45 %.
 pub fn device_body_shadow() -> Vec<BoxShadow> {
@@ -253,7 +641,7 @@ pub const SLIDER_FOCUS_PADDING_Y: Pixels = SPACE_4;
 /// part of the shadow below it.
 pub fn focus_ring_outside() -> Vec<BoxShadow> {
     vec![BoxShadow {
-        color: ACCENT_LINE.into(),
+        color: accent_line().into(),
         offset: point(px(0.), px(0.)),
         blur_radius: px(0.),
         spread_radius: FOCUS_RING,
@@ -266,7 +654,7 @@ pub fn focus_ring_outside() -> Vec<BoxShadow> {
 /// edge would fill all of a transparent control.
 pub fn focus_ring_inside() -> Vec<BoxShadow> {
     vec![BoxShadow {
-        color: ACCENT_LINE.into(),
+        color: accent_line().into(),
         offset: point(px(0.), px(0.)),
         blur_radius: px(0.),
         spread_radius: FOCUS_RING,
@@ -428,6 +816,7 @@ pub struct SwitchSize {
     pub height: Pixels,
     pub knob: Pixels,
 }
+
 /// A switch in the inspector.
 pub const SWITCH_INSPECTOR: SwitchSize = SwitchSize {
     width: px(30.),
@@ -453,7 +842,10 @@ pub const BACKGROUND_PREVIEW_WIDTH: Pixels = px(140.);
 pub const BACKGROUND_PREVIEW_HEIGHT: Pixels = px(84.);
 pub const BACKGROUND_BADGE_INSET: Pixels = SPACE_6;
 /// The backing of the size text on a background image.
-pub const BADGE_ON_IMAGE: Rgba = hex_alpha(0x000000, 0.55);
+pub fn badge_on_image() -> Rgba {
+    palette().badge_on_image
+}
+
 /// The menu of the fit of the background image.
 pub const WIDTH_FIT_MENU: Pixels = px(140.);
 /// The device inactivity popup button and its menu.
@@ -678,8 +1070,11 @@ pub const HELP_LINE_HEIGHT: f32 = 16.;
 // MARK: Drag and drop (sections 11 and 12)
 
 /// The drop target on a control: the accent at 28 %, on top of the image.
-/// A library row in a drag has [`ACCENT_TINT_DRAG`].
-pub const ACCENT_TINT_DROP: Rgba = hex_alpha(0x1a6fd8, 0.28);
+/// A library row in a drag has [`accent_tint_drag()`].
+pub fn accent_tint_drop() -> Rgba {
+    palette().accent_tint_drop
+}
+
 /// The width of the dashed border of the drop target.
 pub const DROP_TARGET_BORDER: Pixels = px(2.);
 /// The top-left corner of the drag picture, from the pointer. The picture
@@ -712,6 +1107,7 @@ pub const SETTINGS_TAB: (Pixels, Pixels) = (px(78.), px(50.));
 pub fn settings_header_height() -> Pixels {
     SETTINGS_TITLE_HEIGHT + SETTINGS_TAB.1 + SPACE_8 + BORDER
 }
+
 /// The icon of a tab of the Settings window.
 pub const ICON_TAB: Pixels = px(20.);
 /// The padding of the content of a pane: top and bottom, and the sides.
@@ -741,7 +1137,10 @@ pub const SETTINGS_LINE_HEIGHT: f32 = 1.25;
 
 /// The layer that covers the window behind a sheet or the command palette:
 /// black at 25 %.
-pub const MODAL_DIM: Rgba = hex_alpha(0x000000, 0.25);
+pub fn modal_dim() -> Rgba {
+    palette().modal_dim
+}
+
 /// The corner radius of a sheet and of the command palette.
 pub const RADIUS_SHEET: Pixels = px(14.);
 /// The space from the top of the window to the top of a sheet: the sheet
@@ -763,7 +1162,10 @@ pub const WIDTH_SHEET_POPUP: Pixels = px(200.);
 /// (section 14).
 pub const COLOUR_CIRCLE: Pixels = px(20.);
 /// The border of the colour circle "None".
-pub const BORDER_NO_COLOUR: Rgba = BORDER_SAMPLE_OTHER;
+pub fn border_no_colour() -> Rgba {
+    border_sample_other()
+}
+
 /// The colours of a profile (section 16). These are data: the profile keeps
 /// the colour that the user selects.
 pub const PROFILE_COLOURS: [u32; 6] = [0x3b82f6, 0x14b8a6, 0x22c55e, 0xf59e0b, 0xef4444, 0xa855f7];
@@ -795,9 +1197,15 @@ pub const ICON_PALETTE_TILE: Pixels = px(14.);
 /// A row of the palette.
 pub const RADIUS_PALETTE_ROW: Pixels = RADIUS_CARD;
 /// The tile of the selected row: white at 18 %.
-pub const TILE_ON_ACCENT: Rgba = hex_alpha(0xffffff, 0.18);
+pub fn tile_on_accent() -> Rgba {
+    palette().tile_on_accent
+}
+
 /// The chip with the selected control, for example "Key 8 selected".
-pub const BG_CONTEXT_CHIP: Rgba = hex(0x34363c);
+pub fn bg_context_chip() -> Rgba {
+    palette().bg_context_chip
+}
+
 /// The search field of the toolbar: a button that looks like a search
 /// field.
 pub const WIDTH_TOOLBAR_SEARCH: Pixels = px(240.);
@@ -836,18 +1244,30 @@ pub const ICON_GRID_COLUMNS: usize = 7;
 pub const ICON_CELL_HEIGHT: Pixels = px(40.);
 pub const ICON_CELL_ICON: Pixels = px(20.);
 /// An icon in a cell of the icon grid.
-pub const TEXT_ICON_CELL: Rgba = hex(0xd0d2d8);
+pub fn text_icon_cell() -> Rgba {
+    palette().text_icon_cell
+}
+
 /// A cell of the icon grid under the pointer: one step lighter than
-/// [`BG_BAR`], with the border of a button.
-pub const HOVER_ICON_CELL: Rgba = BG_CONTROL;
+/// [`bg_bar()`], with the border of a button.
+pub fn hover_icon_cell() -> Rgba {
+    bg_control()
+}
+
 /// The height of a filter chip, for example the tab "Icons" (section 3.5),
 /// and its corner radius.
 pub const HEIGHT_CHIP: Pixels = px(24.);
 pub const RADIUS_CHIP: Pixels = px(12.);
 /// The accent at 25 %: the background of a selected chip.
-pub const ACCENT_TINT_CHIP: Rgba = hex_alpha(0x1a6fd8, 0.25);
+pub fn accent_tint_chip() -> Rgba {
+    palette().accent_tint_chip
+}
+
 /// The button "Image file…" of the icon picker.
-pub const BG_IMAGE_BUTTON: Rgba = BG_CONTEXT_CHIP;
+pub fn bg_image_button() -> Rgba {
+    bg_context_chip()
+}
+
 /// The colours of an icon (section 14). These are data: the profile keeps
 /// the colour that the user selects. The second colour has a border, so
 /// that it shows on the popover.
@@ -916,7 +1336,10 @@ pub const RADIUS_PICTURE_KEY: Pixels = px(5.);
 pub const PICTURE_PANEL_HEIGHT: Pixels = px(28.);
 pub const RADIUS_PICTURE_PANEL: Pixels = px(4.);
 /// A bar panel tile with no content.
-pub const PICTURE_PANEL_EMPTY: Rgba = hex(0x1a1f2a);
+pub fn picture_panel_empty() -> Rgba {
+    palette().picture_panel_empty
+}
+
 /// A knob ring of the device picture: the diameter and the ring width.
 pub const PICTURE_KNOB: Pixels = px(22.);
 pub const PICTURE_KNOB_RING: Pixels = px(3.);
@@ -933,11 +1356,17 @@ pub const BADGE_CHECK_OUTSIDE: Pixels = px(-10.);
 pub const MAIN_HOVER_OPACITY: f32 = 0.9;
 pub const MAIN_PRESSED_OPACITY: f32 = 0.8;
 /// The check badge of the first start.
-pub const SUCCESS_FILL: Rgba = hex(0x1e7a46);
+pub fn success_fill() -> Rgba {
+    palette().success_fill
+}
+
 /// A starter profile card: its corner radius, and the background of the
 /// selected card (the accent at 16 %).
 pub const RADIUS_STARTER_CARD: Pixels = px(10.);
-pub const ACCENT_TINT_START: Rgba = hex_alpha(0x1a6fd8, 0.16);
+pub fn accent_tint_start() -> Rgba {
+    palette().accent_tint_start
+}
+
 /// A cell of the key picture of a starter profile card, and its radius. A
 /// cell shows the fill colour of its key only (decision 0029, section 18).
 pub const STARTER_CELL: Pixels = px(14.);
@@ -1130,7 +1559,7 @@ mod tests {
         assert_eq!(literals("d.bg(gpui_kit::rgb(0x112233))").len(), 2);
         assert_eq!(literals(".w(px(12.))").len(), 1);
         assert_eq!(literals(".top(px(-4.))").len(), 1);
-        assert!(literals(".w(px(0.)).bg(theme::ACCENT).h(px(theme::X))").is_empty());
+        assert!(literals(".w(px(0.)).bg(theme::accent()).h(px(theme::X))").is_empty());
         assert!(literals("images::from_rgb(&image); theme::sample(value)").is_empty());
         assert!(literals("Color::rgb(r, g, b); fn f() -> Rgba {").is_empty());
         assert!(literals("// rgb(0x112233) in a comment").is_empty());

@@ -297,9 +297,9 @@ impl DeviceView {
             .h(theme::PAGE_PICTURE_HEIGHT)
             .rounded(theme::RADIUS_CONTROL)
             .overflow_hidden()
-            .bg(theme::DEVICE_DISPLAY)
+            .bg(theme::device_display())
             .border_1()
-            .border_color(theme::LINE_PANE);
+            .border_color(theme::line_pane());
         let Some(layout) = self.state.layout.as_ref() else {
             return picture.into_any_element();
         };
@@ -436,7 +436,7 @@ impl DeviceView {
                                 controls::text_field(
                                     &AnyInputState::Input(self.page_inspector.name.clone()),
                                     "Name",
-                                    theme::BG_FIELD,
+                                    theme::bg_field(),
                                     window,
                                     cx,
                                 )
@@ -491,7 +491,7 @@ impl DeviceView {
                             .child(
                                 button("folder-remove", "Remove…")
                                     .px(theme::SPACE_10)
-                                    .text_color(theme::DESTRUCTIVE_TEXT)
+                                    .text_color(theme::destructive_text())
                                     .on_click(cx.listener(|view, _, window, cx| {
                                         view.folder_command(
                                             |view, folder, window, cx| {
@@ -574,7 +574,7 @@ impl DeviceView {
                                 controls::text_field(
                                     &AnyInputState::Input(self.page_inspector.name.clone()),
                                     "Name",
-                                    theme::BG_FIELD,
+                                    theme::bg_field(),
                                     window,
                                     cx,
                                 )
@@ -628,8 +628,8 @@ impl DeviceView {
                                 button_if("page-remove", "Remove…", remove)
                                     .px(theme::SPACE_10)
                                     .when(remove, |d| {
-                                        d.text_color(theme::DESTRUCTIVE_TEXT).on_click(cx.listener(
-                                            |view, _, window, cx| {
+                                        d.text_color(theme::destructive_text()).on_click(
+                                            cx.listener(|view, _, window, cx| {
                                                 view.page_command(
                                                     |view, page, window, cx| {
                                                         let shown = view.state.profile.clone();
@@ -643,8 +643,8 @@ impl DeviceView {
                                                     window,
                                                     cx,
                                                 )
-                                            },
-                                        ))
+                                            }),
+                                        )
                                     }),
                             )
                             .into_any_element(),
@@ -802,7 +802,7 @@ impl DeviceView {
         )
         .w_full()
         .border_1()
-        .border_color(theme::BORDER_FIELD);
+        .border_color(theme::border_field());
         let body = match mode {
             BackgroundMode::None => None,
             BackgroundMode::Colour => {
@@ -850,7 +850,7 @@ impl DeviceView {
             .h(theme::BACKGROUND_PREVIEW_HEIGHT)
             .rounded(theme::RADIUS_CARD)
             .overflow_hidden()
-            .bg(theme::DEVICE_DISPLAY)
+            .bg(theme::device_display())
             // The image of the engine (rule 11), only for an image: the
             // segment can show before the page has an image.
             .children(
@@ -870,10 +870,10 @@ impl DeviceView {
                     .when(has_image, |d| {
                         d.px(theme::SPACE_4)
                             .rounded(theme::RADIUS_BADGE)
-                            .bg(theme::BADGE_ON_IMAGE)
-                            .text_color(theme::TEXT_PRIMARY)
+                            .bg(theme::badge_on_image())
+                            .text_color(theme::text_primary())
                     })
-                    .when(!has_image, |d| d.text_color(theme::TEXT_SECONDARY))
+                    .when(!has_image, |d| d.text_color(theme::text_secondary()))
                     .child(format!("{width} × {height}")),
             )
             // The border is a layer on top of the image.
@@ -885,7 +885,7 @@ impl DeviceView {
                     .size_full()
                     .rounded(theme::RADIUS_CARD)
                     .border_1()
-                    .border_color(theme::BORDER_FIELD),
+                    .border_color(theme::border_field()),
             );
         div()
             .flex()
@@ -982,7 +982,7 @@ impl DeviceView {
                     cx.notify();
                 }))
             } else {
-                button.text_color(theme::TEXT_DISABLED).cursor_default()
+                button.text_color(theme::text_disabled()).cursor_default()
             })
             .children(menu)
             .into_any_element()

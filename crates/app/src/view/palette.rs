@@ -561,7 +561,7 @@ impl DeviceView {
         let modal = Modal::new("palette", &self.palette.focus, LABEL)
             .width(theme::PALETTE_WIDTH)
             .top(theme::PALETTE_TOP)
-            .background(theme::BG_FIELD)
+            .background(theme::bg_field())
             .on_key(move |key, window, cx| {
                 view.update(cx, |view, cx| view.palette_key(key, window, cx))
             })
@@ -602,11 +602,11 @@ impl DeviceView {
             .items_center()
             .gap(theme::SPACE_12)
             .border_b_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .child(
                 Icon::new(IconName::Search)
                     .size(theme::ICON_PALETTE_SEARCH)
-                    .text_color(theme::TEXT_SECONDARY),
+                    .text_color(theme::text_secondary()),
             )
             .child(
                 div()
@@ -634,9 +634,9 @@ impl DeviceView {
                     .py(theme::SPACE_3)
                     .px(theme::SPACE_8)
                     .rounded(theme::RADIUS_CONTROL)
-                    .bg(theme::BG_CONTEXT_CHIP)
+                    .bg(theme::bg_context_chip())
                     .text_size(theme::TEXT_HELP)
-                    .text_color(theme::TEXT_SECONDARY)
+                    .text_color(theme::text_secondary())
                     .child(text)
             }))
     }
@@ -657,7 +657,7 @@ impl DeviceView {
                     .px(theme::SECTION_PADDING_SIDE)
                     .text_center()
                     .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::TEXT_TERTIARY)
+                    .text_color(theme::text_tertiary())
                     .child(no_result(&text))
                     .into_any_element(),
             );
@@ -721,8 +721,8 @@ impl DeviceView {
                 .items_center()
                 .justify_center()
                 .rounded(theme::RADIUS_PALETTE_TILE)
-                .bg(theme::BG_TILE)
-                .text_color(theme::TEXT_ON_ACCENT)
+                .bg(theme::bg_tile())
+                .text_color(theme::text_on_accent())
                 .child(Icon::new(*icon).size(theme::ICON_PALETTE_TILE)),
         };
         div()
@@ -740,9 +740,9 @@ impl DeviceView {
             .rounded(theme::RADIUS_PALETTE_ROW)
             .text_size(theme::TEXT_BODY)
             .when(selected, |d| {
-                d.bg(theme::ACCENT).text_color(theme::TEXT_ON_ACCENT)
+                d.bg(theme::accent()).text_color(theme::text_on_accent())
             })
-            .child(tile.when(selected, |tile| tile.bg(theme::TILE_ON_ACCENT)))
+            .child(tile.when(selected, |tile| tile.bg(theme::tile_on_accent())))
             .child(div().flex_1().min_w_0().truncate().child(item.name.clone()))
             .children(item.hint.clone().map(|hint| {
                 div()
@@ -751,9 +751,9 @@ impl DeviceView {
                     .truncate()
                     .text_size(theme::TEXT_LABEL)
                     .text_color(if selected {
-                        theme::TEXT_ON_ACCENT
+                        theme::text_on_accent()
                     } else {
-                        theme::TEXT_SECONDARY
+                        theme::text_secondary()
                     })
                     .child(hint)
             }))
@@ -784,7 +784,7 @@ impl DeviceView {
                 .gap(theme::SPACE_4)
                 .child(
                     div()
-                        .text_color(theme::TEXT_PRIMARY)
+                        .text_color(theme::text_primary())
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(key),
                 )
@@ -803,9 +803,9 @@ impl DeviceView {
             .items_center()
             .gap(theme::SPACE_16)
             .border_t_1()
-            .border_color(theme::BORDER_FIELD)
+            .border_color(theme::border_field())
             .text_size(theme::TEXT_HELP)
-            .text_color(theme::TEXT_SECONDARY)
+            .text_color(theme::text_secondary())
             .children(item.map(|item| hint("palette-main", "↵", self.main_operation(item))))
             .when(inspector, |d| {
                 d.child(hint(
@@ -835,12 +835,12 @@ impl DeviceView {
             .items_center()
             .gap(theme::SPACE_8)
             .rounded(theme::RADIUS_TRACK)
-            .bg(theme::BG_FIELD)
+            .bg(theme::bg_field())
             .border_1()
-            .border_color(theme::BORDER_FIELD)
-            .text_color(theme::TEXT_TERTIARY)
+            .border_color(theme::border_field())
+            .text_color(theme::text_tertiary())
             .cursor_pointer()
-            .hover(|d| d.border_color(theme::BORDER_CONTROL))
+            .hover(|d| d.border_color(theme::border_control()))
             .child(Icon::new(IconName::Search).size(theme::ICON_SEARCH))
             .child(
                 div()

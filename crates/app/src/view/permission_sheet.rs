@@ -193,14 +193,14 @@ impl DeviceView {
                             .flex_shrink_0()
                             .size(theme::PERMISSION_TILE)
                             .rounded(theme::RADIUS_CARD)
-                            .bg(theme::BG_TILE)
+                            .bg(theme::bg_tile())
                             .flex()
                             .items_center()
                             .justify_center()
                             .child(
                                 Icon::new(IconName::ShieldAlert)
                                     .size(theme::ICON_PERMISSION)
-                                    .text_color(theme::WARNING),
+                                    .text_color(theme::warning()),
                             ),
                     )
                     .child(
@@ -224,7 +224,7 @@ impl DeviceView {
                                     .id("permission-text")
                                     .debug_selector(|| "permission-text".into())
                                     .readable_text(request_text(&kind))
-                                    .text_color(theme::TEXT_SECONDARY)
+                                    .text_color(theme::text_secondary())
                                     .line_height(relative(theme::LINE_HEIGHT_TEXT))
                                     .child(request_text(&kind)),
                             ),

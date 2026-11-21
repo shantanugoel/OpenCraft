@@ -156,9 +156,9 @@ impl SettingsView {
     fn permission_group(&self, permission: &Permission) -> Stateful<Div> {
         let (state, kinds) = permission_texts(permission);
         let colour = if permission.given {
-            theme::SUCCESS
+            theme::success()
         } else {
-            theme::WARNING
+            theme::warning()
         };
         div()
             .id("permission")
@@ -169,9 +169,9 @@ impl SettingsView {
             .px(theme::SPACE_14)
             .py(theme::SPACE_12)
             .rounded(theme::RADIUS_GROUP)
-            .bg(theme::BG_CARD)
+            .bg(theme::bg_card())
             .border_1()
-            .border_color(theme::LINE_PANE)
+            .border_color(theme::line_pane())
             .child(
                 Icon::new(if permission.given {
                     IconName::ShieldCheck
@@ -212,7 +212,7 @@ impl SettingsView {
                         d.child(
                             div()
                                 .text_size(theme::TEXT_HELP)
-                                .text_color(theme::TEXT_TERTIARY)
+                                .text_color(theme::text_tertiary())
                                 .child(kinds),
                         )
                     }),

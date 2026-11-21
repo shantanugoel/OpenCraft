@@ -182,14 +182,14 @@ impl DeviceView {
             .font_weight(FontWeight::MEDIUM)
             .map(|d| {
                 if selected {
-                    d.bg(theme::ACCENT_TINT)
-                        .border_color(theme::ACCENT_LINE)
-                        .text_color(theme::TEXT_PRIMARY)
+                    d.bg(theme::accent_tint())
+                        .border_color(theme::accent_line())
+                        .text_color(theme::text_primary())
                 } else {
-                    d.border_color(theme::BORDER_FIELD)
-                        .text_color(theme::TEXT_SECONDARY)
+                    d.border_color(theme::border_field())
+                        .text_color(theme::text_secondary())
                         .cursor_pointer()
-                        .hover(|d| d.bg(theme::HOVER_ROW))
+                        .hover(|d| d.bg(theme::hover_row()))
                 }
             })
             .child(
@@ -198,9 +198,9 @@ impl DeviceView {
                     .size(theme::STATE_FACE)
                     .rounded(theme::RADIUS_STATE_FACE)
                     .overflow_hidden()
-                    .bg(theme::DEVICE_DISPLAY)
+                    .bg(theme::device_display())
                     .border_1()
-                    .border_color(theme::DEVICE_SURFACE_BORDER)
+                    .border_color(theme::device_surface_border())
                     .children(
                         image.map(|image| img(image).size_full().rounded(theme::RADIUS_STATE_FACE)),
                     ),

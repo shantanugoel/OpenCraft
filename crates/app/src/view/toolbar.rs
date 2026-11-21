@@ -67,9 +67,9 @@ impl DeviceView {
             .flex()
             .items_center()
             .gap(theme::GAP_ITEMS)
-            .bg(theme::BG_BAR)
+            .bg(theme::bg_bar())
             .border_b_1()
-            .border_color(theme::LINE_SECTION)
+            .border_color(theme::line_section())
             .when(!sidebar, |d| {
                 d.child(
                     icon_button("show-sidebar", IconName::PanelLeft, "Show the sidebar")
@@ -163,7 +163,7 @@ impl DeviceView {
                     div()
                         .truncate()
                         .text_size(theme::TEXT_CAPTION)
-                        .text_color(theme::TEXT_TERTIARY)
+                        .text_color(theme::text_tertiary())
                         .child(line)
                 })),
             cx,
@@ -193,15 +193,15 @@ impl DeviceView {
             .text_size(theme::TEXT_HELP)
             .font_weight(FontWeight::MEDIUM)
             .when(connected, |d| {
-                d.bg(theme::SUCCESS_TINT)
-                    .text_color(theme::SUCCESS_TEXT)
-                    .child(dot(theme::SUCCESS))
+                d.bg(theme::success_tint())
+                    .text_color(theme::success_text())
+                    .child(dot(theme::success()))
                     .child(text)
             })
             .when(!connected, |d| {
-                d.bg(theme::NEUTRAL_TINT)
-                    .text_color(theme::TEXT_SECONDARY)
-                    .child(dot(theme::TEXT_DISABLED))
+                d.bg(theme::neutral_tint())
+                    .text_color(theme::text_secondary())
+                    .child(dot(theme::text_disabled()))
                     .child(text)
                     .aria_description(NOT_CONNECTED_HELP)
                     .tooltip(|window, cx| Tooltip::new(NOT_CONNECTED_HELP).build(window, cx))
