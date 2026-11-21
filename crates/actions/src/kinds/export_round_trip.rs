@@ -113,6 +113,32 @@ fn each_kind_with_a_path_field_gives_the_full_path_after_an_export_and_an_import
 }
 
 #[test]
+fn an_action_cycle_keeps_two_equal_steps_through_export_and_import() {
+    use super::{cycle, Kind};
+    let step = Action {
+        kind: super::open_application::ID.into(),
+        settings: Settings::from([(
+            "application".into(),
+            Value::Text("~/Documents/Test/App.app".into()),
+        )]),
+    };
+    let steps = [step.clone(), step];
+    let action = Action {
+        kind: cycle::ID.into(),
+        settings: Settings::from([("steps".into(), Action::list_to_value(&steps))]),
+    };
+    let imported = round_trip(
+        &action,
+        &[
+            cycle::KIND.description(),
+            super::open_application::description(),
+        ],
+    );
+    assert_eq!(imported.kind, action.kind);
+    assert_eq!(cycle::read(&imported.settings).unwrap(), steps);
+}
+
+#[test]
 fn a_hold_hotkey_keeps_its_kind_and_chord_through_export_and_import() {
     let dir = tempfile::tempdir().unwrap();
     let store = ProfileStore::new(dir.path().join("talk"));

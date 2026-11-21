@@ -219,6 +219,9 @@ pub struct Feedback {
     /// both images to the shell (decision 0017). Without it, the image of
     /// the other state has the same parts with the other state.
     pub other_state: Option<Box<Feedback>>,
+    /// The index from 0 of the step that the next [`Request::Invoke`] runs.
+    /// The engine sends it in [`crate::Event::Step`] and does not draw it.
+    pub step: Option<usize>,
 }
 
 /// The state part of [`Feedback`].
@@ -376,6 +379,9 @@ pub struct KindDescription {
     /// text of a folder with no Back key. The shell compares no kind
     /// identifier (decision 0036).
     pub folder_back: bool,
+    /// The list field whose item number is [`Feedback::step`] (decision 0042).
+    /// The shell marks that row for the top-level action only.
+    pub steps: Option<String>,
     /// Fields that the shell shows only for some values of a choice
     /// (decision 0038). A field with no rule is always shown.
     pub shown_when: Vec<ShownWhen>,
@@ -389,6 +395,12 @@ pub struct KindDescription {
 }
 
 impl KindDescription {
+    /// Set the list field key whose item number is [`Feedback::step`].
+    pub fn with_steps(mut self, field: impl Into<String>) -> Self {
+        self.steps = Some(field.into());
+        self
+    }
+
     /// Declare that a Press binding starts a hold and receives its end.
     pub fn with_receives_release(mut self) -> Self {
         self.receives_release = true;

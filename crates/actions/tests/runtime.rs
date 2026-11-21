@@ -108,6 +108,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
                 level: Some(50),
                 state: None,
                 other_state: None,
+                step: None,
             }),
         }
     );
@@ -121,6 +122,7 @@ fn all_built_in_actions_use_only_the_handler_ports() {
                 level: Some(55),
                 state: None,
                 other_state: None,
+                step: None,
             }),
         }
     );

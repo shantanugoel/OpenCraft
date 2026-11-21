@@ -26,6 +26,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | Navigation | [Select a profile](#select-a-profile) | No |
 | Logic | [Toggle](#toggle) | Only for the actions that it contains |
 | Logic | [Sequence of actions](#sequence-of-actions) | Only for the actions that it contains |
+| Logic | [Action cycle](#action-cycle) | Only for the actions that it contains |
 
 The permission is in
 [Install and first start](install.md#give-the-accessibility-permission).
@@ -742,3 +743,28 @@ Notes:
 - A sequence and a toggle can contain each action kind, also a different
   toggle or sequence. For example, the action "From Off to On" of a toggle
   can be a sequence.
+
+## Action cycle
+
+An action cycle has a list of actions. Each action is one step. Each time
+you operate the control, it does one step. After the last step, the cycle
+goes back to the first step. Two identical steps stay separate.
+
+| Setting | What to give |
+|---|---|
+| Actions | The list of actions, in their order |
+
+1. Click **Add a step**. Select an action kind.
+2. Set the action settings on the open card.
+3. Do steps 1 and 2 again for each action.
+
+- Click a step to open it. Click the top row of the open step to close it.
+- To move a step, drag its handle to a different row. You can also
+  right-click the step and click **Move Up** or **Move Down**.
+- To remove a step, right-click it and click **Remove**. An open step also
+  has the button **⋯** with the same menu.
+
+The cycle card shows **Next** on the step that the control will do next.
+OpenCraft keeps the position in memory while it runs, also when you change
+pages or folders. The cycle starts at the first step when OpenCraft starts.
+It goes back to the first step when you change the settings of the cycle.

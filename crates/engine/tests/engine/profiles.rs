@@ -458,6 +458,7 @@ fn a_profile_change_starts_on_the_first_page_and_removes_the_feedback() {
             level: None,
             state: None,
             other_state: None,
+            step: None,
         }),
     });
     select(&mut rig, "work");

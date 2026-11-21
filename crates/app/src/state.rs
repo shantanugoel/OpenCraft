@@ -95,6 +95,8 @@ pub struct ViewState {
     pub epoch: u64,
     /// The bindings of the active page only.
     pub bindings: BTreeMap<BindingId, BindingState>,
+    /// The step that the next Invoke runs for each visible binding.
+    pub steps: BTreeMap<BindingId, usize>,
     pub statuses: BTreeMap<String, Status>,
     /// The device settings of the model of the device. The engine sends them
     /// at the start and after each change. The layout tells which settings
@@ -190,6 +192,7 @@ impl ViewState {
                     self.folders.clear();
                     self.location = Location::default();
                     self.bindings.clear();
+                    self.steps.clear();
                     self.epoch += 1;
                 }
                 self.profiles = profiles;
@@ -211,6 +214,7 @@ impl ViewState {
                 self.first_page = first;
                 self.folders = folders;
                 self.bindings.clear();
+                self.steps.clear();
                 self.epoch += 1;
                 self.update_open_card();
             }
@@ -219,9 +223,18 @@ impl ViewState {
                     self.bindings.insert(binding.binding, binding);
                 } else {
                     self.bindings.remove(&binding.binding);
+                    self.steps.remove(&binding.binding);
                 }
                 self.update_open_card();
             }
+            Event::Step { binding, step } => match step {
+                Some(step) => {
+                    self.steps.insert(binding, step);
+                }
+                None => {
+                    self.steps.remove(&binding);
+                }
+            },
             Event::Status { kind, status } => {
                 self.statuses.insert(kind, status);
             }

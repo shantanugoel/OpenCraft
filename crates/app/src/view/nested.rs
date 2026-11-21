@@ -22,6 +22,7 @@
 //! | `{list}/add` | The button "Add a step" of the list `{list}`, for example `items/add` |
 //! | `{step}step` | The row of a step |
 //! | `{step}handle` | The drag handle of a step |
+//! | `{step}next` | The "Next" mark of a step |
 //! | `{step}more` | The "⋯" button of an open step |
 //! | `{step}action` | The nested card of an open step, or of a field of the input type Action |
 
@@ -60,6 +61,8 @@ actions!(nested, [MoveStepUp, MoveStepDown, RemoveStep]);
 
 /// The dashed button below the steps.
 const ADD_A_STEP: &str = "Add a step";
+
+const NEXT: &str = "Next";
 
 /// The tooltip and the accessible label of the drag handle of a step.
 const DRAG_TO_REORDER: &str = "Drag to reorder";
@@ -465,12 +468,21 @@ impl DeviceView {
             .iter()
             .filter(|f| f.input.is_action_list())
             .map(|field| {
+                let next_step = (path.is_empty()
+                    && kind.steps.as_deref() == Some(field.key.as_str()))
+                .then(|| {
+                    self.state
+                        .binding_id()
+                        .and_then(|binding| self.state.steps.get(&binding).copied())
+                })
+                .flatten();
                 self.step_list(
                     StepList {
                         path: path.to_vec(),
                         key: field.key.clone(),
                     },
                     action.settings.get(&field.key),
+                    next_step,
                     window,
                     cx,
                 )
@@ -485,6 +497,7 @@ impl DeviceView {
         &self,
         list: StepList,
         value: Option<&Value>,
+        next_step: Option<usize>,
         window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -503,7 +516,14 @@ impl DeviceView {
             );
         }
         for (item, inner) in items.iter().flatten().enumerate() {
-            rows = rows.child(self.step_row(&list, item, inner, count, window, cx));
+            rows = rows.child(self.step_row(
+                &list,
+                (item, inner),
+                count,
+                next_step == Some(item),
+                window,
+                cx,
+            ));
         }
         let menu = Menu::Add(list.path.clone(), list.key.clone());
         let toggle = menu.clone();
@@ -611,15 +631,33 @@ impl DeviceView {
             )
     }
 
+    fn step_next_badge(&self, item_id: &str) -> AnyElement {
+        let id = SharedString::from(format!("{item_id}next"));
+        div()
+            .id(id.clone())
+            .debug_selector(move || id.to_string())
+            .readable_text(NEXT)
+            .flex_none()
+            .px(theme::SPACE_6)
+            .py(theme::SPACE_2)
+            .rounded(theme::RADIUS_BADGE)
+            .bg(theme::ACCENT_TINT)
+            .text_size(theme::TEXT_BADGE)
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(theme::ACCENT_TEXT)
+            .child(NEXT)
+            .into_any_element()
+    }
+
     /// The row of one step: closed, the kind and its short value; open, a
     /// nested card in its place. A drop of a step of the same list moves
     /// that step to this position.
     fn step_row(
         &self,
         list: &StepList,
-        item: usize,
-        inner: &Action,
+        (item, inner): (usize, &Action),
         count: usize,
+        is_next: bool,
         window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -663,15 +701,17 @@ impl DeviceView {
         if !open {
             let toggle = path.clone();
             let value = self.short_value(inner);
+            let mut accessible_label = format!("{step}: {}", label.name());
+            if !value.is_empty() {
+                accessible_label.push_str(", ");
+                accessible_label.push_str(&value);
+            }
+            if is_next {
+                accessible_label.push_str(", ");
+                accessible_label.push_str(NEXT);
+            }
             return row
-                .accessible(
-                    Role::Button,
-                    if value.is_empty() {
-                        format!("{step}: {}", label.name())
-                    } else {
-                        format!("{step}: {}, {value}", label.name())
-                    },
-                )
+                .accessible(Role::Button, accessible_label)
                 .aria_expanded(false)
                 .h(theme::HEIGHT_STEP_ROW)
                 .items_center()
@@ -688,6 +728,7 @@ impl DeviceView {
                         .when(!available, |d| d.text_color(theme::TEXT_TERTIARY))
                         .child(label.name().clone()),
                 )
+                .when(is_next, |d| d.child(self.step_next_badge(&item_id)))
                 .child(
                     div()
                         .flex_shrink_0()
@@ -757,14 +798,26 @@ impl DeviceView {
                     .items_center()
                     .child(self.step_handle(list, item, &label)),
             )
-            .child(div().flex_1().min_w_0().child(self.nested_card(
-                path,
-                Some(inner),
-                false,
-                Some(more.into_any_element()),
-                window,
-                cx,
-            )))
+            .child(
+                div().flex_1().min_w_0().child(
+                    self.nested_card(
+                        path,
+                        Some(inner),
+                        false,
+                        Some(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(theme::SPACE_6)
+                                .when(is_next, |d| d.child(self.step_next_badge(&item_id)))
+                                .child(more)
+                                .into_any_element(),
+                        ),
+                        window,
+                        cx,
+                    ),
+                ),
+            )
             .into_any_element()
     }
 }

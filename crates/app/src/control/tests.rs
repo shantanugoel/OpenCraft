@@ -373,6 +373,40 @@ fn hold_metadata_is_visible_on_the_control_socket() {
 }
 
 #[test]
+fn cycle_metadata_is_visible_but_the_current_step_is_not_content() {
+    let rig = Rig::new();
+    rig.control.borrow().observe(&e::Event::Kinds(vec![
+        e::KindDescription {
+            kind: "test.cycle".into(),
+            ..Default::default()
+        }
+        .with_steps("steps"),
+        e::KindDescription {
+            kind: "test.tap".into(),
+            ..Default::default()
+        },
+    ]));
+    rig.enable(true);
+    let mut client = rig.client();
+    client.hello();
+    let kinds = client.request("kinds");
+    assert_eq!(kinds[0]["steps"], "steps");
+    assert!(kinds[1].get("steps").is_none());
+
+    let before = client.request("content");
+    rig.control.borrow().observe(&e::Event::Step {
+        binding: e::BindingId {
+            page: 0,
+            folder: None,
+            control: e::ControlId::new(e::ControlKind::Key, 1),
+            gesture: e::GestureKind::Press,
+        },
+        step: Some(1),
+    });
+    assert_eq!(client.request("content"), before);
+}
+
+#[test]
 fn choices_are_correlated_per_client_and_do_not_hold_up_reads() {
     let rig = Rig::new();
     rig.control

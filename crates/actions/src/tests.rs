@@ -85,6 +85,7 @@ impl Rig {
                     label: muted.then(|| "Muted".into()),
                     state: None,
                     other_state: None,
+                    step: None,
                 }),
             }
         );

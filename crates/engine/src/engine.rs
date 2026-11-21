@@ -724,6 +724,12 @@ impl BackgroundWrite {
 /// command with a private reply gives a problem.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// The step that the next Invoke runs, from 0, or `None` when there is
+    /// no step for this binding (decision 0042).
+    Step {
+        binding: BindingId,
+        step: Option<usize>,
+    },
     /// The profile requested by ReadProfile, with no change of active location.
     ProfileRead {
         id: u64,
@@ -934,6 +940,7 @@ pub struct Engine<C: Connector, S: FnMut(Event), K: Clock = SystemClock> {
     clipboard: Option<(ControlContent, PathBuf)>,
     ports: Vec<HandlerPort>,
     feedback: BTreeMap<BindingId, (u64, Feedback)>,
+    steps: BTreeMap<BindingId, usize>,
     feedback_order: u64,
     counters: Counters,
     /// The result of the command being obeyed, or `None` outside a request.
@@ -1066,6 +1073,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             clipboard: None,
             ports,
             feedback: BTreeMap::new(),
+            steps: BTreeMap::new(),
             feedback_order: 0,
             counters: Counters::default(),
             command_result: None,
@@ -1261,6 +1269,14 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         for (binding, action) in self.location.bindings(&self.profile) {
             self.binding_event(binding, Some(action));
         }
+        // The shell clears its binding data at Pages. Send the steps of
+        // bindings that stayed visible too, for example during a folder change.
+        for (&binding, &step) in &self.steps {
+            (self.sink)(Event::Step {
+                binding,
+                step: Some(step),
+            });
+        }
     }
 
     /// Send Appear for each binding of the location.
@@ -1272,8 +1288,12 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// feedback. A change of the device model uses this. A change of the
     /// location uses [`Self::transition`].
     fn disappear(&mut self) {
-        self.disappear_bindings(&self.location.bindings(&self.profile));
+        let bindings = self.location.bindings(&self.profile);
+        self.disappear_bindings(&bindings);
         self.feedback.clear();
+        for (binding, _) in bindings {
+            self.set_step(binding, None);
+        }
     }
 
     /// Apply one change of the location.
@@ -1348,6 +1368,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.disappear_bindings(&gone);
         for (binding, _) in &gone {
             self.feedback.remove(binding);
+            self.set_step(*binding, None);
         }
         // The same profile and the same page under the folders: the
         // background and the surfaces of the page do not change. Only a
@@ -1786,6 +1807,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             self.request(&before.kind, Request::Disappear { binding });
         }
         let had_feedback = self.feedback.remove(&binding).is_some();
+        self.set_step(binding, None);
         self.binding_event(binding, action.clone());
         if let Some(action) = action {
             let kind = action.kind.clone();
@@ -1939,6 +1961,16 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         }
     }
 
+    fn set_step(&mut self, binding: BindingId, step: Option<usize>) {
+        let changed = match step {
+            Some(step) => self.steps.insert(binding, step) != Some(step),
+            None => self.steps.remove(&binding).is_some(),
+        };
+        if changed {
+            (self.sink)(Event::Step { binding, step });
+        }
+    }
+
     /// Accept one message from the shared handler queue.
     pub fn handler_message(&mut self, message: Message) {
         match message {
@@ -1948,11 +1980,27 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         .location
                         .binding(&self.profile, binding.control, binding.gesture)
                         .is_none()
-                    || self.feedback_surface(binding.control).is_none()
                 {
                     return;
                 }
-                if let Some(mut feedback) = feedback {
+                let Some(mut feedback) = feedback else {
+                    self.set_step(binding, None);
+                    if self.feedback_surface(binding.control).is_some()
+                        && self.feedback.remove(&binding).is_some()
+                    {
+                        self.refresh_feedback_surface(binding.control);
+                    }
+                    return;
+                };
+                if let Some(step) = feedback.step.take() {
+                    self.set_step(binding, Some(step));
+                }
+                if let Some(other) = &mut feedback.other_state {
+                    other.step = None;
+                }
+                if feedback != Feedback::default()
+                    && self.feedback_surface(binding.control).is_some()
+                {
                     feedback.level = feedback.level.map(|v| v.min(100));
                     if let Some(other) = &mut feedback.other_state {
                         other.level = other.level.map(|v| v.min(100));
@@ -1960,10 +2008,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                     self.feedback_order += 1;
                     self.feedback
                         .insert(binding, (self.feedback_order, feedback));
-                } else {
-                    self.feedback.remove(&binding);
+                    self.refresh_feedback_surface(binding.control);
                 }
-                self.refresh_feedback_surface(binding.control);
             }
             Message::Choices { id, options } => (self.sink)(Event::Choices { id, options }),
             Message::Status { kind, status } => (self.sink)(Event::Status { kind, status }),
@@ -1996,7 +2042,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 let kind = action.kind.clone();
                 if !self.request(&kind, Request::Invoke { binding, action }) {
                     self.problem(format!(
-                        "A toggle or a sequence contains an action that this version of \
+                        "A nested action contains an action that this version of \
                          OpenCraft does not have ({kind}). Select a different action in it."
                     ));
                 }

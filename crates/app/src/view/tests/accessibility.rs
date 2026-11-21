@@ -88,6 +88,24 @@ fn the_state_picker_has_radio_buttons_for_both_faces(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn an_action_cycle_announces_the_next_step(cx: &mut TestAppContext) {
+    use super::nested::{cycle_action, open, press};
+
+    let (_view, cx, tx, _) = open(cx, cycle_action());
+    send(
+        cx,
+        &tx,
+        Event::Step {
+            binding: press(),
+            step: Some(0),
+        },
+    );
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::Label, "Next");
+    assert_has(&nodes, Role::Button, "Step 1: Leaf, same, Next");
+}
+
+#[gpui_kit::test]
 fn dynamic_fields_have_the_shared_roles_and_labels(cx: &mut TestAppContext) {
     let (_view, cx, tx, _sent) = window(cx);
     let kind = super::actions::dynamic_kind();

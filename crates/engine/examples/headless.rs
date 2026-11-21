@@ -85,6 +85,7 @@ fn main() {
     let sink = move |event: Event| {
         let at = start.elapsed().as_secs_f64();
         match event {
+            Event::Step { binding, step } => println!("[{at:8.3}] step: {binding:?} {step:?}"),
             Event::Layout(layout) => println!("[{at:8.3}] layout: {}", layout.name),
             Event::Surface(state) => {
                 println!("[{at:8.3}] surface: {} {:?}", state.id, state.content)
