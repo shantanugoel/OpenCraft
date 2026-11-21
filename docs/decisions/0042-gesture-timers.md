@@ -333,9 +333,9 @@ covers a cycle in another action (rule 12).
   engine keeps the file as a backup (decision 0009). This is the pattern of
   decisions [0036](0036-folders.md) and
   [0040](0040-control-socket.md).
-- The engine always writes version 7. A version above 7 has an error. Release
-  0.5.0 writes version 6 and cannot read version 7, and the engine has no way
-  to write version 6 again.
+- The engine of Phase 10 always writes version 7. A version above 7 has an
+  error. Release 0.5.0 writes version 6 and cannot read version 7, and the
+  engine has no way to write version 6 again.
 - The export of [decision 0031](0031-profile-export-file.md) uses the same
   rules, thus an older export imports.
 - The tests are: one load test for each of versions 1 to 6 in the version 7
@@ -344,6 +344,10 @@ covers a cycle in another action (rule 12).
 - `Counters::invokes_sent` counts the requests that a user gesture sends. A
   test that asserts `invokes_sent == input_events` uses keys with no `L` and
   no `D`, because a Press on such a key gives one request at once.
+
+Note (2026-11-22): [decision 0043](0043-faces-fonts-and-schema-8.md) makes
+profile schema version 8. The engine now writes version 8, and a version 7
+file loads with no loss. The paragraphs above stay the record of Phase 10.
 
 ## Results
 
