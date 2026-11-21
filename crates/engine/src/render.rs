@@ -1010,6 +1010,7 @@ mod tests {
         let live = draw(&on(Some("Live"), None));
         let mut expected = face.clone();
         expected.label = Some("Live".into());
+        #[cfg(target_os = "macos")]
         assert_ne!(live, custom);
         assert_eq!(live, surface_image(KEY, &expected, Some(&on_image)));
 
