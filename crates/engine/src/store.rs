@@ -83,14 +83,13 @@
 //! Schema version 6 adds the key `id` of a page (decision 0040): 16 small
 //! hexadecimal digits that are not all zero. The identity stays with the page
 //! when it moves, and the pages of a profile have different identities. A
-//! file of version 6 has the key for each page. A file of version 5 or lower
-//! has no key, and has an error if it has the key. The engine gives the page
+//! file of version 6 or later has the key for each page. A file of version 5
+//! or lower has an error if it has the key. The engine gives the page
 //! at place N of such a file the identity N+1 until it writes the file again,
-//! thus an unchanged file gives the same identities at each read. A later key
-//! uses a version above 6.
+//! thus an unchanged file gives the same identities at each read.
 //!
 //! ```toml
-//! schema_version = 6
+//! schema_version = 7
 //! name = "Default"
 //! model = "n4-pro"
 //! color = "#3B82F6"
@@ -115,8 +114,9 @@
 //!
 //! Control keys are `key-N`, `knob-N`, `bar-panel-N`, and `touch-bar-N`.
 //! Gesture keys are `press`, `release`, `turn-left`, `turn-right`, `push`,
-//! `tap`, `swipe-left`, and `swipe-right`. Settings keep text, integer,
-//! boolean, list, and table values.
+//! `tap`, `swipe-left`, `swipe-right`, `long-press`, and `double-press`.
+//! The last two require schema version 7 (decision 0042). Settings keep
+//! text, integer, boolean, list, and table values.
 //!
 //! A file of version 2 can have the gesture keys `tap`, `swipe-left`, and
 //! `swipe-right`: they came in the same phase, before version 3. An engine
@@ -144,7 +144,10 @@ use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
 
 /// The schema version that this engine writes.
-pub const SCHEMA_VERSION: u32 = 6;
+pub const SCHEMA_VERSION: u32 = 7;
+
+/// The first schema version with long and double presses (decision 0042).
+const GESTURE_TIMERS_VERSION: u32 = 7;
 
 /// The first schema version with the links of a profile (decision 0035).
 const APPLICATIONS_VERSION: u32 = 5;
@@ -988,6 +991,7 @@ fn apply_bindings(
     page: &mut Page,
     bindings: BTreeMap<String, BTreeMap<GestureKind, Action>>,
     keys_only: bool,
+    version: u32,
 ) -> std::result::Result<(), String> {
     for (key, gestures) in bindings {
         let control = parse_control_key(&key).ok_or_else(|| format!("'{key}' is not a control"))?;
@@ -995,6 +999,18 @@ fn apply_bindings(
             return Err(format!("'{key}' is not a key"));
         }
         for (gesture, action) in gestures {
+            if version < GESTURE_TIMERS_VERSION {
+                let name = match gesture {
+                    GestureKind::LongPress => Some("long-press"),
+                    GestureKind::DoublePress => Some("double-press"),
+                    _ => None,
+                };
+                if let Some(name) = name {
+                    return Err(format!(
+                        "gesture '{name}' requires schema version {GESTURE_TIMERS_VERSION}"
+                    ));
+                }
+            }
             page.set_binding(control, gesture, Some(action));
         }
     }
@@ -1107,7 +1123,7 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
         if header.schema_version == 1 && !page_file.bindings.is_empty() {
             return Err(invalid("version 1 has no bindings".into()));
         }
-        apply_bindings(&mut page, page_file.bindings, false).map_err(invalid)?;
+        apply_bindings(&mut page, page_file.bindings, false, version).map_err(invalid)?;
         pages.push(page);
     }
     if version < FOLDERS_VERSION && file.folders.is_some() {
@@ -1142,7 +1158,7 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
             }
             page.update(id, |slot| *slot = content);
         }
-        apply_bindings(&mut page, folder_file.bindings, true)
+        apply_bindings(&mut page, folder_file.bindings, true, version)
             .map_err(|e| invalid(format!("folder '{}': {e}", page.name)))?;
         folders.push(Folder { id, page });
     }
@@ -1349,7 +1365,7 @@ mod tests {
         let id = profile.pages()[0].id();
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        let want = r##"schema_version = 6
+        let want = r##"schema_version = 7
 name = "Default"
 model = "n4-pro"
 
@@ -1469,15 +1485,133 @@ image = "images/4f1c2a9be07d3356.png"
         assert_eq!(store.load().unwrap().profile, profile);
     }
 
+    fn old_profile_text(version: u32) -> String {
+        let model = if version >= 3 {
+            "model = \"n4-pro\"\n"
+        } else {
+            ""
+        };
+        let id = if version >= 6 {
+            "id = \"000000000000002a\"\n"
+        } else {
+            ""
+        };
+        let binding = if version >= 2 {
+            "[pages.bindings.key-3.press]\nkind = \"test.press\"\n"
+        } else {
+            ""
+        };
+        format!(
+            "schema_version = {version}\nname = \"Old\"\n{model}[[pages]]\n{id}name = \"Main\"\n\
+            [pages.surfaces.key-face-3]\nlabel = \"Mail\"\n{binding}"
+        )
+    }
+
+    #[test]
+    fn each_old_version_keeps_its_content_when_saved_as_version_seven() {
+        let key = opencraft_core::ControlId::new(ControlKind::Key, 3);
+        for version in 1..=6 {
+            let (_dir, store) = store();
+            let mut text = old_profile_text(version);
+            if version >= 5 {
+                text.push_str("[[folders]]\nid = \"0000000000000002\"\nname = \"More\"\n");
+            }
+            let loaded = load_text(&store, text.as_bytes());
+            assert!(
+                loaded.backup.is_none(),
+                "version {version}: {:?}",
+                loaded.backup
+            );
+            let profile = loaded.profile;
+            let page = &profile.pages()[0];
+            assert_eq!(page.name, "Main");
+            assert_eq!(
+                page.id().to_string(),
+                if version >= 6 {
+                    "000000000000002a"
+                } else {
+                    "0000000000000001"
+                }
+            );
+            assert_eq!(page.content(KEY_3).label.as_deref(), Some("Mail"));
+            assert_eq!(
+                page.binding(key, GestureKind::Press)
+                    .map(|action| action.kind.as_str()),
+                (version >= 2).then_some("test.press")
+            );
+            assert_eq!(profile.model, "n4-pro");
+            assert_eq!(profile.folders().len(), usize::from(version >= 5));
+            store.save(&profile).unwrap();
+            assert_eq!(store.load().unwrap().profile, profile);
+        }
+    }
+
+    #[test]
+    fn gesture_timers_round_trip_on_pages_and_folders_in_version_seven() {
+        let (_dir, store) = store();
+        let mut text = old_profile_text(7);
+        for holder in ["pages", "folders"] {
+            if holder == "folders" {
+                text.push_str("[[folders]]\nid = \"0000000000000002\"\nname = \"More\"\n");
+            }
+            for gesture in ["long-press", "double-press"] {
+                text.push_str(&format!(
+                    "[{holder}.bindings.key-3.{gesture}]\nkind = \"test.{gesture}\"\n"
+                ));
+            }
+        }
+        let loaded = load_text(&store, text.as_bytes());
+        assert!(loaded.backup.is_none());
+        store.save(&loaded.profile).unwrap();
+        let written = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(written.starts_with("schema_version = 7\n"));
+        assert_eq!(written.matches(".key-3.long-press]").count(), 2);
+        assert_eq!(written.matches(".key-3.double-press]").count(), 2);
+        assert_eq!(store.load().unwrap().profile, loaded.profile);
+    }
+
+    #[test]
+    fn older_files_with_new_gestures_are_kept_as_backups() {
+        for version in 1..=6 {
+            for holder in ["pages", "folders"] {
+                if holder == "folders" && version < 5 {
+                    continue;
+                }
+                for gesture in ["long-press", "double-press"] {
+                    let (_dir, store) = store();
+                    let mut text = old_profile_text(version);
+                    if holder == "folders" {
+                        text.push_str("[[folders]]\nid = \"0000000000000002\"\nname = \"More\"\n");
+                    }
+                    text.push_str(&format!(
+                        "[{holder}.bindings.key-3.{gesture}]\nkind = \"test.action\"\n"
+                    ));
+                    let backup = load_text(&store, text.as_bytes()).backup.unwrap();
+                    let expected = if version == 1 {
+                        "version 1 has no bindings"
+                    } else {
+                        "requires schema version 7"
+                    };
+                    assert!(
+                        matches!(backup.reason, BackupReason::Invalid(ref reason) if reason.contains(expected)),
+                        "{:?}",
+                        backup.reason
+                    );
+                    assert_eq!(fs::read_to_string(backup.path).unwrap(), text);
+                }
+            }
+        }
+    }
+
     #[test]
     fn a_file_with_a_newer_schema_version_is_kept_as_a_backup() {
         let (_dir, store) = store();
-        let text = "schema_version = 7\nname = \"Later\"\nnew_field = true\n";
+        let text = "schema_version = 8\nname = \"Later\"\nnew_field = true\n";
         let loaded = load_text(&store, text.as_bytes());
 
         assert_eq!(loaded.profile, Profile::default());
         let backup = loaded.backup.unwrap();
-        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 7 });
+        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 8 });
         assert_eq!(backup.path, store.dir().join("profile.backup-1.toml"));
         // The content of the file did not change, and no profile file is
         // there until the next save.
@@ -1627,10 +1761,10 @@ name = "Second"
         // The load did not write the file.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
 
-        // The next write is version 6 with the same content and the model.
+        // The next write is version 7 with the same content and the model.
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 6\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
+        assert!(text.starts_with("schema_version = 7\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
         assert!(text.contains("hotkey = \"cmd+shift+4\""), "{text}");
         assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, profile);
@@ -1661,12 +1795,12 @@ label = "Sound"
             assert_eq!(page.content(id).label_style, LabelStyle::default(), "{id}");
         }
         assert_eq!(page.content(KEY_3).label.as_deref(), Some("Mail"));
-        // The load did not write the file. The next write is version 6, and
+        // The load did not write the file. The next write is version 7, and
         // it writes no label option.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
         store.save(&loaded.profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 6\n"), "{text}");
+        assert!(text.starts_with("schema_version = 7\n"), "{text}");
         assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, loaded.profile);
     }
@@ -1746,7 +1880,7 @@ color = "#1E6FD9"
         let text = fs::read_to_string(store.profile_path()).unwrap();
         assert!(
             text.starts_with(
-                "schema_version = 6\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
+                "schema_version = 7\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
             ),
             "{text}"
         );
@@ -1791,7 +1925,7 @@ color = "#1E6FD9"
         });
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 6\n"), "{text}");
+        assert!(text.starts_with("schema_version = 7\n"), "{text}");
         assert!(text.contains("name = \"Dial\""), "{text}");
         assert!(
             text.contains("bundle_id = \"us.zoom.xos\"\nname = \"zoom.us\""),
@@ -1807,7 +1941,7 @@ color = "#1E6FD9"
         assert_eq!(loaded.profile.pages().len(), 1);
         store.save(&loaded.profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 6\n"), "{text}");
+        assert!(text.starts_with("schema_version = 7\n"), "{text}");
         assert!(text.contains("name = \"Main\""), "{text}");
         assert!(!text.contains("applications"), "{text}");
         assert!(store.summary().applications.is_empty());

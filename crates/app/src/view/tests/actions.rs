@@ -466,26 +466,63 @@ fn open_card(view: &Entity<DeviceView>, cx: &mut VisualTestContext) -> Option<Ge
 }
 
 #[gpui_kit::test]
+fn the_timed_gesture_cards_set_their_own_bindings(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = window(cx);
+    let (width, height) = theme::WINDOW_SIZE;
+    cx.simulate_resize(size(px(width), px(height * 3.)));
+    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    for (card, gesture) in [
+        ("gesture-LongPress-kind", GestureKind::LongPress),
+        ("gesture-DoublePress-kind", GestureKind::DoublePress),
+    ] {
+        click(cx, card);
+        click(cx, "kind-0");
+        assert_eq!(
+            sent.borrow().last(),
+            Some(&Command::SetBinding {
+                binding: binding(gesture),
+                action: Some(defaults()),
+            })
+        );
+    }
+}
+
+#[gpui_kit::test]
 fn cards_open_set_a_kind_change_a_setting_and_clear_an_action(cx: &mut TestAppContext) {
     let (view, cx, tx, sent) = window(cx);
     cx.simulate_resize(size(px(1120.), px(2400.)));
     tx.try_send(Event::Kinds(vec![kind()])).unwrap();
     cx.run_until_parked();
     click(cx, "surface-key face 2");
-    // A key has the cards "Press" and "Release". With no action, no card is
-    // open, and each card is a dashed card "Add an action".
-    for (kind, head) in [
-        ("gesture-Press-kind", "gesture-Press-head"),
-        ("gesture-Release-kind", "gesture-Release-head"),
+    // All four cards start closed and show "Add an action" in gesture order.
+    let mut previous = None;
+    for (card, kind, head) in [
+        ("gesture-Press", "gesture-Press-kind", "gesture-Press-head"),
+        (
+            "gesture-Release",
+            "gesture-Release-kind",
+            "gesture-Release-head",
+        ),
+        (
+            "gesture-LongPress",
+            "gesture-LongPress-kind",
+            "gesture-LongPress-head",
+        ),
+        (
+            "gesture-DoublePress",
+            "gesture-DoublePress-kind",
+            "gesture-DoublePress-head",
+        ),
     ] {
         assert!(cx.debug_bounds(kind).is_some());
         assert!(cx.debug_bounds(head).is_none());
+        let bounds = cx.debug_bounds(card).unwrap();
+        assert!(previous.is_none_or(|bottom| bottom < bounds.top()));
+        previous = Some(bounds.bottom());
     }
     assert_eq!(open_card(&view, cx), None);
-    assert!(
-        cx.debug_bounds("gesture-Press").unwrap().bottom()
-            < cx.debug_bounds("gesture-Release").unwrap().top()
-    );
 
     // Set a kind: a click on the empty card opens the kind menu. A focus in
     // the title field does not stay after a click in the menu.

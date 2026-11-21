@@ -147,7 +147,7 @@ limits below are the same for the tools.
 | Folder | A set of keys that a key opens and a "Back" key closes. It has an identity. |
 | Surface | An area to draw on, as `kind:number`: `key_face:1`, `bar_panel:2`, or `background:1`. |
 | Control | A part that the user operates, as `kind:number`: `key:1`, `knob:1`, `bar_panel:1`, `touch_bar:1`. |
-| Gesture | What the user does to a control, for example `press`, `turn_left`, `tap`. |
+| Gesture | What the user does to a control, for example `press`, `long_press`, `double_press`, `turn_left`, `tap`. |
 | Binding | The link from one gesture of one control to one action. |
 | Action kind | The type of an action, for example `opencraft.hotkey`. |
 

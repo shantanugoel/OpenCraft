@@ -8,8 +8,8 @@
 //! - A card of a key, a bar panel, or a knob: [`GestureCard::new`] with the
 //!   gesture name, and [`GestureCard::action`] when the gesture has an
 //!   action.
-//! - A swipe card of the page (#181): the same, with
-//!   [`GestureCard::name_width`] [`theme::GESTURE_NAME_WIDE`].
+//! - For key and swipe cards, set [`GestureCard::name_width`] to
+//!   [`theme::GESTURE_NAME_WIDE`].
 //! - The "Turn" card of a knob (#182): the same, with the rows of the
 //!   direction and of the link as body rows.
 //! - A nested card of a toggle or a sequence (#183):
@@ -307,7 +307,7 @@ impl GestureCard {
         }
     }
 
-    /// The width of the gesture name: 64, or 84 for a swipe.
+    /// The width of the gesture name: 64, or 84 for a key or swipe card.
     pub(super) fn name_width(mut self, width: Pixels) -> Self {
         self.name_width = width;
         self

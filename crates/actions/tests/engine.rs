@@ -225,13 +225,17 @@ impl World {
         });
     }
 
-    /// Press key 3 on the device.
+    /// Press and release key 3 on the device.
     fn press_key_3(&mut self) {
         let mut report = vec![0u8; 512];
         report[..3].copy_from_slice(b"ACK");
         report[5..7].copy_from_slice(b"OK");
         report[9] = 3;
         report[10] = 1;
+        self.device.borrow_mut().push_input(report.clone());
+        self.engine.poll(Duration::ZERO);
+        self.pump();
+        report[10] = 0;
         self.device.borrow_mut().push_input(report);
         self.engine.poll(Duration::ZERO);
         self.pump();

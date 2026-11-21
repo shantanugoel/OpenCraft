@@ -22,7 +22,7 @@ the top of the right panel. The inspector has these parts, from the top:
 |---|---|
 | Header | The image of the key face, the name "Key 1", and the position "Top row, first key" |
 | **Appearance** | The rows **Icon**, **Title**, **Position**, **Text**, and **Fill** |
-| **Gestures** | One card for each gesture of the key: **Press** and **Release** |
+| **Gestures** | One card for each gesture of the key: **Press**, **Release**, **Long press**, and **Double press** |
 
 If the inspector is not tall enough, it shows a scrollbar at the right.
 Scroll the inspector to see the other parts.
@@ -123,10 +123,9 @@ image shows the fill of the key face.
 ## 4. Set an action
 
 Below **Gestures**, the inspector shows one card for each gesture of the
-key: **Press** and **Release**. An action on **Press** occurs when you push
-the key down. An action on **Release** occurs when you let the key come back
-up. Most actions are on **Press**. A card with no action shows
-"Add an action".
+key: **Press**, **Release**, **Long press**, and **Double press**. See
+[Key gestures](controls.md#key-gestures) for when each action runs.
+A card with no action shows "Add an action".
 
 1. On the card **Press**, click **Add an action**. The menu of the action
    kinds opens.

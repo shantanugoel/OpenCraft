@@ -104,6 +104,8 @@ impl From<w::Gesture> for e::GestureKind {
             w::Gesture::Tap => Self::Tap,
             w::Gesture::SwipeLeft => Self::SwipeLeft,
             w::Gesture::SwipeRight => Self::SwipeRight,
+            w::Gesture::LongPress => Self::LongPress,
+            w::Gesture::DoublePress => Self::DoublePress,
         }
     }
 }

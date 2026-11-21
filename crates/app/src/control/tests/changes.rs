@@ -428,7 +428,10 @@ fn a_binding_needs_a_gesture_that_the_control_can_make_and_the_layout_lists_them
             .map(|g| g.as_str().unwrap().to_string())
             .collect()
     };
-    assert_eq!(gestures_of("key"), ["press", "release"]);
+    assert_eq!(
+        gestures_of("key"),
+        ["press", "release", "long_press", "double_press"]
+    );
     assert_eq!(gestures_of("knob"), ["turn_left", "turn_right", "push"]);
     assert_eq!(gestures_of("bar_panel"), ["tap"]);
     assert_eq!(gestures_of("touch_bar"), ["swipe_left", "swipe_right"]);
@@ -445,6 +448,23 @@ fn a_binding_needs_a_gesture_that_the_control_can_make_and_the_layout_lists_them
         .as_array()
         .unwrap()
         .is_empty());
+    for gesture in ["long_press", "double_press"] {
+        let action = json!({"kind": "test", "settings": {}});
+        live.ok(
+            "set_binding",
+            json!({"target": live.at(0), "control": {"kind": "key", "number": 1}, "gesture": gesture, "action": action}),
+        );
+        assert!(live.content(live.at(0))["bindings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|binding| binding["gesture"] == gesture));
+        let (code, _) = live.fails(
+            "set_binding",
+            json!({"target": live.at(0), "control": {"kind": "knob", "number": 1}, "gesture": gesture, "action": action}),
+        );
+        assert_eq!(code, "invalid_params");
+    }
     // A knob has the push.
     live.ok(
         "set_binding",

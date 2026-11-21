@@ -137,9 +137,37 @@ fn the_main_parts_have_a_role_and_the_label_of_the_record(cx: &mut TestAppContex
 
 #[gpui_kit::test]
 fn the_inspector_of_a_key_has_labels_from_its_rows(cx: &mut TestAppContext) {
-    let (_view, cx, _tx, _sent) = named_window(cx);
+    let (_view, cx, tx, _sent) = named_window(cx);
     click(cx, "surface-key face 2");
     let nodes = frame(cx);
+    for name in ["Press", "Release", "Long press", "Double press"] {
+        assert_has(&nodes, Role::Button, &format!("{name}: Add an action"));
+    }
+    let kind = super::actions::dynamic_kind();
+    let action = Action {
+        kind: kind.kind.clone(),
+        settings: Default::default(),
+    };
+    send(cx, &tx, Event::Kinds(vec![kind]));
+    for gesture in [GestureKind::LongPress, GestureKind::DoublePress] {
+        send(
+            cx,
+            &tx,
+            Event::Binding(BindingState {
+                binding: BindingId {
+                    page: 0,
+                    control: ControlId::new(ControlKind::Key, 2),
+                    gesture,
+                    folder: None,
+                },
+                action: Some(action.clone()),
+                available: true,
+            }),
+        );
+    }
+    let bound = frame(cx);
+    assert_has(&bound, Role::Group, "Long press");
+    assert_has(&bound, Role::Group, "Double press");
     assert_has(&nodes, Role::Group, "Key 2");
     assert_has(&nodes, Role::Button, "More for Key 2");
     assert_has(&nodes, Role::Group, "Appearance");

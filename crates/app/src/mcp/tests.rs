@@ -240,6 +240,27 @@ fn example_request(command: &'static ctl::commands::Command) -> Request {
 }
 
 #[test]
+fn timed_key_gesture_arguments_make_set_and_clear_requests() {
+    let command = ctl::commands::find("binding set").unwrap();
+    let help = parse::command_help(command);
+    for gesture in ["long_press", "double_press"] {
+        assert!(help.contains(gesture));
+        for action in [
+            json!({"kind": "opencraft.hotkey", "settings": {}}),
+            Value::Null,
+        ] {
+            let args = json!({"profile": "p", "page": "0123456789abcdef", "control": "key:1",
+                "gesture": gesture, "action": action});
+            let flags = tools::flags(command, args.as_object().unwrap()).unwrap();
+            let params = parse::params(command, &flags, None).unwrap();
+            assert_eq!(params["gesture"], gesture);
+            assert_eq!(params["action"], action);
+            ctl::request(command.method, params).unwrap();
+        }
+    }
+}
+
+#[test]
 fn the_tools_cannot_drift_from_the_commands() {
     let list = tools::list();
     let list = list.as_array().unwrap();

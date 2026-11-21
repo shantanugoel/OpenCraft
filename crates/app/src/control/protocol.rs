@@ -765,6 +765,8 @@ pub enum Gesture {
     Tap,
     SwipeLeft,
     SwipeRight,
+    LongPress,
+    DoublePress,
 }
 
 /// Where the label of a surface is. `Hidden`: the text stays, but the surface

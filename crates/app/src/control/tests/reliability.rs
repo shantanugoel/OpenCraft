@@ -262,6 +262,8 @@ fn each_wire_enum_has_one_text_and_goes_to_the_engine_value_and_back() {
     check::<Gesture, e::GestureKind>(&[
         (e::GestureKind::Press, "press"),
         (e::GestureKind::Release, "release"),
+        (e::GestureKind::LongPress, "long_press"),
+        (e::GestureKind::DoublePress, "double_press"),
         (e::GestureKind::TurnLeft, "turn_left"),
         (e::GestureKind::TurnRight, "turn_right"),
         (e::GestureKind::Push, "push"),
@@ -269,6 +271,9 @@ fn each_wire_enum_has_one_text_and_goes_to_the_engine_value_and_back() {
         (e::GestureKind::SwipeLeft, "swipe_left"),
         (e::GestureKind::SwipeRight, "swipe_right"),
     ]);
+    for text in ["long-press", "double-press"] {
+        assert!(serde_json::from_value::<Gesture>(json!(text)).is_err());
+    }
     check::<SurfaceKind, e::SurfaceKind>(&[
         (e::SurfaceKind::KeyFace, "key_face"),
         (e::SurfaceKind::BarPanel, "bar_panel"),

@@ -195,6 +195,13 @@ fn the_flags_make_the_params_of_the_protocol() {
         binding["action"],
         json!({"kind": "hotkey", "settings": {"key": "cmd+c", "repeat": 3}})
     );
+    for gesture in ["long_press", "double_press"] {
+        for action in ["--action-kind hotkey", "--action null"] {
+            let request = params(&format!("opencraft ctl binding set --profile p --page g --control key:0 --gesture {gesture} {action}"), None).unwrap();
+            assert_eq!(request["gesture"], gesture);
+            assert_eq!(request["action"].is_null(), action == "--action null");
+        }
+    }
     // A text that is a number needs the form of a JSON string. The skill and
     // the help of --setting give this form (review 3, L1).
     let text = |line: &str| params(line, None).unwrap()["action"]["settings"]["text"].clone();

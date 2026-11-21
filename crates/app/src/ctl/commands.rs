@@ -258,7 +258,7 @@ const GESTURE: &[Arg] = &[req(
     "gesture",
     "gesture",
     Kind::Text,
-    "The gesture, for example `press` or `turn_left`. `layout` lists the gestures of each control.",
+    "The gesture, for example `press`, `long_press`, `double_press`, or `turn_left`. `layout` lists the gestures of each control.",
 )];
 
 const ACTION: &[Arg] = &[

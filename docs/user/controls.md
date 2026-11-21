@@ -9,10 +9,28 @@ own card, and each gesture can have a different action. The procedure is in
 
 | Control | How to select it | Gestures |
 |---|---|---|
-| Key | Click its key face | Press, Release |
+| Key | Click its key face | Press, Release, Long press, Double press |
 | Knob | Click the knob below the bar panels | Turn (Turn left and Turn right), Push. The inspector of a knob also shows the bar panel above it, with its Tap gesture. |
 | Bar panel | Click the bar panel | Tap |
 | Touch bar | Click the small control "◀ Touch bar ▶" above the bar panels. This selects the page: the swipes are part of the page. | Swipe left, Swipe right |
+
+## Key gestures
+
+- **Press** runs when you push the key down if the key has no **Long press**
+  or **Double press** action.
+- **Release** belongs to that press. It runs when you lift your finger on a
+  key with no **Long press** or **Double press** action.
+- **Long press** runs when you hold the key down for 0.5 s. It runs before
+  you lift your finger. **Press** and **Release** do not run. If you release
+  the key before that time, **Press** and **Release** run in that order,
+  if the key has no **Double press** action.
+- **Double press** runs if you push the same key again less than 0.3 s
+  after the first release. **Press** and **Release** do not run. If you do
+  not push again in that time, **Press** and **Release** run in that order.
+  If you operate a different control during that time, the two actions run
+  before the action of that control.
+
+The device stays awake while you hold a key down.
 
 ## The device picture
 
