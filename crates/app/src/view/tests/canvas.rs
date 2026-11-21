@@ -431,6 +431,7 @@ fn an_empty_key_face_shows_a_plus_and_the_knob_rings_show_the_light_colours(
                 settings: Settings::new(),
             }),
             available: true,
+            inert_by: None,
         }),
     );
     assert!(cx.debug_bounds("empty-key face 11").is_none());

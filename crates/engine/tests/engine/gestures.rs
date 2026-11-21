@@ -4,6 +4,7 @@ use opencraft_engine::{EngineRequest, FolderId, PageTarget, PowerNotice};
 use GestureKind::{DoublePress, LongPress, Press, Release, TurnRight};
 
 const KIND: &str = "test.gestures";
+const HOLD: &str = "test.hold";
 
 struct Setup {
     rig: Rig,
@@ -13,7 +14,8 @@ struct Setup {
 
 impl Setup {
     fn new(key: u8, gestures: &[GestureKind]) -> Self {
-        let (port, requests) = port(KIND);
+        let (mut port, requests) = port(KIND);
+        port.kinds.push(description(HOLD).with_receives_release());
         let mut rig = Rig::with_ports(TempDir::new().unwrap(), vec![port]);
         for &gesture in gestures {
             set_binding(
@@ -29,6 +31,22 @@ impl Setup {
             device,
             requests,
         }
+    }
+
+    fn with_hold() -> Self {
+        let mut s = Self::new(1, &[Release, LongPress, DoublePress]);
+        s.bind(1, Press, Some(HOLD));
+        s.requests.try_iter().for_each(drop);
+        s
+    }
+
+    fn bind(&mut self, key: u8, gesture: GestureKind, kind: Option<&str>) {
+        let binding = BindingId {
+            page: self.rig.engine.active_page(),
+            folder: self.rig.engine.open_folders().last().copied(),
+            ..binding(ControlKind::Key, key, gesture)
+        };
+        set_binding(&mut self.rig, binding, kind.map(action));
     }
 
     fn input(&mut self, bytes: Vec<u8>) {
@@ -54,6 +72,363 @@ impl Setup {
             })
             .collect()
     }
+}
+
+#[test]
+fn hold_press_and_release_sends_hold_start_then_hold_end_and_runs_release_binding() {
+    let mut s = Setup::with_hold();
+    let press = binding(ControlKind::Key, 1, Press);
+    s.edge(1, 1);
+    assert_eq!(
+        s.requests.try_iter().collect::<Vec<_>>(),
+        [Request::HoldStart {
+            binding: press,
+            action: action(HOLD)
+        }]
+    );
+    s.edge(1, 1); // Duplicate while the key is down.
+    s.advance(1_000);
+    s.rig.engine.poll(Duration::ZERO);
+    assert!(s.requests.try_iter().next().is_none());
+    s.edge(1, 0);
+    assert_eq!(
+        s.requests.try_iter().collect::<Vec<_>>(),
+        [
+            Request::HoldEnd { binding: press },
+            Request::Invoke {
+                binding: BindingId {
+                    gesture: Release,
+                    ..press
+                },
+                action: action(KIND)
+            },
+        ]
+    );
+    s.edge(1, 0);
+    assert!(s.requests.try_iter().next().is_none());
+}
+
+#[test]
+fn a_hotkey_hold_keeps_the_display_awake_past_the_idle_deadline() {
+    use opencraft_engine::DisplayState;
+
+    let mut s = Setup::with_hold();
+    let mut settings = s.rig.engine.device_settings().clone();
+    settings.screen_off_minutes = 1;
+    s.rig.engine.command(Command::SetDeviceSettings(settings));
+    s.edge(1, 1);
+    assert!(matches!(
+        s.requests.try_recv(),
+        Ok(Request::HoldStart { .. })
+    ));
+    s.advance(120_000);
+    s.rig.engine.poll(Duration::ZERO);
+    assert_eq!(s.rig.engine.display_state(), DisplayState::Awake);
+    assert!(s.requests.try_recv().is_err());
+    s.edge(1, 0);
+    assert!(matches!(s.requests.try_recv(), Ok(Request::HoldEnd { .. })));
+    s.advance(60_000);
+    s.rig.engine.poll(Duration::ZERO);
+    assert_eq!(s.rig.engine.display_state(), DisplayState::ScreenOff);
+}
+
+#[test]
+fn hold_on_press_wins_over_long_and_double_press_and_marks_them_inert() {
+    let mut s = Setup::with_hold();
+    let states = |s: &mut Setup| {
+        s.rig
+            .take_events()
+            .into_iter()
+            .filter_map(|event| {
+                if let Event::Binding(state) = event {
+                    Some((state.binding.gesture, state.inert_by))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        states(&mut s),
+        [
+            (Press, None),
+            (LongPress, Some(Press)),
+            (DoublePress, Some(Press))
+        ]
+    );
+    for _ in 0..2 {
+        s.edge(1, 1);
+        assert!(matches!(
+            s.requests.try_recv(),
+            Ok(Request::HoldStart { .. })
+        ));
+        s.edge(1, 0);
+        assert!(matches!(s.requests.try_recv(), Ok(Request::HoldEnd { .. })));
+        assert_eq!(s.invokes(), [Release]);
+    }
+    s.advance(1000);
+    s.rig.engine.poll(Duration::ZERO);
+    assert!(s.requests.try_iter().next().is_none());
+    s.bind(1, Press, Some(KIND));
+    assert_eq!(
+        states(&mut s),
+        [(Press, None), (LongPress, None), (DoublePress, None)]
+    );
+    s.bind(1, Release, Some(HOLD));
+    assert_eq!(states(&mut s), [(Release, None)]);
+}
+
+#[test]
+fn hold_kind_on_non_press_gesture_or_test_action_or_engine_request_sends_invoke() {
+    let hold_requests = |s: &Setup| {
+        s.requests
+            .try_iter()
+            .filter(|request| {
+                !matches!(request, Request::Appear { .. } | Request::Disappear { .. })
+            })
+            .collect::<Vec<_>>()
+    };
+
+    for gesture in [Release, LongPress, DoublePress] {
+        let mut s = Setup::new(1, &[]);
+        s.bind(1, gesture, Some(HOLD));
+        let id = binding(ControlKind::Key, 1, gesture);
+        s.edge(1, 1);
+        match gesture {
+            Release => s.edge(1, 0),
+            LongPress => {
+                s.advance(500);
+                s.rig.engine.poll(Duration::ZERO);
+            }
+            DoublePress => {
+                s.edge(1, 0);
+                s.edge(1, 1);
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            hold_requests(&s),
+            [Request::Invoke {
+                binding: id,
+                action: action(HOLD)
+            }]
+        );
+    }
+    let mut s = Setup::with_hold();
+    let id = binding(ControlKind::Key, 1, Press);
+    s.rig.engine.command(Command::TestAction { binding: id });
+    s.rig
+        .engine
+        .handler_message(Message::Engine(EngineRequest::Invoke {
+            binding: id,
+            action: action(HOLD),
+        }));
+    assert_eq!(
+        hold_requests(&s),
+        vec![
+            Request::Invoke {
+                binding: id,
+                action: action(HOLD)
+            };
+            2
+        ]
+    );
+}
+
+#[test]
+fn every_cancel_path_sends_hold_end_before_disappear_and_ignores_late_release() {
+    let folder = FolderId::from_raw(1).unwrap();
+    for cancel in [
+        "page",
+        "folder open",
+        "folder close",
+        "profile",
+        "edit",
+        "remove",
+        "paste",
+        "copy to all",
+        "dark",
+        "lock",
+        "sleep",
+        "wake",
+        "lost release",
+        "disconnect",
+        "stop",
+    ] {
+        let mut s = Setup::with_hold();
+        s.rig.engine.command(Command::AddPage {
+            copy_of: if cancel == "copy to all" {
+                None
+            } else {
+                Some(0)
+            },
+        });
+        s.rig.engine.command(Command::AddFolder {
+            id: folder,
+            name: Some("More".into()),
+            copy_of: None,
+        });
+        s.rig.engine.select_page(0);
+        let original = s.rig.engine.active_profile().to_owned();
+        s.rig.engine.command(Command::AddProfile {
+            name: "Other".into(),
+            copy_of: None,
+        });
+        let other = s.rig.engine.active_profile().to_owned();
+        s.rig.engine.select_profile(&original);
+        if cancel == "folder close" {
+            s.rig.engine.command(Command::OpenFolder { folder });
+            s.bind(1, Press, Some(HOLD));
+        }
+        if cancel == "paste" {
+            s.rig.engine.command(Command::CopyControl {
+                control: ControlId::new(ControlKind::Key, 2),
+            });
+        }
+        s.requests.try_iter().for_each(drop);
+        s.edge(1, 1);
+        let Ok(Request::HoldStart { binding, .. }) = s.requests.try_recv() else {
+            panic!("{cancel}: no start")
+        };
+        match cancel {
+            "page" => s.rig.engine.select_page(1),
+            "folder open" => {
+                s.rig.engine.command(Command::OpenFolder { folder });
+            }
+            "folder close" => {
+                s.rig.engine.command(Command::CloseFolder);
+            }
+            "profile" => s.rig.engine.select_profile(&other),
+            "edit" => s.bind(1, Press, Some(KIND)),
+            "remove" => s.bind(1, Press, None),
+            "paste" => {
+                s.rig.engine.command(Command::PasteControl {
+                    control: binding.control,
+                });
+            }
+            "copy to all" => {
+                s.rig.engine.command(Command::CopyToAllPages {
+                    control: binding.control,
+                });
+            }
+            "dark" | "lock" | "sleep" | "wake" => {
+                let notice = match cancel {
+                    "dark" => PowerNotice::DisplaysSleep,
+                    "lock" => PowerNotice::Locked,
+                    "sleep" => PowerNotice::WillSleep,
+                    _ => PowerNotice::DidWake,
+                };
+                s.rig.engine.command(Command::PowerNotice(notice));
+            }
+            "lost release" => s.edge(2, 1),
+            "disconnect" => {
+                s.device.borrow_mut().disconnect();
+                s.rig.engine.poll(Duration::ZERO);
+            }
+            "stop" => s.rig.engine.finish(),
+            _ => unreachable!(),
+        }
+        let mut requests = s.requests.try_iter();
+        assert_eq!(
+            requests.next(),
+            Some(Request::HoldEnd { binding }),
+            "{cancel}"
+        );
+        assert!(
+            requests.all(|r| !matches!(r, Request::HoldEnd { .. } | Request::Invoke { .. })),
+            "{cancel}"
+        );
+        if cancel == "disconnect" {
+            s.device = s.rig.connect();
+        }
+        if cancel != "stop" {
+            s.edge(1, 0);
+            assert!(
+                s.requests
+                    .try_iter()
+                    .all(|r| !matches!(r, Request::HoldEnd { .. } | Request::Invoke { .. })),
+                "{cancel}"
+            );
+        }
+    }
+}
+
+#[test]
+fn randomized_sequence_balances_every_hold_start_with_one_hold_end() {
+    let mut s = Setup::with_hold();
+    for key in [2, 3] {
+        s.bind(key, Press, Some(HOLD));
+    }
+    s.rig.engine.command(Command::AddPage { copy_of: Some(0) });
+    let folder = FolderId::from_raw(1).unwrap();
+    s.rig.engine.command(Command::AddFolder {
+        id: folder,
+        name: Some("More".into()),
+        copy_of: None,
+    });
+    s.rig.engine.command(Command::OpenFolder { folder });
+    s.bind(1, Press, Some(HOLD));
+    s.rig.engine.command(Command::CloseFolder);
+
+    let mut seed = 42_u32;
+    let mut active = std::collections::BTreeSet::new();
+    let mut started = 0;
+    let mut check = |request| match request {
+        Request::HoldStart { binding, .. } => {
+            started += 1;
+            assert!(active.insert(binding), "duplicate HoldStart: {binding:?}");
+        }
+        Request::HoldEnd { binding } => {
+            assert!(active.remove(&binding), "unmatched HoldEnd: {binding:?}")
+        }
+        Request::Disappear { binding } => assert!(
+            !active.contains(&binding),
+            "Disappear before HoldEnd: {binding:?}"
+        ),
+        _ => {}
+    };
+    for _ in 0..512 {
+        seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+        let key = 1 + (seed % 3) as u8;
+        match (seed >> 16) % 16 {
+            0..=4 => s.edge(key, 1),
+            5..=7 => s.edge(key, 0),
+            8 => {
+                s.advance(u64::from(seed % 600));
+                s.rig.engine.poll(Duration::ZERO);
+            }
+            9 => s.rig.engine.select_page(1 - s.rig.engine.active_page()),
+            10 => {
+                s.rig.engine.command(Command::OpenFolder { folder });
+            }
+            11 => {
+                s.rig.engine.command(Command::CloseFolder);
+            }
+            12 => s.bind(
+                key,
+                Press,
+                [Some(HOLD), Some(KIND), None][((seed >> 8) % 3) as usize],
+            ),
+            13 => {
+                s.device.borrow_mut().disconnect();
+                s.rig.engine.poll(Duration::ZERO);
+                s.device = s.rig.connect();
+            }
+            14 => {
+                s.rig
+                    .engine
+                    .command(Command::PowerNotice(PowerNotice::DisplaysSleep));
+            }
+            _ => {
+                s.rig.engine.command(Command::WakeDevice);
+            }
+        }
+        s.requests.try_iter().for_each(&mut check);
+    }
+    s.rig.engine.finish();
+    s.requests.try_iter().for_each(check);
+    assert!(active.is_empty());
+    assert!(started > 10, "only {started} holds started");
 }
 
 fn reports(text: &str) -> [Report; 2] {

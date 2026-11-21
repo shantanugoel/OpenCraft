@@ -864,6 +864,8 @@ pub struct Kind {
     pub help: Option<String>,
     pub icon: Option<String>,
     pub needs_accessibility: bool,
+    #[serde(default)]
+    pub receives_release: bool,
     pub fields: Vec<Field>,
     pub direction: Option<Direction>,
     pub states: Option<TwoStates>,
@@ -1059,6 +1061,8 @@ pub struct Binding {
     pub gesture: Gesture,
     pub action: Action,
     pub available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inert_by: Option<Gesture>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

@@ -72,6 +72,7 @@ fn reply(tx: &async_channel::Sender<Event>, id: BindingId, action: Action) {
         binding: id,
         action: Some(action),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
 }

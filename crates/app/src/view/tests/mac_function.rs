@@ -32,6 +32,7 @@ fn mac_functions_use_the_shared_choice_form(cx: &mut TestAppContext) {
         },
         action: Some(action),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();

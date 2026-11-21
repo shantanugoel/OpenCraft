@@ -225,6 +225,7 @@ fn a_long_choice_menu_scrolls_to_the_highlighted_item(cx: &mut TestAppContext) {
             settings: Settings::from([("pick".to_string(), Value::Text("o0".into()))]),
         }),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();

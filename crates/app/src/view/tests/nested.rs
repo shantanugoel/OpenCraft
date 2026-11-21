@@ -229,6 +229,7 @@ fn open(
         binding: press(),
         action: Some(action),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();
@@ -365,6 +366,7 @@ fn the_two_actions_of_a_toggle_are_nested_cards_and_each_change_is_one_step(
         binding: press(),
         action: Some(expected.clone()),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();
@@ -555,6 +557,7 @@ fn a_toggle_contains_a_sequence(cx: &mut TestAppContext) {
         binding: press(),
         action: Some(broken),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     tx.try_send(Event::Status {
@@ -652,6 +655,7 @@ fn a_kind_with_two_states_shows_the_appearance_of_each_state(cx: &mut TestAppCon
         binding: press(),
         action: Some(leaf_action("x")),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();
@@ -689,6 +693,7 @@ fn a_folder_that_is_open_shows_the_knob_card_and_the_states_and_a_close_lets_a_c
         binding: key,
         action: Some(act("test.toggle", vec![])),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     tx.try_send(Event::Binding(BindingState {
@@ -700,6 +705,7 @@ fn a_folder_that_is_open_shows_the_knob_card_and_the_states_and_a_close_lets_a_c
         },
         action: Some(leaf_action("push")),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     tx.try_send(surface_with_states(FeedbackState::Off))

@@ -182,6 +182,7 @@ fn the_home_directory_is_hidden_at_a_path_boundary_with_any_case() {
                     settings: e::Settings::from([("path".into(), e::Value::Text(text))]),
                 }),
                 available: false,
+                inert_by: None,
             }));
     };
     rig.enable(true);

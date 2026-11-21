@@ -277,6 +277,7 @@ fn an_unavailable_kind_stays_in_the_file_and_reports_its_state() {
         binding: id,
         action: Some(action.clone()),
         available: false,
+        inert_by: None,
     });
     assert_eq!(
         rig.take_events(),
@@ -325,7 +326,8 @@ fn appear_and_disappear_follow_start_set_change_and_remove() {
     assert!(rig.take_events().contains(&Event::Binding(BindingState {
         binding: id,
         action: Some(first.clone()),
-        available: true
+        available: true,
+        inert_by: None,
     })));
     let mut second = first.clone();
     second
@@ -353,7 +355,8 @@ fn appear_and_disappear_follow_start_set_change_and_remove() {
     assert!(rig.take_events().contains(&Event::Binding(BindingState {
         binding: id,
         action: None,
-        available: false
+        available: false,
+        inert_by: None,
     })));
     set_binding(&mut rig, id, Some(first.clone()));
     assert_eq!(

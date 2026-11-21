@@ -777,6 +777,14 @@ pub(super) fn content(
             control: binding.control.into(),
             gesture: binding.gesture.into(),
             available: state.kinds.iter().any(|k| k.kind == action.kind),
+            inert_by: location
+                .inert_by(profile, binding, |kind| {
+                    state
+                        .kinds
+                        .iter()
+                        .any(|k| k.kind == kind && k.receives_release)
+                })
+                .map(Into::into),
             action: (&action).into(),
         })
         .collect();

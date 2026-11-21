@@ -182,6 +182,15 @@ pub enum Request {
         binding: BindingId,
         action: Action,
     },
+    /// A Press binding of a kind that receives release went down.
+    HoldStart {
+        binding: BindingId,
+        action: Action,
+    },
+    /// The key went up or the engine cancelled the hold.
+    HoldEnd {
+        binding: BindingId,
+    },
     Resolve {
         kind: String,
     },
@@ -350,6 +359,9 @@ pub struct KindDescription {
     /// The shell names these kinds where it tells the user about the
     /// permission.
     pub needs_accessibility: bool,
+    /// A key's Press binding receives a hold start and end (decision 0042).
+    /// Other gestures, tests and nested actions still receive Invoke.
+    pub receives_release: bool,
     pub fields: Vec<Field>,
     /// The direction of a turn of a knob, if the kind has one. The shell
     /// then shows one "Turn" card for the two turn gestures, and writes the
@@ -377,6 +389,12 @@ pub struct KindDescription {
 }
 
 impl KindDescription {
+    /// Declare that a Press binding starts a hold and receives its end.
+    pub fn with_receives_release(mut self) -> Self {
+        self.receives_release = true;
+        self
+    }
+
     /// The text of the choice field `key` in `settings`. A missing value uses
     /// the default of that field. A value that is not text has no choice.
     pub fn choice_text(&self, settings: &Settings, key: &str) -> Option<String> {
@@ -598,6 +616,8 @@ pub struct BindingState {
     pub binding: BindingId,
     pub action: Option<Action>,
     pub available: bool,
+    /// The gesture on this control that prevents this binding from running.
+    pub inert_by: Option<GestureKind>,
 }
 
 #[cfg(test)]

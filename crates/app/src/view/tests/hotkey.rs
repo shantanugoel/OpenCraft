@@ -39,6 +39,7 @@ fn event(hotkey: &str) -> Event {
         binding: binding(),
         action: Some(action(hotkey)),
         available: true,
+        inert_by: None,
     })
 }
 

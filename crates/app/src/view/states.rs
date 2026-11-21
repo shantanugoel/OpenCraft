@@ -58,7 +58,8 @@ impl DeviceView {
         let binding = self.state.location.binding_id(control, gesture);
         let state = self.state.bindings.get(&binding).filter(|b| b.available)?;
         let kind = self.kind(&state.action.as_ref()?.kind)?;
-        kind.states.as_ref()?;
+        // Until per-state faces are editable, this editor only edits the On title.
+        kind.states.as_ref()?.on_label.as_ref()?;
         Some((binding, kind))
     }
 

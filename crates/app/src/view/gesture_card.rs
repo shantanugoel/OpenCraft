@@ -278,6 +278,7 @@ pub(super) struct GestureCard {
     summary: Option<SharedString>,
     accessory: Option<AnyElement>,
     lead: Option<AnyElement>,
+    inert_notice: Option<&'static str>,
     body: Vec<AnyElement>,
     on_toggle: Option<Handler>,
     on_menu: Option<Handler>,
@@ -300,6 +301,7 @@ impl GestureCard {
             summary: None,
             accessory: None,
             lead: None,
+            inert_notice: None,
             body: Vec::new(),
             on_toggle: None,
             on_menu: None,
@@ -316,6 +318,11 @@ impl GestureCard {
     /// The gesture has an action. The popup shows `label`.
     pub(super) fn action(mut self, label: KindLabel) -> Self {
         self.action = Some(label);
+        self
+    }
+
+    pub(super) fn inert_notice(mut self, notice: Option<&'static str>) -> Self {
+        self.inert_notice = notice;
         self
     }
 
@@ -735,6 +742,7 @@ impl RenderOnce for GestureCard {
         };
         let lead = self.lead.take();
         let has_lead = lead.is_some();
+        let notice_id = self.id;
         div()
             .id(id.clone())
             .debug_selector(move || id.to_string())
@@ -747,6 +755,18 @@ impl RenderOnce for GestureCard {
             .border_color(theme::BORDER_FIELD)
             .bg(background)
             .child(head)
+            .when_some(self.inert_notice, |d, notice| {
+                d.child(
+                    div()
+                        .id(SharedString::from(format!("{notice_id}-inert-notice")))
+                        .readable_text(notice)
+                        .px(head_x)
+                        .pb(head_y)
+                        .text_size(theme::TEXT_HELP)
+                        .text_color(theme::WARNING)
+                        .child(notice),
+                )
+            })
             .when(open, |d| {
                 d.children(lead.map(|lead| {
                     div()

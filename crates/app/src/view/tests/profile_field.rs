@@ -43,6 +43,7 @@ fn event(profile: &str) -> Event {
         binding: binding(),
         action: Some(action(profile)),
         available: true,
+        inert_by: None,
     })
 }
 

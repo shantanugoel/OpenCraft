@@ -113,6 +113,37 @@ fn each_kind_with_a_path_field_gives_the_full_path_after_an_export_and_an_import
 }
 
 #[test]
+fn a_hold_hotkey_keeps_its_kind_and_chord_through_export_and_import() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = ProfileStore::new(dir.path().join("talk"));
+    let mut page = Page::new("Main");
+    let key = ControlId::new(ControlKind::Key, 1);
+    let action = Action {
+        kind: super::hold_hotkey::ID.into(),
+        settings: Settings::from([("hotkey".into(), Value::Text("cmd+shift+space".into()))]),
+    };
+    page.set_binding(key, GestureKind::Press, Some(action.clone()));
+    let profile = Profile::new("Talk", vec![page]);
+    let file = dir.path().join("Talk.opencraft");
+    export(
+        &profile,
+        &store,
+        &file,
+        &[super::hold_hotkey::description()],
+    )
+    .unwrap();
+    let package = import(&file).unwrap();
+    assert_eq!(
+        package
+            .profile
+            .page(0)
+            .unwrap()
+            .binding(key, GestureKind::Press),
+        Some(&action)
+    );
+}
+
+#[test]
 fn the_home_folder_alone_is_a_folder_to_open_and_not_an_application_name() {
     let Some(home) = home() else {
         return;

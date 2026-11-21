@@ -556,8 +556,8 @@ fn the_note_names_only_kinds_that_need_the_permission_for_every_use() {
         })
         .as_deref(),
         Some(
-            "Four actions need the Accessibility permission: Send a hotkey, Type text, Media key \
-             and Mouse event. OpenCraft asks for it when you add the first one."
+            "Five actions need the Accessibility permission: Send a hotkey, Hold a hotkey, \
+             Type text, Media key and Mouse event. OpenCraft asks for it when you add the first one."
         )
     );
 }

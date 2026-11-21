@@ -75,6 +75,7 @@ fn dynamic_fields_have_the_shared_roles_and_labels(cx: &mut TestAppContext) {
         },
         action: Some(action),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();
@@ -162,6 +163,7 @@ fn the_inspector_of_a_key_has_labels_from_its_rows(cx: &mut TestAppContext) {
                 },
                 action: Some(action.clone()),
                 available: true,
+                inert_by: None,
             }),
         );
     }
@@ -275,6 +277,7 @@ fn the_application_picker_has_a_dialog_and_rows(cx: &mut TestAppContext) {
         },
         action: Some(action),
         available: true,
+        inert_by: None,
     }))
     .unwrap();
     cx.run_until_parked();
