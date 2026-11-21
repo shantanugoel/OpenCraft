@@ -243,6 +243,9 @@ the identity of its first page, and `page list` gives the identity of the page
 `Page 1`. `page add` gives the identity of the new page in the result. To
 remove a surface value or a binding, leave out the value:
 `opencraft ctl surface set-label` with no `--label`.
+Use `--on true` to change the On face. In MCP, give `"on": true`.
+Without this option, a change applies to the base face. A surface read
+includes `on` when the surface has an On face.
 
 ## Commands
 
@@ -289,11 +292,11 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `folder remove` | `--profile` `--folder` | Remove |
 | `folder open` | `--profile` `--page` `--folder` `--inside` | Show a folder |
 | `folder close` | target | Close the folder that is open |
-| `surface set-label` | target `--surface` `--label` | Set or remove the text |
-| `surface set-label-style` | target `--surface` `--position` `--size` `--color` `--bold` | Set the text style |
-| `surface set-color` | target `--surface` `--color` | Set or remove the fill colour |
-| `surface set-image` | target `--surface` `--path` | Set or remove the image |
-| `surface set-icon` | target `--surface` `--icon-name` `--icon-color` | Set or remove the icon |
+| `surface set-label` | target `--surface` `--label` `--on` | Set or remove the text |
+| `surface set-label-style` | target `--surface` `--position` `--size` `--color` `--bold` `--on` | Set the text style |
+| `surface set-color` | target `--surface` `--color` `--on` | Set or remove the fill colour |
+| `surface set-image` | target `--surface` `--path` `--on` | Set or remove the image |
+| `surface set-icon` | target `--surface` `--icon-name` `--icon-color` `--on` | Set or remove the icon |
 | `binding set` | target `--control` `--gesture` `--action-kind` `--setting` `--action` | Set an action; with none: remove it |
 | `control copy` | target `--control` | Copy a control |
 | `control paste` | target `--control` | Paste onto a control |

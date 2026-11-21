@@ -45,6 +45,7 @@ pub(crate) enum Target {
         page: usize,
         folder: Option<FolderId>,
         surface: SurfaceId,
+        on: bool,
     },
     /// The name of a page.
     PageName { page: usize },

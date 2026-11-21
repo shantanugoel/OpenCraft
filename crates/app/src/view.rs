@@ -192,10 +192,7 @@ impl DeviceView {
             if matches!(event, TextEvent::Change) {
                 if let Some(surface) = view.state.edit_surface() {
                     let label = input.read(cx).value().to_string();
-                    (view.send)(Command::SetLabel {
-                        surface,
-                        label: if label.is_empty() { None } else { Some(label) },
-                    });
+                    view.set_title(surface, (!label.is_empty()).then_some(label));
                     // A later engine reply must not reset the cursor or the text.
                     view.label_loaded = true;
                 }
@@ -210,6 +207,7 @@ impl DeviceView {
             .map(|(id, surface)| (*id, images::from_rgb(&surface.image)))
             .collect();
         let background_image = state.background.image.as_deref().map(images::from_rgb);
+        let faces = states::StateFaces::new(&state);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let focus_lost = cx.on_focus_lost(window, |view, window, cx| {
@@ -274,7 +272,7 @@ impl DeviceView {
             sheet: profile_sheet::ProfileSheet::new(window, cx),
             palette: palette::Palette::new(window, cx),
             permission,
-            faces: states::StateFaces::new(window, cx),
+            faces,
             inspector_scroll: ScrollHandle::new(),
             _focus_lost: focus_lost,
             _focus_return: focus_return,
@@ -295,6 +293,17 @@ impl DeviceView {
         if let Event::Binding(binding) = &event {
             self.acknowledge(binding);
             self.permission_event(binding, window, cx);
+        }
+        let refresh_title = match &event {
+            Event::Binding(binding) => self.state.selected_control == Some(binding.binding.control),
+            Event::Surface(surface) => self.state.edit_surface() == Some(surface.id),
+            _ => false,
+        };
+        if refresh_title
+            && self.text_edit != Some(self.input.entity_id())
+            && !gpui_kit::Focusable::focus_handle(self.input.read(cx), cx).is_focused(window)
+        {
+            self.label_loaded = false;
         }
         if matches!(event, Event::Pages { .. } | Event::Profiles { .. }) {
             self.forget_pending();
@@ -417,22 +426,43 @@ impl DeviceView {
         self.sync_form(window, cx);
     }
 
+    pub(super) fn send_surface(&self, surface: SurfaceId, command: Command) {
+        (self.send)(command.for_face(self.editing_on_face(surface)));
+    }
+
+    fn set_title(&mut self, surface: SurfaceId, label: Option<String>) {
+        let on = self.editing_on_face(surface);
+        let set = Command::SetLabel { surface, label }.for_face(on);
+        if let Some(clear) = on.then(|| self.clear_legacy_on_label()).flatten() {
+            (self.send)(Command::Group {
+                name: "Set Title".into(),
+                commands: vec![set, clear],
+            });
+        } else {
+            (self.send)(set);
+        }
+    }
+
     fn load_label(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let content = self
-            .state
-            .edit_surface()
-            .and_then(|id| self.state.surfaces.get(&id));
-        let label = content
-            .and_then(|s| s.content.label.clone())
+        let surface = self.state.edit_surface();
+        let label = surface
+            .and_then(|id| {
+                self.editing_on_face(id)
+                    .then(|| self.legacy_on_label())
+                    .flatten()
+                    .or_else(|| self.edited_face(id).label)
+            })
             .unwrap_or_default();
-        self.label_loaded = content.is_some();
-        self.input
-            .update(cx, |input, cx| input.set_value(label, window, cx));
+        self.label_loaded = surface.is_some_and(|id| self.state.surfaces.contains_key(&id));
+        if self.input.read(cx).value().as_ref() != label {
+            self.input
+                .update(cx, |input, cx| input.set_value(label, window, cx));
+        }
     }
 
     fn set_colour(&mut self, color: Option<Color>) {
         if let Some(surface) = self.state.edit_surface() {
-            (self.send)(Command::SetColor { surface, color });
+            self.send_surface(surface, Command::SetColor { surface, color });
         }
     }
 
@@ -441,6 +471,7 @@ impl DeviceView {
             return;
         };
         let epoch = self.state.epoch;
+        let on = self.editing_on_face(surface);
         // Keep the surface captured here, even if selection changes during the dialog.
         let paths = cx.prompt_for_paths(PathPromptOptions {
             files: true,
@@ -461,10 +492,13 @@ impl DeviceView {
                             .filter(|_| view.state.epoch == epoch)
                         {
                             // The engine reads, checks, and copies the file on its thread.
-                            (view.send)(Command::SetImage {
-                                surface,
-                                path: Some(path),
-                            });
+                            (view.send)(
+                                Command::SetImage {
+                                    surface,
+                                    path: Some(path),
+                                }
+                                .for_face(on),
+                            );
                         }
                     }
                     Ok(Ok(None)) => {}

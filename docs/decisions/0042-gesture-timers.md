@@ -261,9 +261,10 @@ An On face replaces the frame.**
 
 - `Feedback::label` replaces the label of the face that shows, base or On. This
   is the rule of decision 0013, not changed.
-- `toggle.on_label` stays a feedback label, thus it wins over the label of the
-  On face. The window keeps the editor of the On label on the `on_label`
-  setting.
+- A non-empty `toggle.on_label` stays a feedback label, thus it wins over the
+  label of the On face. The window shows it in the On title field. An edit
+  of this title sets the On face label and removes the legacy setting in
+  one undo step.
 - `microphone_mute` and `hold-hotkey` declare
   `states: Some(TwoStates { on_label: None })`, thus the window shows the face
   of each state for them. `microphone_mute` keeps its "Microphone muted" and

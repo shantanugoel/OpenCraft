@@ -330,7 +330,8 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                 C::SetLabel {
                     surface,
                     label: p.label,
-                },
+                }
+                .for_face(p.on),
             ))
         }
         M::SetLabelStyle(p) => {
@@ -352,21 +353,25 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                         C::SetLabelStyle {
                             surface,
                             change: e::LabelChange::Position(style.position.map(Into::into)),
-                        },
+                        }
+                        .for_face(p.on),
                         C::SetLabelStyle {
                             surface,
                             change: e::LabelChange::Size(style.size),
-                        },
+                        }
+                        .for_face(p.on),
                         C::SetLabelStyle {
                             surface,
                             change: e::LabelChange::Color(
                                 style.color.map(|c| parse(c, "colour")).transpose()?,
                             ),
-                        },
+                        }
+                        .for_face(p.on),
                         C::SetLabelStyle {
                             surface,
                             change: e::LabelChange::Bold(style.bold),
-                        },
+                        }
+                        .for_face(p.on),
                     ],
                 },
             ))
@@ -375,13 +380,13 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
             let surface = surface(p.surface, state)?;
             let color = p.color.map(|c| parse(c, "colour")).transpose()?;
             let (place, _) = location(state, p.target)?;
-            nothing(at(place, C::SetColor { surface, color }))
+            nothing(at(place, C::SetColor { surface, color }.for_face(p.on)))
         }
         M::SetImage(p) => {
             let surface = surface(p.surface, state)?;
             let path = p.path.map(path).transpose()?;
             let (place, _) = location(state, p.target)?;
-            nothing(at(place, C::SetImage { surface, path }))
+            nothing(at(place, C::SetImage { surface, path }.for_face(p.on)))
         }
         M::SetIcon(p) => {
             let surface = surface(p.surface, state)?;
@@ -395,7 +400,7 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                 })
                 .transpose()?;
             let (place, _) = location(state, p.target)?;
-            nothing(at(place, C::SetIcon { surface, icon }))
+            nothing(at(place, C::SetIcon { surface, icon }.for_face(p.on)))
         }
         M::SetBinding(p) => {
             let control_id = p.control;

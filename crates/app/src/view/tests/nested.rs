@@ -123,7 +123,19 @@ fn kinds() -> Event {
     timed.kind = "test.timed".into();
     timed.fields[0].input = InputType::TimedActionList;
     timed.fields[1].key = "delay_ms".into();
-    Event::Kinds(vec![leaf(), two(), many(), toggle(), timed])
+    Event::Kinds(vec![
+        leaf(),
+        two(),
+        many(),
+        toggle(),
+        timed,
+        KindDescription {
+            kind: "test.no-legacy-label".into(),
+            name: "Two states without a label setting".into(),
+            states: Some(TwoStates { on_label: None }),
+            ..Default::default()
+        },
+    ])
 }
 
 #[gpui_kit::test]
@@ -602,7 +614,10 @@ fn surface_with_states(now: FeedbackState) -> Event {
 
 #[gpui_kit::test]
 fn a_kind_with_two_states_shows_the_appearance_of_each_state(cx: &mut TestAppContext) {
-    let (view, cx, tx, sent) = open(cx, act("test.toggle", vec![]));
+    let (view, cx, tx, sent) = open(
+        cx,
+        act("test.toggle", vec![("label", Value::Text("Old".into()))]),
+    );
     tx.try_send(surface_with_states(FeedbackState::Off))
         .unwrap();
     cx.run_until_parked();
@@ -620,26 +635,69 @@ fn a_kind_with_two_states_shows_the_appearance_of_each_state(cx: &mut TestAppCon
     });
     // "Off" is selected: the rows of "Appearance".
     assert!(cx.debug_bounds("title-field").is_some());
-    assert!(cx.debug_bounds("on-label-field").is_none());
     // The card of "Press" has the two nested cards, and not the label for
     // on: the face "On" has it.
     assert!(cx.debug_bounds("on/action-kind").is_some());
     assert!(cx.debug_bounds("off/action-kind").is_some());
     assert!(cx.debug_bounds("field-2").is_none());
 
-    // "On" selected: the field of the label for on.
     click(cx, "state-on");
-    assert!(cx.debug_bounds("title-field").is_none());
-    let input = cx.update(|_, cx| view.read(cx).faces.input.clone());
+    for row in [
+        "title-field",
+        "choose-icon",
+        "choose-image",
+        "label-position",
+        "label-size",
+        "label-colour",
+        "label-bold",
+        "colour-0",
+    ] {
+        assert!(cx.debug_bounds(row).is_some(), "missing {row}");
+    }
+    click(cx, "label-bold");
+    let surface = crate::state::tests::key();
+    assert!(sent.borrow().contains(
+        &Command::SetLabelStyle {
+            surface,
+            change: opencraft_engine::LabelChange::Bold(false)
+        }
+        .for_face(true)
+    ));
+
+    let input = cx.update(|_, cx| {
+        let input = view.read(cx).input.clone();
+        assert_eq!(input.read(cx).value().as_ref(), "Old");
+        input
+    });
     cx.update(|window, cx| window.focus(&input.focus_handle(cx), cx));
     cx.run_until_parked();
     assert_eq!(sent.borrow().last(), Some(&Command::StartTextEdit));
-    cx.simulate_input("Live");
+    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_input("L");
     cx.run_until_parked();
-    assert_eq!(
-        sent_action(&sent),
-        act("test.toggle", vec![("label", Value::Text("Live".into()))])
-    );
+    assert!(sent.borrow().contains(&Command::Group {
+        name: "Set Title".into(),
+        commands: vec![
+            Command::SetLabel {
+                surface,
+                label: Some("L".into())
+            }
+            .for_face(true),
+            Command::SetBinding {
+                binding: press(),
+                action: Some(act("test.toggle", vec![]))
+            },
+        ],
+    }));
+    cx.simulate_input("ive");
+    cx.run_until_parked();
+    assert!(sent.borrow().contains(
+        &Command::SetLabel {
+            surface,
+            label: Some("Live".into())
+        }
+        .for_face(true)
+    ));
 
     // The state On from the engine.
     tx.try_send(surface_with_states(FeedbackState::On)).unwrap();
@@ -650,6 +708,17 @@ fn a_kind_with_two_states_shows_the_appearance_of_each_state(cx: &mut TestAppCon
             Some("Two states · the state now is On")
         )
     });
+    tx.try_send(Event::Binding(BindingState {
+        binding: press(),
+        action: Some(act("test.no-legacy-label", vec![])),
+        available: true,
+        inert_by: None,
+    }))
+    .unwrap();
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("state-off").is_some());
+    assert!(cx.debug_bounds("state-on").is_some());
+
     // A kind with one state has "Appearance".
     tx.try_send(Event::Binding(BindingState {
         binding: press(),

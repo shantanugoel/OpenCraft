@@ -369,7 +369,6 @@ impl DeviceView {
         {
             self.form.recording = None;
         }
-        self.sync_state_faces(window, cx);
     }
 
     /// Find dynamic fields at each depth, without names of built-in kinds.
@@ -665,20 +664,7 @@ impl DeviceView {
     ) {
         let mut commands: Vec<Command> = changes
             .into_iter()
-            .map(|(binding, action)| {
-                match &action {
-                    Some(action) => self
-                        .form
-                        .pending
-                        .entry(binding)
-                        .or_default()
-                        .push(action.clone()),
-                    None => {
-                        self.form.pending.remove(&binding);
-                    }
-                }
-                Command::SetBinding { binding, action }
-            })
+            .map(|(binding, action)| self.pending_binding(binding, action))
             .collect();
         match commands.len() {
             0 => {}
@@ -688,6 +674,25 @@ impl DeviceView {
                 commands,
             }),
         }
+    }
+
+    pub(super) fn pending_binding(
+        &mut self,
+        binding: BindingId,
+        action: Option<Action>,
+    ) -> Command {
+        match &action {
+            Some(action) => self
+                .form
+                .pending
+                .entry(binding)
+                .or_default()
+                .push(action.clone()),
+            None => {
+                self.form.pending.remove(&binding);
+            }
+        }
+        Command::SetBinding { binding, action }
     }
 
     /// Forget the edits in flight of `bindings`: a new kind replaces them.

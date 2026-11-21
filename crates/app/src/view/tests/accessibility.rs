@@ -54,6 +54,40 @@ fn named_window(
 }
 
 #[gpui_kit::test]
+fn the_state_picker_has_radio_buttons_for_both_faces(cx: &mut TestAppContext) {
+    let (_view, cx, tx, _sent) = window(cx);
+    let kind = KindDescription {
+        kind: "test.states".into(),
+        name: "Two states".into(),
+        states: Some(opencraft_engine::TwoStates { on_label: None }),
+        ..Default::default()
+    };
+    send(cx, &tx, Event::Kinds(vec![kind.clone()]));
+    send(
+        cx,
+        &tx,
+        Event::Binding(BindingState {
+            binding: BindingId {
+                page: 0,
+                control: ControlId::new(ControlKind::Key, 2),
+                gesture: GestureKind::Press,
+                folder: None,
+            },
+            action: Some(Action {
+                kind: kind.kind,
+                settings: Default::default(),
+            }),
+            available: true,
+            inert_by: None,
+        }),
+    );
+    click(cx, "surface-key face 2");
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::RadioButton, "Off");
+    assert_has(&nodes, Role::RadioButton, "On");
+}
+
+#[gpui_kit::test]
 fn dynamic_fields_have_the_shared_roles_and_labels(cx: &mut TestAppContext) {
     let (_view, cx, tx, _sent) = window(cx);
     let kind = super::actions::dynamic_kind();

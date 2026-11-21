@@ -377,7 +377,7 @@ impl DeviceView {
     /// Change one label option of the selected surface.
     fn set_label_style(&mut self, change: LabelChange) {
         if let Some(surface) = self.state.edit_surface() {
-            (self.send)(Command::SetLabelStyle { surface, change });
+            self.send_surface(surface, Command::SetLabelStyle { surface, change });
         }
     }
 
@@ -391,7 +391,7 @@ impl DeviceView {
 
     /// The rows of "Appearance": "Icon", "Title", "Position", "Text", and
     /// "Fill". The "Bar panel" section of a knob (section 10.4) and the
-    /// face "Off" of the appearance of each state (section 10.5) also have
+    /// faces of the appearance of each state (section 10.5) also have
     /// them.
     pub(super) fn appearance_rows(
         &self,
@@ -399,12 +399,7 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
-        let content = self
-            .state
-            .surfaces
-            .get(&id)
-            .map(|s| s.content.clone())
-            .unwrap_or_default();
+        let content = self.edited_face(id);
         let row = |label: &str, value: AnyElement| {
             form::row(label.to_string(), theme::FORM_LABEL, theme::FORM_GAP, value)
         };
@@ -703,7 +698,7 @@ impl DeviceView {
     /// The fill samples: "No fill", the colours of [`COLOURS`], and "Other
     /// colour", which opens a popover with a field for `#RRGGBB`.
     fn fill_samples(&self, id: SurfaceId, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let current = self.state.surfaces.get(&id).and_then(|s| s.content.color);
+        let current = self.edited_face(id).color;
         self.colour_samples(current, true, "Fill", window, cx)
     }
 

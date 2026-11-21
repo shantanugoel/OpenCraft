@@ -378,8 +378,28 @@ impl From<&e::SurfaceState> for w::Surface {
 
 impl w::Surface {
     pub(super) fn from_content(id: w::SurfaceId, c: &e::SurfaceContent) -> Self {
+        let w::SurfaceFace {
+            label,
+            label_style,
+            color,
+            image,
+            icon,
+        } = w::SurfaceFace::from_content(c);
         Self {
             id,
+            label,
+            label_style,
+            color,
+            image,
+            icon,
+            on: c.on.as_deref().map(w::SurfaceFace::from_content),
+        }
+    }
+}
+
+impl w::SurfaceFace {
+    fn from_content(c: &e::SurfaceContent) -> Self {
+        Self {
             label: c.label.clone(),
             label_style: w::LabelStyle {
                 position: c.label_style.position.map(Into::into),
@@ -630,6 +650,14 @@ pub(super) fn ignored(event: &e::Event) -> bool {
 /// This is not a deserializer: the wire enum is the actual allow list.
 pub(super) fn permitted(command: &e::Command) -> bool {
     match command {
+        e::Command::OnFace(command) => matches!(
+            command.as_ref(),
+            e::Command::SetLabel { .. }
+                | e::Command::SetLabelStyle { .. }
+                | e::Command::SetColor { .. }
+                | e::Command::SetImage { .. }
+                | e::Command::SetIcon { .. }
+        ),
         e::Command::SetLabel { .. } => true,
         e::Command::SetLabelStyle { .. } => true,
         e::Command::SetColor { .. } => true,

@@ -148,6 +148,8 @@ pub const SCHEMA_VERSION: u32 = 7;
 
 /// The first schema version with long and double presses (decision 0042).
 const GESTURE_TIMERS_VERSION: u32 = 7;
+/// Schema version 7 adds the On face of a surface.
+const STATE_FACES_VERSION: u32 = 7;
 
 /// The first schema version with the links of a profile (decision 0035).
 const APPLICATIONS_VERSION: u32 = 5;
@@ -856,6 +858,8 @@ struct SurfaceData {
     icon: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     icon_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    on: Option<Box<SurfaceData>>,
 }
 
 impl SurfaceData {
@@ -927,6 +931,16 @@ impl SurfaceData {
     }
 
     fn from_content(content: &SurfaceContent) -> Self {
+        Self {
+            on: content
+                .on
+                .as_deref()
+                .map(|face| Box::new(Self::from_face(face))),
+            ..Self::from_face(content)
+        }
+    }
+
+    fn from_face(content: &SurfaceContent) -> Self {
         let style = content.label_style;
         let default = LabelStyle::default();
         Self {
@@ -943,6 +957,7 @@ impl SurfaceData {
                 .as_ref()
                 .and_then(|i| i.color)
                 .map(|c| c.to_string()),
+            on: None,
         }
     }
 }
@@ -954,6 +969,34 @@ fn content_of(
     version: u32,
 ) -> std::result::Result<(opencraft_core::SurfaceId, SurfaceContent), String> {
     let id = parse_surface_key(key).ok_or_else(|| format!("'{key}' is not a surface"))?;
+    let on = if let Some(face) = surface.on {
+        if version < STATE_FACES_VERSION {
+            return Err(format!("{key}: version {version} has no on face"));
+        }
+        if face.on.is_some() {
+            return Err(format!("{key}.on: an on face cannot have an on face"));
+        }
+        Some(Box::new(face_of(&format!("{key}.on"), *face, version)?))
+    } else {
+        None
+    };
+    let mut content = face_of(
+        key,
+        SurfaceData {
+            on: None,
+            ..surface
+        },
+        version,
+    )?;
+    content.on = on;
+    Ok((id, content))
+}
+
+fn face_of(
+    key: &str,
+    surface: SurfaceData,
+    version: u32,
+) -> std::result::Result<SurfaceContent, String> {
     let color = match &surface.color {
         Some(text) => Some(
             text.parse::<Color>()
@@ -973,16 +1016,14 @@ fn content_of(
     }
     let label_style = surface.label_style().map_err(|e| format!("{key}: {e}"))?;
     let icon = surface.icon().map_err(|e| format!("{key}: {e}"))?;
-    Ok((
-        id,
-        SurfaceContent {
-            label: surface.label,
-            label_style,
-            color,
-            image: surface.image,
-            icon,
-        },
-    ))
+    Ok(SurfaceContent {
+        label: surface.label.filter(|s| !s.is_empty()),
+        label_style,
+        color,
+        image: surface.image,
+        icon,
+        on: None,
+    })
 }
 
 /// Put the bindings of the file on `page`. With `keys_only`, a binding of a
@@ -1547,12 +1588,28 @@ image = "images/4f1c2a9be07d3356.png"
     }
 
     #[test]
-    fn gesture_timers_round_trip_on_pages_and_folders_in_version_seven() {
+    fn gestures_and_on_faces_round_trip_on_pages_and_folders_in_version_seven() {
         let (_dir, store) = store();
         let mut text = old_profile_text(7);
         for holder in ["pages", "folders"] {
             if holder == "folders" {
                 text.push_str("[[folders]]\nid = \"0000000000000002\"\nname = \"More\"\n");
+            }
+            text.push_str(&format!(
+                r##"
+[{holder}.surfaces.key-face-1.on]
+label = "Live"
+label_position = "top"
+label_size = 24
+label_color = "#FF0000"
+label_bold = false
+color = "#223344"
+"##
+            ));
+            if holder == "pages" {
+                text.push_str("image = \"images/0123456789abcdef.png\"\n");
+            } else {
+                text.push_str("icon = \"star\"\nicon_color = \"#AABBCC\"\n");
             }
             for gesture in ["long-press", "double-press"] {
                 text.push_str(&format!(
@@ -1561,13 +1618,46 @@ image = "images/4f1c2a9be07d3356.png"
             }
         }
         let loaded = load_text(&store, text.as_bytes());
-        assert!(loaded.backup.is_none());
+        assert!(loaded.backup.is_none(), "{:?}", loaded.backup);
         store.save(&loaded.profile).unwrap();
         let written = fs::read_to_string(store.profile_path()).unwrap();
         assert!(written.starts_with("schema_version = 7\n"));
         assert_eq!(written.matches(".key-3.long-press]").count(), 2);
         assert_eq!(written.matches(".key-3.double-press]").count(), 2);
+        assert_eq!(written.matches(".key-face-1.on]").count(), 2);
+        let key = opencraft_core::SurfaceId::new(opencraft_core::SurfaceKind::KeyFace, 1);
+        let face = loaded.profile.pages()[0].content(key).on.unwrap();
+        assert_eq!(face.label.as_deref(), Some("Live"));
+        assert_eq!(face.label_style.size, 24);
+        assert_eq!(face.color, Some(Color::rgb(0x22, 0x33, 0x44)));
+        assert_eq!(face.image.as_deref(), Some("images/0123456789abcdef.png"));
+        let folder_face = loaded.profile.folders()[0].page.content(key).on.unwrap();
+        assert_eq!(folder_face.label_style, face.label_style);
+        assert_eq!(folder_face.icon.unwrap().name, "star");
         assert_eq!(store.load().unwrap().profile, loaded.profile);
+    }
+
+    #[test]
+    fn old_or_nested_on_faces_are_rejected() {
+        for (version, holder, suffix, expected) in [
+            (6, "pages", "on", "version 6 has no on face"),
+            (6, "folders", "on", "version 6 has no on face"),
+            (7, "pages", "on.on", "an on face cannot have an on face"),
+        ] {
+            let (_dir, store) = store();
+            let mut text = old_profile_text(version);
+            if holder == "folders" {
+                text.push_str("[[folders]]\nid = \"0000000000000002\"\nname = \"More\"\n");
+            }
+            text.push_str(&format!("[{holder}.surfaces.key-face-1.{suffix}]\n"));
+            let backup = load_text(&store, text.as_bytes()).backup.unwrap();
+            assert!(
+                matches!(backup.reason, BackupReason::Invalid(ref reason) if reason.contains(expected)),
+                "{:?}",
+                backup.reason
+            );
+            assert_eq!(fs::read_to_string(backup.path).unwrap(), text);
+        }
     }
 
     #[test]
@@ -2170,12 +2260,12 @@ color = "#1E6FD9"
         let images = store.dir().join(IMAGE_DIR);
         fs::write(images.join("readme.txt"), "not a copy").unwrap();
 
-        // Only the second page uses the image.
+        // Only the On face on the second page uses the image.
         let mut profile = Profile::new("P", vec![Page::new("A"), Page::new("B")]);
         profile
             .page_mut(1)
             .unwrap()
-            .update(KEY_3, |c| c.image = Some(used.clone()));
+            .update(KEY_3, |c| c.face_mut(true).image = Some(used.clone()));
 
         assert_eq!(store.remove_unused_images(&profile).unwrap(), 1);
         assert_eq!(

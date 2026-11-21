@@ -240,6 +240,24 @@ fn example_request(command: &'static ctl::commands::Command) -> Request {
 }
 
 #[test]
+fn surface_changes_accept_the_on_argument_in_mcp() {
+    for name in [
+        "set-label",
+        "set-label-style",
+        "set-color",
+        "set-image",
+        "set-icon",
+    ] {
+        let command = ctl::commands::find(&format!("surface {name}")).unwrap();
+        let args = json!({"profile": "p", "page": "0123456789abcdef", "surface": "key_face:1", "on": true});
+        let flags = tools::flags(command, args.as_object().unwrap()).unwrap();
+        let params = parse::params(command, &flags, None).unwrap();
+        assert_eq!(params["on"], true);
+        ctl::request(command.method, params).unwrap();
+    }
+}
+
+#[test]
 fn timed_key_gesture_arguments_make_set_and_clear_requests() {
     let command = ctl::commands::find("binding set").unwrap();
     let help = parse::command_help(command);

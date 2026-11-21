@@ -7,7 +7,7 @@
 
 use crate::descriptions::GROUP_MEDIA;
 use crate::kinds::{Kind, Work};
-use opencraft_engine::{Feedback, FeedbackState, KindDescription, Settings};
+use opencraft_engine::{Feedback, FeedbackState, KindDescription, Settings, TwoStates};
 
 /// The kind name.
 pub(crate) const ID: &str = "opencraft.microphone-mute";
@@ -40,6 +40,7 @@ pub(crate) fn description() -> KindDescription {
         name: NAME.into(),
         group: GROUP_MEDIA.into(),
         icon: Some("mic".into()),
+        states: Some(TwoStates { on_label: None }),
         ..KindDescription::default()
     }
 }
@@ -113,7 +114,7 @@ mod tests {
         assert!(description.fields.is_empty());
         assert!(description.shown_when.is_empty());
         assert!(description.direction.is_none());
-        assert!(description.states.is_none());
+        assert_eq!(description.states, Some(TwoStates { on_label: None }));
         assert_eq!(crate::descriptions::description(ID), description);
     }
 

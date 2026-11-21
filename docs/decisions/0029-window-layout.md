@@ -911,11 +911,9 @@ when the "Press" binding of the key is a kind with two states (section 20).
   - Both pictures are images of the engine (rule 11). If the engine sends
     only the image of the current state, #183 adds the image of the other
     state to the engine events.
-- Below, 14 lower: the form.
-  - "Off" selected: the rows of "Appearance" (section 10.2).
-  - "On" selected: the row "Title", which edits the field "Label for on" of
-    the toggle. Below it, the help text "The On face uses the fill and the
-    image of the Off face, with a frame." (`help`, `text-tertiary`).
+- Below, 14 lower: the rows of "Appearance" (section 10.2) for the
+  selected face. For the data and the frame rule, see
+  [decision 0042](0042-gesture-timers.md#4-the-two-faces-of-a-two-state-key-key-09).
 - The second line of the header: "Toggle · the state now is Off" (or "On").
 
 **The toggle in the "Press" card.** The body shows, for each field of input

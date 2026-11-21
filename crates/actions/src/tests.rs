@@ -155,6 +155,21 @@ fn hold_hotkey_presses_on_hold_start_and_releases_on_hold_end_with_on_off_feedba
             }
         );
     };
+    for kind in [
+        crate::kinds::microphone_mute::description(),
+        crate::kinds::hold_hotkey::description(),
+    ] {
+        assert_eq!(
+            kind.states,
+            Some(opencraft_engine::TwoStates { on_label: None })
+        );
+    }
+    rig.handler.handle(Request::Appear {
+        binding,
+        action: hold_action("cmd+space"),
+    });
+    check_feedback(&rig, Off);
+    assert!(rig.system.calls().is_empty());
     rig.handler.handle(Request::HoldStart {
         binding,
         action: hold_action("cmd+space"),
