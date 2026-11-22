@@ -826,17 +826,13 @@ impl DeviceView {
             .map(|position| {
                 let (id, text) = position_segment(position);
                 let selected = position == current;
-                controls::segment(id, text, selected, theme::HEIGHT_SEGMENT_INSPECTOR)
-                    .min_w_0()
-                    .when(!selected, |d| {
-                        d.on_click(cx.listener(move |view, _, window, cx| {
-                            view.set_label_style(LabelChange::Position(Some(Auto::Value(
-                                position,
-                            ))));
-                            view.focus_workspace(window, cx);
-                            cx.notify();
-                        }))
-                    })
+                controls::segment(id, text, selected, theme::HEIGHT_SEGMENT_INSPECTOR).on_click(
+                    cx.listener(move |view, _, window, cx| {
+                        view.set_label_style(LabelChange::Position(Some(Auto::Value(position))));
+                        view.focus_workspace(window, cx);
+                        cx.notify();
+                    }),
+                )
             })
             .collect();
         // In a form, the track has the full width and the border

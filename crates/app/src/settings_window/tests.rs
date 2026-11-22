@@ -1344,9 +1344,7 @@ fn tab_reaches_the_tabs_and_each_control_and_space_operates_them(cx: &mut TestAp
         "settings-tab-general",
         "settings-tab-shortcuts",
         "settings-tab-about",
-        "appearance-system",
-        "appearance-light",
-        "appearance-dark",
+        "appearance",
         "switch-start-at-login",
         "switch-dock-icon",
         "switch-window-at-start",
@@ -1374,16 +1372,18 @@ fn tab_reaches_the_tabs_and_each_control_and_space_operates_them(cx: &mut TestAp
         crate::view::controls::tests::focused(cx).as_deref(),
         Some("switch-dock-icon")
     );
-    // Space on the segment Light changes the appearance at once.
+    // The appearance is a segmented control: one Tab stop, and the right
+    // arrow changes the choice at once (System, then Light).
     let _keep = theme::keep_appearance_for_test();
-    while crate::view::controls::tests::focused(cx).as_deref() != Some("appearance-light") {
+    while crate::view::controls::tests::focused(cx).as_deref() != Some("appearance") {
         cx.simulate_keystrokes("tab");
     }
-    push(cx, "space");
+    cx.simulate_keystrokes("right");
+    cx.run_until_parked();
     assert_eq!(theme::appearance(), theme::Appearance::Light);
     assert_eq!(f.settings_on_disk().appearance, settings::Appearance::Light);
     // Return on a tab shows its pane, and the tab keeps the focus.
-    assert_eq!(focus_order(cx, "shift-tab", 2)[1], "settings-tab-about");
+    assert_eq!(focus_order(cx, "shift-tab", 1), ["settings-tab-about"]);
     push(cx, "enter");
     assert_eq!(f.settings_on_disk().settings_pane, SettingsPane::About);
     assert_eq!(

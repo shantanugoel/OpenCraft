@@ -440,17 +440,15 @@ impl DeviceView {
         .map(|(id, text, option)| {
             let selected = option == reversed;
             let on_change = on_change.clone();
-            controls::segment(id, text, selected, theme::HEIGHT_SEGMENT_INSPECTOR)
-                .min_w_0()
-                .when(!selected, |d| {
-                    d.on_click(cx.listener(move |view, _, window, cx| {
-                        on_change(view, option);
-                        view.close_kinds();
-                        view.sync_form(window, cx);
-                        view.focus_workspace(window, cx);
-                        cx.notify();
-                    }))
-                })
+            controls::segment(id, text, selected, theme::HEIGHT_SEGMENT_INSPECTOR).on_click(
+                cx.listener(move |view, _, window, cx| {
+                    on_change(view, option);
+                    view.close_kinds();
+                    view.sync_form(window, cx);
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                }),
+            )
         })
         .collect();
         form::row(

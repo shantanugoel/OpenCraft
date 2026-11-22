@@ -402,6 +402,7 @@ and card of the window with the keyboard.
 | Go to the previous control | Shift-Tab |
 | Click the control with the focus | Space or Return |
 | Move a slider, for example the brightness | Left arrow or Right arrow |
+| Change the choice of a control, for example Position | Left arrow or Right arrow |
 | Select an item in an open menu | Up arrow or Down arrow, then Space or Return |
 | Select a starter profile in the first start window | The arrow keys |
 
@@ -411,7 +412,9 @@ and card of the window with the keyboard.
 - The inspector moves a control into view when the focus reaches it. It does
   not move back while the control keeps the focus, thus you can also move the
   inspector with the wheel or the scrollbar.
-- Tab goes through the sidebar, the toolbar, the page header, the tabs of
+- A control with several choices, for example Position or the tabs of the
+  right panel, is one stop in the Tab order. The arrow keys change the
+  choice, and the blue ring moves with it.- Tab goes through the sidebar, the toolbar, the page header, the tabs of
   the right panel, and the inspector, in this order. In a sheet, in the
   command palette, and in a popover, Tab stays in that part. When you open
   one of them with the keyboard and then close it, the focus goes back to
