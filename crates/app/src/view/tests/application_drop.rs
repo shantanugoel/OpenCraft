@@ -5,6 +5,7 @@
 //! commands that the window sends; the engine checks the image file itself.
 
 use super::*;
+use crate::pasteboard::{ClipboardImage, SystemClipboard};
 use crate::view::application_drop::DROP_APPLICATION_STEP;
 use gpui_kit::{ExternalPaths, FileDropEvent, PlatformInput};
 use opencraft_engine::InputType;
@@ -220,6 +221,52 @@ fn an_application_dropped_on_a_bar_panel_sets_the_action_and_the_title(cx: &mut 
         commands[1],
         Command::SetLabel {
             surface: bar(),
+            label: Some("Demo".into()),
+        }
+    );
+}
+
+#[gpui_kit::test]
+fn a_pasted_application_bundle_sets_the_action_and_the_title(cx: &mut TestAppContext) {
+    let (view, cx, _tx, sent) = window_with_kind(cx);
+    click(cx, "surface-key face 2");
+    let directory = tempfile::tempdir().unwrap();
+    let bundle = write_bundle(directory.path());
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.state.system_clipboard = SystemClipboard {
+                change_count: 9,
+                image: Some(ClipboardImage::File(bundle.clone())),
+            };
+        });
+    });
+    cx.simulate_keystrokes("cmd-v");
+    cx.run_until_parked();
+    let group = sent
+        .borrow()
+        .iter()
+        .find(|command| matches!(command, Command::Group { .. }))
+        .cloned()
+        .expect("the paste is one step");
+    let Command::Group { name, commands } = group else {
+        unreachable!()
+    };
+    assert_eq!(name, DROP_APPLICATION_STEP);
+    assert!(
+        matches!(
+            &commands[0],
+            Command::SetBinding { action: Some(action), .. }
+                if action.settings.get("application")
+                    == Some(&Value::Text(bundle.to_string_lossy().into_owned()))
+                    && action.settings.get("bundle_id")
+                        == Some(&Value::Text("com.example.demo".into()))
+        ),
+        "{commands:#?}"
+    );
+    assert_eq!(
+        commands[1],
+        Command::SetLabel {
+            surface: key(),
             label: Some("Demo".into()),
         }
     );

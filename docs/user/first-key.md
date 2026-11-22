@@ -213,6 +213,9 @@ in one step.
    onto a key face in the OpenCraft window.
 3. Release the mouse button.
 
+You can also select the application in Finder, push Command-C, select the
+key face in OpenCraft, and push Command-V.
+
 ![A key with the icon and the name of an application, set by a drop from Finder](images/drop-application.png)
 
 The key face shows the icon of the application above the title. The action
@@ -225,7 +228,8 @@ folder, OpenCraft still opens it.
 - The drop replaces the action of **Press**, the title, and the image of
 the key face. One Command-Z (**Undo Drop Application**) restores all of
 them.
-- A drop on a bar panel sets the action "Open an application" on **Tap**.
+- A drop or a paste on a bar panel sets the action "Open an application"
+  on **Tap**.
 - A drop of a folder that does not end with `.app` is an image. OpenCraft
 refuses it with a message above the status bar.
 
