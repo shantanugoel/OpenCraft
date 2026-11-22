@@ -272,13 +272,118 @@ fn the_inspector_of_a_key_has_labels_from_its_rows(cx: &mut TestAppContext) {
 
 #[gpui_kit::test]
 fn the_font_picker_of_a_label_has_labels(cx: &mut TestAppContext) {
-    let (_view, cx, _tx, _sent) = named_window(cx);
+    let (view, cx, _tx, _sent) = named_window(cx);
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.inspector
+                .font_picker
+                .use_fixed_families(fixed_font_families())
+        })
+    });
     click(cx, "surface-key face 2");
     click(cx, "label-font");
     let nodes = frame(cx);
     assert_has(&nodes, Role::Dialog, "Choose a font");
     assert_has(&nodes, Role::SearchInput, "Search fonts");
     assert_has(&nodes, Role::MenuItem, "System font");
+    assert_has(&nodes, Role::MenuItem, "Menlo");
+}
+
+/// The families of a window test: the picker does not need the fonts of the
+/// computer.
+fn fixed_font_families() -> Vec<opencraft_engine::label::FontFamily> {
+    [("Menlo", "Menlo"), ("Avenir Next", "Avenir Next")]
+        .into_iter()
+        .map(|(name, display)| opencraft_engine::label::FontFamily {
+            name: name.into(),
+            display: display.into(),
+        })
+        .collect()
+}
+
+#[gpui_kit::test]
+fn a_family_that_is_not_installed_has_a_readable_hint(cx: &mut TestAppContext) {
+    use opencraft_engine::{Auto, LabelStyle};
+    let (view, cx, tx, _sent) = named_window(cx);
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.inspector
+                .font_picker
+                .use_fixed_families(fixed_font_families())
+        })
+    });
+    click(cx, "surface-key face 2");
+    send(
+        cx,
+        &tx,
+        Event::Surface(SurfaceState {
+            id: key(),
+            content: SurfaceContent {
+                label: Some("Mail".into()),
+                label_style: LabelStyle {
+                    font: Some(Auto::Value("Futura X".into())),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            image: std::sync::Arc::new(RgbImage::new(90, 90)),
+            image_size: None,
+            image_area: None,
+            on_image_size: None,
+            on_image_area: None,
+            states: None,
+        }),
+    );
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::Label, crate::view::font_picker::MISSING_FONT);
+}
+
+#[gpui_kit::test]
+fn the_size_menu_lists_the_sizes_of_a_large_emoji(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = named_window(cx);
+    click(cx, "surface-key face 2");
+    click(cx, "label-size");
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::MenuItem, "10 pt");
+    assert_has(&nodes, Role::MenuItem, "48 pt");
+    assert_has(&nodes, Role::MenuItem, "80 pt");
+}
+
+#[gpui_kit::test]
+fn the_title_style_row_names_the_default_and_the_reset(cx: &mut TestAppContext) {
+    use opencraft_engine::LabelStyle;
+    let (_view, cx, tx, _sent) = named_window(cx);
+    click(cx, "surface-key face 2");
+    let nodes = frame(cx);
+    assert_has(
+        &nodes,
+        Role::Label,
+        "This title follows the profile default.",
+    );
+    send(
+        cx,
+        &tx,
+        Event::Surface(SurfaceState {
+            id: key(),
+            content: SurfaceContent {
+                label: Some("Mail".into()),
+                label_style: LabelStyle {
+                    italic: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            image: std::sync::Arc::new(RgbImage::new(90, 90)),
+            image_size: None,
+            image_area: None,
+            on_image_size: None,
+            on_image_area: None,
+            states: None,
+        }),
+    );
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::Label, "This title has its own style.");
+    assert_has(&nodes, Role::Button, "Reset to the profile default");
 }
 
 #[gpui_kit::test]
@@ -337,7 +442,18 @@ fn the_profile_sheet_is_a_dialog_with_labels(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::TextInput, "Default title font");
     assert_has(&nodes, Role::ComboBox, "Default title size");
     assert_has(&nodes, Role::RadioButton, "Automatic");
+    assert_has(&nodes, Role::RadioButton, "Middle");
+    assert_has(&nodes, Role::RadioButton, "Bottom");
+    assert_has(&nodes, Role::RadioButton, "None");
+    assert_has(
+        &nodes,
+        Role::RadioButton,
+        "Automatic: black or white for the fill",
+    );
     assert_has(&nodes, Role::RadioButton, "Title #FFFFFF");
+    assert_has(&nodes, Role::Button, "Bold");
+    assert_has(&nodes, Role::Button, "Italic");
+    assert_has(&nodes, Role::Button, "Underline");
     assert_has(&nodes, Role::Button, "Reset");
     assert_has(&nodes, Role::Button, "Add an application…");
     assert_has(&nodes, Role::Switch, "Default profile");
