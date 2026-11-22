@@ -785,7 +785,7 @@ fn a_kind_with_two_states_shows_the_appearance_of_each_state(cx: &mut TestAppCon
     assert!(sent.borrow().contains(
         &Command::SetLabelStyle {
             surface,
-            change: opencraft_engine::LabelChange::Bold(false)
+            change: opencraft_engine::LabelChange::Bold(Some(false))
         }
         .for_face(true)
     ));

@@ -1,11 +1,12 @@
 # Ready profiles for Mac applications
 
-Last update: 2026-11-16
+Last update: 2026-11-22
 
 Issue #340 adds six profiles. Each profile links to one Mac application.
 The profile files are in the executable (`crates/app/assets/ready`). The
-schema version is 6, as the engine writes it (decision 0040, a page has an identity). A profile keeps a link only when no profile of the
-model already has that link
+schema version is 8, as the engine writes it (decision 0043, the label style
+of Phase 11). A profile keeps a link only when no profile of the model
+already has that link
 ([decision 0035](../decisions/0035-front-application-selects-the-profile.md),
 section 5). The engine does this in `drop_clashing_links`.
 

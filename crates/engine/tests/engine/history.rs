@@ -201,7 +201,7 @@ fn each_change_of_the_pages_is_undone_and_done_again_in_memory_and_in_the_file()
 
 #[test]
 fn on_face_edits_are_undone_and_redone_on_disk() {
-    use opencraft_engine::{LabelChange, LabelPosition, SurfaceIcon};
+    use opencraft_engine::{Auto, LabelChange, LabelPosition, SurfaceIcon};
     let dir = TempDir::new().unwrap();
     let source = green_file(dir.path());
     for (edit, name) in [
@@ -209,7 +209,7 @@ fn on_face_edits_are_undone_and_redone_on_disk() {
         (
             Command::SetLabelStyle {
                 surface: KEY_3,
-                change: LabelChange::Position(Some(LabelPosition::Top)),
+                change: LabelChange::Position(Some(Auto::Value(LabelPosition::Top))),
             },
             "Set Title Position",
         ),
@@ -700,7 +700,7 @@ fn a_rename_of_the_active_profile_is_not_in_the_history_and_stays_after_an_undo(
 /// one step, in memory and in the file.
 #[test]
 fn each_label_option_is_undone_and_done_again_in_memory_and_in_the_file() {
-    use opencraft_engine::{LabelChange, LabelPosition};
+    use opencraft_engine::{Auto, LabelChange, LabelPosition};
     let style = |change| Command::SetLabelStyle {
         surface: KEY_3,
         change,
@@ -708,17 +708,23 @@ fn each_label_option_is_undone_and_done_again_in_memory_and_in_the_file() {
     let cases = [
         (
             0,
-            style(LabelChange::Position(Some(LabelPosition::Top))),
+            style(LabelChange::Position(Some(Auto::Value(LabelPosition::Top)))),
             "Set Title Position",
         ),
         (
             1,
-            style(LabelChange::Position(Some(LabelPosition::Hidden))),
+            style(LabelChange::Position(Some(Auto::Value(
+                LabelPosition::Hidden,
+            )))),
             "Set Title Position",
         ),
-        (0, style(LabelChange::Size(14)), "Set Title Size"),
-        (0, style(LabelChange::Color(Some(BLUE))), "Set Title Colour"),
-        (1, style(LabelChange::Bold(false)), "Set Title Weight"),
+        (0, style(LabelChange::Size(Some(14))), "Set Title Size"),
+        (
+            0,
+            style(LabelChange::Color(Some(Auto::Value(BLUE)))),
+            "Set Title Colour",
+        ),
+        (1, style(LabelChange::Bold(Some(false))), "Set Title Weight"),
     ];
     for (page, change, name) in cases {
         check(page, change, name);

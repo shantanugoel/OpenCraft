@@ -3,14 +3,14 @@
 //! bold, on a key face and on a bar panel.
 
 use super::*;
-use opencraft_engine::{LabelChange, LabelPosition, LabelStyle};
+use opencraft_engine::{Auto, LabelChange, LabelPosition, LabelStyle};
 
 /// The label style commands in `sent`, for the surface `id`.
 fn changes(sent: &Commands, id: SurfaceId) -> Vec<LabelChange> {
     sent.borrow()
         .iter()
         .filter_map(|c| match c {
-            Command::SetLabelStyle { surface, change } if *surface == id => Some(*change),
+            Command::SetLabelStyle { surface, change } if *surface == id => Some(change.clone()),
             _ => None,
         })
         .collect()
@@ -57,7 +57,7 @@ fn each_position_segment_sets_its_position_on_a_key_face_and_a_bar_panel(cx: &mu
         LabelPosition::ALL
             .into_iter()
             .filter(|p| *p != except)
-            .map(|p| LabelChange::Position(Some(p)))
+            .map(|p| LabelChange::Position(Some(Auto::Value(p))))
             .collect::<Vec<_>>()
     };
     // A key face with no image: the automatic position is the middle, and
@@ -74,7 +74,7 @@ fn each_position_segment_sets_its_position_on_a_key_face_and_a_bar_panel(cx: &mu
 
     // A position of the profile is the selected segment.
     let top = LabelStyle {
-        position: Some(LabelPosition::Top),
+        position: Some(Auto::Value(LabelPosition::Top)),
         ..LabelStyle::default()
     };
     send(cx, &tx, styled(bar(), top, true));
@@ -98,18 +98,19 @@ fn the_size_menu_sets_each_size_and_shows_the_size_of_the_profile(cx: &mut TestA
     }
     let want: Vec<_> = opencraft_engine::LABEL_SIZES
         .into_iter()
-        .map(LabelChange::Size)
+        .map(|size| LabelChange::Size(Some(size)))
         .collect();
     assert_eq!(changes(&sent, key()), want);
 
     // The button shows the size of the profile. Escape closes the menu.
     let small = LabelStyle {
-        size: 14,
+        size: Some(14),
         ..LabelStyle::default()
     };
     send(cx, &tx, styled(key(), small, false));
     cx.update(|_, cx| {
-        let style = view.read(cx).state.surfaces[&key()].content.label_style;
+        let content = &view.read(cx).state.surfaces[&key()].content;
+        let style = content.label_style.resolve(&LabelStyle::default());
         assert_eq!(style.size, 14);
     });
     click(cx, "label-size");
@@ -147,7 +148,7 @@ fn the_colour_popover_sets_automatic_a_sample_or_a_hex_value(cx: &mut TestAppCon
     assert!(cx.debug_bounds("label-colour-popover").is_none());
     // With a colour in the profile, "Automatic" removes it.
     let red = LabelStyle {
-        color: Some(colour(0xb83f4c)),
+        color: Some(Auto::Value(colour(0xb83f4c))),
         ..LabelStyle::default()
     };
     send(cx, &tx, styled(bar(), red, false));
@@ -156,10 +157,10 @@ fn the_colour_popover_sets_automatic_a_sample_or_a_hex_value(cx: &mut TestAppCon
     assert_eq!(
         changes(&sent, bar()),
         [
-            LabelChange::Color(Some(colour(0xffffff))),
-            LabelChange::Color(Some(colour(0x000000))),
-            LabelChange::Color(Some(colour(COLOURS[8]))),
-            LabelChange::Color(Some(colour(0x123456))),
+            LabelChange::Color(Some(Auto::Value(colour(0xffffff)))),
+            LabelChange::Color(Some(Auto::Value(colour(0x000000)))),
+            LabelChange::Color(Some(Auto::Value(colour(COLOURS[8])))),
+            LabelChange::Color(Some(Auto::Value(colour(0x123456)))),
             LabelChange::Color(None),
         ]
     );
@@ -178,14 +179,17 @@ fn the_bold_button_switches_the_weight(cx: &mut TestAppContext) {
     // A label is bold by default: a click makes it regular.
     click(cx, "label-bold");
     let regular = LabelStyle {
-        bold: false,
+        bold: Some(false),
         ..LabelStyle::default()
     };
     send(cx, &tx, styled(key(), regular, false));
     click(cx, "label-bold");
     assert_eq!(
         changes(&sent, key()),
-        [LabelChange::Bold(false), LabelChange::Bold(true)]
+        [
+            LabelChange::Bold(Some(false)),
+            LabelChange::Bold(Some(true))
+        ]
     );
 }
 

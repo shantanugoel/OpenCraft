@@ -71,9 +71,9 @@ pub use error::{Error, Result};
 pub use front::{ActiveCause, FrontApplication};
 pub use icons::{icon_set, Icon, IconCategory, IconSet};
 pub use profile::{
-    ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry, FolderId, LabelChange,
-    LabelPosition, LabelStyle, Page, PageId, ParseFolderIdError, ParsePageIdError, Profile,
-    SurfaceContent, SurfaceIcon, LABEL_SIZES,
+    ApplicationLink, Auto, Background, BackgroundFit, Color, Folder, FolderEntry, FolderId,
+    LabelChange, LabelPosition, LabelStyle, Page, PageId, ParseFolderIdError, ParsePageIdError,
+    Profile, ResolvedLabelStyle, SurfaceContent, SurfaceIcon, LABEL_SIZES,
 };
 pub use profiles::{LinkOwner, ProfileEntry, ProfilesDir};
 pub use render::{icon_color, label_color, page_preview};

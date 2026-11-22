@@ -12,8 +12,8 @@
 use super::*;
 use gpui_kit::{assets::IconName, component::input::AnyInputState, component::Icon};
 use opencraft_engine::{
-    label_color, ControlLayout, DeviceLayout, LabelChange, LabelPosition, SurfaceContent,
-    LABEL_SIZES,
+    label_color, Auto, ControlLayout, DeviceLayout, LabelChange, LabelPosition, LabelStyle,
+    SurfaceContent, LABEL_SIZES,
 };
 
 /// The text colours of the popover of the label colour, before the fill
@@ -61,7 +61,7 @@ impl InspectorState {
             |view, input, event, window, cx| {
                 if matches!(event, TextEvent::PressEnter { .. }) {
                     if let Some(colour) = parse_colour(&input.read(cx).value()) {
-                        view.set_label_style(LabelChange::Color(Some(colour)));
+                        view.set_label_style(LabelChange::Color(Some(Auto::Value(colour))));
                         view.inspector.text_colour_open = false;
                         view.focus_workspace(window, cx);
                         cx.notify();
@@ -111,7 +111,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// `None` is "Automatic".
 fn choose_text_colour(value: Option<Color>, cx: &mut Context<DeviceView>) -> ClickHandler {
     Box::new(cx.listener(move |view, _, window, cx| {
-        view.set_label_style(LabelChange::Color(value));
+        view.set_label_style(LabelChange::Color(value.map(Auto::Value)));
         view.close_kinds();
         view.focus_workspace(window, cx);
         cx.notify();
@@ -442,7 +442,9 @@ impl DeviceView {
                     .min_w_0()
                     .when(!selected, |d| {
                         d.on_click(cx.listener(move |view, _, window, cx| {
-                            view.set_label_style(LabelChange::Position(Some(position)));
+                            view.set_label_style(LabelChange::Position(Some(Auto::Value(
+                                position,
+                            ))));
                             view.focus_workspace(window, cx);
                             cx.notify();
                         }))
@@ -467,7 +469,10 @@ impl DeviceView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let style = content.label_style;
+        // The values that show: the own values of the surface, or else the
+        // engine default until the default title style of the profile comes
+        // (decision 0043).
+        let style = content.label_style.resolve(&LabelStyle::default());
         let bold = style.bold;
         div()
             .flex()
@@ -486,7 +491,7 @@ impl DeviceView {
                     "Bold",
                 )
                 .on_click(cx.listener(move |view, _, window, cx| {
-                    view.set_label_style(LabelChange::Bold(!bold));
+                    view.set_label_style(LabelChange::Bold(Some(!bold)));
                     view.close_kinds();
                     view.focus_workspace(window, cx);
                     cx.notify();
@@ -514,7 +519,7 @@ impl DeviceView {
                         )
                         .child(format!("{item} pt"))
                         .on_click(cx.listener(move |view, _, window, cx| {
-                            view.set_label_style(LabelChange::Size(item));
+                            view.set_label_style(LabelChange::Size(Some(item)));
                             view.close_kinds();
                             view.focus_workspace(window, cx);
                             cx.notify();
@@ -573,7 +578,14 @@ impl DeviceView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let open = self.inspector.text_colour_open;
-        let current = content.label_style.color;
+        // The automatic colour and no own colour are both `None` here: the
+        // default title style of the profile comes in KEY-04.
+        let current = content
+            .label_style
+            .color
+            .as_ref()
+            .and_then(Auto::value)
+            .copied();
         let shown = label_color(content);
         let tooltip = match current {
             Some(colour) => format!("Text colour {}", colour_text(colour)),

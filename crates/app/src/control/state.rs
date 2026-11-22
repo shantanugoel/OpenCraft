@@ -403,13 +403,17 @@ impl w::Surface {
 
 impl w::SurfaceFace {
     fn from_content(c: &e::SurfaceContent) -> Self {
+        // The wire has the values that show, not the own values of the
+        // surface: a part with no own value shows the engine default until
+        // the default title style of the profile comes (decision 0043).
+        let style = c.label_style.resolve(&e::LabelStyle::default());
         Self {
             label: c.label.clone(),
             label_style: w::LabelStyle {
-                position: c.label_style.position.map(Into::into),
-                size: c.label_style.size,
-                color: c.label_style.color.map(|c| c.to_string()),
-                bold: c.label_style.bold,
+                position: style.position.map(Into::into),
+                size: style.size,
+                color: style.color.map(|c| c.to_string()),
+                bold: style.bold,
             },
             color: c.color.map(|c| c.to_string()),
             image: c.image.clone(),

@@ -57,6 +57,8 @@ mod power;
 mod profiles;
 #[path = "engine/results.rs"]
 mod results;
+#[path = "engine/schema.rs"]
+mod schema;
 #[path = "engine/share.rs"]
 mod share;
 #[path = "engine/test_model.rs"]

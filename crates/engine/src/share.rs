@@ -15,7 +15,7 @@
 //! "images/4f1c2a9be07d3356.png" = "iVBORw0KGgo..."
 //!
 //! [profile]
-//! schema_version = 7
+//! schema_version = 8
 //! name = "Work"
 //! model = "n4-pro"
 //!

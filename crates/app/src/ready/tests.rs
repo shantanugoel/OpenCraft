@@ -5,8 +5,8 @@ use super::*;
 use crate::starters::actions;
 use opencraft_actions::hotkey::Hotkey;
 use opencraft_engine::{
-    icon_set, profile::default_model, store::SCHEMA_VERSION, DeviceLayout, FolderId, SurfaceKind,
-    Value,
+    icon_set, profile::default_model, store::SCHEMA_VERSION, DeviceLayout, FolderId, LabelStyle,
+    SurfaceKind, Value,
 };
 
 #[test]
@@ -151,7 +151,7 @@ fn check_surfaces(
             assert!(content.label.is_some(), "{place}: {id:?} has no title");
             assert_eq!(
                 content.icon.as_ref().and_then(|icon| icon.color),
-                content.label_style.color,
+                content.label_style.resolve(&LabelStyle::default()).color,
                 "{place}: {id:?}"
             );
         }
