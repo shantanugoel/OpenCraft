@@ -187,6 +187,8 @@ fn picture_band(size: Size, content: &SurfaceContent, has_picture: bool) -> u32 
         size: style.size,
         bold: style.bold,
         family: style.font.clone(),
+        italic: style.italic,
+        underline: style.underline,
     };
     let width = size.width.saturating_sub(2 * MARGIN);
     label::band_height(text, &font, width, size.height)
