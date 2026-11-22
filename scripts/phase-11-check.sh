@@ -212,8 +212,6 @@ elif [ -d "$PROFILES_SRC" ]; then
     echo "Cannot copy $PROFILES_SRC" >&2
     exit 1
   }
-  # A copy of the lock file is a new file with no lock.
-  rm -f "$SCRATCH_PROFILES/opencraft.lock"
 else
   mkdir -p "$SCRATCH_PROFILES" || exit 1
 fi
@@ -314,14 +312,18 @@ echo "=== Optional checks (they do not stop the release) ==="
 ask_optional "4-appearance" "Switch macOS to the Light appearance and back with the window open (System Settings > Appearance). Does the window change with it?"
 ask_optional "5-voiceover" "Turn VoiceOver on, press Tab and Space a few times in the window, then turn it off. Does it speak sensible labels?"
 
-echo ""
-echo "=== Optional look-ahead for Phase 12: VSD Craft (it opens the device) ==="
-echo "OpenCraft stops now, so that VSD Craft can open the device."
-stop_app
-if [ "$DRY_RUN" -eq 0 ]; then
-  sleep 2
+# With --no-device, the installed OpenCraft can still own the device: do not
+# send the owner to VSD Craft then.
+if [ "$NO_DEVICE" -eq 0 ]; then
+  echo ""
+  echo "=== Optional look-ahead for Phase 12: VSD Craft (it opens the device) ==="
+  echo "OpenCraft stops now, so that VSD Craft can open the device."
+  stop_app
+  if [ "$DRY_RUN" -eq 0 ]; then
+    sleep 2
+  fi
+  ask_optional "6-vsd-export" "Open VSD Craft, export two scenes to files, then quit VSD Craft. Did it write two files?"
 fi
-ask_optional "6-vsd-export" "Open VSD Craft, export two scenes to files, then quit VSD Craft. Did it write two files?"
 
 echo ""
 echo "=== Done ==="
