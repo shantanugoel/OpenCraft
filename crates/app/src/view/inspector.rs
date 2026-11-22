@@ -236,13 +236,19 @@ fn gestures_hint(kind: ControlKind) -> &'static str {
 impl DeviceView {
     /// The content of the tab. It scrolls, and a scrollbar shows when it is
     /// taller than the panel. Thus the user sees that more settings are
-    /// below.
+    /// below. The panel also scrolls to the control that the keyboard focus
+    /// reaches (`reveal`, issue 484).
     pub(super) fn inspector(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let content = if self.device.open {
-            self.device_inspector(window, cx)
-        } else {
-            self.control_inspector(window, cx)
-        };
+        let content = reveal::in_panel(&self.inspector_reveal, || {
+            if self.device.open {
+                self.device_inspector(window, cx)
+            } else {
+                self.control_inspector(window, cx)
+            }
+        });
+        // The focus left the panel in the last frame: it shows the row
+        // that the focus reaches again.
+        self.inspector_reveal.begin_frame();
         div()
             .relative()
             .flex_1()

@@ -10,7 +10,7 @@ use crate::{
     settings::RightPanelTab,
     view::{controls::tests::focused, sidebar::ProfileSettingsRow},
 };
-use gpui_kit::{KeyUpEvent, MouseButton, MouseDownEvent};
+use gpui_kit::{Bounds, KeyUpEvent, MouseButton, MouseDownEvent, Pixels};
 use opencraft_engine::{DeviceSettings, KnobLightMode, KnobLights, LabelChange};
 
 /// A window with two profiles and two pages in the active profile.
@@ -60,13 +60,16 @@ fn order(cx: &mut VisualTestContext, key: &str, count: usize) -> Vec<String> {
 
 /// Press Tab until the control `id` has the focus.
 fn tab_to(cx: &mut VisualTestContext, id: &str) {
-    for _ in 0..80 {
+    let mut seen = Vec::new();
+    for _ in 0..200 {
         keys(cx, "tab");
-        if focused(cx).as_deref() == Some(id) {
+        let focused_id = focused(cx);
+        if focused_id.as_deref() == Some(id) {
             return;
         }
+        seen.push(focused_id);
     }
-    panic!("Tab does not get to {id}");
+    panic!("Tab does not get to {id}: {seen:?}");
 }
 
 #[gpui_kit::test]
@@ -381,4 +384,134 @@ fn tab_stays_in_a_sheet_and_return_does_the_main_action(cx: &mut TestAppContext)
     push(cx, "enter");
     cx.update(|_, cx| assert!(view.read(cx).sheet.profile.is_none()));
     assert!(workspace_has_focus(&view, cx));
+}
+
+/// The scroll of the inspector, and its visible part, in the window.
+fn inspector_scroll(
+    view: &Entity<DeviceView>,
+    cx: &mut VisualTestContext,
+) -> (Pixels, Bounds<Pixels>) {
+    cx.update(|_, cx| {
+        let panel = view.read(cx);
+        (
+            panel.inspector_scroll.offset().y,
+            panel.inspector_scroll.bounds(),
+        )
+    })
+}
+
+/// Draw the frame that follows an input.
+fn draw(cx: &mut VisualTestContext) {
+    cx.simulate_mouse_move(gpui_kit::point(px(4.), px(4.)), None, Modifiers::default());
+    cx.run_until_parked();
+}
+
+/// The bounds of the element `id` in the window.
+fn bounds(cx: &mut VisualTestContext, id: &'static str) -> Bounds<Pixels> {
+    cx.debug_bounds(id)
+        .unwrap_or_else(|| panic!("No element: {id}"))
+}
+
+/// True when `id` shows in the visible part of the inspector.
+fn shows(cx: &mut VisualTestContext, id: &'static str, view: &Entity<DeviceView>) -> bool {
+    let (_, visible) = inspector_scroll(view, cx);
+    let bounds = bounds(cx, id);
+    bounds.top() >= visible.top() && bounds.bottom() <= visible.bottom()
+}
+
+/// A window whose selected key has an open card with many rows, as the
+/// key of the audit had (issue 484): at the minimum size the last gesture
+/// cards start below the visible part of the inspector.
+fn long_inspector(
+    cx: &mut TestAppContext,
+) -> (
+    Entity<DeviceView>,
+    &mut VisualTestContext,
+    async_channel::Sender<Event>,
+) {
+    let (view, cx, tx, _sent) = focus_window(cx);
+    let kind = super::actions::kind();
+    let settings: Settings = kind
+        .fields
+        .iter()
+        .filter_map(|field| Some((field.key.clone(), field.default.clone()?)))
+        .collect();
+    send(cx, &tx, Event::Kinds(vec![kind.clone()]));
+    send(
+        cx,
+        &tx,
+        Event::Binding(BindingState {
+            binding: BindingId {
+                page: 0,
+                control: ControlId::new(ControlKind::Key, 2),
+                gesture: GestureKind::Press,
+                folder: None,
+            },
+            action: Some(Action {
+                kind: kind.kind.clone(),
+                settings,
+            }),
+            available: true,
+            inert_by: None,
+        }),
+    );
+    click(cx, "surface-key face 2");
+    // The head of the card opens it: its rows make the inspector long.
+    click(cx, "gesture-Press-head");
+    click(cx, "surface-key face 2");
+    cx.simulate_resize(size(px(theme::WINDOW_MIN.0), px(theme::WINDOW_MIN.1)));
+    cx.run_until_parked();
+    (view, cx, tx)
+}
+
+#[gpui_kit::test]
+fn the_inspector_scrolls_to_the_control_that_the_focus_reaches(cx: &mut TestAppContext) {
+    let (view, cx, _tx) = long_inspector(cx);
+    assert_eq!(
+        inspector_scroll(&view, cx).0,
+        px(0.),
+        "the inspector starts at the top"
+    );
+    // The last gesture of the key starts below the visible part.
+    assert!(
+        bounds(cx, "gesture-DoublePress-kind").bottom() > inspector_scroll(&view, cx).1.bottom(),
+        "the test needs a control below the visible part"
+    );
+    tab_to(cx, "gesture-DoublePress-kind");
+    assert!(
+        inspector_scroll(&view, cx).0 < px(0.),
+        "the inspector scrolled down in the frame of the key"
+    );
+    // GPUI records the bounds of an element in its prepaint, thus a new
+    // frame shows the place of the row at the new position.
+    draw(cx);
+    assert!(
+        shows(cx, "gesture-DoublePress-kind", &view),
+        "the card shows in the visible part after Tab"
+    );
+    eprintln!(
+        "SECTIONS header {:?} appearance {:?} gestures {:?} card {:?}",
+        cx.debug_bounds("inspector-header"),
+        cx.debug_bounds("appearance"),
+        cx.debug_bounds("gestures"),
+        cx.debug_bounds("gesture-DoublePress-kind")
+    );
+    // Shift-Tab moves the focus up, and the panel follows it: the row of
+    // the card above shows too.
+    keys(cx, "shift-tab");
+    cx.run_until_parked();
+    assert!(shows(cx, "gesture-LongPress-kind", &view));
+}
+
+#[gpui_kit::test]
+fn the_inspector_keeps_the_scroll_while_a_control_keeps_the_focus(cx: &mut TestAppContext) {
+    let (view, cx, _tx) = long_inspector(cx);
+    tab_to(cx, "gesture-DoublePress-kind");
+    cx.run_until_parked();
+    let scrolled = inspector_scroll(&view, cx).0;
+    assert!(scrolled < px(0.));
+    // The panel asks for its new position only when the focus moves to
+    // another control, thus a wheel or a scrollbar keeps the position.
+    cx.run_until_parked();
+    assert_eq!(inspector_scroll(&view, cx).0, scrolled);
 }

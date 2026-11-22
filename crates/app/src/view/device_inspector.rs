@@ -177,13 +177,14 @@ impl DeviceView {
                     .items_center()
                     .justify_between()
                     .child(value_label(HAPTIC))
-                    .child(
+                    .child(super::reveal::row(
+                        HAPTIC,
                         switch("haptic-switch", HAPTIC, on, theme::SWITCH_INSPECTOR).on_click(
                             cx.listener(move |view, _, window, cx| {
                                 view.change_settings(|s| s.haptic = !on, window, cx)
                             }),
                         ),
-                    ),
+                    )),
             )
             .child(form::help(HAPTIC_HELP))
             .into_any_element()
@@ -206,17 +207,22 @@ impl DeviceView {
                 },
             ))
         };
-        let mut section = form::section("knob-lights", "Knob lights", None).child(segmented(
-            "knob-mode",
-            vec![
-                segment_for("knob-effect", "Effect", KnobLightMode::Effect),
-                segment_for("knob-colours", "Colours", KnobLightMode::Colors),
-                segment_for("knob-off", "Off", KnobLightMode::Off),
-            ],
-        ));
+        let mut section =
+            form::section("knob-lights", "Knob lights", None).child(super::reveal::row(
+                "Knob lights",
+                segmented(
+                    "knob-mode",
+                    vec![
+                        segment_for("knob-effect", "Effect", KnobLightMode::Effect),
+                        segment_for("knob-colours", "Colours", KnobLightMode::Colors),
+                        segment_for("knob-off", "Off", KnobLightMode::Off),
+                    ],
+                ),
+            ));
         if mode == KnobLightMode::Colors && !lights.colors.is_empty() {
             section =
-                section.child(
+                section.child(super::reveal::row(
+                    "Knob lights",
                     div()
                         .id("knob-colour-grid")
                         .debug_selector(|| "knob-colour-grid".into())
@@ -226,7 +232,7 @@ impl DeviceView {
                         .children(lights.colors.iter().enumerate().map(|(index, colour)| {
                             self.knob_light_button(index, *colour, window, cx)
                         })),
-                );
+                ));
         }
         section
             .children(self.device.knob_brightness.as_ref().map(|slider| {
@@ -441,38 +447,42 @@ fn slider_row(
     state: &Entity<SliderState>,
     disabled: bool,
 ) -> AnyElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap(theme::SPACE_8)
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .justify_between()
-                .child(value_label(text).when(disabled, |d| d.text_color(theme::text_disabled())))
-                .child(
-                    div()
-                        .id(id)
-                        .debug_selector(move || format!("{id}-value"))
-                        .text_size(theme::TEXT_CONTROL)
-                        .text_color(if disabled {
-                            theme::text_disabled()
-                        } else {
-                            theme::text_secondary()
-                        })
-                        .child(format!("{value} %")),
-                ),
-        )
-        // The thumb is wider than the track, and it is centred on the end
-        // of the track. The inset keeps the thumb inside the section.
-        .child(
-            div().px(theme::SPACE_8).child(
+    super::reveal::row(
+        text,
+        div()
+            .flex()
+            .flex_col()
+            .gap(theme::SPACE_8)
+            .child(
                 div()
-                    .id(SharedString::from(format!("{id}-slider")))
-                    .debug_selector(move || format!("{id}-slider"))
-                    .child(slider(state, text, disabled)),
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(
+                        value_label(text).when(disabled, |d| d.text_color(theme::text_disabled())),
+                    )
+                    .child(
+                        div()
+                            .id(id)
+                            .debug_selector(move || format!("{id}-value"))
+                            .text_size(theme::TEXT_CONTROL)
+                            .text_color(if disabled {
+                                theme::text_disabled()
+                            } else {
+                                theme::text_secondary()
+                            })
+                            .child(format!("{value} %")),
+                    ),
+            )
+            // The thumb is wider than the track, and it is centred on the end
+            // of the track. The inset keeps the thumb inside the section.
+            .child(
+                div().px(theme::SPACE_8).child(
+                    div()
+                        .id(SharedString::from(format!("{id}-slider")))
+                        .debug_selector(move || format!("{id}-slider"))
+                        .child(slider(state, text, disabled)),
+                ),
             ),
-        )
-        .into_any_element()
+    )
 }

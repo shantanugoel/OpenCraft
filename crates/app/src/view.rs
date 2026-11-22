@@ -35,6 +35,7 @@
 //! | `permission_sheet` | The Accessibility request of the first action that needs it |
 //! | `controls` | Controls that more than one part uses |
 //! | `focus_return` | The focus goes back to the control that opened a popover, a sheet, or the palette |
+//! | `reveal` | The inspector scrolls to the control that the keyboard focus reaches |
 //! | `theme` | The visual constants |
 
 use crate::{
@@ -91,6 +92,7 @@ mod panes;
 mod permission_sheet;
 mod profile_sheet;
 mod repaint;
+mod reveal;
 mod right_panel;
 mod screen_off;
 mod sidebar;
@@ -169,8 +171,12 @@ pub struct DeviceView {
     permission: permission_sheet::PermissionSheet,
     faces: states::StateFaces,
     /// The scroll position of the inspector. It shows a scrollbar when its
-    /// content is taller than the window.
+    /// content is taller than the window, and it follows the keyboard focus
+    /// (`reveal`, issue 484).
     inspector_scroll: ScrollHandle,
+    /// The rows of the inspector that show themselves when the keyboard
+    /// focus reaches them (`reveal`, issue 484).
+    inspector_reveal: Rc<reveal::Panel>,
     /// Gives the focus back when the element with the focus is not drawn
     /// any more, for example a button that a Space removed.
     _focus_lost: Subscription,
@@ -257,6 +263,7 @@ impl DeviceView {
         if state.permission_request.is_some() {
             window.focus(&permission.focus, cx);
         }
+        let inspector_scroll = ScrollHandle::new();
         let mut view = Self {
             state,
             shell: shell.clone(),
@@ -285,7 +292,8 @@ impl DeviceView {
             palette: palette::Palette::new(window, cx),
             permission,
             faces,
-            inspector_scroll: ScrollHandle::new(),
+            inspector_scroll: inspector_scroll.clone(),
+            inspector_reveal: reveal::Panel::new(inspector_scroll),
             _focus_lost: focus_lost,
             _focus_return: focus_return,
             repaint: repaint::Repaint::default(),

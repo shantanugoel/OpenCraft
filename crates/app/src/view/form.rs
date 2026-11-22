@@ -84,7 +84,7 @@ pub(super) fn header(
                         .child(second_line),
                 ),
         )
-        .children(end)
+        .children(end.map(|end| super::reveal::row("header-end", end)))
 }
 
 /// The "⋯" button of the header of a control, 28 × 28. `label` is the
@@ -149,19 +149,31 @@ pub(super) fn form(gap: Pixels) -> Div {
 /// A row of a form: the label in a column of `label_width`, and the value
 /// in the rest of the width. The label and the value are centred
 /// vertically. `gap` is the gap between the columns, as in [`form`].
+///
+/// The value is a row of the inspector panel: the panel scrolls to it when
+/// the keyboard focus reaches it ([`reveal`](super::reveal)).
 pub(super) fn row(
     label: impl Into<SharedString>,
     label_width: Pixels,
     gap: Pixels,
     value: impl IntoElement,
 ) -> Div {
+    let label: SharedString = label.into();
+    let key = label.clone();
     div()
         .flex_shrink_0()
         .flex()
         .items_center()
         .gap(gap)
         .child(label_cell(label, label_width))
-        .child(div().flex_1().min_w_0().flex().items_center().child(value))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .items_center()
+                .child(super::reveal::row(key, value)),
+        )
 }
 
 /// A row of a form for a value of more than one line, for example a text
@@ -173,13 +185,21 @@ pub(super) fn top_row(
     gap: Pixels,
     value: impl IntoElement,
 ) -> Div {
+    let label: SharedString = label.into();
+    let key = label.clone();
     div()
         .flex_shrink_0()
         .flex()
         .items_start()
         .gap(gap)
         .child(label_cell(label, label_width).pt(theme::SPACE_6))
-        .child(div().flex_1().min_w_0().flex().child(value))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .child(super::reveal::row(key, value)),
+        )
 }
 
 /// A row of a form, as [`row`]. If the label is wider than its column, the
@@ -221,18 +241,28 @@ fn label_fits(label: &SharedString, width: Pixels, window: &Window) -> bool {
 /// A row of a form with no label, and the value at the trailing end, for
 /// example the button "Test the action" (#188).
 pub(super) fn end_row(label_width: Pixels, gap: Pixels, value: impl IntoElement) -> Div {
+    let key = SharedString::from("row-end");
     div()
         .flex_shrink_0()
         .flex()
         .items_center()
         .gap(gap)
         .child(div().flex_shrink_0().w(label_width))
-        .child(div().flex_1().min_w_0().flex().justify_end().child(value))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .justify_end()
+                .child(super::reveal::row(key, value)),
+        )
 }
 
 /// A row with the label above the value, gap 6: for a value that needs the
 /// full width, for example a nested card (section 10.5).
 pub(super) fn stacked_row(label: impl Into<SharedString>, value: impl IntoElement) -> Div {
+    let label: SharedString = label.into();
+    let key = label.clone();
     div()
         .flex_shrink_0()
         .flex()
@@ -242,9 +272,9 @@ pub(super) fn stacked_row(label: impl Into<SharedString>, value: impl IntoElemen
             div()
                 .text_size(theme::TEXT_LABEL)
                 .text_color(theme::text_secondary())
-                .child(label.into()),
+                .child(label),
         )
-        .child(value)
+        .child(super::reveal::row(key, value))
 }
 
 /// The label of a row: `label`, `text-secondary`. A long label wraps.

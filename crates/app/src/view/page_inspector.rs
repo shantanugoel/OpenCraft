@@ -816,8 +816,12 @@ impl DeviceView {
         };
         Some(
             form::section("background", "Background", None)
-                .child(segments)
-                .children(body.map(|body| div().mt(theme::SPACE_12).child(body)))
+                .child(super::reveal::row("Background", segments))
+                .children(body.map(|body| {
+                    div()
+                        .mt(theme::SPACE_12)
+                        .child(super::reveal::row("Background", body))
+                }))
                 .child(
                     form::help(
                         "The background shows around and behind each key face and bar panel.",

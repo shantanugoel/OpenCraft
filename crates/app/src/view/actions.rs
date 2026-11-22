@@ -1302,8 +1302,12 @@ impl DeviceView {
                 .on_menu(cx.listener(move |view, _, window, cx| {
                     view.toggle_menu(toggle.clone(), window, cx)
                 }));
+        // Each card is a row of the inspector panel: the panel scrolls to
+        // the card when the keyboard focus reaches one of its controls
+        // (issue 484).
+        let reveal = SharedString::from(format!("card-{id}"));
         let Some(current) = current else {
-            return card.into_any_element();
+            return super::reveal::row(reveal, card);
         };
         let open = self.state.gesture == Some(gesture);
         // The open card shows the edits in flight.
@@ -1313,7 +1317,7 @@ impl DeviceView {
             current.action.clone()
         };
         let Some(action) = action else {
-            return card.into_any_element();
+            return super::reveal::row(reveal, card);
         };
         let (lead, rows) = if open {
             (
@@ -1352,7 +1356,7 @@ impl DeviceView {
                 view.show_message(text, window, cx);
             }));
         }
-        card.children(rows).into_any_element()
+        super::reveal::row(reveal, card.children(rows))
     }
 
     /// The kind menu `menu`, if it is open: one row for each kind, and with

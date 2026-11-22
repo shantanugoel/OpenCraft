@@ -461,8 +461,11 @@ impl DeviceView {
                 .on_menu(cx.listener(move |view, _, window, cx| {
                     view.toggle_menu(toggle.clone(), window, cx)
                 }));
+        // The card is a row of the inspector panel that the keyboard focus
+        // shows (issue 484).
+        let reveal = SharedString::from(format!("card-{id}"));
         let Some(action) = action else {
-            return card.into_any_element();
+            return super::reveal::row(reveal, card);
         };
         let available = self.kind(&action.kind).is_some();
         let open = self.form.nested.open.contains(&path);
@@ -483,11 +486,13 @@ impl DeviceView {
             None => card,
         };
         if !open {
-            return card.into_any_element();
+            return super::reveal::row(reveal, card);
         }
-        card.lead(self.step_lists(&body_path, action, available, window, cx))
-            .children(self.action_rows(&body_path, action, available, window, cx))
-            .into_any_element()
+        super::reveal::row(
+            reveal,
+            card.lead(self.step_lists(&body_path, action, available, window, cx))
+                .children(self.action_rows(&body_path, action, available, window, cx)),
+        )
     }
 
     pub(super) fn is_turn_list(&self, action: &Action, key: &str) -> bool {

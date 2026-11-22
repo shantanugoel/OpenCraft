@@ -1353,6 +1353,24 @@ The guard of `view/repaint.rs` (issue #321) is in the application:
   the choice in Settings > General. The window test covers the observer path
   with the function that the observer calls.
 
+## A panel that follows the keyboard focus (2026-11-22)
+
+**Source; Measured.** The facts of the panel that scrolls to the control that
+the keyboard focus reaches (`crates/app/src/view/reveal.rs`, issue #484). The
+window tests are
+`view::tests::focus::the_inspector_scrolls_to_the_control_that_the_focus_reaches`
+and `the_inspector_keeps_the_scroll_while_a_control_keeps_the_focus`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| GPUI moves the Tab focus, but no element scrolls a panel to the focused control: the child of a `track_scroll` element that overflows does not ask for a scroll. `Window::request_autoscroll` is the general request of an element for a scroll during prepaint, and only `List` calls `Window::take_autoscroll`, thus a `div` with `overflow` ignores the request. | Source | `gpui-pre` 0.3.12 `src/elements/div.rs`, `prepaint`; `src/elements/list.rs`, `List`; `src/window.rs`, `request_autoscroll` |
+| `Window::set_focus_handle` in the `prepaint` of a custom element writes the focus id of the dispatch node that the element tree made for the element. Thus the element is the ancestor of the controls inside it in the focus path, and `FocusHandle::contains_focused` (`FocusId::contains`, the focus path of the frame that was drawn) returns true when the focus is inside. A `FocusHandle` that an element state keeps does not need `tab_index`, thus the element is a group and not a Tab stop. | Source; Measured | `src/window.rs`, `set_focus_handle`, `FocusId::contains`; `crates/app/src/view/reveal.rs`, `Row` |
+| The `Bounds` that an element gets in `prepaint` (and `Window::layout_bounds`) are in window coordinates: `layout_bounds` adds the offset of the element stack, which includes the scroll offset. Thus a row of a scrolled panel compares its bounds with `ScrollHandle::bounds()` as they are, and no scroll position is added. | Source; Measured | `src/window.rs`, `layout_bounds`, `with_element_offset`; window test of issue 484 |
+| `ScrollHandle::bounds()` and `ScrollHandle::max_offset()` hold the values of the last `paint` of the element with `track_scroll`, because `clamp_scroll_position` runs in `paint`. A part reads them in its own draw, thus they can be one frame old. | Source | `src/elements/div.rs`, `clamp_scroll_position` |
+| A `RenderOnce` component (for example a `GestureCard`) runs its `render` in the `request_layout` of the frame, not in the build of the part that makes it. A value that a part puts in a thread-local during its own render is not there when the component builds its children. The card of the gesture is thus made a row by its caller, and not by its own code. | Source; Measured | `src/element.rs`, `Drawable::request_layout`; `crates/app/src/view/actions.rs`, `gesture_card`; window test of issue 484 |
+| A row that sets the scroll offset in its own `prepaint` moves the frame that shows the key: `Div::paint` reads the offset after the prepaint of the children (`clamp_scroll_position`), and it paints each child with that offset. The layout and the hitboxes of that frame keep the place of the prepaint, because they were made before the new offset; the frame after it has the correct bounds. Thus the window test reads the place of a row in the next frame (`debug_bounds`). `Window::refresh` does nothing in a draw (`invalidator.not_drawing` is false), so a part cannot ask for that frame. | Source; Measured | `src/elements/div.rs`, `paint`, `prepaint`; `src/window.rs`, `refresh`; `crates/app/src/view/reveal.rs`; window test of issue 484 |
+| A part must scroll only when the focus moves to another control. A panel that scrolls at each frame takes the position back when the user moves the wheel or the scrollbar while a control keeps the focus. | Measured | `the_inspector_keeps_the_scroll_while_a_control_keeps_the_focus` |
+
 ## Sources
 
 [registry]: <https://crates.io/crates/gpui-pre>
