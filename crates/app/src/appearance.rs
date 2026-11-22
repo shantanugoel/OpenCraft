@@ -22,9 +22,25 @@ use crate::settings::Appearance as Choice;
 use crate::shell::Shell;
 use crate::view::theme::{self, Appearance};
 use gpui_kit::{
-    component::{Theme, ThemeMode},
+    component::{input::CursorBlink, Theme, ThemeMode},
     App, Entity, WeakEntity, Window, WindowAppearance,
 };
+use std::time::Duration;
+
+/// One phase of the blink of the caret of a text field: the caret shows, then
+/// it hides. The kit uses this value for the blink of a text field.
+const CARET_BLINK: Duration = Duration::from_millis(500);
+
+/// The time with no change after which the caret of a text field stops
+/// blinking and stays visible. Each blink draws the whole window, thus an
+/// idle window with the focus in a text field would draw two frames each
+/// second for as long as it is open. Issue #459 measures the idle cost.
+pub(crate) const CARET_IDLE: Duration = Duration::from_secs(5);
+
+/// The blink of the caret of a text field: a phase each [`CARET_BLINK`], and
+/// a steady caret after [`CARET_IDLE`] with no keystroke or cursor movement.
+pub(crate) const CARET: CursorBlink =
+    CursorBlink::blinking(CARET_BLINK).with_idle_timeout(CARET_IDLE);
 
 /// The palette of the window for `choice`, when the window of macOS has
 /// `system`.
@@ -79,6 +95,14 @@ pub fn refresh(choice: Choice, system: WindowAppearance, cx: &mut App) {
     // kit changes nothing.
     if changed || Theme::global(cx).mode != mode {
         Theme::change(mode, None, cx);
+    }
+    // A caret that blinks draws the window two times each second, and it
+    // does not stop while the text field keeps the focus. Stop it after
+    // `CARET_IDLE` with no change, thus an idle window draws no frames
+    // (issue #459).
+    if Theme::global(cx).cursor_blink != CARET {
+        Theme::global_mut(cx).cursor_blink = CARET;
+        Theme::sync_base(cx);
     }
     cx.refresh_windows();
 }

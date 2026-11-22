@@ -60,18 +60,64 @@ the process.
   sample is above 0.2 %. It meets the target of less than 0.5 % of one core.
   (Measured)
 - With the window open and about 70 % of it not covered, the mean is 0.50 %
-  (1.51 s in 300 seconds) and one sample reached 1.4 %. The main thread draws
-  while the window is visible: in one control of 30 seconds it used 0.09 s
-  (0.3 % of one core), and the engine and clock threads used 0.05 s and less.
-  The value is at the target, not below it. A window that is covered draws no
-  frames: the Phase 10 measurement had 0.14 % with such a window, and the
-  measurement of the clock key below had 0.08 %. (Measured; Inference for the
-  cause)
-- A footprint measurement must record the power state of the machine, and if
-  the window was on the screen and how much of it was visible. Without these
-  two facts, the values of two runs are not comparable: the difference
-  between 0.08 % and 0.50 % of one core is the drawing of a visible window,
-  and not a change in the program. (Inference from Measured)
+  (1.51 s in 300 seconds) and one sample reached 1.4 %. The value is at the
+  target, not below it. (Measured)
+  A later measurement gives 0.13 to 0.18 % for a window in the same
+  condition: see
+  [the processor use of the window when nothing changes](#the-processor-use-of-the-window-when-nothing-changes-2026-11-22).
+  An idle window draws no frames
+  ([gpui.md](gpui.md#an-idle-window-draws-no-frames-2026-11-22)), thus the
+  drawing of a visible window is not the cause of 0.50 %. The run of 300
+  seconds had a source of about 1 frame each second. The likely source is
+  the blink of the caret of a text field: it draws 2 frames each second and
+  no part of that run recorded the focus. (Inference from Measured)
+- A footprint measurement must record the power state of the machine, if
+  the window was on the screen and how much of it was visible, and if a text
+  field had the focus. Without these facts, the values of two runs are not
+  comparable: the caret blink adds up to 1.4 % of one core, and the
+  difference between 0.08 % and 0.50 % of one core is one source of frames
+  in one session, not a change in the program. (Inference from Measured)
+
+### The processor use of the window when nothing changes (2026-11-22)
+
+The window processor use of the measurement above (0.50 %) is not the
+drawing of the window. Each case below is a new process with one scratch
+profile, 25 samples in 120 seconds, 60 seconds after the start. The window
+was on the screen and was not the key window. The binary of `origin/main`
+is the release build at `8be6b70`, and the profile has one clock key.
+
+| Case | Processor time | Use, mean | Use, maximum of one sample | Confidence |
+|---|---|---|---|---|
+| `origin/main`, window, no device | 0.21 s | 0.175 % | 0.6 % | Measured |
+| Release 0.6.0, window, no device | 0.16 s | 0.133 % | 0.2 % | Measured |
+| `origin/main`, window, N4 Pro connected | 0.18 s | 0.150 % | 0.4 % | Measured |
+| Release 0.6.0, window, N4 Pro connected | 0.19 s | 0.165 % | 0.2 % | Measured |
+| `origin/main`, window, no device, profile with an image, an emoji, 4 labels and 2 clock keys | 0.17 s | 0.142 % | 0.4 % | Measured |
+| `origin/main`, window, no device, the Title field has the focus (the caret blinks) | 1.89 s | 1.575 % | 2.0 % | Measured |
+| `origin/main` with the idle time of the caret, same state | 0.22 s | 0.183 % | 0.4 % | Measured |
+
+- An idle window of Phase 11 uses 0.13 to 0.18 % of one core, with the
+  window on the screen, not the key window, with and with no device. Release
+  0.6.0 uses the same value: there is no regression from 0.6.0 to Phase 11
+  in the idle window. The value meets the target of less than 0.5 % of one
+  core. (Measured)
+- An idle window draws no frames: 5 frames in 105 seconds, and each is the
+  start, a change of the activation or the visibility, or the clock key at a
+  new minute. See
+  [gpui.md](gpui.md#an-idle-window-draws-no-frames-2026-11-22) for the
+  source. Thus a window with nothing changing costs no frame.
+  (Measured; Source for the mechanism)
+- The highest sample of a run is the clock key at a new minute: one draw of
+  the whole window, 20 to 30 ms, which is one sample of 0.4 to 0.6 % in a
+  5-second interval. (Measured)
+- The caret of a text field draws 2 frames each second while the field has
+  the focus, and it does not stop. A window with the focus in the Title
+  field used 1.575 % of one core, which is above the target. The change of
+  issue #459 stops the blink 5 seconds after the last keystroke and keeps
+  the caret visible: the same state then used 0.183 %, and the frames stop.
+  (Measured)
+- A measurement of a window with a text field must record if the field has
+  the focus. (Inference from Measured)
 
 ### The clock key alone (2026-11-22)
 

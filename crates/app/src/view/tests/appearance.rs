@@ -155,3 +155,25 @@ fn a_change_of_the_appearance_of_macos_changes_the_palette(cx: &mut TestAppConte
     assert_eq!(theme::appearance(), theme::Appearance::Dark);
     assert!(painted(cx, theme::bg_canvas()));
 }
+
+/// The caret of a text field stops when the field is idle: each blink draws
+/// the whole window, thus a window with the focus in a text field would draw
+/// two frames each second with no change (issue #459). The kit's own tests
+/// check that a policy with an idle time keeps the caret visible and stops.
+#[gpui_kit::test]
+fn the_caret_of_a_text_field_stops_when_the_field_is_idle(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = window(cx);
+    let _keep = theme::keep_appearance_for_test();
+    cx.update(|_, cx| appearance::refresh(Choice::Dark, WindowAppearance::Dark, cx));
+    let policy = cx.update(|_, cx| gpui_kit::component::Theme::global(cx).cursor_blink);
+    assert_eq!(policy, appearance::CARET);
+    assert_eq!(
+        policy.idle_timeout(),
+        Some(appearance::CARET_IDLE),
+        "a caret that never stops draws an idle window"
+    );
+    assert!(
+        !policy.is_steady(),
+        "the caret must blink while the person types"
+    );
+}

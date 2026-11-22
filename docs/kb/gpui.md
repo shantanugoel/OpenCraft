@@ -1312,6 +1312,27 @@ The guard of `view/repaint.rs` (issue #321) is in the application:
 - Whether the fault of issue #321 was a stale frame. If it was, the guard
   makes the window draw. The fault of the owner was not seen again.
 
+## An idle window draws no frames (2026-11-22)
+
+These facts are for
+[issue #459](https://github.com/shantanugoel/OpenCraft/issues/459). The
+checks used the release build of `origin/main` at `8be6b70` and the release
+build of the tag `v0.6.0`, a scratch `OPENCRAFT_PROFILES_DIR` and the GUI
+lock. A temporary counter in `DeviceView::render` and in `view/repaint.rs`,
+behind the environment variable `OPENCRAFT_REDRAW_TRACE`, gave the frame
+counts. The counter is not in the code.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A window that is on the screen does not draw at a frame rate. The `CAMetalDisplayLink` of the window asks GPUI for a frame at each update. GPUI draws only for a demand: a dirty window, a forced render, a waiting next-frame callback, a presentation that is owed, or input at a high rate. With no demand, `MetalFrames::end_frame` pauses the link, and the link sends no update until `MetalFrames::wake`. | Source | `gpui-pre-macos` 0.3.12 `src/display_link.rs`, `MetalFrames`; `src/window.rs`, `metal_frame`; `gpui-pre` 0.3.12 `src/window.rs`, `on_request_frame` |
+| The main thread of an idle window waited in `mach_msg` in every sample of `sample <pid> 10`. | Measured | `sample` of the main thread |
+| An idle window drew 5 frames in 105 s: 3 at the start (2 before the window was visible, 1 after the activation and the visibility change) and 1 for each of the 2 engine events of the clock key at a new minute. A profile with an image, an emoji, 4 labels and 2 clock keys also drew 5 frames in 105 s. | Measured | Counter; scratch profiles; no device |
+| An idle window with the N4 Pro connected drew 5 frames in 120 s: the link keep-alive of the engine each 10 s, and the reports of the device, asked for no frame. | Measured | Counter; N4 Pro connected |
+| The caret of a text field of the kit blinks with a phase of 500 ms and never stops (`CursorBlink::default`). Each phase notifies the text field, and the view draws a whole frame. A window with the focus in the Title field drew 273 frames in 140 s, that is 2.0 frames each second, and used 1.575 % of one core (1.89 s in 120 s). | Measured | Counter; `gpui-base` 0.9.1 `src/input/base/blink_cursor.rs`, `INTERVAL`, `CursorBlink::default` |
+| The kit gives the policy `CursorBlink::with_idle_timeout`: after the time with no keystroke or cursor movement, the caret stays visible and the blink stops. With `blinking(500 ms).with_idle_timeout(5 s)`, the same state drew 16 frames in 140 s and used 0.183 % of one core. | Measured; Source | Counter; `blink_cursor.rs`, `blink_delay` |
+| A measurement of the idle processor use must record if a text field has the focus: the caret blink adds up to 1.4 % of one core, and a window with no focus does not show it. | Measured | The two runs above |
+| Two pictures of the window 0.55 s apart differ in one column of 1 × 17 pixels at the caret of the Title field, and two pictures 8 s apart are the same. The caret is visible in both pictures. | Measured | Window pictures with cua-driver, scratch profile, no device |
+
 ## Platform functions and CI
 
 | Fact | Confidence | Source |
