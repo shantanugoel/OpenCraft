@@ -9,9 +9,9 @@
 //!
 //! The engine decodes and copies the image (rule 9). Thus the window
 //! writes the icon bytes to a temporary file and sends the existing
-//! `Command::SetImage`, as a paste does: the file goes away when the engine
-//! sends the surface, when a problem names it, or at the stop. The
-//! commands are one step of the history, "Drop Application".
+//! `Command::SetImage`, as a paste does: the shell removes the file when the
+//! engine has read it. The commands are one step of the history, "Drop
+//! Application".
 
 use super::library::{assigned_text, first_gesture};
 use super::*;
@@ -117,21 +117,31 @@ impl DeviceView {
                 }
             }
         });
+        let temporary = icon.clone();
         self.drop_edits(&[binding]);
-        self.one_step(DROP_APPLICATION_STEP, |view| {
+        let group = self.one_step_command(DROP_APPLICATION_STEP, |view| {
             (view.send)(Command::SetBinding {
                 binding,
                 action: Some(action),
             });
             view.set_title(surface, Some(title));
             if let Some(path) = icon {
-                view.pending_images.push(PendingImage {
-                    path: path.clone(),
-                    surface,
-                });
                 view.set_image_path(surface, path);
             }
         });
+        match (group, temporary) {
+            (Some(group), icon) => {
+                (self.send)(group);
+                if let Some(path) = icon {
+                    self.shell
+                        .update(cx, |shell, _| shell.remove_when_read(vec![path]));
+                }
+            }
+            (None, Some(path)) => {
+                let _ = std::fs::remove_file(path);
+            }
+            (None, None) => {}
+        }
         self.sync_form(window, cx);
         self.show_message(assigned_text(control, &kind_name, gesture_name), window, cx);
         cx.notify();

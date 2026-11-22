@@ -192,6 +192,15 @@ fn a_key_drag_shows_the_drop_target_on_key_faces_only(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn a_drag_keeps_the_plus_icon_of_an_empty_key_that_is_not_the_target(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = three_key_window(cx);
+    // An unrelated drag hides no plus icon on the other key faces (review 1,
+    // M5).
+    drag_over(cx, "surface-key face 2", "surface-key face 4");
+    assert!(cx.debug_bounds("empty-key face 8").is_some());
+}
+
+#[gpui_kit::test]
 fn the_drop_is_one_step_and_undo_sends_the_command(cx: &mut TestAppContext) {
     let (_view, cx, tx, sent) = three_key_window(cx);
     drag_to(cx, "surface-key face 2", "surface-key face 4");

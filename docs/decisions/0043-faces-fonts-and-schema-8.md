@@ -354,10 +354,21 @@ KEY-01 and KEY-13 change only `crates/app`. The engine, the control protocol,
 the CLI, and the MCP do not change.
 
 - The temporary file is in the system temporary directory, with a name from
-  random hexadecimal digits. The shell removes it when the engine sends
-  `Event::Surface` for the destination control, or a `Problem` for the
-  command, and at the stop. A crash can leave a file for each paste that did
-  not complete. The file is in the temporary directory, not in the profile.
+  random hexadecimal digits. The shell owns it, not the window. After the
+  command that reads it, the shell sends `Command::ReadCounters`: the engine
+  obeys the commands in order, thus the reply `Event::Counters` proves that
+  the engine read the file. The shell then removes it. This covers a paste of
+  the image that the surface already has, because the engine sends no surface
+  then, and it covers a close of the window while the engine still reads the
+  file. A crash can leave a file for each paste that did not complete. The
+  file is in the temporary directory, not in the profile.
+- **Amended on 2026-11-22 (review 1).** The shell used to remove the file on
+  the first `Event::Surface` of the destination control, or on a `Problem`
+  that named it, or at the close of the window. A surface of an earlier
+  change could delete a new file before the engine read it, a paste of the
+  image that was already there left the file, and the close of the window
+  raced with the engine. The shell is the only sender of `Command::ReadCounters`
+  in the application, thus this barrier is exact.
 - The `image` crate gets the features `bmp`, `webp`, and `tiff`. `tiff` is
   necessary because a copy from Preview or another Cocoa application is often
   TIFF only. `tiff` and `image-webp` are already in `Cargo.lock` through
@@ -374,8 +385,8 @@ the CLI, and the MCP do not change.
 **The system pasteboard.**
 
 - The app reads `NSPasteboard` through `objc2-app-kit` with the `NSPasteboard`
-  feature. That feature adds no crate. The app reads the change count, the file
-  paths, and the image types.
+  feature. That feature adds no crate. A frame and a menu read only the change
+  count, the file paths, and the image types. The bytes come at a paste.
 - Do not use the entry order of gpui. gpui returns a string before an image
   (`gpui-pre-macos-0.3.12/src/pasteboard.rs:57-109`). A browser can put text
   and an image on the pasteboard together.
@@ -387,10 +398,16 @@ the CLI, and the MCP do not change.
   the control. The control clipboard is in the engine, and a copy does not
   change the system pasteboard.
 - If the system pasteboard has no image, a paste on a surface uses the control
-  as today. A system item with a file path to an image, or with image bytes,
-  sets the image. A text item does not set an image; a text field keeps its
-  normal paste. An empty control clipboard and a system image give the system
-  image.
+  as today. A system item with a file path to an image, to an application
+  bundle, or with image bytes, sets the image or the Open action. A text item
+  does not set an image; a text field keeps its normal paste. A file path that
+  is not an image and not an application bundle gives no system item, also
+  when Finder puts a TIFF icon of the file on the pasteboard: it must not hide
+  a copy of a control. An empty control clipboard and a system image give the
+  system image.
+- The right-click menu and the "⋯" menu read the pasteboard before they build
+  the Paste item, because a copy in another application can arrive after the
+  last frame.
 - The application icon of KEY-13 is a 256-pixel PNG. The picker icon stays 32
   pixels (`crates/app/src/applications.rs:515`). The icon uses the same
   temporary file and `SetImage` path. The icon extraction is

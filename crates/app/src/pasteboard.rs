@@ -7,8 +7,10 @@
 //! pasteboard item is newer than a copy of a control in the engine.
 //!
 //! The engine decodes the image and copies it into the profile (rule 9).
-//! Thus the window reads the bytes only and writes them to a temporary
-//! file. The engine gets the existing `Command::SetImage` with that path.
+//! Thus the window reads the bytes only when the user pastes, writes them to
+//! a temporary file, and sends the existing `Command::SetImage` with that
+//! path. A frame and a menu read only the change count and the kinds of the
+//! item.
 
 use std::{fs, io::Write, path::PathBuf};
 
@@ -22,9 +24,19 @@ pub(crate) enum ClipboardImage {
         bytes: Vec<u8>,
         extension: &'static str,
     },
-    /// The path of a file on the system pasteboard. The engine checks if it
-    /// is an image, and refuses it with the usual problem if it is not.
+    /// The path of a file on the system pasteboard.
     File(PathBuf),
+}
+
+/// What the system pasteboard has, without the image bytes. A frame reads
+/// this: the bytes come only at a paste.
+#[cfg_attr(not(any(test, target_os = "macos")), expect(dead_code))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ClipboardItem {
+    /// The path of an image file or of an application bundle (KEY-13).
+    File(PathBuf),
+    /// Image data on the pasteboard, in the format of `extension`.
+    Data { extension: &'static str },
 }
 
 /// The system pasteboard as the window last read it.
@@ -34,13 +46,27 @@ pub(crate) struct SystemClipboard {
     /// the count of its time. A different count means that the pasteboard
     /// item is newer.
     pub change_count: i64,
+    /// What the pasteboard has, without the image bytes. A frame and a menu
+    /// read this.
+    pub item: Option<ClipboardItem>,
+    /// The image with its bytes, when the user pasted it. A frame does not
+    /// read it. A test sets it.
     pub image: Option<ClipboardImage>,
 }
 
 impl SystemClipboard {
-    /// True if the pasteboard holds an image or a file path.
+    /// True if the pasteboard holds an image, an application bundle, or the
+    /// data of an image.
     pub(crate) fn has_image(&self) -> bool {
-        self.image.is_some()
+        self.item.is_some() || self.image.is_some()
+    }
+
+    /// The image of the pasteboard, with its bytes. On macOS, this reads the
+    /// bytes now, when the user pastes. A test gives `image` itself.
+    pub(crate) fn image(&self) -> Option<ClipboardImage> {
+        self.image
+            .clone()
+            .or_else(|| read_image(self.item.as_ref()))
     }
 }
 
@@ -50,35 +76,85 @@ pub(crate) fn change_count() -> i64 {
     objc2_app_kit::NSPasteboard::generalPasteboard().changeCount() as i64
 }
 
-/// The pasteboard at `change_count`. A file path to an image is first, as
-/// in GPUI. Else the image data, because a copy of a file can also hold a
-/// picture. A file path that is not an image stays last: the engine tells
-/// the user that it is not an image.
+/// The change count of the system pasteboard now. A test and a different
+/// platform use the count of `system`.
+pub(crate) fn current_change_count(system: &SystemClipboard) -> i64 {
+    #[cfg(all(target_os = "macos", not(test)))]
+    {
+        let _ = system;
+        change_count()
+    }
+    #[cfg(not(all(target_os = "macos", not(test))))]
+    {
+        system.change_count
+    }
+}
+
+/// The pasteboard at `change_count`, without the image bytes. A file path
+/// that is an image or an application bundle is first, as in GPUI. Else the
+/// image data, because a copy of a file can also hold a picture. A file path
+/// that is not an image or a bundle gives no item: it must not hide a copy
+/// of a control or use the icon that Finder puts beside the path (review 1,
+/// H2).
 #[cfg(all(target_os = "macos", not(test)))]
-pub(crate) fn read(change_count: i64) -> SystemClipboard {
+pub(crate) fn probe(change_count: i64) -> SystemClipboard {
     use objc2_app_kit::NSPasteboard;
 
     let pasteboard = NSPasteboard::generalPasteboard();
     let file = file_path(&pasteboard);
-    let image = file
-        .clone()
-        .filter(|path| is_image(path))
-        .map(ClipboardImage::File)
-        .or_else(|| {
-            // SAFETY: The two extern statics are the constants of AppKit.
-            let png = unsafe { objc2_app_kit::NSPasteboardTypePNG };
-            image_bytes(&pasteboard, png, "png")
-        })
-        .or_else(|| {
-            // SAFETY: The two extern statics are the constants of AppKit.
-            let tiff = unsafe { objc2_app_kit::NSPasteboardTypeTIFF };
-            image_bytes(&pasteboard, tiff, "tiff")
-        })
-        .or_else(|| file.map(ClipboardImage::File));
+    // SAFETY: The two extern statics are the constants of AppKit.
+    let has_png = has_type(&pasteboard, unsafe { objc2_app_kit::NSPasteboardTypePNG });
+    // SAFETY: The extern static is the constant of AppKit.
+    let has_tiff = has_type(&pasteboard, unsafe { objc2_app_kit::NSPasteboardTypeTIFF });
     SystemClipboard {
         change_count,
-        image,
+        item: available_item(file, has_png, has_tiff),
+        image: None,
     }
+}
+
+/// The item of a pasteboard with the file URL `file` and the image data
+/// types. A file URL is first, as in GPUI. A file that is not an image and
+/// not an application bundle is not an item, also when the pasteboard holds
+/// a TIFF icon of the file. Image data is used only when there is no file
+/// URL.
+#[cfg(any(test, all(target_os = "macos", not(test))))]
+fn available_item(file: Option<PathBuf>, has_png: bool, has_tiff: bool) -> Option<ClipboardItem> {
+    match file {
+        Some(path) if is_image(&path) || crate::applications::is_application_bundle(&path) => {
+            Some(ClipboardItem::File(path))
+        }
+        Some(_) => None,
+        None if has_png => Some(ClipboardItem::Data { extension: "png" }),
+        None if has_tiff => Some(ClipboardItem::Data { extension: "tiff" }),
+        None => None,
+    }
+}
+
+/// The image of `item`, with its bytes, or `None`. A file gives its path;
+/// the engine reads the file. Image data gives its bytes.
+#[cfg(all(target_os = "macos", not(test)))]
+pub(crate) fn read_image(item: Option<&ClipboardItem>) -> Option<ClipboardImage> {
+    match item? {
+        ClipboardItem::File(path) => Some(ClipboardImage::File(path.clone())),
+        ClipboardItem::Data { extension } => {
+            let pasteboard = objc2_app_kit::NSPasteboard::generalPasteboard();
+            // SAFETY: The two extern statics are the constants of AppKit.
+            let kind = match *extension {
+                "png" => unsafe { objc2_app_kit::NSPasteboardTypePNG },
+                _ => unsafe { objc2_app_kit::NSPasteboardTypeTIFF },
+            };
+            image_bytes(&pasteboard, kind, extension)
+        }
+    }
+}
+
+/// A different platform and a test have no system image data. A test gives
+/// [`SystemClipboard::image`] itself.
+#[cfg(not(all(target_os = "macos", not(test))))]
+pub(crate) fn read_image(item: Option<&ClipboardItem>) -> Option<ClipboardImage> {
+    let _ = item;
+    None
 }
 
 /// The path of a file on the pasteboard: a URL string, or the first of an
@@ -100,6 +176,20 @@ fn file_path(pasteboard: &objc2_app_kit::NSPasteboard) -> Option<PathBuf> {
         })
     }?;
     url.path().map(|path| PathBuf::from(path.to_string()))
+}
+
+/// True if the pasteboard can give the type `kind`, without reading its
+/// data.
+#[cfg(all(target_os = "macos", not(test)))]
+fn has_type(
+    pasteboard: &objc2_app_kit::NSPasteboard,
+    kind: &objc2_app_kit::NSPasteboardType,
+) -> bool {
+    use objc2_foundation::NSArray;
+
+    pasteboard
+        .availableTypeFromArray(&NSArray::from_slice(&[kind]))
+        .is_some()
 }
 
 /// The image data of `kind`, with the file extension of its format.
@@ -125,7 +215,8 @@ pub(crate) fn is_image(path: &std::path::Path) -> bool {
 
 /// Write `bytes` to a new file in the system temporary directory, and
 /// return its path. The name has random hexadecimal digits, so that two
-/// pastes do not use one file. The caller removes the file.
+/// pastes do not use one file. The shell removes the file after the engine
+/// has read it (see `Shell::remove_when_read`).
 pub(crate) fn temporary_image(bytes: &[u8], extension: &str) -> std::io::Result<PathBuf> {
     let directory = std::env::temp_dir();
     for _ in 0..32 {
@@ -206,5 +297,81 @@ mod tests {
         assert!(!is_image(&text));
         assert!(!is_image(directory.path()));
         assert!(!is_image(&directory.path().join("missing.png")));
+    }
+
+    /// The bytes of a small PNG.
+    fn png() -> Vec<u8> {
+        let image = image::RgbaImage::from_pixel(2, 2, image::Rgba([4, 5, 6, 255]));
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(image)
+            .write_to(&mut cursor, image::ImageFormat::Png)
+            .unwrap();
+        cursor.into_inner()
+    }
+
+    /// A file of `name` in `directory`, with the bytes of a PNG when
+    /// `image` is true, and text otherwise.
+    fn file(directory: &std::path::Path, name: &str, image: bool) -> PathBuf {
+        let path = directory.join(name);
+        if image {
+            fs::write(&path, png()).unwrap();
+        } else {
+            fs::write(&path, "not an image").unwrap();
+        }
+        path
+    }
+
+    #[test]
+    fn an_image_file_and_an_application_bundle_are_items() {
+        let directory = tempfile::tempdir().unwrap();
+        let image = file(directory.path(), "picture.png", true);
+        let bundle = directory.path().join("Demo.app");
+        fs::create_dir_all(&bundle).unwrap();
+        for path in [image, bundle] {
+            assert_eq!(
+                available_item(Some(path.clone()), true, true),
+                Some(ClipboardItem::File(path))
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_that_is_not_an_image_or_a_bundle_is_not_an_item() {
+        let directory = tempfile::tempdir().unwrap();
+        let text = file(directory.path(), "notes.txt", false);
+        let pdf = file(directory.path(), "paper.pdf", false);
+        let folder = directory.path().join("Pictures");
+        fs::create_dir_all(&folder).unwrap();
+        for path in [text, pdf, folder] {
+            // Finder puts a TIFF icon beside the path. It must not become
+            // the image (review 1, H2).
+            assert_eq!(available_item(Some(path), true, true), None);
+        }
+    }
+
+    #[test]
+    fn image_data_with_no_file_url_is_an_item() {
+        assert_eq!(
+            available_item(None, true, true),
+            Some(ClipboardItem::Data { extension: "png" })
+        );
+        assert_eq!(
+            available_item(None, false, true),
+            Some(ClipboardItem::Data { extension: "tiff" })
+        );
+        assert_eq!(available_item(None, false, false), None);
+    }
+
+    #[test]
+    fn a_probe_holds_the_item_and_no_image_bytes() {
+        // A frame sees an image on the pasteboard without reading its bytes
+        // (review 1, M3). The bytes come from `image()` at the paste.
+        let clipboard = SystemClipboard {
+            change_count: 5,
+            item: Some(ClipboardItem::Data { extension: "png" }),
+            image: None,
+        };
+        assert!(clipboard.has_image());
+        assert!(clipboard.image.is_none());
     }
 }

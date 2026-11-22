@@ -196,6 +196,14 @@ pub enum ShellCommand {
     Quit,
 }
 
+/// A temporary image file that the engine has not read yet. `barrier` is
+/// the number of the `Command::ReadCounters` that the shell sent after the
+/// command that names the file (decision 0043, section 5).
+struct TemporaryImage {
+    path: PathBuf,
+    barrier: u64,
+}
+
 pub struct Shell {
     /// The latest engine state. The selection fields stay empty here: each
     /// window has its own selection.
@@ -211,6 +219,15 @@ pub struct Shell {
     config_dir: PathBuf,
     /// Sends a command to the engine.
     send: Rc<dyn Fn(Command)>,
+    /// The temporary image files that the engine has not read yet. The
+    /// shell owns them, not a window: a close of the window does not delete
+    /// a file that the engine still reads.
+    temporary_images: Vec<TemporaryImage>,
+    /// The number of the `Command::ReadCounters` barriers that the shell
+    /// sent. The shell is the only sender of this command.
+    barriers_sent: u64,
+    /// The number of the `Event::Counters` replies that came back.
+    barriers_done: u64,
     /// The licence notices file of the bundle. `None` if the executable is
     /// not in a bundle with the file.
     notices: Option<PathBuf>,
@@ -258,6 +275,17 @@ pub struct Shell {
 /// event to its own state.
 impl EventEmitter<Event> for Shell {}
 
+/// A shell that goes away removes the temporary image files of its pastes
+/// that the engine did not read (decision 0043, section 5). The engine stops
+/// before the shell at the quit of the application.
+impl Drop for Shell {
+    fn drop(&mut self) {
+        for image in self.temporary_images.drain(..) {
+            let _ = std::fs::remove_file(image.path);
+        }
+    }
+}
+
 impl Shell {
     pub fn new(config_dir: PathBuf, settings: Settings, send: Rc<dyn Fn(Command)>) -> Self {
         #[cfg(target_os = "macos")]
@@ -281,6 +309,9 @@ impl Shell {
             profiles_dir: config_dir.join("profiles"),
             config_dir,
             send,
+            temporary_images: Vec::new(),
+            barriers_sent: 0,
+            barriers_done: 0,
             notices,
             open_file: OPEN_FILE,
             desktop: DESKTOP,
@@ -432,13 +463,55 @@ impl Shell {
 
     pub fn receive(&mut self, event: Event, cx: &mut Context<Self>) {
         let history = matches!(event, Event::History { .. });
+        let counters = matches!(event, Event::Counters(_));
         self.state.apply(event.clone(), Instant::now());
+        if counters {
+            // The engine obeys the commands in order. The reply to a
+            // ReadCounters therefore means that the engine read each image
+            // file of an earlier command.
+            self.barriers_done = (self.barriers_done + 1).min(self.barriers_sent);
+            self.remove_read_images();
+        }
         if history {
             self.set_menus(cx);
         }
         cx.emit(event);
         self.refresh_menu();
         cx.notify();
+    }
+
+    /// Remove each file of `images` when the engine has read it. The caller
+    /// sent the command that reads the files, for example `Command::SetImage`
+    /// or a group with it, just before this call. The engine obeys the
+    /// commands in order, thus the reply to the `Command::ReadCounters` of
+    /// this call proves the read. This works also when the image does not
+    /// change and the engine sends no surface, and the shell cleans up after
+    /// the window closes.
+    pub fn remove_when_read(&mut self, images: Vec<PathBuf>) {
+        if images.is_empty() {
+            return;
+        }
+        self.barriers_sent += 1;
+        let barrier = self.barriers_sent;
+        self.temporary_images.extend(
+            images
+                .into_iter()
+                .map(|path| TemporaryImage { path, barrier }),
+        );
+        (self.send)(Command::ReadCounters);
+    }
+
+    /// Remove the temporary image files that the engine has read.
+    fn remove_read_images(&mut self) {
+        let done = self.barriers_done;
+        self.temporary_images.retain(|image| {
+            if image.barrier <= done {
+                let _ = std::fs::remove_file(&image.path);
+                false
+            } else {
+                true
+            }
+        });
     }
 
     /// Show a problem in the window, also in a window that opens later.
@@ -1485,6 +1558,34 @@ mod tests {
             .unwrap();
         cx.run_until_parked();
         assert!(f.sent.borrow().is_empty());
+    }
+
+    #[gpui_kit::test]
+    fn a_copy_of_a_control_keeps_the_pasteboard_count_in_the_shell(cx: &mut TestAppContext) {
+        let f = shell(cx);
+        f.shell.update(cx, |shell, _| {
+            shell.state.system_clipboard = crate::pasteboard::SystemClipboard {
+                change_count: 5,
+                item: None,
+                image: None,
+            };
+        });
+        f.events
+            .try_send(Event::Clipboard(opencraft_engine::ControlKind::Key))
+            .unwrap();
+        cx.run_until_parked();
+        cx.update(|cx| {
+            let shell = f.shell.read(cx);
+            assert_eq!(
+                shell.state.clipboard,
+                Some(opencraft_engine::ControlKind::Key)
+            );
+            // A new window starts with the same precedence: the copy of the
+            // control is newer than a pasteboard item of count 5 (review 1,
+            // M2).
+            assert_eq!(shell.state.control_copy_change_count, Some(5));
+            assert_eq!(shell.window_state().control_copy_change_count, Some(5));
+        });
     }
 
     #[gpui_kit::test]
