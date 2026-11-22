@@ -1187,9 +1187,12 @@ pub struct LabelStyle {
     pub size: u8,
     pub color: Option<String>,
     pub bold: bool,
-    /// Italic. A family with no italic face is slanted.
+    /// Italic. A family with no italic face is slanted. An absent value is
+    /// false, as in a control client of version 1 before decision 0043.
+    #[serde(default)]
     pub italic: bool,
-    /// A single underline.
+    /// A single underline. An absent value is false.
+    #[serde(default)]
     pub underline: bool,
 }
 

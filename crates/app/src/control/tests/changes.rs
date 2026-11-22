@@ -485,6 +485,30 @@ fn the_style_request_sets_the_font_family_and_the_system_font() {
 }
 
 #[test]
+fn a_version_1_style_request_has_the_new_fields_default() {
+    let mut live = Live::new();
+    let surface = surface_1();
+    let target = live.at(0);
+    // A control client from 0.6.0 sends the fields of version 1: no `font`,
+    // no `italic`, and no `underline` (decision 0043, section 4).
+    live.ok(
+        "set_label_style",
+        json!({"target": target, "surface": surface,
+               "style": {"position": null, "size": 20, "color": null, "bold": false}}),
+    );
+    let key = live.content(target.clone())["surfaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == surface)
+        .unwrap()
+        .clone();
+    assert!(key["label_style"]["font"].is_null());
+    assert_eq!(key["label_style"]["italic"], false);
+    assert_eq!(key["label_style"]["underline"], false);
+}
+
+#[test]
 fn a_style_request_with_no_style_makes_every_part_inherit() {
     let mut live = Live::new();
     let surface = surface_1();

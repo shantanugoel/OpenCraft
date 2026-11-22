@@ -522,6 +522,51 @@ fn the_font_row_sets_a_family_and_the_system_font(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn a_click_on_the_checked_font_row_sends_no_command(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    use_fixed_fonts(&view, cx);
+    click(cx, "surface-key face 2");
+    // The default surface inherits: "System font" has the check mark.
+    click(cx, "label-font");
+    click(cx, "font-row-0");
+    assert!(
+        sent.borrow().is_empty(),
+        "a click on the checked row sent {:?}",
+        sent.borrow()
+    );
+    assert!(
+        cx.debug_bounds("font-picker").is_none(),
+        "the popover closes"
+    );
+
+    // A family that the surface has is also checked, thus a click on it
+    // changes nothing (review 2, M4).
+    send(
+        cx,
+        &tx,
+        styled(
+            key(),
+            LabelStyle {
+                font: Some(Auto::Value("Menlo".into())),
+                ..LabelStyle::default()
+            },
+            false,
+        ),
+    );
+    click(cx, "label-font");
+    click(cx, "font-row-1");
+    assert!(
+        sent.borrow().is_empty(),
+        "a click on the checked family sent {:?}",
+        sent.borrow()
+    );
+    assert!(
+        cx.debug_bounds("font-picker").is_none(),
+        "the popover closes"
+    );
+}
+
+#[gpui_kit::test]
 fn the_font_search_finds_a_family_and_the_keys_choose_a_row(cx: &mut TestAppContext) {
     let (view, cx, _tx, sent) = window(cx);
     use_fixed_fonts(&view, cx);
@@ -601,6 +646,29 @@ fn a_family_that_is_not_installed_shows_the_hint(cx: &mut TestAppContext) {
     // The system font has no hint.
     send(cx, &tx, styled(key(), LabelStyle::default(), false));
     assert!(cx.debug_bounds("label-font-missing").is_none());
+}
+
+/// The first frame of a first open shows the loading state, and the rows
+/// come when the background scan of Core Text finishes (review 2, H3).
+#[cfg(target_os = "macos")]
+#[gpui_kit::test]
+fn the_font_picker_shows_loading_before_the_list_arrives(cx: &mut TestAppContext) {
+    let (view, cx, _tx, _sent) = window(cx);
+    click(cx, "surface-key face 2");
+    // Open without the test platform's `run_until_parked`: the first frame
+    // is before the background scan finishes.
+    cx.update(|window, cx| view.update(cx, |view, cx| view.open_font_picker(window, cx)));
+    cx.update(|window, _| window.refresh());
+    assert!(
+        cx.debug_bounds("font-empty").is_some(),
+        "the loading state of the first frame"
+    );
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("font-empty").is_none(),
+        "the rows are ready"
+    );
+    assert!(!shown_families(&view, cx).is_empty());
 }
 
 /// The families of the computer: the engine gives the list, and the picker

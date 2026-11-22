@@ -204,11 +204,30 @@ repository. T2 ran on the same computer as T (an Apple M1 Max, arm64, macOS
 | A name that is not a family gives no error: `CTFontCreateWithName` gives the best match, thus `"No Such Font Family 12345"` gives Helvetica, and `"Menlo-Bold"` gives Menlo. Thus the engine tests the stored name against the list, and a font descriptor with `kCTFontFamilyNameAttribute` makes the font. | Measured | T2 |
 | The first label that names a font costs 111 ms on the engine thread: 52 ms of it is the list of the 256 families (a descriptor and a font for each family), and the rest is the first Core Text layout of that font. Each further label with the same family costs 57 µs (mean of 100, "Mail" on 112 × 112). | Measured | T2 |
 | A label in the system font costs 198 µs (mean of 100), and its first label of a process costs 8.4 ms. The font list is not made for a label with no family. | Measured | T2 |
-| The font picker makes the list again each time it opens, thus a font that the user installs while OpenCraft runs shows at the next opening. The cost is 52 ms for 256 families on the M1 Max. | Measured | T2; `crates/app/src/view/font_picker.rs` |
+| The font picker makes the list again each time it opens, thus a font that the user installs while OpenCraft runs shows at the next opening. The cost is 52 ms for 256 families on the M1 Max. The list is made on a background thread (see below). | Measured | T2; `crates/app/src/view/font_picker.rs` |
 | Of the 256 families, 84 have no bold face, 206 have no italic face, and 74 have neither; for example "Academy Engraved LET", "Andale Mono", "Arial Rounded MT Bold", "Impact" (no italic face), and "Zapfino" (neither). `clone_with_symbolic_traits` gives `None` then. | Measured | T2 |
 | A family with no bold face draws in its regular face. The engine does not make a synthetic bold. | Measured | Test `a_family_with_no_bold_face_shows_its_regular_face` |
 | A family that is not installed draws the pixels of the system font, and it is not a problem: the profile keeps the name. A hidden family (a name that starts with `.`, for example `.AppleSystemUIFont`) is not in the list, thus it is not selectable. | Measured | Test `a_font_that_is_not_installed_draws_in_the_system_font`, the engine test `the_font_stays_in_the_file_and_a_missing_font_shows_the_system_font` |
 | A font descriptor made from `kCTFontFamilyNameAttribute` and a family name gives a font of that family at the requested size. `clone_with_font_size` gives the smaller sizes of one `fit` call: one descriptor and one font for each label, not one for each size. | Source | `core-text-22.0.0/src/font_descriptor.rs:341,396`; `core-text-22.0.0/src/font.rs:173,287` |
+
+### The font list off the UI thread (review 2, 2026-11-22)
+
+The facts below come from `crates/engine/src/label.rs` and
+`crates/app/src/view/font_picker.rs` after the review, from their tests, and
+from a temporary window test. The measurements are on the same computer as T
+(an Apple M1 Max, arm64, macOS 27.2), in a release build, with no device.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `label::font_families()` makes the list with no lock. It takes the lock only to swap the new list into `FAMILIES`. `installed_family()` reads a full cache with a short lock. If the cache is empty, it makes the list with no lock and then stores it. Thus a scan does not make the engine thread wait. | Source | `crates/engine/src/label.rs`; test `a_font_lookup_does_not_wait_for_a_new_font_list` |
+| The shell starts the scan on the background executor when the font picker opens, or when a label names a family and the list is not loaded. The UI thread never calls Core Text for the list. | Source | `crates/app/src/view/font_picker.rs` |
+| The first frame of a first open shows the empty state "Loading the fonts…". The rows appear when the background scan returns. A later open shows the last list at once and replaces it when the scan returns. | Source | `crates/app/src/view/font_picker.rs`; test `the_font_picker_shows_loading_before_the_list_arrives` |
+| The call that opens the font picker takes 54.3 ms before the change and 1.1 ms after it (mean of 3 calls). Before the change, the call made the 52 ms list itself. After the change, it starts the background task. | Measured | Temporary window test that calls `DeviceView::open_font_picker` directly, 2026-11-22 |
+| The engine test `a_font_lookup_does_not_wait_for_a_new_font_list` holds a full cache, starts a new scan on another thread, and then reads a family. The read takes less than 25 ms; before the change it waited for the rest of the 52 ms scan. | Measured | The test, 2026-11-22 |
+| The button "Font" shows the display name of the stored family when the list has it. It shows the stored name when the list is not ready or does not have the family. | Source | `font_button_value`; test `the_button_shows_the_display_name_of_the_family` |
+| The list has no family with an empty name, a name that starts with `.`, or the reserved name `"system"`. | Source | `installed_families`, `usable_family_name`; test `a_family_name_that_is_reserved_or_hidden_is_not_usable` |
+| `device_colour` uses the RAII `CGColorSpace::create_device_rgb()`. The space is released when it goes out of scope, also if `CGColorCreate` returns null and the colour cannot be made. | Source | `crates/engine/src/label.rs` |
+| A real window on 2026-11-22 showed the facts above with no device: a selected key with no own font showed "System font"; the picker opened with the list; a click on the checked "System font" row left the profile file and the undo state unchanged; a click on "Menlo" wrote `label_font = "Menlo"` and the button showed "Menlo". | Measured | A scratch window of the dev binary, background input with cua-driver |
 
 ### Italic and underline of a label (P11-T1, 2026-11-22)
 

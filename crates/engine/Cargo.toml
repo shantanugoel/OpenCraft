@@ -20,6 +20,8 @@ resvg.workspace = true
 core-text.workspace = true
 core-graphics.workspace = true
 core-foundation.workspace = true
+# The raw pointer of the RAII colour space of Core Graphics.
+foreign-types = "0.5"
 
 [dev-dependencies]
 tempfile.workspace = true
