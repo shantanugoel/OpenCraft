@@ -27,9 +27,13 @@ use gpui_kit::{
     },
     deferred, div, point,
     prelude::*,
-    px, Anchor, AnyElement, App, Div, Entity, FocusHandle, MouseButton, MouseDownEvent, Pixels,
-    Rgba, Role, SharedString, Stateful, Toggled, Window,
+    px, Anchor, AnyElement, App, ClickEvent, Div, Entity, FocusHandle, MouseButton, MouseDownEvent,
+    Pixels, Rgba, Role, SharedString, Stateful, Toggled, Window,
 };
+use std::rc::Rc;
+
+/// The result of a click, as `Div::on_click` takes it.
+type Handler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// The accessible role and label of an element (`docs/DESIGN.md`, section
 /// 3.4). VoiceOver reads only an element that has an ID and a role: plain
@@ -62,7 +66,8 @@ pub(crate) trait Accessible: StatefulInteractiveElement + Sized {
     }
 
     /// The state of a row that the arrow keys or the pointer highlight in a
-    /// drawn menu or in a pick list (`docs/DESIGN.md`, section 3.4):
+    /// drawn menu or in a pick list, and of a choice that a [`segmented`]
+    /// control shows as the selected one (`docs/DESIGN.md`, section 3.4):
     /// `selected`, which macOS reads as `AXSelected` on the row.
     ///
     /// `selector` is the debug selector of the row. It is not part of the
@@ -157,7 +162,21 @@ pub(crate) enum Ring {
 /// order. The element must have a stable ID, because GPUI keeps the focus
 /// handle in the state of the element.
 pub(crate) fn keyboard_focus(control: Stateful<Div>, ring: Ring) -> Stateful<Div> {
-    focus_look(control.tab_index(0), ring)
+    focus_look(control.tab_index(0), Some(ring))
+}
+
+/// A control that the keyboard reaches as one Tab stop, and that shows no
+/// focus ring of its own: a group in which the arrow keys change the choice
+/// and the ring shows on the choice (a [`segmented`] control).
+fn keyboard_group(control: Stateful<Div>) -> Stateful<Div> {
+    focus_look(control.tab_index(0), None)
+}
+
+/// A control that only the owner's keys and the pointer reach: it can take
+/// the focus, but Tab does not stop at it. The selected choice of a
+/// [`segmented`] control shows the ring of the group with `in_focus`.
+fn focus_reachable(control: Stateful<Div>) -> Stateful<Div> {
+    focus_look(control.tab_index(-1).tab_stop(false), None)
 }
 
 /// A [`keyboard_focus`] with a focus handle of the owner, for a group in
@@ -169,11 +188,12 @@ pub(crate) fn keyboard_focus_tracked(
     focus: &FocusHandle,
     ring: Ring,
 ) -> Stateful<Div> {
-    focus_look(control.track_focus(focus), ring)
+    focus_look(control.track_focus(focus), Some(ring))
 }
 
-/// The focus ring and the click of [`keyboard_focus`].
-fn focus_look(control: Stateful<Div>, ring: Ring) -> Stateful<Div> {
+/// The focus ring and the click of [`keyboard_focus`]. `None` is a control
+/// that shows no ring of its own.
+fn focus_look(control: Stateful<Div>, ring: Option<Ring>) -> Stateful<Div> {
     #[cfg(test)]
     let control = {
         let mut control = control;
@@ -183,11 +203,13 @@ fn focus_look(control: Stateful<Div>, ring: Ring) -> Stateful<Div> {
         })
     };
     control
-        .focus(move |style| match ring {
-            Ring::Outside => style.shadow(theme::focus_ring_outside()),
-            Ring::Inside => style
-                .shadow(theme::focus_ring_inside())
-                .border_color(theme::accent_line()),
+        .when_some(ring, |control, ring| {
+            control.focus(move |style| match ring {
+                Ring::Outside => style.shadow(theme::focus_ring_outside()),
+                Ring::Inside => style
+                    .shadow(theme::focus_ring_inside())
+                    .border_color(theme::accent_line()),
+            })
         })
         // This listener runs before the listener that GPUI adds for the
         // focus of the element, and stops it and the one of each parent.
@@ -557,14 +579,28 @@ pub(crate) fn switch_if(
 }
 
 /// A segmented control (section 3.7): a track of `bg-field` with the
-/// `segments` in one row. Make a segment with [`segment`] and add its click
-/// handler.
-pub(crate) fn segmented(
-    id: impl Into<SharedString>,
-    segments: Vec<Stateful<Div>>,
-) -> Stateful<Div> {
+/// choices in one row. Make each choice with [`segment`] and add its change
+/// with [`Segment::on_click`].
+///
+/// The keyboard reads it as one control, as a radio group of macOS
+/// (section 5, "Keyboard"):
+///
+/// - Tab reaches the track one time, and the ring shows on the selected
+///   choice.
+/// - Left and Up choose the choice before, Right and Down choose the choice
+///   after. The ends wrap around, and a disabled choice is skipped.
+/// - The change goes to the click handler of the choice, thus the mouse and
+///   the keys use one path.
+pub(crate) fn segmented(id: impl Into<SharedString>, segments: Vec<Segment>) -> Stateful<Div> {
     let id: SharedString = id.into();
-    div()
+    let count = segments.len();
+    let selected = segments.iter().position(|segment| segment.selected);
+    let enabled: Vec<bool> = segments.iter().map(|segment| segment.enabled).collect();
+    let handlers: Vec<Option<Handler>> = segments
+        .iter()
+        .map(|segment| segment.on_click.clone())
+        .collect();
+    let track = div()
         .id(id.clone())
         .debug_selector(move || id.to_string())
         .flex_shrink_0()
@@ -573,12 +609,45 @@ pub(crate) fn segmented(
         .rounded(theme::RADIUS_TRACK)
         .bg(theme::bg_field())
         .role(Role::RadioGroup)
-        .children(segments)
+        .children(segments.into_iter().map(Segment::into_element))
+        .map(keyboard_group);
+    if count == 0 {
+        return track;
+    }
+    track.on_key_down(move |event, window, cx| {
+        let keystroke = &event.keystroke;
+        let modifiers = keystroke.modifiers;
+        // macOS marks an arrow key with the function modifier.
+        if modifiers.control || modifiers.alt || modifiers.shift || modifiers.platform {
+            return;
+        }
+        let Some(current) = selected else {
+            return;
+        };
+        let step = match keystroke.key.as_str() {
+            "left" | "up" => -1,
+            "right" | "down" => 1,
+            _ => return,
+        };
+        // The next enabled choice, with the ends joined.
+        let mut next = current;
+        for _ in 0..count {
+            next = (next as isize + step).rem_euclid(count as isize) as usize;
+            if enabled[next] {
+                break;
+            }
+        }
+        let Some(handler) = handlers[next].clone().filter(|_| next != current) else {
+            return;
+        };
+        cx.stop_propagation();
+        handler(&ClickEvent::default(), window, cx);
+    })
 }
 
-/// A segment of a [`segmented`] control: it shares the free width with the
-/// other segments. The selected segment is `bg_segment_on()` with
-/// `text_on_segment()`; the other segments are transparent with
+/// One choice of a [`segmented`] control: it shares the free width with the
+/// other choices. The selected choice is `bg_segment_on()` with
+/// `text_on_segment()`; the other choices are transparent with
 /// [`theme::text_secondary()`]. `height` is [`theme::HEIGHT_SEGMENT`] or
 /// [`theme::HEIGHT_SEGMENT_INSPECTOR`].
 pub(crate) fn segment(
@@ -586,48 +655,124 @@ pub(crate) fn segment(
     text: impl Into<SharedString>,
     selected: bool,
     height: Pixels,
-) -> Stateful<Div> {
+) -> Segment {
     segment_if(id, text, selected, true, height)
 }
 
-/// A [`segment`] that can be disabled: a disabled segment has
-/// `text-disabled`, no hover, and the caller adds no click handler to it.
+/// A [`segment`] that can be disabled: a disabled choice has
+/// `text-disabled`, no hover, and no change.
 pub(crate) fn segment_if(
     id: impl Into<SharedString>,
     text: impl Into<SharedString>,
     selected: bool,
     enabled: bool,
     height: Pixels,
-) -> Stateful<Div> {
-    let id: SharedString = id.into();
-    let text: SharedString = text.into();
-    div()
-        .id(id.clone())
-        .debug_selector(move || id.to_string())
-        .flex_1()
-        .h(height)
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded(theme::RADIUS_SEGMENT)
-        .text_size(theme::TEXT_LABEL)
-        .font_weight(gpui_kit::FontWeight::MEDIUM)
-        .when(selected, |d| {
-            d.bg(theme::bg_segment_on())
-                .text_color(theme::text_on_segment())
-        })
-        .when(enabled, |d| keyboard_focus(d, Ring::Inside))
-        .when(!selected && enabled, |d| {
-            d.text_color(theme::text_secondary())
-                .cursor_pointer()
-                .hover(|d| d.bg(theme::hover_row()))
-        })
-        .when(!selected && !enabled, |d| {
-            d.text_color(theme::text_disabled())
-        })
-        .accessible(Role::RadioButton, text.clone())
-        .checked(selected)
-        .child(text)
+) -> Segment {
+    Segment {
+        id: id.into(),
+        text: text.into(),
+        selected,
+        enabled,
+        height,
+        tooltip: None,
+        on_click: None,
+    }
+}
+
+/// A choice of a [`segmented`] control, before the control builds it.
+pub(crate) struct Segment {
+    id: SharedString,
+    text: SharedString,
+    selected: bool,
+    enabled: bool,
+    height: Pixels,
+    /// The help text of a choice that is not enabled.
+    tooltip: Option<SharedString>,
+    on_click: Option<Handler>,
+}
+
+impl Segment {
+    /// The function that runs when the user clicks this choice, or when the
+    /// arrow keys of the control choose it. A selected choice gets no
+    /// click, thus a click on it is no change.
+    pub(crate) fn on_click(
+        mut self,
+        listener: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(Rc::new(listener));
+        self
+    }
+
+    /// The help text of a choice that is not enabled.
+    pub(crate) fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
+    fn into_element(self) -> Stateful<Div> {
+        let id = self.id.clone();
+        let selector = self.id.to_string();
+        let text = self.text.clone();
+        let selected = self.selected;
+        let enabled = self.enabled;
+        let control = div()
+            .id(id.clone())
+            .debug_selector(move || id.to_string())
+            .flex_1()
+            .min_w_0()
+            .h(self.height)
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(theme::RADIUS_SEGMENT)
+            .text_size(theme::TEXT_LABEL)
+            .font_weight(gpui_kit::FontWeight::MEDIUM)
+            .when(selected, |d| {
+                d.bg(theme::bg_segment_on())
+                    .text_color(theme::text_on_segment())
+            })
+            .when(!selected && enabled, |d| {
+                d.text_color(theme::text_secondary())
+                    .cursor_pointer()
+                    .hover(|d| d.bg(theme::hover_row()))
+            })
+            .when(!selected && !enabled, |d| {
+                d.text_color(theme::text_disabled())
+            })
+            .accessible(Role::RadioButton, text.clone())
+            .checked(selected)
+            // A radio is both "toggled" and "selected": the group then says
+            // that the selected choice changed (issue 483).
+            .highlighted(&selector, selected)
+            .child(text);
+        let control = if enabled {
+            // The choice can take the focus of the group, but Tab does not
+            // stop at it: the control is one Tab stop.
+            let control = focus_reachable(control);
+            if selected {
+                control.in_focus(|style| {
+                    style
+                        .shadow(theme::focus_ring_inside())
+                        .border_color(theme::accent_line())
+                })
+            } else {
+                control
+            }
+        } else {
+            control
+        };
+        let control = match &self.tooltip {
+            Some(text) => {
+                let text = text.clone();
+                control.tooltip(move |window, cx| Tooltip::new(text.clone()).build(window, cx))
+            }
+            None => control,
+        };
+        match self.on_click.filter(|_| enabled && !selected) {
+            Some(handler) => control.on_click(move |event, window, cx| handler(event, window, cx)),
+            None => control,
+        }
+    }
 }
 
 /// A slider (section 10.7): the filled part of the track is `accent`, and

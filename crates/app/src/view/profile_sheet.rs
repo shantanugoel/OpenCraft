@@ -566,18 +566,16 @@ impl DeviceView {
                     (Some(Auto::Value(shown)), Some(value)) => *shown == value,
                     _ => false,
                 };
-                controls::segment(id, text, selected, theme::HEIGHT_SHEET_CONTROL)
-                    .min_w_0()
-                    .when(!selected, |d| {
-                        d.on_click(cx.listener(move |view, _, _, cx| {
-                            let change = match value {
-                                None => LabelChange::Position(None),
-                                Some(value) => LabelChange::Position(Some(Auto::Value(value))),
-                            };
-                            view.set_default_title_style(change);
-                            cx.notify();
-                        }))
-                    })
+                controls::segment(id, text, selected, theme::HEIGHT_SHEET_CONTROL).on_click(
+                    cx.listener(move |view, _, _, cx| {
+                        let change = match value {
+                            None => LabelChange::Position(None),
+                            Some(value) => LabelChange::Position(Some(Auto::Value(value))),
+                        };
+                        view.set_default_title_style(change);
+                        cx.notify();
+                    }),
+                )
             })
             .collect();
         let position_row = controls::segmented("profile-title-position", segments)

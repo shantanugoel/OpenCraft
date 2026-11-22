@@ -773,13 +773,11 @@ impl DeviceView {
         let mode = self.background_mode();
         let segment = |id: &'static str, text: &'static str, this: BackgroundMode| {
             let selected = mode == this;
-            controls::segment(id, text, selected, theme::HEIGHT_SEGMENT_INSPECTOR)
-                .min_w_0()
-                .when(!selected, |d| {
-                    d.on_click(cx.listener(move |view, _, window, cx| {
-                        view.select_background_mode(this, window, cx)
-                    }))
-                })
+            controls::segment(id, text, selected, theme::HEIGHT_SEGMENT_INSPECTOR).on_click(
+                cx.listener(move |view, _, window, cx| {
+                    view.select_background_mode(this, window, cx)
+                }),
+            )
         };
         let segments = controls::segmented(
             "background-kind",
@@ -794,10 +792,7 @@ impl DeviceView {
                     false,
                     theme::HEIGHT_SEGMENT_INSPECTOR,
                 )
-                .min_w_0()
-                .tooltip(|window, cx| {
-                    Tooltip::new("A video background comes in a later version.").build(window, cx)
-                }),
+                .tooltip("A video background comes in a later version."),
             ],
         )
         .w_full()

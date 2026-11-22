@@ -11,7 +11,9 @@ use crate::{
     view::{controls::tests::focused, sidebar::ProfileSettingsRow},
 };
 use gpui_kit::{Bounds, KeyUpEvent, MouseButton, MouseDownEvent, Pixels};
-use opencraft_engine::{DeviceSettings, KnobLightMode, KnobLights, LabelChange};
+use opencraft_engine::{
+    Auto, DeviceSettings, KnobLightMode, KnobLights, LabelChange, LabelPosition, LabelStyle,
+};
 
 /// A window with two profiles and two pages in the active profile.
 fn focus_window(
@@ -78,10 +80,9 @@ fn knob_functions_are_in_the_keyboard_focus_order(cx: &mut TestAppContext) {
     tab_to(cx, "functions.0/function");
     push(cx, "space");
     tab_to(cx, "functions.0/action");
-    assert_eq!(
-        order(cx, "tab", 2),
-        ["turn-direction-right", "turn-direction-left"]
-    );
+    // A segmented control is one Tab stop: the arrow keys change the
+    // direction.
+    assert_eq!(order(cx, "tab", 1), ["turn-direction"]);
     tab_to(cx, "functions.0/turn-apart");
     push(cx, "space");
     tab_to(cx, "functions.0/turn-join");
@@ -95,7 +96,7 @@ fn workspace_has_focus(view: &Entity<DeviceView>, cx: &mut VisualTestContext) ->
 
 /// The start of the order: the sidebar, the toolbar, the page header, and
 /// the tabs of the right panel.
-const START: [&str; 17] = [
+const START: [&str; 16] = [
     "hide-sidebar",
     "device-card",
     "profile-add",
@@ -111,8 +112,7 @@ const START: [&str; 17] = [
     "toggle-inspector",
     "next-page",
     "page-settings",
-    "tab-inspector",
-    "tab-library",
+    "right-tabs",
 ];
 
 #[gpui_kit::test]
@@ -133,17 +133,12 @@ fn tab_and_shift_tab_move_the_focus_in_the_order_of_the_window(cx: &mut TestAppC
 fn tab_reaches_each_control_of_the_inspector_of_a_key(cx: &mut TestAppContext) {
     let (_view, cx, _tx, _sent) = focus_window(cx);
     click(cx, "surface-key face 2");
-    let ids = order(cx, "tab", START.len() + 32);
-    assert_eq!(ids[..START.len()], START);
     let mut inspector = vec![
         "more-button",
         "choose-icon",
         "choose-image",
         "-",
-        "label-position-top",
-        "label-position-middle",
-        "label-position-bottom",
-        "label-position-none",
+        "label-position",
         "label-size",
         "label-colour",
         "label-bold",
@@ -161,7 +156,9 @@ fn tab_reaches_each_control_of_the_inspector_of_a_key(cx: &mut TestAppContext) {
         "gesture-LongPress-kind",
         "gesture-DoublePress-kind",
     ]);
-    assert_eq!(ids[START.len()..], inspector[..ids.len() - START.len()]);
+    let ids = order(cx, "tab", START.len() + inspector.len());
+    assert_eq!(ids[..START.len()], START);
+    assert_eq!(ids[START.len()..], inspector[..]);
 }
 
 #[gpui_kit::test]
@@ -219,6 +216,64 @@ fn tab_reaches_the_switch_the_segments_and_the_sliders_of_the_device(cx: &mut Te
     assert_eq!(brightness, Some(99));
 }
 
+/// A surface with the label position `position`, and an image.
+fn positioned(position: LabelPosition) -> Event {
+    Event::Surface(SurfaceState {
+        id: key(),
+        content: SurfaceContent {
+            label: Some("Mail".into()),
+            label_style: LabelStyle {
+                position: Some(Auto::Value(position)),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        image: Arc::new(RgbImage::new(90, 90)),
+        image_size: None,
+        image_area: None,
+        on_image_size: None,
+        on_image_area: None,
+        states: None,
+    })
+}
+
+/// A segmented control is one Tab stop, and the arrow keys change the
+/// choice, as a radio group does on macOS (`docs/DESIGN.md`, section 5).
+#[gpui_kit::test]
+fn a_segmented_control_is_one_tab_stop_and_the_arrow_keys_change_the_choice(
+    cx: &mut TestAppContext,
+) {
+    let (_view, cx, tx, sent) = focus_window(cx);
+    click(cx, "surface-key face 2");
+    tab_to(cx, "label-position");
+    let position = |sent: &Commands| {
+        sent.borrow()
+            .iter()
+            .rev()
+            .find_map(|command| match command {
+                Command::SetLabelStyle {
+                    change: LabelChange::Position(Some(Auto::Value(position))),
+                    ..
+                } => Some(*position),
+                _ => None,
+            })
+    };
+    // The surface has an image, thus "Middle" is the selected segment. The
+    // right arrow chooses the next segment, and the focus stays on the
+    // control.
+    keys(cx, "right");
+    assert_eq!(position(&sent), Some(LabelPosition::Bottom));
+    assert_eq!(focused(cx).as_deref(), Some("label-position"));
+    // The engine sends the position, and the left arrow chooses the segment
+    // before that one.
+    send(cx, &tx, positioned(LabelPosition::Hidden));
+    keys(cx, "left");
+    assert_eq!(position(&sent), Some(LabelPosition::Bottom));
+    // Tab goes to the next control, not to the next segment.
+    keys(cx, "tab");
+    assert_eq!(focused(cx).as_deref(), Some("label-size"));
+}
+
 #[gpui_kit::test]
 fn space_and_return_operate_the_control_with_the_focus(cx: &mut TestAppContext) {
     let (view, cx, _tx, sent) = focus_window(cx);
@@ -228,11 +283,19 @@ fn space_and_return_operate_the_control_with_the_focus(cx: &mut TestAppContext) 
         .borrow()
         .iter()
         .any(|c| *c == on("default", Command::SelectPage { page: 1 })));
-    tab_to(cx, "tab-library");
-    push(cx, "enter");
+    // The tabs of the right panel are one control: the arrow keys change the
+    // tab, and the control keeps the focus.
+    tab_to(cx, "right-tabs");
+    keys(cx, "right");
     cx.update(|_, cx| assert_eq!(view.read(cx).panes.right_panel_tab, RightPanelTab::Library));
-    // The control keeps the focus after its work.
-    assert_eq!(focused(cx).as_deref(), Some("tab-library"));
+    assert_eq!(focused(cx).as_deref(), Some("right-tabs"));
+    keys(cx, "left");
+    cx.update(|_, cx| {
+        assert_eq!(
+            view.read(cx).panes.right_panel_tab,
+            RightPanelTab::Inspector
+        )
+    });
     tab_to(cx, "hide-sidebar");
     push(cx, "space");
     cx.update(|_, cx| assert!(!view.read(cx).panes.sidebar_visible));
@@ -344,11 +407,7 @@ fn tab_stays_in_a_sheet_and_return_does_the_main_action(cx: &mut TestAppContext)
         "profile-title-bold",
         "profile-title-italic",
         "profile-title-underline",
-        "profile-title-position-auto",
-        "profile-title-position-top",
-        "profile-title-position-middle",
-        "profile-title-position-bottom",
-        "profile-title-position-none",
+        "profile-title-position",
         "profile-title-colour-auto",
         "profile-title-colour-0",
         "profile-title-colour-1",

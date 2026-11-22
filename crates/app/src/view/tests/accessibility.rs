@@ -32,9 +32,17 @@ fn selected_rows(cx: &mut VisualTestContext) -> Vec<String> {
         .collect()
 }
 
+/// The selected rows whose debug selector starts with `prefix`.
+fn selected_rows_with(cx: &mut VisualTestContext, prefix: &str) -> Vec<String> {
+    selected_rows(cx)
+        .into_iter()
+        .filter(|row| row.starts_with(prefix))
+        .collect()
+}
+
 #[track_caller]
-fn assert_selected_rows(cx: &mut VisualTestContext, expected: &[&str]) {
-    let rows = selected_rows(cx);
+fn assert_selected_rows(cx: &mut VisualTestContext, prefix: &str, expected: &[&str]) {
+    let rows = selected_rows_with(cx, prefix);
     assert_eq!(
         rows, expected,
         "The window marks the rows {rows:?} as selected, and not {expected:?}."
@@ -370,6 +378,51 @@ fn the_size_menu_lists_the_sizes_of_a_large_emoji(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::MenuItem, "80 pt");
 }
 
+/// The selected segment of a segmented control is the selected radio button
+/// of the group, and the arrow keys change it (issues 481 and 483).
+#[gpui_kit::test]
+fn the_selected_segment_of_a_control_is_the_selected_radio_button(cx: &mut TestAppContext) {
+    use opencraft_engine::{Auto, LabelStyle};
+    let (_view, cx, tx, _sent) = named_window(cx);
+    click(cx, "surface-key face 2");
+    // The key has an image, thus "Middle" is the selected position.
+    let selected = selected_rows(cx);
+    assert!(
+        selected.contains(&"label-position-middle".to_string()),
+        "{selected:?}"
+    );
+    send(
+        cx,
+        &tx,
+        Event::Surface(SurfaceState {
+            id: key(),
+            content: SurfaceContent {
+                label: Some("Mail".into()),
+                label_style: LabelStyle {
+                    position: Some(Auto::Value(opencraft_engine::LabelPosition::Hidden)),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            image: std::sync::Arc::new(RgbImage::new(90, 90)),
+            image_size: None,
+            image_area: None,
+            on_image_size: None,
+            on_image_area: None,
+            states: None,
+        }),
+    );
+    let selected = selected_rows(cx);
+    assert!(
+        selected.contains(&"label-position-none".to_string())
+            && !selected.contains(&"label-position-middle".to_string()),
+        "{selected:?}"
+    );
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::RadioButton, "Top");
+    assert_has(&nodes, Role::RadioButton, "None");
+}
+
 /// The row that the arrow keys highlight is the selected row of the menu
 /// for the accessibility API (issue 481).
 #[gpui_kit::test]
@@ -378,15 +431,15 @@ fn the_highlighted_row_of_a_drawn_menu_is_selected(cx: &mut TestAppContext) {
     click(cx, "surface-key face 2");
     click(cx, "label-size");
     // The first row is highlighted when the menu opens, and only that row.
-    assert_selected_rows(cx, &["label-size-10"]);
+    assert_selected_rows(cx, "label-size-", &["label-size-10"]);
     cx.simulate_keystrokes("down down");
     cx.run_until_parked();
-    assert_selected_rows(cx, &["label-size-14"]);
+    assert_selected_rows(cx, "label-size-", &["label-size-14"]);
     // The pointer moves the highlight too.
     let row = cx.debug_bounds("label-size-64").expect("the row of 64 pt");
     cx.simulate_mouse_move(row.center(), None, Modifiers::default());
     cx.run_until_parked();
-    assert_selected_rows(cx, &["label-size-64"]);
+    assert_selected_rows(cx, "label-size-", &["label-size-64"]);
 }
 
 /// The row of the current family is the selected row of the list, and the
@@ -404,10 +457,10 @@ fn the_highlighted_row_of_the_font_picker_is_selected(cx: &mut TestAppContext) {
     click(cx, "surface-key face 2");
     click(cx, "label-font");
     // The surface has no own family: "System font" is the current row.
-    assert_selected_rows(cx, &["font-row-0"]);
+    assert_selected_rows(cx, "font-row-", &["font-row-0"]);
     cx.simulate_keystrokes("down");
     cx.run_until_parked();
-    assert_selected_rows(cx, &["font-row-1"]);
+    assert_selected_rows(cx, "font-row-", &["font-row-1"]);
 }
 
 #[gpui_kit::test]
@@ -583,10 +636,10 @@ fn the_application_picker_has_a_dialog_and_rows(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::MenuItem, "Choose a different application…");
     // The highlighted row is the selected row of the list, and the arrow keys
     // move it, also onto the footer row (issue 481).
-    assert_selected_rows(cx, &["app-row-0"]);
+    assert_selected_rows(cx, "app-row-", &["app-row-0"]);
     cx.simulate_keystrokes("down");
     cx.run_until_parked();
-    assert_selected_rows(cx, &["choose-different-application"]);
+    assert_selected_rows(cx, "choose-different", &["choose-different-application"]);
 }
 
 #[gpui_kit::test]

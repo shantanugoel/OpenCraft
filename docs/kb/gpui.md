@@ -1173,6 +1173,21 @@ pick lists of the font picker and of the application picker are
 This run read the attributes and the tests only. The listening check stays
 with the owner (issue [243](https://github.com/shantanugoel/OpenCraft/issues/243)).
 
+## A group of choices as one Tab stop (2026-11-22)
+
+**Source.** The code of `gpui-pre` 0.3.12 and the window tests of
+[issue 483](https://github.com/shantanugoel/OpenCraft/issues/483) in
+`crates/app/src/view/tests/focus.rs` and
+`crates/app/src/settings_window/tests.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| An element that Tab must skip but that can take the focus: `.tab_index(-1)` and then `.tab_stop(false)`. `tab_index` sets `focusable` and `tab_stop`; `tab_stop(false)` removes the element from the tab order, and the element keeps a focus handle and can take the focus. | Source | `gpui-pre` 0.3.12 `src/elements/div.rs`, `tab_index`, `tab_stop`; `src/tab_stop.rs`, `next_inner` |
+| A focusable element without a tracked handle gets its handle from the element state of its id (`element_state.focus_handle`), and the handle lives while the element is drawn. Thus the arrow keys move the focus of a group with no handle in the state of the view. | Source | `gpui-pre` 0.3.12 `src/elements/div.rs`, `prepaint` |
+| `Div::in_focus(f)` applies `f` when the element's focus handle is within the focused element, and it needs the element to be focusable (a tracked handle). A choice of a group shows the ring of the group with it when the group has the focus. | Source | `gpui-pre` 0.3.12 `src/elements/div.rs`, `in_focus`, `compute_style_internal`; `src/window.rs`, `within_focused`, `focus_contains` |
+| An `on_key_down` listener of the element with the focus gets the arrow keys: the key bindings of the window do not use Left, Right, Up, and Down, and the listener runs after them in any case. | Source; Measured | `crates/app/src/app_menu.rs` (no arrow binding outside the palette field); `a_segmented_control_is_one_tab_stop_and_the_arrow_keys_change_the_choice` |
+| A `RadioGroup` with `RadioButton` children is a container with selectable children, thus the group raises `AXSelectedRowsChanged` when the selected choice moves, as a drawn menu does (see "Accessibility state of the highlighted row"). | Source | `accesskit_consumer` 0.38.0 `src/node.rs`, `is_container_with_selectable_children` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
