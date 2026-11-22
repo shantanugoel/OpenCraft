@@ -320,7 +320,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `folder open` | `--profile` `--page` `--folder` `--inside` | Show a folder |
 | `folder close` | target | Close the folder that is open |
 | `surface set-label` | target `--surface` `--label` `--on` | Set or remove the text |
-| `surface set-label-style` | target `--surface` `--position` `--size` `--color` `--bold` `--on` | Set the text style |
+| `surface set-label-style` | target `--surface` `--font` `--position` `--size` `--color` `--bold` `--on` | Set the text style |
 | `surface set-color` | target `--surface` `--color` `--on` | Set or remove the fill colour |
 | `surface set-image` | target `--surface` `--path` `--on` | Set or remove the image |
 | `surface set-icon` | target `--surface` `--icon-name` `--icon-color` `--on` | Set or remove the icon |

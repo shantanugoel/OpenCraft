@@ -68,6 +68,7 @@ pub(crate) mod controls;
 mod device;
 mod device_inspector;
 mod focus_return;
+mod font_picker;
 mod form;
 mod gesture_card;
 mod history;

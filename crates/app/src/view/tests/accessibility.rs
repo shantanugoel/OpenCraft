@@ -261,10 +261,22 @@ fn the_inspector_of_a_key_has_labels_from_its_rows(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::TextInput, "Title");
     assert_has(&nodes, Role::RadioButton, "Top");
     assert_has(&nodes, Role::ComboBox, "Text size");
+    assert_has(&nodes, Role::ComboBox, "Font");
     assert_has(&nodes, Role::Button, "Bold");
     assert_has(&nodes, Role::RadioButton, "No fill");
     assert_has(&nodes, Role::RadioButton, "Other colour");
     assert_has(&nodes, Role::Button, "Choose icon…");
+}
+
+#[gpui_kit::test]
+fn the_font_picker_of_a_label_has_labels(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = named_window(cx);
+    click(cx, "surface-key face 2");
+    click(cx, "label-font");
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::Dialog, "Choose a font");
+    assert_has(&nodes, Role::SearchInput, "Search fonts");
+    assert_has(&nodes, Role::MenuItem, "System font");
 }
 
 #[gpui_kit::test]

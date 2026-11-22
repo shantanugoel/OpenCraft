@@ -115,15 +115,15 @@ struct Place {
 
 fn place(button: Bounds<Pixels>, viewport: gpui_kit::Size<Pixels>) -> Place {
     let margin = theme::ICON_PICKER_WINDOW_MARGIN;
-    let width = theme::APPLICATION_PICKER_WIDTH;
+    let width = theme::LIST_PICKER_WIDTH;
     let gap = theme::SPACE_4;
     let below_space = viewport.height - margin - (button.bottom() + gap);
     let above_space = button.top() - gap - margin;
-    let full = theme::APPLICATION_PICKER_HEIGHT;
+    let full = theme::LIST_PICKER_HEIGHT;
     let below = below_space >= full || (above_space < full && below_space >= above_space);
     let height = full
         .min(if below { below_space } else { above_space })
-        .max(theme::APPLICATION_PICKER_MIN_HEIGHT);
+        .max(theme::LIST_PICKER_MIN_HEIGHT);
     let left = (button.right() - width)
         .max(margin)
         .min((viewport.width - margin - width).max(margin));
@@ -636,7 +636,7 @@ impl DeviceView {
                             .accessible(Role::Dialog, "Choose an application")
                             .occlude()
                             .relative()
-                            .w(theme::APPLICATION_PICKER_WIDTH)
+                            .w(theme::LIST_PICKER_WIDTH)
                             .h(place.height)
                             .capture_key_down(cx.listener(
                                 |view, event: &KeyDownEvent, window, cx| {
@@ -1030,12 +1030,9 @@ mod tests {
             gpui_kit::size(px(120.), theme::HEIGHT_CONTROL),
         );
         let below = place(button, viewport);
-        assert_eq!(below.height, theme::APPLICATION_PICKER_HEIGHT);
+        assert_eq!(below.height, theme::LIST_PICKER_HEIGHT);
         assert_eq!(below.origin.y, button.bottom() + theme::SPACE_4);
-        assert_eq!(
-            below.origin.x + theme::APPLICATION_PICKER_WIDTH,
-            button.right()
-        );
+        assert_eq!(below.origin.x + theme::LIST_PICKER_WIDTH, button.right());
         let button = Bounds::new(
             point(px(1100.), px(760.)),
             gpui_kit::size(px(120.), theme::HEIGHT_CONTROL),
@@ -1048,7 +1045,7 @@ mod tests {
             gpui_kit::size(px(120.), theme::HEIGHT_CONTROL),
         );
         let small = place(button, viewport);
-        assert!(small.height < theme::APPLICATION_PICKER_HEIGHT);
+        assert!(small.height < theme::LIST_PICKER_HEIGHT);
         assert!(small.origin.y >= theme::ICON_PICKER_WINDOW_MARGIN);
         assert!(
             small.origin.y + small.height <= viewport.height - theme::ICON_PICKER_WINDOW_MARGIN

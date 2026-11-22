@@ -151,6 +151,28 @@ engine make these images on macOS, on 2026-11-11.
 | A label of 1 line with an image has a band of 16 to 30 pixels on a key face. The band is at most 40 % of the height of the surface. | Measured | Test |
 | An agent looked at 8 key faces and 8 bar panels, with and without an image of the user. Each label was at the centre of its area, and no label was outside its surface. | Measured | A test program, not in the repository |
 
+### The font family of a label (ICON-06, 2026-11-22)
+
+The facts below come from the module `crates/engine/src/label.rs` after issue
+#452, from its tests, and from a test program T2 that is not in the
+repository. T2 ran on the same computer as T (an Apple M1 Max, arm64, macOS
+27.2, Rust 1.99.1), in a release build, with no device.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The family list is `copy_available_font_family_names` (`CTFontManagerCopyAvailableFontFamilyNames`). On macOS 27.2 it has 256 families. No name starts with `.`, no two names are equal with no difference between capital and small letters, and every name is ASCII. | Measured | T2, the test `the_font_list_has_no_hidden_name_no_duplicate_and_no_dots`; binding at `core-text-22.0.0/src/font_manager.rs:17` |
+| The list gives the display name. The stored name is `CTFont::family_name()`, which calls `CTFontCopyName` (`CTFontNameSpecifier::Family`) and not `CTFontCopyLocalizedName`. On macOS 27.2 with the interface in English, the two names are equal for all 256 families. | Measured | T2, test; `core-text-22.0.0/src/font.rs:317` |
+| A font file of macOS has its family name in more than one language: the name table of `Hiragino Sans GB.ttc` has "Hiragino Sans GB" (en), "ヒラギノ角ゴ 簡体中文" (ja), "冬青黑体简体中文" (zh-Hans CN), and "冬青黑體簡體中文" (zh-Hant). Thus a computer whose interface language is Japanese or Chinese can give a display name that is not the stored name. | Measured | `fontTools.ttLib` on `/System/Library/Fonts/Hiragino Sans GB.ttc` |
+| The list is the same when the process starts with the arguments `-AppleLanguages (ja)` or `-AppleLanguages (zh-Hans)`. Core Text takes the language from the user settings, not from the argument domain of the process. Thus a test cannot change the language of the list without a change of a user setting. | Measured | T2 |
+| A name that is not a family gives no error: `CTFontCreateWithName` gives the best match, thus `"No Such Font Family 12345"` gives Helvetica, and `"Menlo-Bold"` gives Menlo. Thus the engine tests the stored name against the list, and a font descriptor with `kCTFontFamilyNameAttribute` makes the font. | Measured | T2 |
+| The first label that names a font costs 111 ms on the engine thread: 52 ms of it is the list of the 256 families (a descriptor and a font for each family), and the rest is the first Core Text layout of that font. Each further label with the same family costs 57 µs (mean of 100, "Mail" on 112 × 112). | Measured | T2 |
+| A label in the system font costs 198 µs (mean of 100), and its first label of a process costs 8.4 ms. The font list is not made for a label with no family. | Measured | T2 |
+| The font picker makes the list again each time it opens, thus a font that the user installs while OpenCraft runs shows at the next opening. The cost is 52 ms for 256 families on the M1 Max. | Measured | T2; `crates/app/src/view/font_picker.rs` |
+| Of the 256 families, 84 have no bold face, 206 have no italic face, and 74 have neither; for example "Academy Engraved LET", "Andale Mono", "Arial Rounded MT Bold", "Impact" (no italic face), and "Zapfino" (neither). `clone_with_symbolic_traits` gives `None` then. | Measured | T2 |
+| A family with no bold face draws in its regular face. The engine does not make a synthetic bold. | Measured | Test `a_family_with_no_bold_face_shows_its_regular_face` |
+| A family that is not installed draws the pixels of the system font, and it is not a problem: the profile keeps the name. A hidden family (a name that starts with `.`, for example `.AppleSystemUIFont`) is not in the list, thus it is not selectable. | Measured | Test `a_font_that_is_not_installed_draws_in_the_system_font`, the engine test `the_font_stays_in_the_file_and_a_missing_font_shows_the_system_font` |
+| A font descriptor made from `kCTFontFamilyNameAttribute` and a family name gives a font of that family at the requested size. `clone_with_font_size` gives the smaller sizes of one `fit` call: one descriptor and one font for each label, not one for each size. | Source | `core-text-22.0.0/src/font_descriptor.rs:341,396`; `core-text-22.0.0/src/font.rs:173,287` |
+
 ## Not known
 
 - The physical footprint of the full application with GPUI and the label
@@ -162,6 +184,9 @@ engine make these images on macOS, on 2026-11-11.
   between two characters, and not between two groups of characters that make
   one sign.
 - The effect of other installed fonts and another macOS version.
+- Whether a macOS interface language localizes the family names of the list,
+  and which languages do. The font files have the names (see above), and the
+  interface language was not changed for the measurement.
 - Performance and output on Linux and Windows. Core Text needs a replacement
   there. The other candidates were tested only on macOS.
 - A full licence audit of transitive crates. The table gives candidate licences.

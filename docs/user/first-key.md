@@ -21,7 +21,7 @@ the top of the right panel. The inspector has these parts, from the top:
 | Part | What it shows |
 |---|---|
 | Header | The image of the key face, the name "Key 1", and the position "Top row, first key" |
-| **Appearance** | The rows **Icon**, **Title**, **Position**, **Text**, and **Fill** |
+| **Appearance** | The rows **Icon**, **Title**, **Position**, **Text**, **Font**, and **Fill** |
 | **Gestures** | One card for each gesture of the key: **Press**, **Release**, **Long press**, and **Double press** |
 
 If the inspector is not tall enough, it shows a scrollbar at the right.
@@ -48,7 +48,7 @@ it on the colour. The selected colour has a blue frame.
 The rows **Position** and **Text** change how the title shows. They are
 below the field **Title**.
 
-![The Appearance section with the title at the middle, in 20 pt, in a gold colour, and not bold](images/label-options.png)
+![The Appearance section with the title at the middle, in 20 pt, in a gold colour, in the system font, and not bold](images/label-options.png)
 
 | Row | Control | What it does |
 |---|---|---|
@@ -56,10 +56,15 @@ below the field **Title**.
 | **Text** | The size button, for example "20 pt" | Click it, and click a size from 10 pt to 32 pt. |
 | **Text** | The colour button | Click it, and click a colour. Or type the colour as `#RRGGBB`, and push Return. **A** (Automatic) selects black or white for the fill. To close the colour list with no change, push Esc. |
 | **Text** | **B** | Bold. Click it to change the title to bold or to normal. **B** is light when the title is bold. |
+| **Font** | The button with the name of the family, for example "System font" | Click it, and click a font of your Mac. "System font" is the font of macOS. The list has each installed family. Type a part of a name in the field **Search fonts** to find a family. The arrow keys move the highlight, Return selects it, and Esc closes the list with no change. |
 
-- At the start, a title is bold, 20 pt, and in the automatic colour. With
-  no icon and no image, it is at the centre. With an icon or an image, it is
-  at the bottom.
+- At the start, a title is bold, 20 pt, in the system font, and in the
+  automatic colour. With no icon and no image, it is at the centre. With an
+  icon or an image, it is at the bottom.
+- A font that is on another Mac, and not on your Mac, shows in the system
+  font. The row **Font** says "… is not installed: the system font shows."
+  The title keeps the name, thus it shows in that font on a Mac that has
+  it.
 - If a long title does not fit at its size, OpenCraft makes the text
   smaller.
 - With an icon or an image, a title at the top or at the bottom has its own

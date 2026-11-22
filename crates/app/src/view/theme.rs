@@ -1284,16 +1284,17 @@ pub const ICON_TILE_ICON: Pixels = px(18.);
 pub const ICON_KIND_LIBRARY: Pixels = px(14.);
 pub const ICON_KIND_DRAG: Pixels = px(13.);
 
-// MARK: The application picker
+// MARK: The list pickers
 
-/// The popover of the application picker. It aligns to the trailing edge
-/// of the button "Choose…".
-pub const APPLICATION_PICKER_WIDTH: Pixels = px(320.);
+/// The popover of a picker with a search field and a list: the application
+/// picker, and the font picker of a label. It aligns to the trailing edge of
+/// its button.
+pub const LIST_PICKER_WIDTH: Pixels = px(320.);
 /// The height of the popover when the window has room for it.
-pub const APPLICATION_PICKER_HEIGHT: Pixels = px(360.);
+pub const LIST_PICKER_HEIGHT: Pixels = px(360.);
 /// The smallest height of the popover in a low window. The list then
 /// scrolls in less space.
-pub const APPLICATION_PICKER_MIN_HEIGHT: Pixels = px(220.);
+pub const LIST_PICKER_MIN_HEIGHT: Pixels = px(220.);
 
 // MARK: The first start window and the Accessibility request (section 18)
 

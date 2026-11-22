@@ -410,6 +410,7 @@ impl w::SurfaceFace {
         Self {
             label: c.label.clone(),
             label_style: w::LabelStyle {
+                font: style.font.clone(),
                 position: style.position.map(Into::into),
                 size: style.size,
                 color: style.color.map(|c| c.to_string()),

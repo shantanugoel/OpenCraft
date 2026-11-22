@@ -102,6 +102,12 @@ fn escape_gives_the_focus_back_to_the_icon_button(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn escape_gives_the_focus_back_to_the_font_button(cx: &mut TestAppContext) {
+    let (_view, cx, _tx) = key_window(cx);
+    space_then_escape(cx, "label-font", "font-picker", "no-colour");
+}
+
+#[gpui_kit::test]
 fn escape_gives_the_focus_back_to_a_knob_light(cx: &mut TestAppContext) {
     let (_view, cx, tx, _sent) = window(cx);
     send(
