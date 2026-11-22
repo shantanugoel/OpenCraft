@@ -422,7 +422,9 @@ directory to a temporary directory, adds the profile
 `docs/checks/phase-11-checks.opencraft`, and starts a release build on the
 copy. It prompts each step with a single-key `y` or `n` answer and saves the
 results to `/tmp/opencraft-phase-11-answers.txt`. The copy is removed at the
-end, and the installed OpenCraft starts again.
+end, and the installed OpenCraft starts again. It starts again also when the
+owner quit it before the check. A Ctrl-C runs the same cleanup and exits with
+a code that is not 0.
 
 The copy is necessary: a Phase 11 build writes profile schema version 8, and
 release 0.6.0 cannot read that version. The script never opens the profiles of

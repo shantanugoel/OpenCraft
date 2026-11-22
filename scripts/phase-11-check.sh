@@ -6,7 +6,9 @@
 # and starts a release build on the copy. The new build never opens the
 # profiles of the owner: a Phase 11 build writes schema version 8, and release
 # 0.6.0 cannot read that version. The copy is removed at the end, and the
-# installed OpenCraft starts again.
+# installed OpenCraft starts again, also when the owner quit it before the
+# check. A Ctrl-C at a prompt stops the build, removes the copy, starts the
+# installed OpenCraft, and exits with a code that is not 0.
 #
 # Each question takes one key: y or n. The answers go to
 # /tmp/opencraft-phase-11-answers.txt.
@@ -27,6 +29,9 @@ CHECK_PROFILE="$ROOT/docs/checks/phase-11-checks.opencraft"
 INSTALLED="/Applications/OpenCraft.app"
 INSTALLED_BINARY="$INSTALLED/Contents/MacOS/opencraft"
 PROFILES_SRC="$HOME/Library/Application Support/OpenCraft/profiles"
+# Test hook: OPENCRAFT_PHASE11_RESTART_LOG names a file. The script writes the
+# start command of the installed OpenCraft to that file, and starts nothing.
+RESTART_LOG="${OPENCRAFT_PHASE11_RESTART_LOG:-}"
 
 DRY_RUN=0
 NO_DEVICE=0
@@ -35,7 +40,7 @@ for argument in "$@"; do
     --dry-run) DRY_RUN=1 ;;
     --no-device) NO_DEVICE=1 ;;
     -h | --help)
-      sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+      awk 'NR > 1 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "$0"
       exit 0
       ;;
     *)
@@ -61,7 +66,6 @@ SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/opencraft-phase-11.XXXXXX")" || exit 1
 SCRATCH_PROFILES="$SCRATCH/config/profiles"
 CHECK_DIR="$SCRATCH_PROFILES/phase-11-checks"
 APP_PID=""
-INSTALLED_RUNNING=0
 
 ask_yn() {
   local id="$1" prompt="$2" answer=""
@@ -125,7 +129,8 @@ wait_enter() {
     return 0
   fi
   printf "%s " "$1"
-  IFS= read -r _
+  # A closed input (Ctrl-D, a pipe that ends) stops the script: cleanup runs.
+  IFS= read -r _ || exit 1
 }
 
 stop_app() {
@@ -140,16 +145,42 @@ stop_app() {
   APP_PID=""
 }
 
+start_installed() {
+  # The procedure tells the owner to quit the installed OpenCraft before the
+  # check. Thus the start at the end is right also when OpenCraft did not run
+  # when this script started. When it still runs, `open` only brings it
+  # forward and starts no second process.
+  if [ "$DRY_RUN" -eq 1 ] || [ ! -d "$INSTALLED" ]; then
+    return 0
+  fi
+  if [ -n "$RESTART_LOG" ]; then
+    printf 'open -g -j -a %s --args --login\n' "$INSTALLED" >>"$RESTART_LOG"
+    return 0
+  fi
+  # Give the device back to the installed OpenCraft.
+  open -g -j -a "$INSTALLED" --args --login >/dev/null 2>&1 || true
+}
+
+CLEANED=0
+
 cleanup() {
+  # EXIT, INT, and TERM can arrive together: run the cleanup one time.
+  if [ "$CLEANED" -eq 1 ]; then
+    return 0
+  fi
+  CLEANED=1
+  # A second Ctrl-C must not stop the cleanup before its end.
+  trap '' INT TERM
   stop_app
   # The copy holds the profiles of the owner: remove it.
   rm -rf "$SCRATCH"
-  # Give the device back to the installed OpenCraft.
-  if [ "$DRY_RUN" -eq 0 ] && [ "$INSTALLED_RUNNING" -eq 1 ]; then
-    open -g -j -a "$INSTALLED" --args --login >/dev/null 2>&1 || true
-  fi
+  start_installed
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+# Ctrl-C exits with 130 and Ctrl-\ exits with 143, as a shell does.
+# Exit runs cleanup after the signal trap.
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The check profile is a profile export file. Take the profile file out of it:
 # the table `[profile]` holds the profile, and its tables are one level deeper.
@@ -205,7 +236,6 @@ if [ "$DRY_RUN" -eq 1 ]; then
   head -3 "$CHECK_DIR/profile.toml" | sed 's/^/  /'
 else
   if [ "$NO_DEVICE" -eq 0 ] && pgrep -f "$INSTALLED_BINARY" >/dev/null 2>&1; then
-    INSTALLED_RUNNING=1
     echo "OpenCraft is running. Quit it from its menu bar item first: only one"
     echo "process can open the device."
     wait_enter "Press Enter when OpenCraft has stopped..."
@@ -297,9 +327,9 @@ echo ""
 echo "=== Done ==="
 echo "Answers saved to: $ANSWERS"
 echo "Copy of the profiles: removed"
-if [ "$INSTALLED_RUNNING" -eq 1 ]; then
+if [ "$DRY_RUN" -eq 0 ] && [ -d "$INSTALLED" ]; then
   echo "Your installed OpenCraft starts again."
-else
-  echo "Start your installed OpenCraft again, when you need it."
+elif [ "$DRY_RUN" -eq 0 ]; then
+  echo "This Mac has no $INSTALLED. Start OpenCraft as usual."
 fi
 echo "Send the answers file to the agent."
