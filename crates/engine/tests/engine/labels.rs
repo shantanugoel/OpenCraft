@@ -220,7 +220,9 @@ fn the_font_stays_in_the_file_and_a_missing_font_shows_the_system_font() {
         missing.content.label_style.font,
         Some(Auto::Value("No Such Font Family 12345".into()))
     );
-    #[cfg(target_os = "macos")]
+    // The pixels of the system font. On an operating system that is not
+    // macOS the label module draws no text, thus the two images are equal
+    // there too.
     assert_eq!(
         *missing.image, *system,
         "a font that is not installed shows the system font"
@@ -240,8 +242,13 @@ fn the_font_stays_in_the_file_and_a_missing_font_shows_the_system_font() {
     let text = rig.profile_text().unwrap();
     assert!(text.contains("label_font = \"system\""), "{text}");
     let events = rig.take_events();
-    #[cfg(target_os = "macos")]
-    assert_eq!(*last_state(&events, KEY_3).image, *system);
+    let automatic = last_state(&events, KEY_3);
+    assert_eq!(
+        automatic.content.label_style.font,
+        Some(Auto::Auto),
+        "the word \"system\" is the automatic font"
+    );
+    assert_eq!(*automatic.image, *system);
 
     // A new start loads the font, and a font that is missing then shows the
     // system font.
@@ -259,6 +266,5 @@ fn the_font_stays_in_the_file_and_a_missing_font_shows_the_system_font() {
         state.content.label_style.font,
         Some(Auto::Value("No Such Font Family 12345".into()))
     );
-    #[cfg(target_os = "macos")]
     assert_eq!(*state.image, *system);
 }
