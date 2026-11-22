@@ -450,7 +450,10 @@ impl DeviceView {
         }
         self.application_picker
             .list
-            .reset(self.application_picker.shown.len());
+            // Each row has the same height. The hint of that height lets
+            // `scroll_to_reveal_item` show a row that is below the visible
+            // part, also on the first frame (issue 480).
+            .reset_with_uniform_height(self.application_picker.shown.len(), theme::HEIGHT_MENU_ROW);
     }
 
     fn highlight_current_application(&mut self) {

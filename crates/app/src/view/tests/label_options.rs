@@ -611,6 +611,54 @@ fn the_font_search_finds_a_family_and_the_keys_choose_a_row(cx: &mut TestAppCont
     assert_eq!(shown_families(&view, cx).len(), 3);
 }
 
+/// Many families, thus the list is longer than the popover.
+fn many_fonts(count: usize) -> Vec<opencraft_engine::label::FontFamily> {
+    (0..count)
+        .map(|index| opencraft_engine::label::FontFamily {
+            name: format!("Family {index:02}"),
+            display: format!("Family {index:02}"),
+        })
+        .collect()
+}
+
+/// The picker shows the row of the current family when it opens, also when
+/// the family is below the last row of the popover (issue 480).
+#[gpui_kit::test]
+fn the_font_picker_shows_the_row_of_the_current_family(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.inspector
+                .font_picker
+                .use_fixed_families(many_fonts(40))
+        })
+    });
+    click(cx, "surface-key face 2");
+    // The family 30 is below the 10 rows that the popover shows.
+    send(
+        cx,
+        &tx,
+        styled(
+            key(),
+            LabelStyle {
+                font: Some(Auto::Value("Family 30".into())),
+                ..LabelStyle::default()
+            },
+            false,
+        ),
+    );
+    click(cx, "label-font");
+    let popover = cx.debug_bounds("font-picker").expect("the popover");
+    // The rows are "System font" and then the families, thus the row 31.
+    let row = cx
+        .debug_bounds("font-row-31")
+        .expect("the row of the current family shows");
+    assert!(
+        row.top() >= popover.top() && row.bottom() <= popover.bottom(),
+        "the row {row:?} is in the popover {popover:?}"
+    );
+}
+
 #[gpui_kit::test]
 fn a_family_that_is_not_installed_shows_the_hint(cx: &mut TestAppContext) {
     let (view, cx, tx, _sent) = window(cx);

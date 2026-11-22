@@ -1021,6 +1021,47 @@ fn use_sample_applications(view: &Entity<DeviceView>, cx: &mut VisualTestContext
     });
 }
 
+/// Many applications, thus the list is longer than the popover.
+fn many_applications(count: usize) -> Vec<crate::applications::InstalledApplication> {
+    (0..count)
+        .map(|index| crate::applications::InstalledApplication {
+            name: format!("Application {index:02}"),
+            bundle_identifier: format!("com.example.application{index:02}"),
+            path: std::path::PathBuf::from(format!("/Applications/Application{index:02}.app")),
+        })
+        .collect()
+}
+
+/// The picker shows the row of the application that the field has, also
+/// when it is below the last row of the popover (issue 480).
+#[gpui_kit::test]
+fn the_application_picker_shows_the_row_of_the_current_application(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(2400.)));
+    tx.try_send(Event::Kinds(vec![kind()])).unwrap();
+    let mut current = action();
+    current
+        .settings
+        .insert("application".into(), Value::Text("Application 30".into()));
+    tx.try_send(event(binding(GestureKind::Press), current, true))
+        .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    let applications = many_applications(40);
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| view.use_fixed_applications(applications, cx));
+    });
+    click(cx, "path-7");
+    let popover = cx.debug_bounds("application-picker").expect("the popover");
+    let row = cx
+        .debug_bounds("app-row-30")
+        .expect("the row of the current application shows");
+    assert!(
+        row.top() >= popover.top() && row.bottom() <= popover.bottom(),
+        "the row {row:?} is in the popover {popover:?}"
+    );
+}
+
 fn open_application_form(
     cx: &mut TestAppContext,
 ) -> (Entity<DeviceView>, &mut VisualTestContext, Commands) {
