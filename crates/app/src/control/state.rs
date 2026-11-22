@@ -388,6 +388,9 @@ impl w::Surface {
             color,
             image,
             icon,
+            image_zoom,
+            image_offset_x,
+            image_offset_y,
         } = w::SurfaceFace::from_content(c);
         Self {
             id,
@@ -396,6 +399,9 @@ impl w::Surface {
             color,
             image,
             icon,
+            image_zoom,
+            image_offset_x,
+            image_offset_y,
             on: c.on.as_deref().map(w::SurfaceFace::from_content),
         }
     }
@@ -422,6 +428,9 @@ impl w::SurfaceFace {
                 name: i.name.clone(),
                 color: i.color.map(|c| c.to_string()),
             }),
+            image_zoom: c.image_crop.map(|crop| crop.zoom),
+            image_offset_x: c.image_crop.map(|crop| crop.x),
+            image_offset_y: c.image_crop.map(|crop| crop.y),
         }
     }
 }
@@ -667,12 +676,14 @@ pub(super) fn permitted(command: &e::Command) -> bool {
                 | e::Command::SetColor { .. }
                 | e::Command::SetImage { .. }
                 | e::Command::SetIcon { .. }
+                | e::Command::SetImageCrop { .. }
         ),
         e::Command::SetLabel { .. } => true,
         e::Command::SetLabelStyle { .. } => true,
         e::Command::SetColor { .. } => true,
         e::Command::SetImage { .. } => true,
         e::Command::SetIcon { .. } => true,
+        e::Command::SetImageCrop { .. } => true,
         e::Command::SetBinding { .. } => true,
         e::Command::SetBackground { .. } => true,
         e::Command::SetBackgroundFit { .. } => true,

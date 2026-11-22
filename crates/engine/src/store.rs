@@ -109,6 +109,17 @@
 //! weight only when it was not the default. Thus an old surface with the
 //! default look has no such key and inherits, and it shows as before.
 //!
+//! Schema version 8 also adds the crop of an image (decision 0043, KEY-02):
+//!
+//! | Key | Value | With no key |
+//! |---|---|---|
+//! | `image_zoom` | The zoom in percent, from 100 to 400 | 100 |
+//! | `image_offset_x` | The pan on the x axis, in per mille of the overflow, from -1000 to 1000 | 0 |
+//! | `image_offset_y` | The pan on the y axis, in per mille of the overflow, from -1000 to 1000 | 0 |
+//!
+//! The keys are independent, and the fit (100, 0, 0) writes no key. A key
+//! on a face with no `image` has an error. An `on` face has its own keys.
+//!
 //! ```toml
 //! schema_version = 8
 //! name = "Default"
@@ -150,8 +161,9 @@ use crate::front::{same_bundle, valid_bundle_id, MAX_LINKS};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
     default_model, parse_surface_key, surface_key, ApplicationLink, Auto, Background,
-    BackgroundFit, Color, Folder, FolderId, LabelPosition, LabelStyle, Page, PageId, Profile,
-    SurfaceContent, SurfaceIcon, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
+    BackgroundFit, Color, Folder, FolderId, ImageCrop, LabelPosition, LabelStyle, Page, PageId,
+    Profile, SurfaceContent, SurfaceIcon, MAX_IMAGE_PAN, MAX_IMAGE_ZOOM, MAX_LABEL_SIZE,
+    MIN_IMAGE_ZOOM, MIN_LABEL_SIZE,
 };
 use crate::saved::SavedFile;
 use image::imageops::FilterType;
@@ -904,6 +916,17 @@ struct SurfaceData {
     icon: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     icon_color: Option<String>,
+    /// The zoom of the image in percent. It came in version 8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    image_zoom: Option<u16>,
+    /// The pan of the image on the x axis, in per mille of the overflow. It
+    /// came in version 8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    image_offset_x: Option<i16>,
+    /// The pan of the image on the y axis, in per mille of the overflow. It
+    /// came in version 8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    image_offset_y: Option<i16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     on: Option<Box<SurfaceData>>,
 }
@@ -919,9 +942,63 @@ impl SurfaceData {
             || self.icon_color.is_some()
     }
 
-    /// True if the data has a label key of schema version 8.
+    /// True if the data has a key of schema version 8: a label key, or the
+    /// crop of the image.
     fn has_version_8_keys(&self) -> bool {
-        self.label_font.is_some() || self.label_italic.is_some() || self.label_underline.is_some()
+        self.label_font.is_some()
+            || self.label_italic.is_some()
+            || self.label_underline.is_some()
+            || self.image_zoom.is_some()
+            || self.image_offset_x.is_some()
+            || self.image_offset_y.is_some()
+    }
+
+    /// The first key of the crop of the image in the data, for the error
+    /// text. The caller checked that the data has one.
+    fn first_image_crop_key(&self) -> &'static str {
+        if self.image_zoom.is_some() {
+            "image_zoom"
+        } else if self.image_offset_x.is_some() {
+            "image_offset_x"
+        } else {
+            "image_offset_y"
+        }
+    }
+
+    /// The crop of the image of the file data, if the data has a key of it.
+    /// An absent key is the value of the fit: zoom 100 and no pan. The
+    /// error text names the key (decision 0043).
+    fn image_crop(&self, version: u32) -> std::result::Result<Option<ImageCrop>, String> {
+        let has_key = self.image_zoom.is_some()
+            || self.image_offset_x.is_some()
+            || self.image_offset_y.is_some();
+        if !has_key {
+            return Ok(None);
+        }
+        let key = self.first_image_crop_key();
+        if self.image.is_none() {
+            return Err(format!("{key} needs an image"));
+        }
+        faces_key(version, key)?;
+        let zoom = self.image_zoom.unwrap_or(MIN_IMAGE_ZOOM);
+        if !(MIN_IMAGE_ZOOM..=MAX_IMAGE_ZOOM).contains(&zoom) {
+            return Err(format!(
+                "image_zoom {zoom} is not from {MIN_IMAGE_ZOOM} to {MAX_IMAGE_ZOOM}"
+            ));
+        }
+        let x = self.image_offset_x.unwrap_or(0);
+        let y = self.image_offset_y.unwrap_or(0);
+        for (name, value) in [("image_offset_x", x), ("image_offset_y", y)] {
+            if !(-MAX_IMAGE_PAN..=MAX_IMAGE_PAN).contains(&value) {
+                return Err(format!(
+                    "{name} {value} is not from {} to {MAX_IMAGE_PAN}",
+                    -MAX_IMAGE_PAN
+                ));
+            }
+        }
+        let crop = ImageCrop { zoom, x, y };
+        // The fit is no crop: the file then has no keys.
+        Ok((!crop.is_fit()).then_some(crop))
     }
 
     /// The icon of the file data. The error text names the key.
@@ -1033,6 +1110,8 @@ impl SurfaceData {
     /// own value, also when the value is the engine default (decision 0043).
     fn from_face(content: &SurfaceContent) -> Self {
         let style = &content.label_style;
+        // The fit writes no keys, as a face with no image has no crop.
+        let crop = content.image_crop.filter(|crop| !crop.is_fit());
         Self {
             label: content.label.clone(),
             label_position: style.position.as_ref().map(|position| match position {
@@ -1059,6 +1138,10 @@ impl SurfaceData {
                 .as_ref()
                 .and_then(|i| i.color)
                 .map(|c| c.to_string()),
+            image_zoom: crop.map(|crop| crop.zoom),
+            // An absent pan is 0: it writes no key.
+            image_offset_x: crop.filter(|crop| crop.x != 0).map(|crop| crop.x),
+            image_offset_y: crop.filter(|crop| crop.y != 0).map(|crop| crop.y),
             on: None,
         }
     }
@@ -1131,12 +1214,16 @@ fn face_of(
         .label_style(version)
         .map_err(|e| format!("{key}: {e}"))?;
     let icon = surface.icon().map_err(|e| format!("{key}: {e}"))?;
+    let image_crop = surface
+        .image_crop(version)
+        .map_err(|e| format!("{key}: {e}"))?;
     Ok(SurfaceContent {
         label: surface.label.filter(|s| !s.is_empty()),
         label_style,
         color,
         image: surface.image,
         icon,
+        image_crop,
         on: None,
     })
 }
@@ -1899,6 +1986,18 @@ color = "#223344"
             b"schema_version = 3\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_position = \"auto\"\n",
             // A family name is not empty.
             b"schema_version = 8\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_font = \"\"\n",
+            // Version 8 adds the crop of an image. A file of version 7 with
+            // one has an error, a key needs an image, and each value has a
+            // range (decision 0043).
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage = \"images/0123456789abcdef.png\"\nimage_zoom = 200\n",
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage = \"images/0123456789abcdef.png\"\nimage_offset_x = -500\n",
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1.on]\nimage = \"images/0123456789abcdef.png\"\nimage_offset_y = 500\n",
+            b"schema_version = 8\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage_zoom = 200\n",
+            b"schema_version = 8\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel = \"Mail\"\nimage_offset_x = 100\n",
+            b"schema_version = 8\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage = \"images/0123456789abcdef.png\"\nimage_zoom = 99\n",
+            b"schema_version = 8\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage = \"images/0123456789abcdef.png\"\nimage_zoom = 401\n",
+            b"schema_version = 8\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage = \"images/0123456789abcdef.png\"\nimage_offset_x = 1001\n",
+            b"schema_version = 8\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nimage = \"images/0123456789abcdef.png\"\nimage_offset_y = -1001\n",
         ];
         for (i, text) in cases.iter().enumerate() {
             let (_dir, store) = store();
@@ -2136,6 +2235,66 @@ color = "#1E6FD9"
             "{text}"
         );
         assert_eq!(store.load().unwrap().profile, profile);
+    }
+
+    #[test]
+    fn the_crop_of_an_image_saves_with_its_keys_and_loads_again() {
+        let (_dir, store) = store();
+        let mut profile = sample();
+        let page = profile.page_mut(0).unwrap();
+        page.update(KEY_3, |c| {
+            c.image_crop = Some(ImageCrop {
+                zoom: 200,
+                x: -500,
+                y: 1000,
+            })
+        });
+        // An On face has its own keys.
+        page.update(BAR_1, |c| {
+            c.image = Some("images/4f1c2a9be07d3356.png".into());
+        });
+        page.update(BAR_1, |c| {
+            let face = c.face_mut(true);
+            face.label = None;
+            face.image_crop = Some(ImageCrop {
+                zoom: 400,
+                x: 0,
+                y: 0,
+            });
+        });
+        // The fit writes no key, and a face with no image has no crop.
+        let key_1 = SurfaceId::new(SurfaceKind::KeyFace, 1);
+        page.update(key_1, |c| {
+            c.image = Some("images/4f1c2a9be07d3356.png".into());
+            c.image_crop = Some(ImageCrop::default());
+        });
+        store.save(&profile).unwrap();
+
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(
+            text.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")),
+            "{text}"
+        );
+        assert!(
+            text.contains(
+                "[pages.surfaces.key-face-3]\nlabel = \"Mail\"\ncolor = \"#1E6FD9\"\nimage = \"images/4f1c2a9be07d3356.png\"\nimage_zoom = 200\nimage_offset_x = -500\nimage_offset_y = 1000\n"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains(
+                "[pages.surfaces.bar-panel-1.on]\nimage = \"images/4f1c2a9be07d3356.png\"\nimage_zoom = 400\n"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains("[pages.surfaces.key-face-1]\nimage = \"images/4f1c2a9be07d3356.png\"\n"),
+            "{text}"
+        );
+        assert!(!text.contains("image_offset_x = 0"), "{text}");
+        // The crop stays after a load: a restart of the engine reads it.
+        assert_eq!(store.load().unwrap().profile, profile);
+        assert_eq!(store.read().unwrap(), profile);
     }
 
     #[test]

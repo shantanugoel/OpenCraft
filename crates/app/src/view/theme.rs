@@ -1426,6 +1426,10 @@ pub const PERMISSION_TILE: Pixels = px(36.);
 // The window embeds only the icons in this list. A new icon in the window
 // needs a new name here: a missing icon shows nothing.
 gpui_kit::assets::icon_assets!(pub WindowIcons, [
+    ArrowDown,
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
     Check,
     ChevronDown,
     ChevronLeft,

@@ -1,6 +1,6 @@
 # Text and images on surfaces
 
-Last update: 2026-11-11
+Last update: 2026-11-22
 
 ## Test method
 
@@ -134,6 +134,27 @@ label module, not results of this test.
 |---|---|---:|---:|---:|---|---|
 | 512 × 512 | 112 × 112 | 2.637 | 1.682 | 0.901 | Measured | Earlier resize test in T |
 | 1024 × 1024 | 112 × 112 | 9.175 | 5.872 | 3.093 | Measured | Earlier resize test in T |
+
+## The zoom and the pan of a surface image
+
+The test measures `render::surface_image` on the key face of 112 × 112 and on
+the bar panel of 176 × 112 of the N4 Pro. The source is a synthetic RGB image
+of 512 × 512, the largest copy that `ProfileStore` makes. A release build, one
+warm-up, and the mean of 100 calls: no decode is in the time.
+
+| Case | Time, ms | Confidence | Source |
+|---|---:|---|---|
+| The fit, 512 × 512 to a key face | 1.75 | Measured | Temporary test of `render::tests`, 2026-11-22 |
+| Zoom 200 %, pan 1000/1000, to a key face | 2.19 | Measured | The same test |
+| Zoom 400 %, pan 1000/1000, to a key face | 3.72 | Measured | The same test |
+| Zoom 400 %, pan 1000/1000, to a bar panel | 3.73 | Measured | The same test |
+
+- The zoom costs the resize to the larger size: 512 × 512 at 400 % becomes
+  448 × 448 before the area takes its part. That is 2.1 times the fit time.
+  The pan costs no more than a few additions.
+- The engine draws one surface after each zoom or move. The engine test
+  `the_zoom_and_the_pan_show_on_the_device_and_in_the_state` shows that the
+  device gets the same picture (rule 11).
 
 ## The label module of the engine
 

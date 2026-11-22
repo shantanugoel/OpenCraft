@@ -537,6 +537,73 @@ fn the_surface_requests_can_write_and_read_the_on_face() {
 }
 
 #[test]
+fn the_image_crop_requests_set_read_and_reset_the_crop() {
+    let mut live = Live::new();
+    let surface = surface_1();
+    let target = live.at(0);
+    let find = |live: &mut Live| {
+        live.content(target.clone())["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == surface)
+            .unwrap()
+            .clone()
+    };
+    let picture = live.image("crop.png");
+    live.ok(
+        "set_image",
+        json!({"target": target, "surface": surface, "path": picture}),
+    );
+    live.ok(
+        "set_image_crop",
+        json!({"target": target, "surface": surface, "zoom": 200, "offset_x": -500}),
+    );
+    assert_eq!(live.read("history")["undo"], "Set Image Crop");
+    let key = find(&mut live);
+    assert_eq!(key["image_zoom"], 200);
+    assert_eq!(key["image_offset_x"], -500);
+    // A crop writes each value, also the value 0 of the fit.
+    assert_eq!(key["image_offset_y"], 0);
+    // No value resets the crop to the fit.
+    live.ok(
+        "set_image_crop",
+        json!({"target": target, "surface": surface}),
+    );
+    assert_eq!(live.read("history")["undo"], "Reset the Image Crop");
+    let key = find(&mut live);
+    for part in ["image_zoom", "image_offset_x", "image_offset_y"] {
+        assert!(key[part].is_null(), "{part} after the reset");
+    }
+    // An On face has its own crop.
+    live.ok(
+        "set_image_crop",
+        json!({"target": target, "surface": surface, "on": true, "zoom": 300, "offset_y": 1000}),
+    );
+    let key = find(&mut live);
+    assert_eq!(key["on"]["image_zoom"], 300);
+    assert_eq!(key["on"]["image_offset_y"], 1000);
+    // A free number goes into its range.
+    live.ok(
+        "set_image_crop",
+        json!({"target": target, "surface": surface, "zoom": 900, "offset_x": 4000}),
+    );
+    let key = find(&mut live);
+    assert_eq!(key["image_zoom"], 400);
+    assert_eq!(key["image_offset_x"], 1000);
+    // A surface with no image takes no crop.
+    live.ok(
+        "set_image",
+        json!({"target": target, "surface": surface, "path": null}),
+    );
+    live.ok(
+        "set_image_crop",
+        json!({"target": target, "surface": surface, "zoom": 200}),
+    );
+    assert!(find(&mut live)["image_zoom"].is_null());
+}
+
+#[test]
 fn binding_and_control_requests_set_remove_copy_paste_clear_and_copy_to_all_pages() {
     let mut live = Live::new();
     let profile = live.active.clone();

@@ -33,6 +33,8 @@ mod actions;
 mod backgrounds;
 #[path = "engine/clipboard.rs"]
 mod clipboard;
+#[path = "engine/crop.rs"]
+mod crop;
 #[path = "engine/device_settings.rs"]
 mod device_settings;
 #[path = "engine/folders.rs"]

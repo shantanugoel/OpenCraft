@@ -30,6 +30,12 @@ fn profile_with_image(dir: &Path, id: &str, name: &str) -> Profile {
     first.update(KEY_3, |c| {
         c.image = Some(image.clone());
         c.label = Some("Mail".into());
+        // The export file keeps the crop of the image (decision 0043).
+        c.image_crop = Some(opencraft_engine::ImageCrop {
+            zoom: 200,
+            x: -500,
+            y: 1000,
+        });
     });
     let press = binding(ControlKind::Key, 3, GestureKind::Press);
     first.set_binding(press.control, press.gesture, Some(action("test.share")));
@@ -280,6 +286,14 @@ fn an_export_and_an_import_give_the_same_profile_with_the_images_as_a_new_profil
         Some("Mail")
     );
     assert!(last_state(&events, KEY_3).content.image.is_some());
+    assert_eq!(
+        last_state(&events, KEY_3).content.image_crop,
+        Some(opencraft_engine::ImageCrop {
+            zoom: 200,
+            x: -500,
+            y: 1000,
+        })
+    );
 
     // A third import gets the next number.
     command(&mut rig, Command::ImportProfile { path: file });

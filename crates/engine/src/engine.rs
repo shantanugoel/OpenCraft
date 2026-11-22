@@ -62,7 +62,7 @@ use crate::location::{Holder, Location};
 use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
     image_uses_of, ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry,
-    FolderId, LabelChange, Page, PageId, Profile, SurfaceContent, SurfaceIcon,
+    FolderId, ImageCrop, LabelChange, Page, PageId, Profile, SurfaceContent, SurfaceIcon,
     DEFAULT_PROFILE_NAME,
 };
 use crate::profile_list::ProfileList;
@@ -197,6 +197,13 @@ pub enum Command {
     SetIcon {
         surface: SurfaceId,
         icon: Option<SurfaceIcon>,
+    },
+    /// Set the crop of the image of a surface: the zoom and the pan
+    /// (decision 0043). The engine puts each value into its range. `None`
+    /// resets the crop to the fit. A surface with no image does not change.
+    SetImageCrop {
+        surface: SurfaceId,
+        crop: Option<ImageCrop>,
     },
     /// Set or remove a binding. The page of `binding` must be the active
     /// page. If it is not, the engine changes nothing and gives a problem: the
@@ -452,6 +459,7 @@ impl Command {
                 | Self::SetColor { .. }
                 | Self::SetImage { .. }
                 | Self::SetIcon { .. }
+                | Self::SetImageCrop { .. }
         )
     }
 }
@@ -509,6 +517,8 @@ fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Tar
         Command::SetImage { path: None, .. } => step("Remove the Image", None),
         Command::SetIcon { icon: Some(_), .. } => step("Set Icon", None),
         Command::SetIcon { icon: None, .. } => step("Remove the Icon", None),
+        Command::SetImageCrop { crop: Some(_), .. } => step("Set Image Crop", None),
+        Command::SetImageCrop { crop: None, .. } => step("Reset the Image Crop", None),
         Command::SetBinding {
             binding,
             action: Some(_),
@@ -645,6 +655,13 @@ pub struct SurfaceState {
     pub content: SurfaceContent,
     /// The upright image. The device shows this same image.
     pub image: Arc<RgbImage>,
+    /// The decoded size of the image of the face, in pixels. `None` when the
+    /// face has no image, or when the engine cannot read it. The window uses
+    /// it for the warning that the image is too small (decision 0043).
+    pub image_size: Option<(u32, u32)>,
+    /// The size of the area of the picture on the face after the band of the
+    /// label, in pixels. `None` when the face has no image.
+    pub image_area: Option<(u32, u32)>,
     /// The image of each state, when the feedback on the surface has a
     /// state (decision 0017). One of the two is `image`. The shell shows
     /// them in the appearance of each state (decision 0029, section 10.5).
@@ -2935,10 +2952,17 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             StateImages { now, off, on }
         });
         self.images.insert(surface.id, Arc::clone(&image));
+        let image_size = source.as_ref().map(|image| (image.width(), image.height()));
+        let image_area = image_size.map(|_| {
+            let area = render::image_area(size, &content, true);
+            (area.width, area.height)
+        });
         (self.sink)(Event::Surface(SurfaceState {
             id: surface.id,
             content,
             image,
+            image_size,
+            image_area,
             states,
         }));
     }
@@ -3255,6 +3279,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         c.icon = None;
                     }
                     c.image = image;
+                    // A crop of a different image does not carry over
+                    // (decision 0043).
+                    c.image_crop = None;
                     edited
                 });
             }
@@ -3274,6 +3301,19 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                         c.image = None;
                     }
                     c.icon = icon;
+                    // The crop belongs to the image (decision 0043).
+                    c.image_crop = None;
+                    edited
+                });
+            }
+            Command::SetImageCrop { surface, crop } => {
+                self.change_face(surface, on, |c| {
+                    if c.image.is_none() {
+                        return false;
+                    }
+                    let crop = crop.map(ImageCrop::clamped).filter(|c| !c.is_fit());
+                    let edited = crop != c.image_crop;
+                    c.image_crop = crop;
                     edited
                 });
             }
@@ -3306,7 +3346,8 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             | Command::SetLabelStyle { .. }
             | Command::SetColor { .. }
             | Command::SetImage { .. }
-            | Command::SetIcon { .. }) => self.edit_face(command, false),
+            | Command::SetIcon { .. }
+            | Command::SetImageCrop { .. }) => self.edit_face(command, false),
             Command::SetBinding { binding, action } => self.set_binding(binding, action),
             Command::SetBackground { page, background } => self.set_background(page, background),
             Command::SetBackgroundFit { page, fit } => {

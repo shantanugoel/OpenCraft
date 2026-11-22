@@ -511,3 +511,32 @@ fn each_control_with_a_role_has_a_label(cx: &mut TestAppContext) {
         );
     }
 }
+
+#[gpui_kit::test]
+fn the_crop_of_an_image_has_its_labels(cx: &mut TestAppContext) {
+    use super::crop::image_surface;
+    let (_view, cx, tx, _sent) = named_window(cx);
+    click(cx, "surface-key face 2");
+    send(cx, &tx, image_surface(key(), None, (64, 64), (112, 112)));
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::ComboBox, "Zoom");
+    for label in [
+        "Move the image left",
+        "Move the image right",
+        "Move the image up",
+        "Move the image down",
+        "Reset",
+    ] {
+        assert_has(&nodes, Role::Button, label);
+    }
+    assert_has(
+        &nodes,
+        Role::Label,
+        "This image has 64 × 64 pixels. At 100 % it is smaller than the key face, thus it will look soft.",
+    );
+    // The menu of the zoom has its rows with their names.
+    click(cx, "image-zoom");
+    let nodes = frame(cx);
+    assert_has(&nodes, Role::MenuItem, "200 %");
+    assert_has(&nodes, Role::MenuItem, "400 %");
+}

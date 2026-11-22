@@ -112,7 +112,8 @@ limits below are the same for the tools.
   does not give the page, the key, or the value that the undo changes.
 - **A change of the pages is a step of the history.** These requests make
   a step: `surface set-label`, `surface set-label-style`, `surface set-color`,
-  `surface set-image`, `surface set-icon`, `binding set`, `page add`,
+  `surface set-image`, `surface set-icon`, `surface set-image-crop`,
+  `binding set`, `page add`,
   `page duplicate`, `page rename`, `page move`, `page remove`,
   `page set-first`, `page set-background`, `page set-background-fit`,
   `folder add`, `folder rename`, `folder move`, `folder remove`,
@@ -324,6 +325,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `surface set-color` | target `--surface` `--color` `--on` | Set or remove the fill colour |
 | `surface set-image` | target `--surface` `--path` `--on` | Set or remove the image |
 | `surface set-icon` | target `--surface` `--icon-name` `--icon-color` `--on` | Set or remove the icon |
+| `surface set-image-crop` | target `--surface` `--zoom` `--offset-x` `--offset-y` `--on` | Zoom and move an image, or reset the crop |
 | `binding set` | target `--control` `--gesture` `--action-kind` `--setting` `--action` | Set an action; with none: remove it |
 | `control copy` | target `--control` | Copy a control |
 | `control paste` | target `--control` | Paste onto a control |

@@ -185,6 +185,27 @@ pub struct SetIconParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct SetImageCropParams {
+    pub target: Target,
+    pub surface: SurfaceId,
+    #[serde(default)]
+    pub on: bool,
+    /// The zoom in percent, from 100 to 400. A request with no value for
+    /// each key resets the crop to the fit (decision 0043).
+    #[serde(default)]
+    pub zoom: Option<u16>,
+    /// The pan on the x axis, in per mille of the overflow, from -1000 to
+    /// 1000.
+    #[serde(default)]
+    pub offset_x: Option<i16>,
+    /// The pan on the y axis, in per mille of the overflow, from -1000 to
+    /// 1000.
+    #[serde(default)]
+    pub offset_y: Option<i16>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SetBindingParams {
     pub target: Target,
     pub control: ControlId,
@@ -394,6 +415,7 @@ pub enum Method {
     SetColor(SetColorParams),
     SetImage(SetImageParams),
     SetIcon(SetIconParams),
+    SetImageCrop(SetImageCropParams),
     SetBinding(SetBindingParams),
     CopyControl(ControlParams),
     PasteControl(ControlParams),
@@ -458,6 +480,7 @@ impl Method {
             | Self::SetColor(_)
             | Self::SetImage(_)
             | Self::SetIcon(_)
+            | Self::SetImageCrop(_)
             | Self::SetBinding(_)
             | Self::CopyControl(_)
             | Self::PasteControl(_)
@@ -515,6 +538,7 @@ impl Method {
             Self::SetColor(_) => "set_color",
             Self::SetImage(_) => "set_image",
             Self::SetIcon(_) => "set_icon",
+            Self::SetImageCrop(_) => "set_image_crop",
             Self::SetBinding(_) => "set_binding",
             Self::CopyControl(_) => "copy_control",
             Self::PasteControl(_) => "paste_control",
@@ -575,6 +599,7 @@ pub const METHODS: &[&str] = &[
     "set_color",
     "set_image",
     "set_icon",
+    "set_image_crop",
     "set_binding",
     "copy_control",
     "paste_control",
@@ -1046,6 +1071,18 @@ pub struct Surface {
     /// A profile-relative image name, not an absolute file path.
     pub image: Option<String>,
     pub icon: Option<Icon>,
+    /// The zoom of the image in percent, from 100 to 400. `None` is the fit
+    /// (decision 0043).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_zoom: Option<u16>,
+    /// The pan of the image on the x axis, in per mille of the overflow.
+    /// `None` is 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_offset_x: Option<i16>,
+    /// The pan of the image on the y axis, in per mille of the overflow.
+    /// `None` is 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_offset_y: Option<i16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on: Option<SurfaceFace>,
 }
@@ -1058,6 +1095,18 @@ pub struct SurfaceFace {
     /// A profile-relative image name, not an absolute file path.
     pub image: Option<String>,
     pub icon: Option<Icon>,
+    /// The zoom of the image in percent, from 100 to 400. `None` is the fit
+    /// (decision 0043).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_zoom: Option<u16>,
+    /// The pan of the image on the x axis, in per mille of the overflow.
+    /// `None` is 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_offset_x: Option<i16>,
+    /// The pan of the image on the y axis, in per mille of the overflow.
+    /// `None` is 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_offset_y: Option<i16>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -701,6 +701,8 @@ pub(crate) mod tests {
                 ..Default::default()
             },
             image: Arc::new(RgbImage::new(90, 90)),
+            image_size: None,
+            image_area: None,
             states: None,
         };
         s.apply(Event::Surface(surface.clone()), now);

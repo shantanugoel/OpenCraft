@@ -21,7 +21,7 @@ the top of the right panel. The inspector has these parts, from the top:
 | Part | What it shows |
 |---|---|
 | Header | The image of the key face, the name "Key 1", and the position "Top row, first key" |
-| **Appearance** | The rows **Icon**, **Title**, **Position**, **Text**, **Font**, and **Fill** |
+| **Appearance** | The rows **Icon**, **Title**, **Position**, **Text**, **Font**, and **Fill**. A face with an image also has **Zoom**, **Offset**, and **Reset**. |
 | **Gestures** | One card for each gesture of the key: **Press**, **Release**, **Long press**, and **Double press** |
 
 If the inspector is not tall enough, it shows a scrollbar at the right.
@@ -137,6 +137,30 @@ image shows the fill of the key face.
 - A drop and a paste are one change. You can undo them. See
   [Undo a change](#undo-a-change).
 - To remove the image, click **Choose icon…**, and click **No icon**.
+
+### Zoom and move an image
+
+A face with an image has three more rows in **Appearance**:
+
+| Row | What it does |
+|---|---|
+| **Zoom** | Shows the zoom of the image, for example "200 %". Click it, and click a zoom in the menu. "100 %" is the fit: the largest image with its proportion, at the centre. |
+| **Offset** | The four arrows move the image. The left and the right arrows move it across, and the up and the down arrows move it up and down. An arrow of a side that has no space does nothing: it is grey. |
+| **Reset** | Shows all of the image again: the zoom becomes 100 %, and the image is at the centre. The button is grey when the image is at the fit. |
+
+The zoom and the offsets are part of the face. A key face and a bar panel
+keep their own crop, and the On face of a key keeps its own crop too. The
+zoom and the offsets also stay in the profile, thus they show again after a
+new start.
+
+- A new image, and an icon, remove the zoom and the offsets.
+- Each zoom and each move is one change. You can undo it. See
+  [Undo a change](#undo-a-change).
+- A move is a tenth of the free space on that side.
+- If the image is smaller than the face, OpenCraft shows a warning below
+  the rows. The warning names the size of the image. The device shows a
+  soft image in that case, because a large zoom cannot add pixels. Use a
+  larger image file, or a smaller zoom.
 
 ## 4. Set an action
 

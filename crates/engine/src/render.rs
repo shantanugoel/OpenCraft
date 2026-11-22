@@ -13,7 +13,8 @@
 //! - The picture is the image or the icon of the content (a surface has one
 //!   or none of them).
 //! - The image is as large as possible in its area, with its proportion, at
-//!   the centre. The colour shows through the transparent parts.
+//!   the centre. The colour shows through the transparent parts. A crop
+//!   scales that picture and moves it (decision 0043): see [`draw_image`].
 //! - The icon is a square at the centre of its area, in its colour (see
 //!   [`icon_color`]). Its side is a multiple of 24 pixels, the grid of the
 //!   icons, so that each line of the grid is on the edge of a pixel: see
@@ -36,7 +37,8 @@ use crate::icons;
 use crate::label::{self, Align, Area, Font};
 use crate::layout::DeviceLayout;
 use crate::profile::{
-    Background, BackgroundFit, Color, LabelPosition, LabelStyle, Page, SurfaceContent,
+    Background, BackgroundFit, Color, ImageCrop, LabelPosition, LabelStyle, Page, SurfaceContent,
+    MAX_IMAGE_PAN, MIN_IMAGE_ZOOM,
 };
 use image::imageops::{self, FilterType};
 use image::{DynamicImage, Rgb, RgbImage};
@@ -146,6 +148,50 @@ fn mean_color(image: &RgbImage) -> Color {
     Color(sum.map(|total| (total / count) as u8))
 }
 
+/// The area of the picture on a surface of `size`: the whole surface, or the
+/// part that the band of a label at the top or at the bottom does not use
+/// (decision 0043). `has_picture` says whether the face shows a picture: the
+/// label then has a band.
+///
+/// The engine sends this area in [`crate::engine::SurfaceState::image_area`],
+/// thus the window can tell whether an image is smaller than the area.
+pub fn image_area(size: Size, content: &SurfaceContent, has_picture: bool) -> Size {
+    Size {
+        width: size.width,
+        height: size
+            .height
+            .saturating_sub(picture_band(size, content, has_picture)),
+    }
+}
+
+/// The height of the band of the label at the top or at the bottom of the
+/// picture of a surface of `size`. It is 0 for the other positions, and for
+/// a surface with no picture.
+fn picture_band(size: Size, content: &SurfaceContent, has_picture: bool) -> u32 {
+    if !has_picture {
+        return 0;
+    }
+    let style = content.label_style.resolve(&LabelStyle::default());
+    let position = style.position_for(has_picture);
+    let Some(text) = content
+        .label
+        .as_deref()
+        .filter(|t| !t.trim().is_empty() && position != LabelPosition::Hidden)
+    else {
+        return 0;
+    };
+    if !matches!(position, LabelPosition::Top | LabelPosition::Bottom) {
+        return 0;
+    }
+    let font = Font {
+        size: style.size,
+        bold: style.bold,
+        family: style.font.clone(),
+    };
+    let width = size.width.saturating_sub(2 * MARGIN);
+    label::band_height(text, &font, width, size.height)
+}
+
 /// Make the upright image of a surface on `base`. See [`surface_image`].
 fn surface_image_on(
     size: Size,
@@ -208,7 +254,14 @@ fn surface_image_on(
     }
 
     if let Some(image) = image {
-        draw_image(&mut canvas, image, image_top, size.width, image_height);
+        draw_image(
+            &mut canvas,
+            image,
+            image_top,
+            size.width,
+            image_height,
+            content.image_crop,
+        );
     } else if let Some(icon) = icon {
         let side = icon_side(size.width, image_height);
         let x = (size.width - side) / 2;
@@ -503,10 +556,83 @@ fn draw_frame(canvas: &mut RgbImage, width: u32, color: Color) {
 
 /// Draw `image` on `canvas`, as large as possible in the area from 0, `top`
 /// with the size `width` × `height`, with its proportion, at the centre.
-fn draw_image(canvas: &mut RgbImage, image: &DynamicImage, top: u32, width: u32, height: u32) {
+///
+/// `crop` scales that picture and moves it (decision 0043). The fit shows no
+/// crop, and the fit with no pan is the same picture as no crop, thus it
+/// takes the same path.
+fn draw_image(
+    canvas: &mut RgbImage,
+    image: &DynamicImage,
+    top: u32,
+    width: u32,
+    height: u32,
+    crop: Option<ImageCrop>,
+) {
     if width == 0 || height == 0 || image.width() == 0 || image.height() == 0 {
         return;
     }
+    // Zoom 100 is the fit: the pan has no effect there, because the image
+    // has no overflow.
+    let Some(crop) = crop.filter(|crop| crop.zoom > MIN_IMAGE_ZOOM) else {
+        draw_fit(canvas, image, top, width, height);
+        return;
+    };
+    let (scaled_width, scaled_height) =
+        image_scaled_size((image.width(), image.height()), (width, height), crop.zoom);
+    let scaled = image
+        .resize_exact(scaled_width, scaled_height, FilterType::CatmullRom)
+        .into_rgba8();
+    // The image is at the centre, then the pan moves it over the overflow.
+    // A positive pan on an axis moves the image in the positive direction.
+    let overflow_x = f64::from(scaled_width.saturating_sub(width));
+    let overflow_y = f64::from(scaled_height.saturating_sub(height));
+    let x = (f64::from(width) - f64::from(scaled_width)) / 2.0
+        + overflow_x / 2.0 * f64::from(crop.x) / f64::from(MAX_IMAGE_PAN);
+    let y = (f64::from(height) - f64::from(scaled_height)) / 2.0
+        + overflow_y / 2.0 * f64::from(crop.y) / f64::from(MAX_IMAGE_PAN);
+    let x = x.round() as i64;
+    let y = y.round() as i64;
+    // The image stays inside its area: the label band and the rest of the
+    // surface do not change. `overlay` clips the pixels out of the area.
+    let mut area =
+        DynamicImage::ImageRgb8(imageops::crop_imm(canvas, 0, top, width, height).to_image())
+            .into_rgba8();
+    imageops::overlay(&mut area, &scaled, x, y);
+    let area = DynamicImage::ImageRgba8(area).into_rgb8();
+    imageops::replace(canvas, &area, 0, i64::from(top));
+}
+
+/// The size of an image of `source` pixels at `zoom` percent of its fit in
+/// an area of `area` pixels: the fit size of
+/// [`image::DynamicImage::resize`], scaled by the zoom. The result has at
+/// least one pixel on each side.
+pub fn image_scaled_size(source: (u32, u32), area: (u32, u32), zoom: u16) -> (u32, u32) {
+    if area.0 == 0 || area.1 == 0 || source.0 == 0 || source.1 == 0 {
+        return (0, 0);
+    }
+    let (image_width, image_height) = (f64::from(source.0), f64::from(source.1));
+    let ratio = f64::min(
+        f64::from(area.0) / image_width,
+        f64::from(area.1) / image_height,
+    );
+    let scale = ratio * f64::from(zoom) / 100.0;
+    (
+        (image_width * scale).round().max(1.0) as u32,
+        (image_height * scale).round().max(1.0) as u32,
+    )
+}
+
+/// The overflow of an image of `source` pixels on each axis, in pixels: the
+/// part of the scaled image that does not fit in the area. The pan of an
+/// axis with no overflow has no effect (decision 0043).
+pub fn image_overflow(source: (u32, u32), area: (u32, u32), zoom: u16) -> (u32, u32) {
+    let (width, height) = image_scaled_size(source, area, zoom);
+    (width.saturating_sub(area.0), height.saturating_sub(area.1))
+}
+
+/// Draw `image` on `canvas`, as large as possible in the area from 0, `top`
+/// with the size `width` × `height`, with its proportion, at the centre.
+fn draw_fit(canvas: &mut RgbImage, image: &DynamicImage, top: u32, width: u32, height: u32) {
     let scaled = if (image.width(), image.height()) == (width, height) {
         image.to_rgba8()
     } else {
@@ -1395,5 +1521,226 @@ mod tests {
         let image =
             surface_image_on_background(KEY, &content(Some("Mail"), None), None, None, Some(&dark));
         assert!(image.pixels().any(|p| *p == WHITE));
+    }
+
+    // --- The crop of an image (decision 0043, KEY-02) ----------------------
+
+    const RED_PIXEL: Rgb<u8> = Rgb([200, 30, 30]);
+    const BLUE_PIXEL: Rgb<u8> = Rgb([20, 40, 220]);
+
+    /// An image of `width` × `height` pixels with two parts that have a
+    /// colour: side by side when `across`, and on top of each other when not.
+    fn two_colours(width: u32, height: u32, across: bool) -> DynamicImage {
+        let mut image = RgbImage::new(width, height);
+        let (half_width, half_height) = (width / 2, height / 2);
+        for (x, y, pixel) in image.enumerate_pixels_mut() {
+            let first = if across {
+                x < half_width
+            } else {
+                y < half_height
+            };
+            *pixel = if first { RED_PIXEL } else { BLUE_PIXEL };
+        }
+        DynamicImage::ImageRgb8(image)
+    }
+
+    /// The content of a face with the image of the copy `name` and `crop`.
+    fn cropped(name: &str, crop: Option<ImageCrop>) -> SurfaceContent {
+        SurfaceContent {
+            image: Some(format!("images/{name}.png")),
+            image_crop: crop,
+            ..SurfaceContent::default()
+        }
+    }
+
+    fn zoom(zoom: u16, x: i16, y: i16) -> Option<ImageCrop> {
+        Some(ImageCrop { zoom, x, y })
+    }
+
+    /// A pixel of the image at the middle of the column `x`, with a tolerance
+    /// for the colour of the resampler.
+    fn near(image: &RgbImage, x: u32, y: u32, want: Rgb<u8>) {
+        let got = image.get_pixel(x, y);
+        let close = (0..3).all(|i| got[i].abs_diff(want[i]) <= 12);
+        assert!(close, "pixel {x}, {y} is {got:?}, not {want:?}");
+    }
+
+    #[test]
+    fn a_zoom_of_one_hundred_is_the_same_picture_as_no_crop() {
+        let source = two_colours(100, 50, true);
+        for size in [KEY, BAR] {
+            let plain = surface_image(size, &cropped("0123456789abcdef", None), Some(&source));
+            for crop in [
+                ImageCrop::default(),
+                ImageCrop {
+                    zoom: 100,
+                    x: 1000,
+                    y: -1000,
+                },
+                ImageCrop {
+                    zoom: 100,
+                    x: -250,
+                    y: 500,
+                },
+            ] {
+                assert_eq!(
+                    surface_image(
+                        size,
+                        &cropped("0123456789abcdef", Some(crop)),
+                        Some(&source)
+                    ),
+                    plain,
+                    "{size:?} {crop:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_zoom_scales_the_fitted_image_around_the_centre() {
+        // 100 × 50 fits a key face at 112 × 56, at the centre: rows 28 to 83.
+        // At zoom 200 it is 224 × 112: the full height, and the width shows
+        // its middle 50 %.
+        let source = two_colours(100, 50, true);
+        let content = cropped("0123456789abcdef", zoom(200, 0, 0));
+        let image = surface_image(KEY, &content, Some(&source));
+        for y in [0, 56, 111] {
+            near(&image, 0, y, RED_PIXEL);
+            near(&image, 50, y, RED_PIXEL);
+            near(&image, 62, y, BLUE_PIXEL);
+            near(&image, 111, y, BLUE_PIXEL);
+        }
+        // The fit has black bands above and below the image.
+        let fit = surface_image(KEY, &cropped("0123456789abcdef", None), Some(&source));
+        assert_eq!(fit.get_pixel(0, 0), &Rgb([0, 0, 0]));
+        assert_eq!(fit.get_pixel(0, 111), &Rgb([0, 0, 0]));
+    }
+
+    #[test]
+    fn the_pan_moves_the_zoomed_image_to_each_edge() {
+        let source = two_colours(100, 50, true);
+        let draw = |x, y| {
+            surface_image(
+                KEY,
+                &cropped("0123456789abcdef", zoom(200, x, y)),
+                Some(&source),
+            )
+        };
+        // x = 1000: the left edge of the image is at the left edge of the
+        // face, thus the face shows the left half of the image.
+        let image = draw(1000, 0);
+        for x in [0, 50, 100] {
+            near(&image, x, 0, RED_PIXEL);
+        }
+        // x = -1000: the right edge, thus the right half.
+        let image = draw(-1000, 0);
+        for x in [20, 60, 111] {
+            near(&image, x, 0, BLUE_PIXEL);
+        }
+        // x = 500: a quarter of the overflow to the left, thus the boundary
+        // of the image is at 84 of the face.
+        let image = draw(500, 0);
+        near(&image, 78, 0, RED_PIXEL);
+        near(&image, 90, 0, BLUE_PIXEL);
+    }
+
+    #[test]
+    fn the_pan_of_an_axis_with_no_overflow_changes_no_pixel() {
+        // 50 × 100 fits a key face at 56 × 112: no overflow on either axis at
+        // zoom 100. At zoom 200 it is 112 × 224: the width is the full face,
+        // thus a pan on the x axis changes nothing, and the height has the
+        // overflow.
+        let source = two_colours(50, 100, false);
+        let plain = surface_image(
+            KEY,
+            &cropped("0123456789abcdef", zoom(200, 0, 0)),
+            Some(&source),
+        );
+        for x in [1000, -1000, 400] {
+            assert_eq!(
+                surface_image(
+                    KEY,
+                    &cropped("0123456789abcdef", zoom(200, x, 0)),
+                    Some(&source)
+                ),
+                plain,
+                "x {x}"
+            );
+        }
+        // y = 1000 shows the top of the image, and y = -1000 the bottom.
+        let top = surface_image(
+            KEY,
+            &cropped("0123456789abcdef", zoom(200, 0, 1000)),
+            Some(&source),
+        );
+        near(&top, 56, 0, RED_PIXEL);
+        near(&top, 56, 100, RED_PIXEL);
+        let bottom = surface_image(
+            KEY,
+            &cropped("0123456789abcdef", zoom(200, 0, -1000)),
+            Some(&source),
+        );
+        near(&bottom, 56, 10, BLUE_PIXEL);
+        near(&bottom, 56, 111, BLUE_PIXEL);
+    }
+
+    #[test]
+    fn the_image_area_is_the_face_with_no_label_band() {
+        let content = cropped("0123456789abcdef", None);
+        assert_eq!(image_area(KEY, &content, true), KEY);
+        assert_eq!(image_area(BAR, &content, true), BAR);
+        // A surface with no picture has no band, even with a label.
+        let labelled = SurfaceContent {
+            label: Some("Mail".into()),
+            ..content.clone()
+        };
+        assert_eq!(image_area(KEY, &labelled, false), KEY);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_image_area_stops_above_the_band_of_a_label_at_the_bottom() {
+        let bottom = SurfaceContent {
+            label: Some("Mail".into()),
+            label_style: at(LabelPosition::Bottom),
+            ..cropped("0123456789abcdef", None)
+        };
+        let area = image_area(KEY, &bottom, true);
+        assert_eq!(area.width, KEY.width);
+        assert!(area.height < KEY.height, "{area:?}");
+        // The image of the face has the size of that area: black below it.
+        let source = two_colours(112, 112, true);
+        let image = surface_image(KEY, &bottom, Some(&source));
+        assert_ne!(image.get_pixel(56, area.height - 2), &Rgb([0, 0, 0]));
+        // The band is the same for the crop: a pan moves the image within
+        // the area only, and the image does not go into the band.
+        let cropped_bottom = SurfaceContent {
+            image_crop: zoom(400, 0, 1000),
+            ..bottom
+        };
+        let image = surface_image(KEY, &cropped_bottom, Some(&source));
+        for y in area.height..KEY.height {
+            let pixel = image.get_pixel(56, y);
+            assert!(
+                *pixel != RED_PIXEL && *pixel != BLUE_PIXEL,
+                "row {y} of the band is {pixel:?}"
+            );
+        }
+        // The last row of the area shows the image.
+        assert_ne!(image.get_pixel(56, area.height - 1), &Rgb([0, 0, 0]));
+    }
+
+    #[test]
+    fn the_scaled_size_and_the_overflow_follow_the_fit() {
+        // The fit of 100 × 50 in 112 × 112 is 112 × 56.
+        assert_eq!(image_scaled_size((100, 50), (112, 112), 100), (112, 56));
+        assert_eq!(image_scaled_size((100, 50), (112, 112), 200), (224, 112));
+        assert_eq!(image_scaled_size((100, 50), (112, 112), 400), (448, 224));
+        assert_eq!(image_overflow((100, 50), (112, 112), 100), (0, 0));
+        assert_eq!(image_overflow((100, 50), (112, 112), 200), (112, 0));
+        assert_eq!(image_overflow((100, 50), (112, 112), 400), (336, 112));
+        // An empty area and an empty image have no overflow.
+        assert_eq!(image_overflow((0, 0), (112, 112), 400), (0, 0));
+        assert_eq!(image_overflow((100, 50), (0, 0), 400), (0, 0));
     }
 }

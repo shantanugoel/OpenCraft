@@ -730,6 +730,8 @@ fn surface_with_states(now: FeedbackState) -> Event {
             ..Default::default()
         },
         image: image(10),
+        image_size: None,
+        image_area: None,
         states: Some(StateImages {
             now,
             off: image(10),
