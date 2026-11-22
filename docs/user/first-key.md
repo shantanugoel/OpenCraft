@@ -56,6 +56,8 @@ below the field **Title**.
 | **Text** | The size button, for example "20 pt" | Click it, and click a size from 10 pt to 32 pt. |
 | **Text** | The colour button | Click it, and click a colour. Or type the colour as `#RRGGBB`, and push Return. **A** (Automatic) selects black or white for the fill. To close the colour list with no change, push Esc. |
 | **Text** | **B** | Bold. Click it to change the title to bold or to normal. **B** is light when the title is bold. |
+| **Text** | **I** | Italic. A font that has an italic face shows it. A font with no italic face is slanted. **I** is light when the title is italic. |
+| **Text** | **U** | Underline. The line has the colour of the title. **U** is light when the title is underlined. |
 | **Font** | The button with the name of the family, for example "System font" | Click it, and click a font of your Mac. "System font" is the font of macOS. The list has each installed family. Type a part of a name in the field **Search fonts** to find a family. The arrow keys move the highlight, Return selects it, and Esc closes the list with no change. |
 
 - At the start, a title is bold, 20 pt, in the system font, and in the
@@ -65,6 +67,8 @@ below the field **Title**.
   font. The row **Font** says "… is not installed: the system font shows."
   The title keeps the name, thus it shows in that font on a Mac that has
   it.
+- An underlined title at the bottom of its area has the room for the line
+  below the text: the text moves up a little.
 - If a long title does not fit at its size, OpenCraft makes the text
   smaller.
 - With an icon or an image, a title at the top or at the bottom has its own

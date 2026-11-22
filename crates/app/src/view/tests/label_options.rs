@@ -196,6 +196,98 @@ fn the_bold_button_switches_the_weight(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn the_italic_and_the_underline_buttons_switch_their_style(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    // A label is upright and has no underline at the start.
+    click(cx, "label-italic");
+    click(cx, "label-underline");
+    assert_eq!(
+        changes(&sent, key()),
+        [
+            LabelChange::Italic(Some(true)),
+            LabelChange::Underline(Some(true))
+        ]
+    );
+    // The style of the profile puts the buttons on, and a click removes it.
+    sent.borrow_mut().clear();
+    send(
+        cx,
+        &tx,
+        styled(
+            key(),
+            LabelStyle {
+                italic: Some(true),
+                underline: Some(true),
+                ..LabelStyle::default()
+            },
+            false,
+        ),
+    );
+    click(cx, "label-italic");
+    click(cx, "label-underline");
+    assert_eq!(
+        changes(&sent, key()),
+        [
+            LabelChange::Italic(Some(false)),
+            LabelChange::Underline(Some(false))
+        ]
+    );
+}
+
+#[gpui_kit::test]
+fn the_italic_and_the_underline_buttons_fit_at_the_smallest_inspector(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = window(cx);
+    click(cx, "surface-key face 2");
+    // A drag of the divider to the right edge makes the inspector as narrow
+    // as it can be.
+    let start = cx.debug_bounds("inspector-divider").unwrap().center();
+    let end = gpui_kit::point(px(theme::WINDOW_SIZE.0 - theme::INSPECTOR_MIN), start.y);
+    for step in 0..=8 {
+        let t = step as f32 / 8.;
+        let at = gpui_kit::point(start.x + (end.x - start.x) * t, start.y);
+        if step == 0 {
+            cx.simulate_mouse_move(at, None, Modifiers::default());
+            cx.simulate_mouse_down(at, gpui_kit::MouseButton::Left, Modifiers::default());
+        } else {
+            cx.simulate_mouse_move(at, gpui_kit::MouseButton::Left, Modifiers::default());
+        }
+    }
+    cx.simulate_mouse_up(end, gpui_kit::MouseButton::Left, Modifiers::default());
+    cx.run_until_parked();
+    let mut bounds = |id: &'static str| {
+        cx.debug_bounds(id)
+            .unwrap_or_else(|| panic!("No element: {id}"))
+    };
+    // The row "Text" keeps each control, and the last one is inside the
+    // panel.
+    let title = bounds("title-field");
+    let underline = bounds("label-underline");
+    // The panel is at its minimum: the value column is 214 pixels wide.
+    assert!(
+        title.size.width <= px(214.),
+        "the inspector is not at its minimum: {title:?}"
+    );
+    assert_eq!(underline.size.width, theme::WIDTH_SQUARE_BUTTON);
+    assert!(
+        underline.right() <= title.right() + px(0.5),
+        "{underline:?} {title:?}"
+    );
+    for id in ["label-size", "label-colour", "label-bold", "label-italic"] {
+        let control = bounds(id);
+        assert_eq!(control.center().y, underline.center().y, "{id}");
+        assert!(control.left() >= title.left(), "{id}");
+    }
+    // The buttons are in the order of the row, with the gap of a row.
+    let bold = bounds("label-bold");
+    let italic = bounds("label-italic");
+    let colour = bounds("label-colour");
+    assert_eq!(bold.left() - colour.right(), theme::GAP_ITEMS);
+    assert_eq!(italic.left() - bold.right(), theme::GAP_ITEMS);
+    assert_eq!(underline.left() - italic.right(), theme::GAP_ITEMS);
+}
+
+#[gpui_kit::test]
 fn the_label_rows_are_as_high_as_a_text_field_and_aligned_with_the_title(cx: &mut TestAppContext) {
     let (_view, cx, _tx, _sent) = window(cx);
     for surface in ["surface-key face 2", "surface-bar panel 3"] {
@@ -209,18 +301,24 @@ fn the_label_rows_are_as_high_as_a_text_field_and_aligned_with_the_title(cx: &mu
         let size = bounds("label-size");
         let colour = bounds("label-colour");
         let bold = bounds("label-bold");
+        let italic = bounds("label-italic");
+        let underline = bounds("label-underline");
         assert_eq!(track.size.height, theme::HEIGHT_CONTROL, "{surface}");
         assert_eq!(track.left(), title.left(), "{surface}");
         assert_eq!(track.right(), title.right(), "{surface}");
         assert_eq!(size.left(), title.left(), "{surface}");
-        for b in [size, colour, bold] {
+        for b in [size, colour, bold, italic, underline] {
             assert_eq!(b.size.height, theme::HEIGHT_CONTROL, "{surface}");
             assert_eq!(b.center().y, size.center().y, "{surface}");
         }
         assert_eq!(colour.size.width, theme::WIDTH_SQUARE_BUTTON);
         assert_eq!(bold.size.width, theme::WIDTH_SQUARE_BUTTON);
+        assert_eq!(italic.size.width, theme::WIDTH_SQUARE_BUTTON);
+        assert_eq!(underline.size.width, theme::WIDTH_SQUARE_BUTTON);
         assert_eq!(colour.left() - size.right(), theme::GAP_ITEMS);
         assert_eq!(bold.left() - colour.right(), theme::GAP_ITEMS);
+        assert_eq!(italic.left() - bold.right(), theme::GAP_ITEMS);
+        assert_eq!(underline.left() - italic.right(), theme::GAP_ITEMS);
         // The four segments have one width, and fill the track.
         let segments = [
             "label-position-top",

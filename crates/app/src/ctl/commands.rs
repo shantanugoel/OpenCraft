@@ -717,6 +717,8 @@ pub const COMMANDS: &[Command] = &[
                 fill("size", "style.size", Kind::Int, "20", "The size of the font, in pixels. The default is 20."),
                 arg("color", "style.color", Kind::Text, "A colour. Leave it out for black or white."),
                 fill("bold", "style.bold", Kind::Bool, "true", "`true` or `false`. The default is `true`."),
+                fill("italic", "style.italic", Kind::Bool, "false", "`true` or `false`. The default is `false`."),
+                fill("underline", "style.underline", Kind::Bool, "false", "`true` or `false`. The default is `false`."),
             ]
         ]
     ),

@@ -121,8 +121,8 @@ The font is the system font. The window has no font file.
 | `TEXT_DISPLAY` | 22 | 600 | The title of the first start window |
 
 - Weight: 400 for normal text, 500 for a control text and a row, 600 for a
-  name, a title, and a gesture name. 700 only for "B" (bold) and the letter
-  of a kind tile.
+  name, a title, and a gesture name. 700 only for "B", "I", and "U" of the
+  title style, and for the letter of a kind tile.
 - Line height: the default of GPUI for one line. `LINE_HEIGHT_TEXT` (1.45)
   for text of more than one line. `FIRST_START_LINE_HEIGHT` (1.5) only below
   the first start title. `SETTINGS_LINE_HEIGHT` (1.25) only in the Settings
@@ -235,7 +235,7 @@ not repeat "focus" for them. A text field shows its focus with its border.
 | `colour_sample` | A fill sample of 22, "No fill" with `None` | A profile colour or an icon colour (use `colour_circle`) | selected (outline 2, 2 outside) |
 | `colour_circle` | A colour of a profile or of an icon, 20 | A fill sample | selected |
 | `colour_button` | A square button that shows a colour and opens a popover | A colour sample | open (`accent_line()`, no tooltip) |
-| `toggle_button` | A square toggle with a short text, for example "B" | An on/off setting (use a switch) | on, off, hover, pressed |
+| `toggle_button` | A square toggle with a short text: "B", "I", or "U" of the row "Text", in a weight of 700 | An on/off setting (use a switch) | on, off, hover, pressed |
 | `chip` | A tab chip or a filter chip: "Icons", "Recent" | The tabs of a pane (use a segmented control) | selected, hover |
 | `link` | An operation that changes the view, not the data: "Set left and right apart"; a fixed browser link in Settings > About | A command that changes the profile | hover |
 | `section_title` | The text of each section title and group title | Other text in capital letters | none |

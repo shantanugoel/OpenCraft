@@ -54,6 +54,11 @@ pub struct Font {
     /// family that is not installed draws in the system font, and the
     /// profile keeps the name (decision 0043, section 1).
     pub family: Option<String>,
+    /// Italic. A family with no italic face is drawn with a shear of
+    /// [`SLANT`] (decision 0043, section 1).
+    pub italic: bool,
+    /// A single underline, in the colour of the text.
+    pub underline: bool,
 }
 
 impl Default for Font {
@@ -63,6 +68,8 @@ impl Default for Font {
             size: DEFAULT_LABEL_SIZE,
             bold: true,
             family: None,
+            italic: false,
+            underline: false,
         }
     }
 }
@@ -98,6 +105,21 @@ const BAND_PART: f64 = 0.4;
 
 /// The space above and below the text in a band, in pixels.
 const BAND_SPACE: u32 = 3;
+
+/// The shear of a synthetic italic, as a part of the ascent. A family with
+/// no italic face is drawn with this shear, and no false italic face
+/// (decision 0043, section 1).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+const SLANT: f64 = 0.2;
+
+/// The room that a single underline needs in the height of its line, as a
+/// part of the font size: the position of the underline and its thickness.
+/// Core Text has no binding for the two values, thus the module measures the
+/// underline (see `docs/kb/text-rendering.md`): its bottom is 0.10 to 0.25 of
+/// the size below the ink of the text, and 0.2 keeps a room for the fonts of
+/// the measurement.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+const UNDERLINE_PART: f64 = 0.2;
 
 /// A rectangle on a surface image, in pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -168,35 +190,52 @@ mod platform {
 
 #[cfg(target_os = "macos")]
 mod platform {
-    use super::{Align, Area, Color, Font, FontFamily, RgbImage};
+    use super::{Align, Area, Color, Font, FontFamily, RgbImage, SLANT, UNDERLINE_PART};
     use core_foundation::attributed_string::CFMutableAttributedString;
     use core_foundation::base::{CFRange, TCFType};
     use core_foundation::boolean::CFBoolean;
     use core_foundation::dictionary::CFDictionary;
+    use core_foundation::number::CFNumber;
     use core_foundation::string::{CFString, CFStringRef};
-    use core_graphics::base::{kCGBitmapByteOrder32Big, kCGImageAlphaPremultipliedLast};
+    use core_graphics::base::{kCGBitmapByteOrder32Big, kCGImageAlphaPremultipliedLast, CGFloat};
+    use core_graphics::color::CGColor;
     use core_graphics::color_space::CGColorSpace;
     use core_graphics::context::CGContext;
-    use core_graphics::geometry::{CGPoint, CGRect, CGSize};
+    use core_graphics::geometry::{CGAffineTransform, CGPoint, CGRect, CGSize};
     use core_graphics::path::CGPath;
+    use core_graphics::sys::CGColorRef;
     use core_text::font::{
         kCTFontEmphasizedSystemFontType, kCTFontSystemFontType, new_from_descriptor,
         new_ui_font_for_language, CTFont,
     };
     use core_text::font_descriptor::{
-        kCTFontBoldTrait, kCTFontFamilyNameAttribute, new_from_attributes,
+        kCTFontBoldTrait, kCTFontFamilyNameAttribute, kCTFontItalicTrait, new_from_attributes,
     };
     use core_text::font_manager;
     use core_text::framesetter::CTFramesetter;
     use core_text::line::CTLine;
     use core_text::string_attributes::{
-        kCTFontAttributeName, kCTForegroundColorFromContextAttributeName,
+        kCTFontAttributeName, kCTForegroundColorAttributeName,
+        kCTForegroundColorFromContextAttributeName, kCTUnderlineColorAttributeName,
+        kCTUnderlineStyleAttributeName,
     };
     use std::sync::{Mutex, MutexGuard};
 
     /// A height for the layout frame that no label needs. The layout then
     /// has each line of the text.
     const TALL: f64 = 10_000.0;
+
+    use core_graphics::sys::CGColorSpaceRef;
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        /// The device RGB colour space of this Mac.
+        fn CGColorSpaceCreateDeviceRGB() -> CGColorSpaceRef;
+        fn CGColorSpaceRelease(space: CGColorSpaceRef);
+        /// A colour of a colour space, from four components. The colour
+        /// keeps the space, thus the caller releases its own reference.
+        fn CGColorCreate(space: CGColorSpaceRef, components: *const CGFloat) -> CGColorRef;
+    }
 
     /// The size for a font that the list of families reads. The family and
     /// not the size is the answer.
@@ -267,6 +306,25 @@ mod platform {
         new_from_descriptor(&new_from_attributes(&attributes), size)
     }
 
+    /// A colour in the colour space of the bitmap context, as a `CGColor`.
+    /// A colour of another space is converted: a pure blue of the generic
+    /// space becomes `(4, 51, 255)` on a P3 display (see
+    /// `docs/kb/text-rendering.md`). Thus the drawn colour is the value of
+    /// the profile.
+    fn device_colour(color: Color) -> CGColor {
+        let [r, g, b] = color.0.map(|value| f64::from(value) / 255.0);
+        let components: [CGFloat; 4] = [r, g, b, 1.0];
+        // SAFETY: the space is a device RGB space that this call owns, the
+        // four components are red, green, blue, and alpha, and the colour
+        // keeps the space.
+        unsafe {
+            let space = CGColorSpaceCreateDeviceRGB();
+            let colour = CGColor::wrap_under_create_rule(CGColorCreate(space, components.as_ptr()));
+            CGColorSpaceRelease(space);
+            colour
+        }
+    }
+
     /// The system font at `size`, in the weight for emphasis (`bold`) or in
     /// the regular weight.
     fn system_font(size: f64, bold: bool) -> CTFont {
@@ -280,26 +338,47 @@ mod platform {
         new_ui_font_for_language(kind, size, None)
     }
 
-    /// The font that the label of `font` starts with, at its size.
+    /// The font that the label of `font` starts with, at its size, and
+    /// whether the label needs the shear of a synthetic italic.
     ///
     /// - A family that is installed gives the font of that family. The bold
     ///   face is the font with the bold trait. A family with no bold face
     ///   keeps its regular face: there is no synthetic bold (decision 0043,
     ///   section 1).
+    /// - The italic face is the bold step with the italic trait. A family
+    ///   with no italic face is drawn with the shear [`SLANT`], and no false
+    ///   italic face.
     /// - A family that is missing gives the system font, and no error.
-    fn base_font(font: &Font) -> CTFont {
+    fn base_font(font: &Font) -> (CTFont, bool) {
         let size = f64::from(font.size.max(super::MIN_LABEL_SIZE));
         let Some(family) = font.family.as_deref().filter(|name| installed_family(name)) else {
-            return system_font(size, font.bold);
+            let system = system_font(size, font.bold);
+            return with_italic(system, font.italic);
         };
         let regular = family_font(family, size);
-        if !font.bold {
-            return regular;
+        let bold = if font.bold {
+            match regular.clone_with_symbolic_traits(kCTFontBoldTrait, kCTFontBoldTrait) {
+                Some(bold) => bold,
+                // A family with no bold face shows its regular face.
+                None => regular,
+            }
+        } else {
+            regular
+        };
+        with_italic(bold, font.italic)
+    }
+
+    /// The italic face of `font`, or `font` with the shear of a synthetic
+    /// italic. The italic trait is asked for on the font of the bold step,
+    /// not together with the bold trait: a family with a bold face and no
+    /// italic face keeps its bold face (decision 0043, section 1).
+    fn with_italic(font: CTFont, italic: bool) -> (CTFont, bool) {
+        if !italic {
+            return (font, false);
         }
-        match regular.clone_with_symbolic_traits(kCTFontBoldTrait, kCTFontBoldTrait) {
-            Some(bold) => bold,
-            // A family with no bold face shows its regular face.
-            None => regular,
+        match font.clone_with_symbolic_traits(kCTFontItalicTrait, kCTFontItalicTrait) {
+            Some(italic) => (italic, false),
+            None => (font, true),
         }
     }
 
@@ -316,31 +395,64 @@ mod platform {
         lines: Vec<Line>,
         width: f64,
         height: f64,
+        /// The room that the shear of a synthetic italic needs on the right,
+        /// in pixels. `0` for an upright line.
+        shear: f64,
     }
 
-    fn layout(text: &str, base: &CTFont, size: f64, width: u32) -> Layout {
+    fn layout(
+        text: &str,
+        base: &CTFont,
+        shear: bool,
+        font: &Font,
+        size: f64,
+        width: u32,
+        color: Option<Color>,
+    ) -> Layout {
         // The base font is the family at its size. A smaller size is a copy
         // of the same font: no new font descriptor for each step.
-        let font = base.clone_with_font_size(size);
+        let face = base.clone_with_font_size(size);
+        // A synthetic italic draws each line with a shear. The shear needs
+        // its own room on the right, and the drawn line moves left by half of
+        // it (decision 0043, section 1).
+        let shear = if shear { SLANT * face.ascent() } else { 0.0 };
+        let limit = (f64::from(width) - shear).max(1.0);
         let mut styled = CFMutableAttributedString::new();
         styled.replace_str(&CFString::new(text), CFRange::init(0, 0));
         let range = CFRange::init(0, styled.char_len());
-        // SAFETY: the two names are attribute names of Core Text, and each
-        // value has the type that its attribute needs: a font, and a Boolean.
+        // The colour of the text and of its underline. Core Text takes the
+        // colour of an underline from the foreground attribute, not from the
+        // context: with the attribute "from context" the underline is black.
+        // Thus the drawing gives the colour itself, and a layout with no
+        // colour (the height of a band) uses the context (decision 0043,
+        // section 1).
+        let text_colour = color.map(device_colour);
+        // SAFETY: the names are attribute names of Core Text, and each value
+        // has the type that its attribute needs: a font, a CGColor, a
+        // Boolean, and the number of the underline style. `1` is a single
+        // underline.
         unsafe {
-            styled.set_attribute(range, kCTFontAttributeName, &font);
-            styled.set_attribute(
-                range,
-                kCTForegroundColorFromContextAttributeName,
-                &CFBoolean::true_value(),
-            );
+            styled.set_attribute(range, kCTFontAttributeName, &face);
+            match &text_colour {
+                Some(colour) => {
+                    styled.set_attribute(range, kCTForegroundColorAttributeName, colour);
+                    if font.underline {
+                        styled.set_attribute(range, kCTUnderlineColorAttributeName, colour);
+                    }
+                }
+                None => styled.set_attribute(
+                    range,
+                    kCTForegroundColorFromContextAttributeName,
+                    &CFBoolean::true_value(),
+                ),
+            }
+            if font.underline {
+                styled.set_attribute(range, kCTUnderlineStyleAttributeName, &CFNumber::from(1i32));
+            }
         }
         let setter = CTFramesetter::new_with_attributed_string(styled.as_concrete_TypeRef());
         let path = CGPath::from_rect(
-            CGRect::new(
-                &CGPoint::new(0.0, 0.0),
-                &CGSize::new(f64::from(width), TALL),
-            ),
+            CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(limit, TALL)),
             None,
         );
         let frame = setter.create_frame(CFRange::init(0, 0), &path);
@@ -363,9 +475,19 @@ mod platform {
                 baseline: top - origin.y,
             });
         }
+        let width = out.iter().map(|l| l.width).fold(0.0, f64::max) + shear;
+        // An underline draws below the descent. The block is higher by that
+        // space, thus the line stays in the area at the bottom (decision
+        // 0043, section 1).
+        let underline = if font.underline {
+            UNDERLINE_PART * size
+        } else {
+            0.0
+        };
         Layout {
-            width: out.iter().map(|l| l.width).fold(0.0, f64::max),
-            height: top - bottom,
+            width,
+            height: top - bottom + underline,
+            shear,
             lines: out,
         }
     }
@@ -377,14 +499,14 @@ mod platform {
     /// The layout of `text` for an area of `width` × `height`: at the first
     /// font size at which the text fits, or at the smallest size with the end
     /// of the text cut.
-    fn fit(text: &str, font: &Font, width: u32, height: u32) -> Layout {
+    fn fit(text: &str, font: &Font, width: u32, height: u32, color: Option<Color>) -> Layout {
         let text = text.trim();
         // The font of the family is made one time for this fit. Each smaller
         // size is a copy of it (decision 0043, section 1).
-        let base = base_font(font);
+        let (base, shear) = base_font(font);
         let sizes = font.sizes();
         for &size in &sizes {
-            let layout = layout(text, &base, size, width);
+            let layout = layout(text, &base, shear, font, size, width, color);
             if fits(&layout, width, height) {
                 return layout;
             }
@@ -394,26 +516,30 @@ mod platform {
         let smallest = sizes[sizes.len() - 1];
         let ends: Vec<usize> = text.char_indices().map(|(i, _)| i).collect();
         if ends.is_empty() {
-            return layout("", &base, smallest, width);
+            return layout("", &base, shear, font, smallest, width, color);
         }
         let cut = |n: usize| format!("{}…", text[..ends[n]].trim_end());
         let (mut low, mut high) = (0, ends.len() - 1);
         while low < high {
             let middle = (low + high).div_ceil(2);
-            if fits(&layout(&cut(middle), &base, smallest, width), width, height) {
+            if fits(
+                &layout(&cut(middle), &base, shear, font, smallest, width, color),
+                width,
+                height,
+            ) {
                 low = middle;
             } else {
                 high = middle - 1;
             }
         }
-        layout(&cut(low), &base, smallest, width)
+        layout(&cut(low), &base, shear, font, smallest, width, color)
     }
 
     pub fn fit_height(text: &str, font: &Font, width: u32, limit: u32) -> u32 {
         if width == 0 || limit == 0 {
             return limit;
         }
-        (fit(text, font, width, limit).height.ceil() as u32).min(limit)
+        (fit(text, font, width, limit, None).height.ceil() as u32).min(limit)
     }
 
     pub fn draw(
@@ -424,7 +550,7 @@ mod platform {
         color: Color,
         align: Align,
     ) {
-        let layout = fit(text, font, area.width, area.height);
+        let layout = fit(text, font, area.width, area.height, Some(color));
         let (w, h) = (area.width as usize, area.height as usize);
         let mut context = CGContext::create_bitmap_context(
             None,
@@ -463,9 +589,15 @@ mod platform {
             Align::Middle => space / 2.0,
             Align::Bottom => space,
         };
+        // A synthetic italic: the shear is in the text matrix, and the line
+        // moves left by half of the room that the shear needs, thus the
+        // slanted text stays centred in its area.
+        if layout.shear > 0.0 {
+            context.set_text_matrix(&CGAffineTransform::new(1.0, 0.0, SLANT, 1.0, 0.0, 0.0));
+        }
         for line in &layout.lines {
             context.set_text_position(
-                ((f64::from(area.width) - line.width) / 2.0).round(),
+                ((f64::from(area.width) - line.width - layout.shear) / 2.0).round(),
                 (f64::from(area.height) - top - line.baseline).round(),
             );
             line.line.draw(&context);
@@ -769,6 +901,97 @@ mod tests {
             "{}",
             family.name
         );
+    }
+
+    /// A font of the family `family` (`None` is the system font) at 20
+    /// pixels, with the three styles.
+    fn with_style(family: Option<&str>, bold: bool, italic: bool, underline: bool) -> Font {
+        Font {
+            size: 20,
+            bold,
+            family: family.map(Into::into),
+            italic,
+            underline,
+        }
+    }
+
+    #[test]
+    fn italic_and_bold_italic_change_the_face() {
+        let bold = with_style(Some("Menlo"), true, false, false);
+        let italic = with_style(Some("Menlo"), true, true, false);
+        let bold_italic = with_style(Some("Menlo"), false, true, false);
+        let upright_regular = with_style(Some("Menlo"), false, false, false);
+        let image = |font: &Font| drawn_with("Mail", font, Align::Middle).as_raw().clone();
+        assert_ne!(image(&bold), image(&italic), "bold and bold italic");
+        assert_ne!(image(&upright_regular), image(&bold_italic), "italic");
+        assert_ne!(image(&italic), image(&bold_italic), "bold italic");
+        assert_ne!(image(&bold), image(&upright_regular), "bold");
+    }
+
+    #[test]
+    fn a_family_with_no_italic_face_is_drawn_with_a_shear() {
+        // Impact has a bold face and no italic face (measured, see
+        // `docs/kb/text-rendering.md`). The label is then slanted, and it
+        // stays in its area and at the centre.
+        let upright = with_style(Some("Impact"), true, false, false);
+        let slanted = with_style(Some("Impact"), true, true, false);
+        let image = |font: &Font| drawn_with("Mail", font, Align::Middle).as_raw().clone();
+        assert_ne!(image(&upright), image(&slanted));
+        let (left, _, right, _) = ink(&drawn_with("Mail", &slanted, Align::Middle)).unwrap();
+        assert!(left >= 1 && right <= 110, "{left} {right}");
+        assert!(
+            (left as i32 - (111 - right) as i32).abs() <= 4,
+            "the slanted label is at the centre: {left} {right}"
+        );
+        // A long label at the smallest size keeps the room of the shear.
+        let text = "Volume up and down";
+        let (left, _, right, _) = ink(&drawn_with(text, &slanted, Align::Middle)).unwrap();
+        assert!(left >= 1 && right <= 110, "{left} {right}");
+    }
+
+    #[test]
+    fn an_underline_is_drawn_below_the_text_and_stays_in_the_area() {
+        let plain = with_style(None, true, false, false);
+        let underlined = with_style(None, true, false, true);
+        // At the top the text starts at the same place with and without the
+        // line, thus the line is below the ink of the text.
+        let upright = drawn_with("Mail", &plain, Align::Top);
+        let line = drawn_with("Mail", &underlined, Align::Top);
+        let (_, _, _, plain_bottom) = ink(&upright).unwrap();
+        let (_, _, _, bottom) = ink(&line).unwrap();
+        assert!(
+            bottom > plain_bottom,
+            "the underline is below the text: {bottom} {plain_bottom}"
+        );
+        // The underline has the colour of the text.
+        let mut red = canvas(112, 112);
+        let area = full(&red);
+        draw(
+            &mut red,
+            area,
+            "Mail",
+            &underlined,
+            Color::rgb(255, 0, 0),
+            Align::Top,
+        );
+        assert!(red
+            .enumerate_pixels()
+            .any(|(_, y, p)| y > plain_bottom && p[0] > 240 && p[1] < 40 && p[2] < 60));
+        // At the bottom of the area the underline stays inside it.
+        let mut image = canvas(112, 112);
+        let area = full(&image);
+        draw(
+            &mut image,
+            area,
+            "Mail",
+            &underlined,
+            Color::WHITE,
+            Align::Bottom,
+        );
+        let (_, _, _, bottom) = ink(&image).unwrap();
+        assert!(bottom <= 110, "{bottom}");
+        // The band of an underlined label is higher.
+        assert!(band_height("Mail", &underlined, 104, 112) > band_height("Mail", &plain, 104, 112));
     }
 
     #[test]

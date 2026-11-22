@@ -268,3 +268,54 @@ fn the_font_stays_in_the_file_and_a_missing_font_shows_the_system_font() {
     );
     assert_eq!(*state.image, *system);
 }
+
+#[test]
+fn italic_and_underline_stay_in_the_file_and_change_the_image() {
+    let mut rig = Rig::new();
+    rig.engine.command(Command::SetLabel {
+        surface: KEY_3,
+        label: Some("Mail".into()),
+    });
+    // The image of the text without a style, for the test of the pixels.
+    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+    let plain = last_state(&rig.take_events(), KEY_3).image.clone();
+
+    style(&mut rig, LabelChange::Italic(Some(true)));
+    let events = rig.take_events();
+    let italic = last_state(&events, KEY_3);
+    assert_eq!(italic.content.label_style.italic, Some(true));
+    #[cfg(target_os = "macos")]
+    assert_ne!(*italic.image, *plain, "italic changes the image");
+
+    style(&mut rig, LabelChange::Underline(Some(true)));
+    let events = rig.take_events();
+    let underlined = last_state(&events, KEY_3);
+    assert_eq!(underlined.content.label_style.underline, Some(true));
+    #[cfg(target_os = "macos")]
+    assert_ne!(*underlined.image, *italic.image, "the underline shows");
+
+    rig.poll_for(Duration::from_secs(1));
+    let text = rig.profile_text().unwrap();
+    for line in ["label_italic = true", "label_underline = true"] {
+        assert!(text.contains(line), "{line} in {text}");
+    }
+
+    // A new start loads the two styles, and the image is the same.
+    let mut rig = rig.restart();
+    let events = rig.take_events();
+    let state = last_state(&events, KEY_3);
+    assert!(problems(&events).is_empty(), "{events:?}");
+    assert_eq!(state.content.label_style.italic, Some(true));
+    assert_eq!(state.content.label_style.underline, Some(true));
+    assert_eq!(*state.image, *underlined.image);
+
+    // A style that is off is not a value of the surface: the file has no
+    // key, and the surface inherits the default title style.
+    style(&mut rig, LabelChange::Italic(None));
+    style(&mut rig, LabelChange::Underline(None));
+    rig.take_events();
+    rig.poll_for(Duration::from_secs(1));
+    let text = rig.profile_text().unwrap();
+    assert!(!text.contains("label_italic"), "{text}");
+    assert!(!text.contains("label_underline"), "{text}");
+}
