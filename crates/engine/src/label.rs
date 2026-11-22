@@ -783,6 +783,39 @@ mod tests {
         }
     }
 
+    /// The number of blocks of rows with ink: one block for each line.
+    fn lines_of_ink(image: &RgbImage) -> usize {
+        let mut lines = 0;
+        let mut inside = false;
+        for y in 0..image.height() {
+            let row = (0..image.width()).any(|x| *image.get_pixel(x, y) != DARK);
+            if row && !inside {
+                lines += 1;
+            }
+            inside = row;
+        }
+        lines
+    }
+
+    #[test]
+    fn a_label_with_a_new_line_uses_two_lines() {
+        // A new line is a line of the label, and not a glyph that the font
+        // draws: the window cannot make one (fact 14 of #203), but a value
+        // with a new line, for example the clock format "Time and date",
+        // shows two lines.
+        let font = Font::default();
+        let one = drawn_with("AB", &font, Align::Middle);
+        let two = drawn_with("A\nB", &font, Align::Middle);
+        assert_eq!(lines_of_ink(&one), 1);
+        assert_eq!(lines_of_ink(&two), 2);
+        // Both lines stay in the area.
+        let (left, top, right, bottom) = ink(&two).expect("ink");
+        assert!(left > 0 && top > 0 && right < 111 && bottom < 111);
+        // The two lines are wider than they are high: each line has its own
+        // row block, not one tall block of wrapped text.
+        assert!(bottom - top > 20, "{top} {bottom}");
+    }
+
     #[test]
     fn the_alignment_puts_the_text_at_the_top_the_middle_or_the_bottom() {
         let font = Font::default();
