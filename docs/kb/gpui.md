@@ -1151,6 +1151,28 @@ pick lists of the font picker and of the application picker are
 | `scroll_to_reveal_item` reads the height of the visible part from the last layout, and that height is 0 before the first paint. The item then goes to the top of the visible part, and not to its bottom. It shows in both cases. | Source | `gpui-pre` 0.3.12 `src/elements/list.rs`, `scroll_to_reveal_item`, `last_layout_bounds` |
 | The list of a popover is virtual: a row that is not in the visible part has no place in the frame, and `debug_bounds` of a window test gives no place for it. Thus a window test checks that the row of the current value has a place in the popover. | Measured | `the_font_picker_shows_the_row_of_the_current_family`; `cx.debug_bounds` |
 
+## Accessibility state of the highlighted row (2026-11-22)
+
+**Source.** The code of `accesskit` 0.24.1, `accesskit_consumer` 0.38.0,
+`accesskit_macos` 0.26.3, and `gpui-pre` 0.3.12, and the window tests of
+[issue 481](https://github.com/shantanugoel/OpenCraft/issues/481) in
+`crates/app/src/view/tests/accessibility.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| macOS reads `AXSelected` from `isAccessibilitySelected`. `accesskit_macos` gives true only when the node is item-like (`MenuItem`, `RadioButton`, `ListBoxOption`, ...), the node has the `selected` attribute (true or false), the node is not disabled, and it is clickable. A row with no `selected` attribute is not selectable at all. | Source | `accesskit_macos` 0.26.3 `src/node.rs`, `is_selected`; `accesskit_consumer` 0.38.0 `src/node.rs`, `is_item_like`, `is_selectable` |
+| GPUI 0.3.12 writes `node.set_selected(bool)` from `aria_selected(bool)`, for an element that has an id and a role. The attributes are written in `prepaint`, before the `prepaint` of the element, thus an element reads them from its builder and not from its paint. | Source | `gpui-pre` 0.3.12 `src/elements/div.rs`, `aria_selected`, `write_a11y_info`; `src/element.rs`, `prepaint` |
+| accesskit raises `AXSelectedRowsChanged` on the selection container of the row: the closest ancestor with the role `Menu`, `ListBox`, `RadioGroup`, `TabList`, `Tree`, `Grid`, or `Toolbar`. A list of `MenuItem` rows therefore needs a node with `Role::Menu` above it. Without that node VoiceOver gets the selected state of the row but no event when the highlight moves. | Source | `accesskit_macos` 0.26.3 `src/event.rs`, `EventGenerator::node_updated`, `enqueue_selected_rows_change_if_needed`; `accesskit_consumer` 0.38.0 `src/node.rs`, `is_container_with_selectable_children`, `selection_container` |
+| GPUI 0.3.12 has no announcement API for a part of the window: `Div` has no live region, and accesskit's `Announcement` is not reachable from GPUI. The reading of the moved highlight comes from the event of the selected rows of the container. | Source | `gpui-pre` 0.3.12 `src/elements/div.rs` (no live-region setter); `accesskit_macos` 0.26.3 `src/event.rs`, `QueuedEvent::Announcement` |
+| A drawn menu registers its rows at `request_layout`, not at paint: the menu clears its rows at the start of the frame, and each row reads the highlight of this frame before it builds its element. Thus the row of the frame that moves the highlight has the new `selected` state, and the event of the container is for the new row. | Source; Measured | `crates/app/src/view/menu.rs`, `MenuKeys::request_layout`, `MenuItem::request_layout`; `the_highlighted_row_of_a_drawn_menu_is_selected` |
+| A window test reads the selected state of each row from `controls::accessibility_log`: `Accessible::highlighted` writes the debug selector of the row and its state there when the test platform builds the element. The test platform of GPUI makes no accessibility tree. | Measured | `crates/app/src/view/controls.rs`, `accessibility_log::take_selected`; `the_highlighted_row_of_a_drawn_menu_is_selected`, `the_highlighted_row_of_the_font_picker_is_selected` |
+
+**Not known**
+
+- Whether VoiceOver speaks the moved highlight of a drawn menu or of a list.
+This run read the attributes and the tests only. The listening check stays
+with the owner (issue [243](https://github.com/shantanugoel/OpenCraft/issues/243)).
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of

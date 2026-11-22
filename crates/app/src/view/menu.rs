@@ -55,14 +55,18 @@ const TYPE_AHEAD: Duration = Duration::from_secs(1);
 /// use: [`MenuRow::child`], [`MenuRow::on_click`], and `into_any_element`.
 pub(super) struct MenuRow {
     frame: Stateful<Div>,
+    /// The debug selector of the row, for the window test of the selected
+    /// state.
+    selector: SharedString,
     label: Option<SharedString>,
     on_click: Option<Handler>,
 }
 
 impl MenuRow {
-    pub(super) fn new(frame: Stateful<Div>) -> Self {
+    pub(super) fn new(frame: Stateful<Div>, selector: impl Into<SharedString>) -> Self {
         Self {
             frame,
+            selector: selector.into(),
             label: None,
             on_click: None,
         }
@@ -119,14 +123,14 @@ impl IntoElement for MenuRow {
 
     fn into_element(self) -> MenuItem {
         // The name of the item is also its accessible label.
-        let frame = match &self.label {
-            Some(label) => self.frame.accessible(Role::MenuItem, label.clone()),
-            None => self.frame.role(Role::MenuItem),
-        };
         MenuItem {
-            child: frame.into_any_element(),
+            frame: Some(self.frame),
+            selector: self.selector,
             label: self.label,
             on_click: self.on_click,
+            child: None,
+            nav: None,
+            index: 0,
         }
     }
 }
@@ -134,10 +138,21 @@ impl IntoElement for MenuRow {
 /// The element of a [`MenuRow`]. It tells its menu where it is, paints the
 /// highlight under the row, and moves the highlight to the row when the
 /// pointer moves over it.
+///
+/// It reports the highlight to the accessibility API: the highlighted row
+/// has `selected` (`AXSelected` on macOS), and the `Menu` of the menu raises
+/// the event of the selected rows when the highlight moves (issue 481).
 pub(super) struct MenuItem {
-    child: AnyElement,
+    /// The row, before it is an element. The state of this item is known at
+    /// `request_layout`, thus the row gets its `selected` state there.
+    frame: Option<Stateful<Div>>,
+    selector: SharedString,
     label: Option<SharedString>,
     on_click: Option<Handler>,
+    child: Option<AnyElement>,
+    /// The menu that draws this row, and the position of the row in it.
+    nav: Option<NavRef>,
+    index: usize,
 }
 
 impl IntoElement for MenuItem {
@@ -167,7 +182,36 @@ impl Element for MenuItem {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, ()) {
-        (self.child.request_layout(window, cx), ())
+        // The menu clears its items before it builds the rows, thus this row
+        // takes the next position of the menu. The position tells the state
+        // of the row in this frame: the highlight moves, and the rows are
+        // built again.
+        let mut selected = false;
+        if let Some(nav) = CURRENT.with(|current| current.borrow().clone()) {
+            let mut state = nav.borrow_mut();
+            self.index = state.items.len();
+            selected = state.highlighted == self.index;
+            state.items.push(Item {
+                bounds: Bounds::default(),
+                label: self.label.clone(),
+                on_click: self.on_click.clone(),
+            });
+            drop(state);
+            self.nav = Some(nav);
+        }
+        let frame = self.frame.take().expect("The row builds one time");
+        // The name of the item is also its accessible label.
+        let frame = match &self.label {
+            Some(label) => frame.accessible(Role::MenuItem, label.clone()),
+            None => frame.role(Role::MenuItem),
+        };
+        // The row that the arrows or the pointer highlight.
+        let mut child = frame
+            .highlighted(&self.selector, selected)
+            .into_any_element();
+        let layout = child.request_layout(window, cx);
+        self.child = Some(child);
+        (layout, ())
     }
 
     fn prepaint(
@@ -179,7 +223,14 @@ impl Element for MenuItem {
         window: &mut Window,
         cx: &mut App,
     ) -> Hitbox {
-        self.child.prepaint(window, cx);
+        if let Some(nav) = &self.nav {
+            if let Some(item) = nav.borrow_mut().items.get_mut(self.index) {
+                item.bounds = bounds;
+            }
+        }
+        if let Some(child) = self.child.as_mut() {
+            child.prepaint(window, cx);
+        }
         window.insert_hitbox(bounds, HitboxBehavior::Normal)
     }
 
@@ -193,21 +244,14 @@ impl Element for MenuItem {
         window: &mut Window,
         cx: &mut App,
     ) {
-        if let Some(nav) = CURRENT.with(|current| current.borrow().clone()) {
-            let index = {
-                let mut state = nav.borrow_mut();
-                state.items.push(Item {
-                    bounds,
-                    label: self.label.clone(),
-                    on_click: self.on_click.clone(),
-                });
-                state.items.len() - 1
-            };
-            if nav.borrow().highlighted == index {
+        if let Some(nav) = &self.nav {
+            if nav.borrow().highlighted == self.index {
                 window.paint_quad(
                     fill(bounds, theme::menu_highlight()).corner_radii(theme::RADIUS_CONTROL),
                 );
             }
+            let nav = nav.clone();
+            let index = self.index;
             let hitbox = hitbox.clone();
             window.on_mouse_event(move |_: &MouseMoveEvent, phase, window, _| {
                 if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
@@ -219,7 +263,9 @@ impl Element for MenuItem {
                 }
             });
         }
-        self.child.paint(window, cx);
+        if let Some(child) = self.child.as_mut() {
+            child.paint(window, cx);
+        }
     }
 }
 
@@ -244,7 +290,8 @@ pub(super) struct Nav {
 pub(super) type NavRef = Rc<RefCell<Nav>>;
 
 thread_local! {
-    /// The menu that is in its paint. A [`MenuItem`] reads it.
+    /// The menu that builds its rows. A [`MenuItem`] reads it at
+    /// `request_layout`.
     static CURRENT: RefCell<Option<NavRef>> = const { RefCell::new(None) };
 }
 
@@ -341,7 +388,16 @@ impl Element for MenuKeys {
         });
         let scroll = nav.borrow().scroll.clone();
         let mut child = (self.build.take().expect("The menu builds one time"))(&scroll, &focus);
-        let layout = child.request_layout(window, cx);
+        // The rows of this frame add themselves to the menu, in the order of
+        // the menu, and each one reads the highlight of this frame. The menu
+        // clears the last frame first.
+        nav.borrow_mut().items.clear();
+        let layout = CURRENT.with(|current| {
+            let outer = current.replace(Some(nav.clone()));
+            let layout = child.request_layout(window, cx);
+            current.replace(outer);
+            layout
+        });
         self.child = Some(child);
         (layout, nav)
     }
@@ -370,12 +426,9 @@ impl Element for MenuKeys {
         window: &mut Window,
         cx: &mut App,
     ) {
-        nav.borrow_mut().items.clear();
-        let outer = CURRENT.with(|current| current.replace(Some(nav.clone())));
         if let Some(child) = self.child.as_mut() {
             child.paint(window, cx);
         }
-        CURRENT.with(|current| *current.borrow_mut() = outer);
         let mut state = nav.borrow_mut();
         let count = state.items.len();
         if count > 0 && state.highlighted >= count {

@@ -600,26 +600,33 @@ impl DeviceView {
             )
     }
 
-    fn font_list(&self, cx: &mut Context<Self>) -> Div {
+    fn font_list(&self, cx: &mut Context<Self>) -> AnyElement {
         let frame = div().flex_1().min_h_0().relative();
         if self.inspector.font_picker.shown.is_empty() {
             let text = self.font_empty_text(cx);
-            return frame.child(
-                div()
-                    .id("font-empty")
-                    .debug_selector(|| "font-empty".into())
-                    .pt(theme::EMPTY_STATE_TOP)
-                    .px(theme::SPACE_16)
-                    .text_center()
-                    .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::text_tertiary())
-                    .readable_text(text.clone())
-                    .child(text),
-            );
+            return frame
+                .child(
+                    div()
+                        .id("font-empty")
+                        .debug_selector(|| "font-empty".into())
+                        .pt(theme::EMPTY_STATE_TOP)
+                        .px(theme::SPACE_16)
+                        .text_center()
+                        .text_size(theme::TEXT_LABEL)
+                        .text_color(theme::text_tertiary())
+                        .readable_text(text.clone())
+                        .child(text),
+                )
+                .into_any_element();
         }
         let shown = self.inspector.font_picker.shown.clone();
         let view = cx.entity();
         frame
+            // The list of families is the menu of the rows: its selected row
+            // is the highlighted family, and macOS then raises the event of
+            // the selected rows when the highlight moves (issue 481).
+            .id("font-list")
+            .role(Role::Menu)
             .child(
                 list(
                     self.inspector.font_picker.list.clone(),
@@ -638,6 +645,7 @@ impl DeviceView {
                     .size_full()
                     .child(Scrollbar::vertical(&self.inspector.font_picker.list)),
             )
+            .into_any_element()
     }
 
     fn font_empty_text(&self, cx: &Context<Self>) -> String {
@@ -671,6 +679,7 @@ impl DeviceView {
         };
         let highlighted = self.inspector.font_picker.highlight == index;
         let row_id = format!("font-row-{index}");
+        let row_selector = row_id.clone();
         let selector = row_id.clone();
         let row = row.clone();
         div()
@@ -687,6 +696,9 @@ impl DeviceView {
             .cursor_pointer()
             .when(highlighted, |d| d.bg(theme::menu_highlight()))
             .accessible(Role::MenuItem, name.clone())
+            // The row that the arrow keys or the pointer highlight is the
+            // selected row of the list for the accessibility API (issue 481).
+            .highlighted(&row_selector, highlighted)
             .child(
                 div()
                     .flex_shrink_0()

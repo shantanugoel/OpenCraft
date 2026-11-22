@@ -60,6 +60,21 @@ pub(crate) trait Accessible: StatefulInteractiveElement + Sized {
     fn checked(self, on: bool) -> Self {
         self.aria_toggled(if on { Toggled::True } else { Toggled::False })
     }
+
+    /// The state of a row that the arrow keys or the pointer highlight in a
+    /// drawn menu or in a pick list (`docs/DESIGN.md`, section 3.4):
+    /// `selected`, which macOS reads as `AXSelected` on the row.
+    ///
+    /// `selector` is the debug selector of the row. It is not part of the
+    /// accessibility tree: the window test reads the state of the row with
+    /// it (issue 481).
+    fn highlighted(self, selector: &str, highlighted: bool) -> Self {
+        #[cfg(not(test))]
+        let _ = selector;
+        #[cfg(test)]
+        accessibility_log::record_selected(selector, highlighted);
+        self.aria_selected(highlighted)
+    }
 }
 
 impl<E: StatefulInteractiveElement> Accessible for E {}
@@ -74,16 +89,29 @@ pub(crate) mod accessibility_log {
 
     thread_local! {
         static NODES: RefCell<Vec<(Role, String)>> = const { RefCell::new(Vec::new()) };
+        /// The selected state of each row that the last frame built, by the
+        /// debug selector of the row.
+        static SELECTED: RefCell<Vec<(String, bool)>> = const { RefCell::new(Vec::new()) };
     }
 
     pub(super) fn record(role: Role, label: &str) {
         NODES.with(|nodes| nodes.borrow_mut().push((role, label.to_string())));
     }
 
+    pub(super) fn record_selected(selector: &str, selected: bool) {
+        SELECTED.with(|rows| rows.borrow_mut().push((selector.to_string(), selected)));
+    }
+
     /// The roles and labels since the last call, in the order of the
     /// render.
     pub(crate) fn take() -> Vec<(Role, String)> {
         NODES.with(|nodes| std::mem::take(&mut *nodes.borrow_mut()))
+    }
+
+    /// The selected state of each row since the last call, in the order of
+    /// the render.
+    pub(crate) fn take_selected() -> Vec<(String, bool)> {
+        SELECTED.with(|rows| std::mem::take(&mut *rows.borrow_mut()))
     }
 }
 
@@ -975,7 +1003,10 @@ pub(super) fn menu_row(id: impl Into<SharedString>) -> MenuRow {
     MenuRow::new(
         div()
             .id(id.clone())
-            .debug_selector(move || id.to_string())
+            .debug_selector({
+                let id = id.clone();
+                move || id.to_string()
+            })
             .flex_shrink_0()
             .h(theme::HEIGHT_MENU_ROW)
             .px(theme::SPACE_8)
@@ -985,6 +1016,7 @@ pub(super) fn menu_row(id: impl Into<SharedString>) -> MenuRow {
             .rounded(theme::RADIUS_CONTROL)
             .cursor_pointer()
             .active(|d| d.bg(theme::pressed())),
+        id,
     )
 }
 

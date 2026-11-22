@@ -20,6 +20,27 @@ fn frame(cx: &mut VisualTestContext) -> Vec<(Role, String)> {
     accessibility_log::take()
 }
 
+/// The debug selectors of the rows that the last frame marks as the
+/// selected row of their menu or list, in the order of the frame.
+fn selected_rows(cx: &mut VisualTestContext) -> Vec<String> {
+    accessibility_log::take_selected();
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    accessibility_log::take_selected()
+        .into_iter()
+        .filter_map(|(row, selected)| selected.then_some(row))
+        .collect()
+}
+
+#[track_caller]
+fn assert_selected_rows(cx: &mut VisualTestContext, expected: &[&str]) {
+    let rows = selected_rows(cx);
+    assert_eq!(
+        rows, expected,
+        "The window marks the rows {rows:?} as selected, and not {expected:?}."
+    );
+}
+
 fn has(nodes: &[(Role, String)], role: Role, label: &str) -> bool {
     nodes.iter().any(|(r, l)| *r == role && l == label)
 }
@@ -349,6 +370,46 @@ fn the_size_menu_lists_the_sizes_of_a_large_emoji(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::MenuItem, "80 pt");
 }
 
+/// The row that the arrow keys highlight is the selected row of the menu
+/// for the accessibility API (issue 481).
+#[gpui_kit::test]
+fn the_highlighted_row_of_a_drawn_menu_is_selected(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = named_window(cx);
+    click(cx, "surface-key face 2");
+    click(cx, "label-size");
+    // The first row is highlighted when the menu opens, and only that row.
+    assert_selected_rows(cx, &["label-size-10"]);
+    cx.simulate_keystrokes("down down");
+    cx.run_until_parked();
+    assert_selected_rows(cx, &["label-size-14"]);
+    // The pointer moves the highlight too.
+    let row = cx.debug_bounds("label-size-64").expect("the row of 64 pt");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::default());
+    cx.run_until_parked();
+    assert_selected_rows(cx, &["label-size-64"]);
+}
+
+/// The row of the current family is the selected row of the list, and the
+/// arrow keys move the selected row (issue 481).
+#[gpui_kit::test]
+fn the_highlighted_row_of_the_font_picker_is_selected(cx: &mut TestAppContext) {
+    let (view, cx, _tx, _sent) = named_window(cx);
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.inspector
+                .font_picker
+                .use_fixed_families(fixed_font_families())
+        })
+    });
+    click(cx, "surface-key face 2");
+    click(cx, "label-font");
+    // The surface has no own family: "System font" is the current row.
+    assert_selected_rows(cx, &["font-row-0"]);
+    cx.simulate_keystrokes("down");
+    cx.run_until_parked();
+    assert_selected_rows(cx, &["font-row-1"]);
+}
+
 #[gpui_kit::test]
 fn the_title_style_row_names_the_default_and_the_reset(cx: &mut TestAppContext) {
     use opencraft_engine::LabelStyle;
@@ -520,6 +581,12 @@ fn the_application_picker_has_a_dialog_and_rows(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::SearchInput, "Search applications");
     assert_has(&nodes, Role::MenuItem, "Calendar");
     assert_has(&nodes, Role::MenuItem, "Choose a different application…");
+    // The highlighted row is the selected row of the list, and the arrow keys
+    // move it, also onto the footer row (issue 481).
+    assert_selected_rows(cx, &["app-row-0"]);
+    cx.simulate_keystrokes("down");
+    cx.run_until_parked();
+    assert_selected_rows(cx, &["choose-different-application"]);
 }
 
 #[gpui_kit::test]

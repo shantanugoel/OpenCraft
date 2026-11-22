@@ -720,26 +720,32 @@ impl DeviceView {
             )
     }
 
-    fn application_list(&self, cx: &mut Context<Self>) -> Div {
+    fn application_list(&self, cx: &mut Context<Self>) -> AnyElement {
         let frame = div().flex_1().min_h_0().relative();
         if self.application_picker.shown.is_empty() {
             let text = self.application_empty_text(cx);
-            return frame.child(
-                div()
-                    .id("application-empty")
-                    .debug_selector(|| "application-empty".into())
-                    .pt(theme::EMPTY_STATE_TOP)
-                    .px(theme::SPACE_16)
-                    .text_center()
-                    .text_size(theme::TEXT_LABEL)
-                    .text_color(theme::text_tertiary())
-                    .readable_text(text.clone())
-                    .child(text),
-            );
+            return frame
+                .child(
+                    div()
+                        .id("application-empty")
+                        .debug_selector(|| "application-empty".into())
+                        .pt(theme::EMPTY_STATE_TOP)
+                        .px(theme::SPACE_16)
+                        .text_center()
+                        .text_size(theme::TEXT_LABEL)
+                        .text_color(theme::text_tertiary())
+                        .readable_text(text.clone())
+                        .child(text),
+                )
+                .into_any_element();
         }
         let shown = self.application_picker.shown.clone();
         let view = cx.entity();
         frame
+            // The list of applications is the menu of the rows: its selected
+            // row is the highlighted application (issue 481).
+            .id("application-list")
+            .role(Role::Menu)
             .child(
                 list(self.application_picker.list.clone(), move |ix, _, cx| {
                     let application = shown[ix].clone();
@@ -755,6 +761,7 @@ impl DeviceView {
                     .size_full()
                     .child(Scrollbar::vertical(&self.application_picker.list)),
             )
+            .into_any_element()
     }
 
     /// The caption "Linked to “Work”" when the picker adds a link, and a
@@ -812,6 +819,7 @@ impl DeviceView {
             None => name.clone(),
         };
         let row_id = format!("app-row-{index}");
+        let row_selector = row_id.clone();
         let selector = row_id.clone();
         div()
             .id(SharedString::from(row_id))
@@ -827,6 +835,8 @@ impl DeviceView {
             .cursor_pointer()
             .when(highlighted, |row| row.bg(theme::menu_highlight()))
             .accessible(Role::MenuItem, label)
+            // The highlighted row is the selected row of the list (issue 481).
+            .highlighted(&row_selector, highlighted)
             .child(self.application_icon_tile(application))
             .child(div().flex_1().min_w_0().truncate().child(name))
             .when_some(note, |row, note| {
@@ -867,30 +877,35 @@ impl DeviceView {
             .pb(theme::SPACE_6)
             .border_t_1()
             .border_color(theme::border_field())
+            // The footer row is an item of a menu of its own, thus the
+            // highlight of this row also has a selected state (issue 481).
             .child(
-                div()
-                    .id("choose-different-application")
-                    .debug_selector(|| "choose-different-application".into())
-                    .w_full()
-                    .h(theme::HEIGHT_MENU_ROW)
-                    .mx(theme::SPACE_6)
-                    .px(theme::SPACE_8)
-                    .flex()
-                    .items_center()
-                    .rounded(theme::RADIUS_CONTROL)
-                    .cursor_pointer()
-                    .when(highlighted, |row| row.bg(theme::menu_highlight()))
-                    .accessible(Role::MenuItem, "Choose a different application…")
-                    .child("Choose a different application…")
-                    .on_mouse_move(cx.listener(move |view, _, _, cx| {
-                        if view.application_picker.highlight != index {
-                            view.application_picker.highlight = index;
-                            cx.notify();
-                        }
-                    }))
-                    .on_click(cx.listener(|view, _, window, cx| {
-                        view.choose_different_application(window, cx);
-                    })),
+                div().id("application-footer").role(Role::Menu).child(
+                    div()
+                        .id("choose-different-application")
+                        .debug_selector(|| "choose-different-application".into())
+                        .w_full()
+                        .h(theme::HEIGHT_MENU_ROW)
+                        .mx(theme::SPACE_6)
+                        .px(theme::SPACE_8)
+                        .flex()
+                        .items_center()
+                        .rounded(theme::RADIUS_CONTROL)
+                        .cursor_pointer()
+                        .when(highlighted, |row| row.bg(theme::menu_highlight()))
+                        .accessible(Role::MenuItem, "Choose a different application…")
+                        .highlighted("choose-different-application", highlighted)
+                        .child("Choose a different application…")
+                        .on_mouse_move(cx.listener(move |view, _, _, cx| {
+                            if view.application_picker.highlight != index {
+                                view.application_picker.highlight = index;
+                                cx.notify();
+                            }
+                        }))
+                        .on_click(cx.listener(|view, _, window, cx| {
+                            view.choose_different_application(window, cx);
+                        })),
+                ),
             )
     }
 
