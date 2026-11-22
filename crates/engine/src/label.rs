@@ -166,7 +166,7 @@ pub fn draw(
 
 #[cfg(not(target_os = "macos"))]
 mod platform {
-    use super::{Align, Area, Color, Font, FontFamily, RgbImage, SLANT, UNDERLINE_PART};
+    use super::{Align, Area, Color, Font, FontFamily, RgbImage};
 
     /// No Core Text: the engine offers no font family.
     pub fn font_families() -> Vec<FontFamily> {
