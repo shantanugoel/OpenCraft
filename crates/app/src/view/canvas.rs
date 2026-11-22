@@ -7,7 +7,7 @@
 //! the touch bar, is below the display in the order of its row and its
 //! column. The shell does not check for a model (rule 4).
 
-use super::{controls::square_button, library::KindDrag, pages::in_profile, *};
+use super::{controls::square_button, key_drag::KeyDrag, library::KindDrag, pages::in_profile, *};
 use crate::settings::RightPanelTab;
 use gpui_kit::{
     assets::IconName, component::Icon, ExternalPaths, FontWeight, MouseButton, MouseDownEvent, Rgba,
@@ -20,6 +20,10 @@ pub(super) const HELP_NORMAL: &str = "Click a control to change it · Drag an ac
 /// The help line while a row of the library is in a drag (section 8.4).
 pub(super) const HELP_DRAG: &str =
     "Drop on a key, a bar panel or a knob. Drop on a key with an action to replace it. ⌘Z undoes it.";
+
+/// The help line while a key face is in a drag (section 8.4).
+pub(super) const HELP_KEY_DRAG: &str =
+    "Drop on a key: it takes the key, or swaps with it. ⌘Z undoes it.";
 
 /// The text "Drop here" of the drop target.
 pub(super) const DROP_HERE: &str = "Drop here";
@@ -293,6 +297,7 @@ fn drop_target(radius: f32, kind: bool) -> Div {
             d.drag_over::<KindDrag>(|style, _, _, _| style.opacity(1.))
         })
         .drag_over::<ExternalPaths>(|style, _, _, _| style.opacity(1.))
+        .drag_over::<KeyDrag>(|style, _, _, _| style.opacity(1.))
 }
 
 impl DeviceView {
@@ -533,6 +538,7 @@ impl DeviceView {
             });
         let text = match knob {
             _ if self.kind_drag(cx) => HELP_DRAG.into(),
+            _ if self.key_drag(cx) => HELP_KEY_DRAG.into(),
             Some(id) => format!(
                 "The dashed outline shows the bar panel that gives feedback for {}",
                 control_name(id)
@@ -702,11 +708,19 @@ impl DeviceView {
             ControlKind::BarPanel
         };
         let drag = self.kind_drag_for(control_kind, cx);
+        let key_face = id.kind == SurfaceKind::KeyFace;
+        let control = self.control_of_surface(id);
         // A drop target must be in the frame before the drop, and GPUI does
         // not tell a view which value is in the drag (`docs/kb/gpui.md`).
         // Thus each control has the target while any drag is active, and
-        // only the control under the pointer shows it.
-        let drop_zone = drag || cx.has_active_drag();
+        // only the control under the pointer shows it. A key in a drag goes
+        // to a key face only (KEY-14).
+        let key_drag = self.key_drag(cx);
+        let drop_zone = if key_drag {
+            key_face && control.is_some()
+        } else {
+            drag || cx.has_active_drag()
+        };
         let group: SharedString = format!("surface-{id}").into();
         div()
             .id(format!("surface-{id}"))
@@ -829,10 +843,31 @@ impl DeviceView {
                     }
                 }),
             )
+            .map(|d| {
+                // A key with nothing on it has nothing to move. One element
+                // has one `on_drag` only (kb/gpui.md).
+                match control {
+                    Some(control) if key_face && !empty => {
+                        d.on_drag(KeyDrag { control }, self.key_drag_source(id, control, cx))
+                    }
+                    _ => d,
+                }
+            })
             .can_drop(move |value, _, _| {
                 value.downcast_ref::<ExternalPaths>().is_some()
                     || (drag && value.downcast_ref::<KindDrag>().is_some())
+                    || (key_face && value.downcast_ref::<KeyDrag>().is_some())
             })
+            .on_drop(cx.listener(move |view, drag: &KeyDrag, window, cx| {
+                let (Some(control), true) = (control, key_face) else {
+                    return;
+                };
+                if drag.control == control {
+                    return;
+                }
+                view.select(id, window, cx);
+                view.drop_key(drag.control, control, window, cx);
+            }))
             .on_drop(cx.listener(move |view, drag: &KindDrag, window, cx| {
                 if !view.can_drop_kind(control_kind, &drag.kind) {
                     return;

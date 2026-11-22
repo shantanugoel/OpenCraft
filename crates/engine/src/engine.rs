@@ -358,6 +358,12 @@ pub enum Command {
     /// Put the content of `control` on the active page on the same control
     /// on each other page of the profile. This is one step of the history.
     CopyToAllPages { control: ControlId },
+    /// Move the content of `from` to `to` on the active page or folder:
+    /// the appearance and the bindings. When `to` has content, the two
+    /// controls swap it. Both controls must be of the same kind, and in the
+    /// same page or folder. This is one step of the history, "Move Key". A
+    /// gesture timer of either control is cancelled (decision 0042).
+    MoveControl { from: ControlId, to: ControlId },
     /// Set the device settings of the model of the device. The command has
     /// all settings. The engine puts each value into its range, and then
     /// does the steps of [`Engine::set_device_settings`].
@@ -548,6 +554,14 @@ fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Tar
         Command::PasteControl { .. } => step("Paste", None),
         Command::ClearControl { .. } => step("Clear", None),
         Command::CopyToAllPages { .. } => step("Copy to All Pages", None),
+        Command::MoveControl { from, .. } => step(
+            if from.kind == ControlKind::Key {
+                "Move Key"
+            } else {
+                "Move Control"
+            },
+            None,
+        ),
         // These commands change no page. A change of the active profile
         // empties the history. A test of an action runs a binding and
         // changes nothing in the profile (#188).
@@ -3420,6 +3434,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 }
             }
             Command::CopyToAllPages { control } => self.copy_to_all_pages(control),
+            Command::MoveControl { from, to } => self.move_control(from, to),
             Command::SetDeviceSettings(settings) => self.set_device_settings(settings),
             Command::Choices { id, action, field } => {
                 let kind = action.kind.clone();
@@ -3593,6 +3608,62 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         });
         if changed {
             self.cancel_control(control);
+        }
+    }
+
+    /// Move the content of `from` to `to` on the active page or folder, or
+    /// swap the two contents when `to` has content. This is
+    /// [`Command::MoveControl`]. Both controls must be of the same kind, on
+    /// the same page or folder. The change uses the steps of a paste, thus
+    /// the device, the shell, and the handlers get each change, and a
+    /// gesture timer of either control is cancelled (decision 0042).
+    fn move_control(&mut self, from: ControlId, to: ControlId) {
+        if from == to {
+            return;
+        }
+        if from.kind != to.kind {
+            self.problem(format!(
+                "OpenCraft did not move {from}: the destination is a {}, and a control moves only \
+                 onto a control of its own kind.",
+                to.kind.name()
+            ));
+            return;
+        }
+        // A key of a folder that does not exist has no page for a change:
+        // the change would move only the other control.
+        if from.kind == ControlKind::Key
+            && self
+                .location
+                .open
+                .last()
+                .is_some_and(|folder| self.profile.folder(*folder).is_none())
+        {
+            return;
+        }
+        if self.location.holder(&self.profile, from) != self.location.holder(&self.profile, to) {
+            self.problem(format!(
+                "OpenCraft did not move {from}: the destination is on a different page."
+            ));
+            return;
+        }
+        let (Some(from_parts), Some(to_parts)) = (self.parts(from), self.parts(to)) else {
+            return;
+        };
+        let page = self.location.page_of(&self.profile, from);
+        let source = ControlContent::read(page, from, from_parts);
+        if source.is_empty() {
+            // A control with nothing shows nothing to move.
+            return;
+        }
+        let target = ControlContent::read(page, to, to_parts);
+        // A destination with no appearance and no binding takes the content.
+        // Any other destination swaps with it.
+        let swap = !target.is_empty();
+        self.put_control(to, &source);
+        if swap {
+            self.put_control(from, &target);
+        } else {
+            self.put_control(from, &ControlContent::empty(from.kind));
         }
     }
 

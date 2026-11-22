@@ -41,7 +41,7 @@ impl DeviceView {
     }
 
     /// The control of `surface` in the layout.
-    fn control_of_surface(&self, surface: SurfaceId) -> Option<ControlId> {
+    pub(super) fn control_of_surface(&self, surface: SurfaceId) -> Option<ControlId> {
         self.state
             .layout
             .as_ref()?

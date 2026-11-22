@@ -805,6 +805,27 @@ pub const COMMANDS: &[Command] = &[
         "opencraft ctl control copy-to-all-pages --profile work --page 0123456789abcdef --control key:1",
         &[TARGET, CONTROL]
     ),
+    change!(
+        "control move",
+        "move_control",
+        "Move a control onto another control of the same kind: it moves to an empty control, or swaps with an occupied control. One undo restores both.",
+        "opencraft ctl control move --profile work --page 0123456789abcdef --from key:1 --to key:2",
+        &[
+            TARGET,
+            &[req(
+                "from",
+                "from",
+                Kind::Control,
+                "The control that moves, as `kind:number`, for example `key:1`."
+            )],
+            &[req(
+                "to",
+                "to",
+                Kind::Control,
+                "The destination control of the same kind, as `kind:number`."
+            )],
+        ]
+    ),
     // The device.
     Command {
         base: Some("device_settings"),

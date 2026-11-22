@@ -128,6 +128,20 @@ impl ControlContent {
         }
     }
 
+    /// True if the content has no appearance and no binding. A destination
+    /// with such a content takes a moved control; any other destination
+    /// swaps with it.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.surface
+            .as_ref()
+            .is_none_or(|surface| surface.is_empty())
+            && self.bindings.is_empty()
+            && self
+                .panel
+                .as_ref()
+                .is_none_or(|bindings| bindings.is_empty())
+    }
+
     /// The changes that put this content on `control` with the parts
     /// `parts` on `page`: the new content of the surface, and the changes
     /// of the bindings. A part that the content or the control does not

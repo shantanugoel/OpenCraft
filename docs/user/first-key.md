@@ -317,6 +317,34 @@ the same with a bar panel and a knob.
 - Each **Paste**, **Clear**, and **Copy to All Pages** is one change. You can
   undo it. See [Undo a change](#undo-a-change).
 
+## Move or swap a key
+
+You can drag a key face onto a different key face. The key moves to an
+empty key, and it swaps with a key that has content. The key takes its
+title, its look, its fill, its icon or image, its On face, and the actions
+of all its gestures.
+
+1. Push and hold the mouse button on a key face in the device picture.
+2. Move the pointer to a different key face. A small picture of the key
+   moves with the pointer, and the line below the device tells what the
+   drop does. Only the key faces show "Drop here": a key does not go onto
+   a bar panel or a knob.
+3. Release the mouse button.
+
+![Key 1 is empty after its title and icon moved to key 2](images/move-key.png)
+
+The status bar shows the change, for example "Key 1 moves to Key 4" or
+"Key 1 and Key 2 are swapped". The destination key becomes the selected
+key.
+
+- A key with no title, no fill, no icon, no image, and no action has
+  nothing to move. A drag from that key does nothing.
+- A drop on the same key does nothing.
+- The move is one change. One Command-Z (**Undo Move Key**) puts both keys
+  back.
+- A key of a folder moves inside the folder. The keys of the page below
+  the folder do not change.
+
 ## The command palette (Command-K)
 
 The command palette finds action kinds, controls, pages, profiles, and

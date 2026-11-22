@@ -49,6 +49,8 @@ mod history;
 mod icons;
 #[path = "engine/labels.rs"]
 mod labels;
+#[path = "engine/move_control.rs"]
+mod move_control;
 #[path = "engine/pages.rs"]
 mod pages;
 #[path = "engine/places.rs"]
