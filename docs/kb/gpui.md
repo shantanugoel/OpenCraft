@@ -818,6 +818,21 @@ is the one of [part 4](#4-drag-and-drop-from-the-right-pane-to-the-centre-pane).
 | The cursor during a drag is the cursor of the source element (`cursor_grab`, the open hand). `App::set_active_drag_cursor_style` changes it, but only after the drag starts: the `on_drag` constructor runs before GPUI sets the drag, thus a call there must go through `Window::defer`. | Source | `src/elements/div.rs`, `drag_cursor_style`; `src/app.rs` |
 | `VisualTestContext` has no `has_active_drag`. `cx.update(\|_, cx\| cx.has_active_drag())` reads it. | Measured (build error) | `crates/app/src/view/tests/library.rs` |
 
+## File drop and image paste (2026-11-22)
+
+| Fact | Confidence | Source |
+|---|---|---|
+| GPUI gives a file drag from the platform as `FileDropEvent::Entered { position, paths }`. It makes a `MouseMoveEvent` with the left button down, and an active drag of `ExternalPaths`. `FileDropEvent::Submit` makes the `MouseUpEvent` that runs the `on_drop` handler of the control under the pointer. | Source | `gpui-pre-macos` 0.3.12 `src/window.rs`, the `PlatformInput::FileDrop` arm |
+| A view cannot read the value of the active drag, and `App::has_active_drag` is true for each drag, also a drag of a pane divider. Thus the canvas draws the drop target on each control while any drag is active, and only the control under the pointer shows it, because `drag_over` applies the style per hitbox. | Source; Measured | `src/app.rs`, `active_drag`; `crates/app/src/view/canvas.rs`, `surface`; window test `a_file_dropped_on_a_key_face_or_a_bar_panel_sets_the_image_as_one_step` |
+| The GPUI test platform accepts a file drag: `Window::dispatch_event(PlatformInput::FileDrop(FileDropEvent::Entered { position, paths }))` and then `Submit { position }` set the active drag and run `on_drop` with `ExternalPaths`. The test needs no Finder window. | Measured | `crates/app/src/view/tests/clipboard.rs` |
+| A window-scoped background `drag` that starts a macOS drag-and-drop session is refused with `background_unavailable` and reason `drag_and_drop_session`. macOS tracks such a drag with the real pointer. Thus a drag from Finder to OpenCraft cannot drop in the background. The driver names `foreground` as the only route, and the owner rule does not permit it. | Measured | `cua-driver` 0.49.3, `drag` and `get_guide({topic:"drag"})`; one drag from a Finder window, 2026-11-22 |
+| The system pasteboard can hold a file path and image data together. In the real window, a PNG on the pasteboard (types `public.png` and `public.tiff`), and a file URL to a BMP and to a WebP, each set the image of the selected key face. | Measured | Real window with a scratch profile at 1440 × 900 and 1080 × 700; pictures |
+| Each image paste is one step of the history. ⌘Z removed the WebP image and ⇧⌘Z gave it again. | Measured | Real window, 2026-11-22 |
+| A file URL to a file that is not an image gives the usual problem row: “OpenCraft could not use the image: … The file extension `.txt` was not recognized as an image format”. The key does not change. | Measured | Real window, 2026-11-22 |
+| The same picture from a PNG, a BMP, and a WebP made one PNG copy in the profile, because the copy name comes from the data. | Measured | Scratch profile, `images/3f6ee2b79ecea9f5.png` after the three pastes |
+| A background `press_key` (⌘V) and a 3 px background `drag` work on a GPUI window. The 3 px drag selects the control under the pointer. | Measured | Real window, 2026-11-22 |
+| Key 1 and key 2 of the device showed the BMP and the WebP image in the USB camera picture. | Measured | USB camera (OpenCV index 0), 2026-11-22 |
+
 ## Menu keys in the application (2026-11-13)
 
 **Measured.** The application is the debug build of `opencraft` with the
@@ -1162,8 +1177,10 @@ The guard of `view/repaint.rs` (issue #321) is in the application:
   child button (the device switcher in the device card).
 - Arrow keys in a sidebar of plain `div` rows. The test program has no key
   bindings for them. The Kit tree has them.
-- A drag out of the window, and a drag from a different application. The
-  test only dragged inside the window.
+- A drag out of the window, and a drag from a different application with a
+  real pointer. The background route is refused with `drag_and_drop_session`
+  (see [File drop and image paste](#file-drop-and-image-paste-2026-11-22));
+  nobody did the foreground step.
 - The look of the Kit parts in the light theme. The window layout test used
   the dark theme only.
 

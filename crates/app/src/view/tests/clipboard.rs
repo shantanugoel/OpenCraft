@@ -368,7 +368,10 @@ fn the_newer_of_the_control_and_the_system_pasteboard_item_wins(cx: &mut TestApp
     keys(cx, "cmd-v");
     let (target, path) = last_image(&sent).expect("the paste sets the image");
     assert_eq!(target, key());
-    assert_eq!(&std::fs::read(path).unwrap()[..2], b"BM");
+    assert_eq!(&std::fs::read(&path).unwrap()[..2], b"BM");
+    // The engine reads the file and sends the surface: the file goes away.
+    send(cx, &tx, surface(key(), "Picture"));
+    assert!(!path.exists(), "{} stays", path.display());
 }
 
 #[gpui_kit::test]

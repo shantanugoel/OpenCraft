@@ -121,6 +121,8 @@ You can also do these steps:
 OpenCraft accepts PNG, JPEG, BMP, WebP, and TIFF files. A different file
 shows a message above the status bar.
 
+![Key 1 and key 2 with an image, and the Appearance section of key 2](images/key-image.png)
+
 The key face shows the image above the title. A transparent part of the
 image shows the fill of the key face.
 
