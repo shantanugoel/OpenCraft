@@ -10,15 +10,19 @@
 //! `gesture_card`.
 
 use super::*;
-use gpui_kit::{assets::IconName, component::input::AnyInputState, component::Icon};
+use gpui_kit::{assets::IconName, component::input::AnyInputState, component::Icon, relative};
 use opencraft_engine::{
-    label_color, Auto, ControlLayout, DeviceLayout, LabelChange, LabelPosition, LabelStyle,
-    SurfaceContent, LABEL_SIZES,
+    image_overflow, label_color, Auto, ControlLayout, DeviceLayout, ImageCrop, LabelChange,
+    LabelPosition, LabelStyle, SurfaceContent, IMAGE_ZOOMS, LABEL_SIZES,
 };
 
 /// The text colours of the popover of the label colour, before the fill
 /// colours of [`COLOURS`]: white and black (data, in the theme).
 use theme::TITLE_COLOURS as TEXT_COLOURS;
+
+/// The step of a press on an arrow of "Offset", in per mille of the
+/// overflow of the image (decision 0043).
+const PAN_STEP: i16 = 100;
 
 /// The state of the inspector that is not in the form of the cards.
 pub(super) struct InspectorState {
@@ -29,6 +33,8 @@ pub(super) struct InspectorState {
     _colour_subscription: Subscription,
     /// The menu of the label size is open.
     size_open: bool,
+    /// The menu of the zoom of the image is open.
+    zoom_open: bool,
     /// The popover of the label colour is open.
     text_colour_open: bool,
     /// The field for `#RRGGBB` in that popover.
@@ -76,6 +82,7 @@ impl InspectorState {
             colour_input,
             _colour_subscription: subscription,
             size_open: false,
+            zoom_open: false,
             text_colour_open: false,
             text_colour_input,
             _text_colour_subscription: text_subscription,
@@ -90,6 +97,7 @@ impl InspectorState {
     pub(super) fn is_open(&self) -> bool {
         self.colour_open
             || self.size_open
+            || self.zoom_open
             || self.text_colour_open
             || self.fit_open
             || self.icon_picker.open
@@ -101,6 +109,7 @@ impl InspectorState {
     pub(super) fn close(&mut self) {
         self.colour_open = false;
         self.size_open = false;
+        self.zoom_open = false;
         self.text_colour_open = false;
         self.fit_open = false;
         self.icon_picker.open = false;
@@ -407,8 +416,9 @@ impl DeviceView {
         let content = self.edited_face(id);
         let row = |label: &str, value: AnyElement| {
             form::row(label.to_string(), theme::FORM_LABEL, theme::FORM_GAP, value)
+                .into_any_element()
         };
-        vec![
+        let mut rows: Vec<AnyElement> = vec![
             row("Icon", self.icon_row(id, &content, window, cx)),
             row(
                 "Title",
@@ -427,10 +437,320 @@ impl DeviceView {
             row("Text", self.label_text(&content, window, cx)),
             row("Font", self.font_row(&content, window, cx)),
             row("Fill", self.fill_samples(id, window, cx)),
-        ]
-        .into_iter()
-        .map(IntoElement::into_any_element)
-        .collect()
+        ];
+        // A face with an image has the crop of that image (decision 0043).
+        if content.image.is_some() {
+            rows.extend(self.image_crop_rows(id, &content, window, cx));
+        }
+        rows.into_iter()
+            .map(IntoElement::into_any_element)
+            .collect()
+    }
+
+    /// The rows of the crop of an image: "Zoom", "Offset", "Reset", and the
+    /// warning when the image is smaller than the area (decision 0043,
+    /// KEY-02). The engine sends the decoded size of the image and the size of
+    /// the area; the window makes no image.
+    fn image_crop_rows(
+        &self,
+        id: SurfaceId,
+        content: &SurfaceContent,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        let crop = content.image_crop.unwrap_or_default();
+        let overflow = self.face_overflow(id, content, crop);
+        let mut rows = vec![
+            form::row(
+                "Zoom",
+                theme::FORM_LABEL,
+                theme::FORM_GAP,
+                self.zoom_popup(crop.zoom, window, cx),
+            )
+            .into_any_element(),
+            form::row(
+                "Offset",
+                theme::FORM_LABEL,
+                theme::FORM_GAP,
+                self.image_offset(crop, overflow, cx),
+            )
+            .into_any_element(),
+            form::end_row(
+                theme::FORM_LABEL,
+                theme::FORM_GAP,
+                self.image_reset(crop, cx),
+            )
+            .into_any_element(),
+        ];
+        if let Some(warning) = self.small_image_warning(content, id) {
+            rows.push(warning);
+        }
+        rows
+    }
+
+    /// The overflow of the image of the edited face on each axis, in pixels.
+    /// `None` when the window has no size of that image: the engine sends the
+    /// size of the image of the base face only.
+    fn face_overflow(
+        &self,
+        id: SurfaceId,
+        content: &SurfaceContent,
+        crop: ImageCrop,
+    ) -> Option<(u32, u32)> {
+        let state = self.state.surfaces.get(&id)?;
+        let source = state.image_size?;
+        let area = state.image_area?;
+        // The size is that of the base image. An On face with a different
+        // image has no size in the window.
+        if content.image != state.content.image {
+            return None;
+        }
+        Some(image_overflow(source, area, crop.zoom))
+    }
+
+    /// The popup button of the zoom of the image, for example "200 %", and
+    /// its menu with the values of [`IMAGE_ZOOMS`].
+    fn zoom_popup(&self, zoom: u16, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let open = self.inspector.zoom_open;
+        let menu = open.then(|| {
+            let rows = IMAGE_ZOOMS
+                .into_iter()
+                .map(|item| {
+                    controls::menu_row(format!("image-zoom-{item}"))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .w(theme::ICON_SMALL)
+                                .when(item == zoom, |d| {
+                                    d.child(Icon::new(IconName::Check).size(theme::ICON_SMALL))
+                                }),
+                        )
+                        .child(format!("{item} %"))
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            view.set_image_crop(|crop| crop.zoom = item);
+                            view.close_kinds();
+                            view.focus_workspace(window, cx);
+                            cx.notify();
+                        }))
+                        .into_any_element()
+                })
+                .collect();
+            controls::popup_menu(
+                "image-zoom-menu",
+                controls::MenuPlace {
+                    button_height: theme::HEIGHT_CONTROL,
+                    width: theme::WIDTH_SIZE_MENU,
+                    align_end: false,
+                },
+                rows,
+                window,
+                cx.listener(|view, _, window, cx| {
+                    view.close_kinds();
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                }),
+            )
+        });
+        div()
+            .relative()
+            .flex_shrink_0()
+            .w(theme::WIDTH_SIZE_POPUP)
+            .flex()
+            .child(
+                controls::popup_button(
+                    "image-zoom",
+                    "Zoom",
+                    format!("{zoom} %"),
+                    theme::HEIGHT_CONTROL,
+                    open,
+                    div().truncate().child(format!("{zoom} %")),
+                )
+                .text_size(theme::TEXT_LABEL)
+                .on_click(cx.listener(move |view, _, window, cx| {
+                    view.close_kinds();
+                    view.inspector.zoom_open = !open;
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                })),
+            )
+            .children(menu)
+            .into_any_element()
+    }
+
+    /// The four arrows of "Offset": each one moves the image by
+    /// [`PAN_STEP`] per mille of the overflow on its axis. An arrow of an
+    /// axis with no overflow is disabled: a pan there changes no pixel.
+    fn image_offset(
+        &self,
+        crop: ImageCrop,
+        overflow: Option<(u32, u32)>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let arrows = [
+            (
+                "image-offset-left",
+                IconName::ArrowLeft,
+                "Move the image left",
+                0,
+                -(PAN_STEP),
+            ),
+            (
+                "image-offset-right",
+                IconName::ArrowRight,
+                "Move the image right",
+                0,
+                PAN_STEP,
+            ),
+            (
+                "image-offset-up",
+                IconName::ArrowUp,
+                "Move the image up",
+                1,
+                -(PAN_STEP),
+            ),
+            (
+                "image-offset-down",
+                IconName::ArrowDown,
+                "Move the image down",
+                1,
+                PAN_STEP,
+            ),
+        ];
+        div()
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_4)
+            .children(arrows.into_iter().map(|(id, icon, label, axis, step)| {
+                // Both axes move only when the image is larger than the
+                // area there.
+                let enabled = overflow.is_none_or(|(x, y)| if axis == 0 { x } else { y } > 0);
+                let start = if axis == 0 { crop.x } else { crop.y };
+                controls::square_icon_button(
+                    id,
+                    icon,
+                    theme::ICON_BUTTON,
+                    label,
+                    enabled,
+                    theme::HEIGHT_CONTROL,
+                )
+                .when(enabled, |d| {
+                    d.on_click(cx.listener(move |view, _, window, cx| {
+                        view.set_image_crop(|crop| {
+                            let value = start.saturating_add(step);
+                            if axis == 0 {
+                                crop.x = value;
+                            } else {
+                                crop.y = value;
+                            }
+                        });
+                        view.focus_workspace(window, cx);
+                        cx.notify();
+                    }))
+                })
+            }))
+            .into_any_element()
+    }
+
+    /// The button "Reset" of the crop of an image. It is disabled at the fit:
+    /// there is no crop to reset.
+    fn image_reset(&self, crop: ImageCrop, cx: &mut Context<Self>) -> AnyElement {
+        let enabled = !crop.is_fit();
+        controls::small_button("image-reset", "Reset", enabled)
+            .when(enabled, |d| {
+                d.on_click(cx.listener(|view, _, window, cx| {
+                    view.reset_image_crop();
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                }))
+            })
+            .into_any_element()
+    }
+
+    /// The warning that the image of `content` shows fewer pixels than the
+    /// area of the face, at its zoom: the device then shows a soft picture
+    /// (decision 0043). `None` when the window has no size of that image, or
+    /// when the image is large enough.
+    pub(super) fn small_image_warning(
+        &self,
+        content: &SurfaceContent,
+        id: SurfaceId,
+    ) -> Option<AnyElement> {
+        let state = self.state.surfaces.get(&id)?;
+        let (source_width, source_height) = state.image_size?;
+        let (area_width, area_height) = state.image_area?;
+        if content.image != state.content.image {
+            return None;
+        }
+        let zoom = u32::from(content.image_crop.unwrap_or_default().zoom);
+        // The pixels of the copied image that the face shows on each axis.
+        let effective_width = source_width * 100 / zoom.max(1);
+        let effective_height = source_height * 100 / zoom.max(1);
+        if effective_width >= area_width && effective_height >= area_height {
+            return None;
+        }
+        let surface = match id.kind {
+            SurfaceKind::KeyFace => "key face",
+            SurfaceKind::BarPanel => "bar panel",
+            SurfaceKind::Background => "background",
+        };
+        let text = format!(
+            "This image has {source_width} × {source_height} pixels. At {zoom} % it is smaller than the {surface}, thus it will look soft."
+        );
+        Some(
+            div()
+                .id("image-small-warning")
+                .debug_selector(|| "image-small-warning".into())
+                .readable_text(text.clone())
+                .flex()
+                .gap(theme::SPACE_6)
+                .text_size(theme::TEXT_HELP)
+                .line_height(relative(theme::LINE_HEIGHT_TEXT))
+                .text_color(theme::warning())
+                .child(
+                    div()
+                        .flex_shrink_0()
+                        .mt(theme::SPACE_2)
+                        .child(Icon::new(IconName::TriangleAlert).size(theme::ICON_SMALL)),
+                )
+                .child(div().flex_1().min_w_0().child(text))
+                .into_any_element(),
+        )
+    }
+
+    /// Change the crop of the image of the edited face with `change`. A face
+    /// with no image sends nothing.
+    fn set_image_crop(&mut self, change: impl FnOnce(&mut ImageCrop)) {
+        let Some(crop) = self.edited_image_crop() else {
+            return;
+        };
+        let mut crop = crop.unwrap_or_default();
+        change(&mut crop);
+        crop = crop.clamped();
+        self.send_image_crop((!crop.is_fit()).then_some(crop));
+    }
+
+    /// Reset the crop of the image of the edited face to the fit.
+    fn reset_image_crop(&mut self) {
+        if self.edited_image_crop().is_some() {
+            self.send_image_crop(None);
+        }
+    }
+
+    /// The crop of the image of the edited face. `None` for a face with no
+    /// image: such a face has no crop.
+    fn edited_image_crop(&self) -> Option<Option<ImageCrop>> {
+        let surface = self.state.edit_surface()?;
+        let content = self.edited_face(surface);
+        content.image.as_ref()?;
+        Some(content.image_crop)
+    }
+
+    /// Send the crop of the image of the edited face. `None` is the fit.
+    fn send_image_crop(&mut self, crop: Option<ImageCrop>) {
+        let Some(surface) = self.state.edit_surface() else {
+            return;
+        };
+        self.send_surface(surface, Command::SetImageCrop { surface, crop });
     }
 
     /// The row "Position": a segmented control with "Top", "Middle",

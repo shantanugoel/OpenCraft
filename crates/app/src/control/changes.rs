@@ -269,6 +269,7 @@ fn named(method: &w::Method) -> w::Changed {
         M::SetColor(p) => target(&p.target),
         M::SetImage(p) => target(&p.target),
         M::SetIcon(p) => target(&p.target),
+        M::SetImageCrop(p) => target(&p.target),
         M::SetBinding(p) => target(&p.target),
         M::CopyControl(p) | M::PasteControl(p) | M::ClearControl(p) | M::CopyToAllPages(p) => {
             target(&p.target)
@@ -421,6 +422,22 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                 .transpose()?;
             let (place, _) = location(state, p.target)?;
             nothing(at(place, C::SetIcon { surface, icon }.for_face(p.on)))
+        }
+        M::SetImageCrop(p) => {
+            let surface = surface(p.surface, state)?;
+            // No value makes each part the fit, and the fit is no crop
+            // (decision 0043).
+            let crop = if p.zoom.is_none() && p.offset_x.is_none() && p.offset_y.is_none() {
+                None
+            } else {
+                Some(e::ImageCrop {
+                    zoom: p.zoom.unwrap_or(e::MIN_IMAGE_ZOOM),
+                    x: p.offset_x.unwrap_or(0),
+                    y: p.offset_y.unwrap_or(0),
+                })
+            };
+            let (place, _) = location(state, p.target)?;
+            nothing(at(place, C::SetImageCrop { surface, crop }.for_face(p.on)))
         }
         M::SetBinding(p) => {
             let control_id = p.control;

@@ -115,6 +115,70 @@ pub const MAX_LABEL_SIZE: u8 = 40;
 /// The font sizes that a shell offers, in pixels.
 pub const LABEL_SIZES: [u8; 9] = [10, 12, 14, 16, 18, 20, 24, 28, 32];
 
+/// The smallest zoom of an image, in percent. It is the fit: the largest
+/// image with its proportion, at the centre (decision 0043).
+pub const MIN_IMAGE_ZOOM: u16 = 100;
+/// The largest zoom of an image, in percent.
+pub const MAX_IMAGE_ZOOM: u16 = 400;
+/// The largest pan of an image, in per mille of the overflow of each axis.
+pub const MAX_IMAGE_PAN: i16 = 1000;
+/// The zoom values that a shell offers, in percent. The first value is the
+/// fit.
+pub const IMAGE_ZOOMS: [u16; 7] = [100, 125, 150, 200, 250, 300, 400];
+
+/// The crop of the image of a surface: the zoom, and the pan of the image
+/// inside the area of the face (decision 0043).
+///
+/// The values are integers: [`SurfaceContent`] derives `Eq`, and a float
+/// loses its exact value in the profile file. `zoom = 100` with no pan is
+/// the fit, thus it is the same picture as no crop. The store writes no
+/// keys for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ImageCrop {
+    /// The zoom in percent, from [`MIN_IMAGE_ZOOM`] to [`MAX_IMAGE_ZOOM`].
+    /// 100 is the fit.
+    pub zoom: u16,
+    /// The pan on the x axis, in per mille of the overflow, from
+    /// -[`MAX_IMAGE_PAN`] to [`MAX_IMAGE_PAN`]. A positive value moves the
+    /// image to the right, thus the face shows more of the left of the
+    /// image.
+    pub x: i16,
+    /// The pan on the y axis, in per mille of the overflow, from
+    /// -[`MAX_IMAGE_PAN`] to [`MAX_IMAGE_PAN`]. A positive value moves the
+    /// image down, thus the face shows more of the top.
+    pub y: i16,
+}
+
+impl Default for ImageCrop {
+    /// The fit: zoom 100, and no pan.
+    fn default() -> Self {
+        Self {
+            zoom: MIN_IMAGE_ZOOM,
+            x: 0,
+            y: 0,
+        }
+    }
+}
+
+impl ImageCrop {
+    /// True if the crop is the fit: zoom 100 and no pan. It is the same
+    /// picture as no crop.
+    pub fn is_fit(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// The crop with each value in its range. The engine applies a value of
+    /// a shell through this function, thus a large number cannot leave the
+    /// range of the profile file.
+    pub fn clamped(self) -> Self {
+        Self {
+            zoom: self.zoom.clamp(MIN_IMAGE_ZOOM, MAX_IMAGE_ZOOM),
+            x: self.x.clamp(-MAX_IMAGE_PAN, MAX_IMAGE_PAN),
+            y: self.y.clamp(-MAX_IMAGE_PAN, MAX_IMAGE_PAN),
+        }
+    }
+}
+
 /// The value of one part of a label: the automatic value of the surface, or
 /// a value of the user.
 ///
@@ -326,6 +390,10 @@ pub struct SurfaceContent {
     /// An icon of the built-in set (see [`crate::icons`]). A surface has an
     /// image or an icon, not both: the commands remove the other one.
     pub icon: Option<SurfaceIcon>,
+    /// The crop of the image: the zoom and the pan (decision 0043). `None`
+    /// is the fit. The crop goes away with the image, and a face with no
+    /// image has no crop. The undo history covers it with the content.
+    pub image_crop: Option<ImageCrop>,
     /// The replacement face for On. Its own `on` is always `None`.
     pub on: Option<Box<SurfaceContent>>,
 }
@@ -370,6 +438,7 @@ impl SurfaceContent {
             && self.color.is_none()
             && self.image.is_none()
             && self.icon.is_none()
+            && self.image_crop.is_none()
             && self.on.is_none()
     }
 
@@ -403,6 +472,11 @@ impl SurfaceContent {
     fn normalize(&mut self) {
         if self.label.as_deref() == Some("") {
             self.label = None;
+        }
+        // The fit is the same picture as no crop, and a face with no image
+        // has no crop (decision 0043).
+        if self.image.is_none() || self.image_crop.is_some_and(|crop| crop.is_fit()) {
+            self.image_crop = None;
         }
         if let Some(on) = self.on.as_deref_mut() {
             on.on = None;

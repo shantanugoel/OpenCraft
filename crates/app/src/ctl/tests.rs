@@ -170,7 +170,7 @@ fn each_surface_change_accepts_the_on_flag() {
         super::request(command.method, params).unwrap();
         count += 1;
     }
-    assert_eq!(count, 5);
+    assert_eq!(count, 6);
 }
 
 #[test]

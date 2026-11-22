@@ -85,6 +85,8 @@ fn surface(id: SurfaceId, label: &str) -> Event {
             ..Default::default()
         },
         image: Arc::new(RgbImage::new(90, 90)),
+        image_size: None,
+        image_area: None,
         states: None,
     })
 }
@@ -256,6 +258,7 @@ mod actions;
 mod backgrounds;
 mod canvas;
 mod clipboard;
+mod crop;
 mod device;
 mod focus;
 mod focus_return;

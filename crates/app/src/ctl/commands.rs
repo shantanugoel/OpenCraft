@@ -752,6 +752,21 @@ pub const COMMANDS: &[Command] = &[
             ]
         ]
     ),
+    change!(
+        "surface set-image-crop",
+        "set_image_crop",
+        "Zoom and move the image of a surface in its area, or reset the crop. Leave out each value to reset the crop.",
+        "opencraft ctl surface set-image-crop --profile work --page 0123456789abcdef --surface key_face:1 --zoom 200 --offset-x -500",
+        &[
+            TARGET,
+            SURFACE,
+            &[
+                arg("zoom", "zoom", Kind::Int, "The zoom in percent, from 100 to 400. 100 is the fit. Leave it out for 100."),
+                arg("offset-x", "offset_x", Kind::Int, "The pan on the x axis, in per mille of the overflow, from -1000 to 1000. A positive value shows more of the left of the image. Leave it out for 0."),
+                arg("offset-y", "offset_y", Kind::Int, "The pan on the y axis, in per mille of the overflow, from -1000 to 1000. A positive value shows more of the top of the image. Leave it out for 0."),
+            ]
+        ]
+    ),
     // Bindings and controls.
     change!(
         "binding set",
