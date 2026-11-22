@@ -850,6 +850,7 @@ in the background only. The window tests are in
 | A 1366 × 854 capture is the content of a 1440 × 900 window: the frame has a title bar and a border. A 1080 × 700 window captures 1080 × 700. | Measured | `get_window_state`, `screenshot_width`; window pictures |
 | At 1080 × 700 the whole changed part shows: the key face with its icon and title, and the inspector with "Open an application". The help line ends with "…". | Measured | Window picture, 2026-11-22 |
 | A control socket path in a long scratch directory fails with the problem "path must be shorter than SUN_LEN". Use a short directory, for example `/tmp/<name>`. | Measured | Window picture, 2026-11-22 |
+| The device shows the blue Mail icon at the 112-pixel key face, above the title "Mail", with no visible blur, from the 256-pixel icon that the engine copied into the profile. | Measured | USB camera (OpenCV index 0), 2026-11-22; the profile of the scratch directory |
 
 ## Menu keys in the application (2026-11-13)
 
