@@ -39,8 +39,8 @@ use super::{
 use crate::{
     app_menu::{
         self, AddPage, AddProfile, AddReadyProfile, DeviceSettings, EditMenu, ImportProfile,
-        OpenInInspector, PageSettings, ProfileSettings, Search, SelectNext, SelectPrevious,
-        PALETTE,
+        MoveKey, OpenInInspector, PageSettings, ProfileSettings, Search, SelectNext,
+        SelectPrevious, PALETTE,
     },
     state::gestures,
 };
@@ -209,6 +209,13 @@ impl DeviceView {
             .on_action(cx.listener(|view, _: &ProfileSettings, window, cx| {
                 view.open_active_profile_sheet(window, cx);
             }))
+            // With no key face with content selected, the move has nothing
+            // to do: the palette does not show its commands.
+            .when(self.can_move_key(), |d| {
+                d.on_action(cx.listener(|view, action: &MoveKey, window, cx| {
+                    view.move_key_by(action.row, action.column, window, cx);
+                }))
+            })
             .on_action(cx.listener(|view, _: &AddProfile, window, cx| {
                 // The new row is in the sidebar.
                 if !view.panes.sidebar_visible {

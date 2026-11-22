@@ -1389,6 +1389,20 @@ counts. The counter is not in the code.
   the choice in Settings > General. The window test covers the observer path
   with the function that the observer calls.
 
+## A keyboard move of a key (2026-11-22)
+
+**Measured.** The facts of the four commands that move a key face from the
+command palette (issue #485; the drag is KEY-14). The window tests are
+`view::tests::key_drag::the_palette_moves_the_selected_key_to_an_empty_key`,
+`the_palette_swaps_the_selected_key_with_the_key_beside_it`, and
+`the_move_of_the_palette_is_one_step_and_undo_restores_it`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The palette shows a command whose action the root element of the window handles in the frame that was drawn (`Window::is_action_available_in`). Thus a command that a handler gives only while a selection can use it (`view/palette.rs`, the `.when(self.can_move_key(), ...)` of the move) shows only then, and it leaves the palette when the selection changes. | Source; Measured | `crates/app/src/view/palette.rs`, `open_palette`; `crates/app/src/view/key_drag.rs`; `the_palette_shows_the_move_of_a_key_only_for_a_key_with_content` |
+| The engine's `Command::MoveControl` with a source that has no appearance and no binding returns and sends nothing: it writes no step of the history and no problem. The window tells the user that the key has nothing to move before it sends the command. | Source; Measured | `crates/engine/src/engine.rs`, `move_control`; `crates/app/src/view/key_drag.rs`, `move_key_by` |
+| A move by one place of the grid is a change of `row` or `column` in `ControlLayout` (`row` 1 is the top row and `column` 1 is the left column). A device that has no control at that place gives no move; the window sends nothing and shows the reason in the status bar. | Source; Measured | `crates/engine/src/layout.rs`, `ControlLayout`; `crates/app/src/view/tests/key_drag.rs`, `a_move_with_no_key_beside_it_sends_nothing` |
+
 ## A sheet that a key command opens (2026-11-22)
 
 **Measured.** The facts of the key command that opens the profile settings
