@@ -421,6 +421,8 @@ impl w::SurfaceFace {
                 size: style.size,
                 color: style.color.map(|c| c.to_string()),
                 bold: style.bold,
+                italic: style.italic,
+                underline: style.underline,
             },
             color: c.color.map(|c| c.to_string()),
             image: c.image.clone(),

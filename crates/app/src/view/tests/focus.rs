@@ -130,7 +130,7 @@ fn tab_and_shift_tab_move_the_focus_in_the_order_of_the_window(cx: &mut TestAppC
 fn tab_reaches_each_control_of_the_inspector_of_a_key(cx: &mut TestAppContext) {
     let (_view, cx, _tx, _sent) = focus_window(cx);
     click(cx, "surface-key face 2");
-    let ids = order(cx, "tab", START.len() + 30);
+    let ids = order(cx, "tab", START.len() + 32);
     assert_eq!(ids[..START.len()], START);
     let mut inspector = vec![
         "more-button",
@@ -144,6 +144,8 @@ fn tab_reaches_each_control_of_the_inspector_of_a_key(cx: &mut TestAppContext) {
         "label-size",
         "label-colour",
         "label-bold",
+        "label-italic",
+        "label-underline",
         "label-font",
         "no-colour",
     ];

@@ -263,6 +263,8 @@ fn the_inspector_of_a_key_has_labels_from_its_rows(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::ComboBox, "Text size");
     assert_has(&nodes, Role::ComboBox, "Font");
     assert_has(&nodes, Role::Button, "Bold");
+    assert_has(&nodes, Role::Button, "Italic");
+    assert_has(&nodes, Role::Button, "Underline");
     assert_has(&nodes, Role::RadioButton, "No fill");
     assert_has(&nodes, Role::RadioButton, "Other colour");
     assert_has(&nodes, Role::Button, "Choose icon…");

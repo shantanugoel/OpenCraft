@@ -392,7 +392,7 @@ fn each_surface_request_sets_and_removes_its_part() {
     live.ok(
         "set_label_style",
         json!({"target": target, "surface": surface,
-               "style": {"position": "top", "size": 20, "color": "#ff0000", "bold": false}}),
+               "style": {"position": "top", "size": 20, "color": "#ff0000", "bold": false, "italic": false, "underline": false}}),
     );
     live.ok(
         "set_color",
@@ -458,7 +458,8 @@ fn the_style_request_sets_the_font_family_and_the_system_font() {
     };
     let style = |font: serde_json::Value| {
         json!({"target": target, "surface": surface,
-               "style": {"font": font, "position": null, "size": 20, "color": null, "bold": true}})
+               "style": {"font": font, "position": null, "size": 20, "color": null,
+                         "bold": true, "italic": false, "underline": false}})
     };
 
     // The profile stores the name of the family.
@@ -477,7 +478,8 @@ fn the_style_request_sets_the_font_family_and_the_system_font() {
     live.ok(
         "set_label_style",
         json!({"target": target, "surface": surface,
-               "style": {"position": null, "size": 20, "color": null, "bold": true}}),
+               "style": {"position": null, "size": 20, "color": null, "bold": true,
+                         "italic": false, "underline": false}}),
     );
     assert!(font(&mut live).is_null());
 }
@@ -506,7 +508,7 @@ fn the_surface_requests_can_write_and_read_the_on_face() {
         (
             "set_label_style",
             "style",
-            json!({"position": "top", "size": 24, "color": "#ff0000", "bold": false}),
+            json!({"position": "top", "size": 24, "color": "#ff0000", "bold": false, "italic": false, "underline": false}),
         ),
         ("set_color", "color", json!("#00ff00")),
         ("set_icon", "icon", json!({"name": "star", "color": null})),
@@ -529,7 +531,7 @@ fn the_surface_requests_can_write_and_read_the_on_face() {
     assert_eq!(key["on"]["label"], "Live");
     assert_eq!(
         key["on"]["label_style"],
-        json!({"font": null, "position": "top", "size": 24, "color": "#FF0000", "bold": false})
+        json!({"font": null, "position": "top", "size": 24, "color": "#FF0000", "bold": false, "italic": false, "underline": false})
     );
     assert_eq!(key["on"]["color"], "#00FF00");
     assert!(key["on"]["image"].as_str().unwrap().starts_with("images/"));
@@ -959,7 +961,7 @@ fn one_request_is_one_step_of_the_history_with_the_name_of_the_window_and_the_wi
     live.ok(
         "set_label_style",
         json!({"target": live.at(0), "surface": surface,
-               "style": {"position": "top", "size": 20, "color": "#ff0000", "bold": false}}),
+               "style": {"position": "top", "size": 20, "color": "#ff0000", "bold": false, "italic": false, "underline": false}}),
     );
     // The four changes of the style are one step.
     assert_eq!(live.read("history")["undo"], "Set Title Style");

@@ -362,6 +362,8 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                 Some(text) => Some(e::Auto::Value(parse(text, "colour")?)),
             };
             let bold = style.as_ref().map(|style| style.bold);
+            let italic = style.as_ref().map(|style| style.italic);
+            let underline = style.as_ref().map(|style| style.underline);
             let (place, _) = location(state, p.target)?;
             nothing(at(
                 place,
@@ -391,6 +393,16 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                         C::SetLabelStyle {
                             surface,
                             change: e::LabelChange::Bold(bold),
+                        }
+                        .for_face(p.on),
+                        C::SetLabelStyle {
+                            surface,
+                            change: e::LabelChange::Italic(italic),
+                        }
+                        .for_face(p.on),
+                        C::SetLabelStyle {
+                            surface,
+                            change: e::LabelChange::Underline(underline),
                         }
                         .for_face(p.on),
                     ],

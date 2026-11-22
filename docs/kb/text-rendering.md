@@ -200,6 +200,23 @@ repository. T2 ran on the same computer as T (an Apple M1 Max, arm64, macOS
 | A family that is not installed draws the pixels of the system font, and it is not a problem: the profile keeps the name. A hidden family (a name that starts with `.`, for example `.AppleSystemUIFont`) is not in the list, thus it is not selectable. | Measured | Test `a_font_that_is_not_installed_draws_in_the_system_font`, the engine test `the_font_stays_in_the_file_and_a_missing_font_shows_the_system_font` |
 | A font descriptor made from `kCTFontFamilyNameAttribute` and a family name gives a font of that family at the requested size. `clone_with_font_size` gives the smaller sizes of one `fit` call: one descriptor and one font for each label, not one for each size. | Source | `core-text-22.0.0/src/font_descriptor.rs:341,396`; `core-text-22.0.0/src/font.rs:173,287` |
 
+### Italic and underline of a label (P11-T1, 2026-11-22)
+
+The facts below come from `crates/engine/src/label.rs` after issue #453, from
+its tests, and from a test program T3 that is not in the repository. T3 ran on
+the same computer as T (an Apple M1 Max, arm64, macOS 27.2, Rust 1.99.1), in a
+release build, with no device.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The italic face is `clone_with_symbolic_traits(kCTFontItalicTrait, kCTFontItalicTrait)`, which is asked for on the font of the bold step. It gives `None` for a family with no italic face. Of the 256 families, 206 have no italic face, and 74 have no bold face and no italic face. | Measured | T2 (the probe of ICON-06); `core-text-22.0.0/src/font.rs:295` |
+| A family with no italic face is drawn with a shear of 0.2 through the text matrix (`CGAffineTransform::new(1.0, 0.0, 0.2, 1.0, 0.0, 0.0)`), and no false italic face. The frame is narrower by `0.2 × ascent`, and each line moves left by half of that value, thus the slanted text stays at the centre: on a 112 × 112 face at 20 pixels, "Mail" in Impact (no italic face) has the ink 36 to 73 with the shear and 38 to 72 without it. | Measured | Test `a_family_with_no_italic_face_is_drawn_with_a_shear`; T3 |
+| A single underline is `kCTUnderlineStyleAttributeName` with `CFNumber::from(1i32)`. The line is drawn 2 pixels below the ink of a 20-pixel text and is 2 pixels thick. Its bottom is 0.10 to 0.25 of the font size below the ink of the text, for the sizes 10 to 40 pixels. The line is black when `kCTUnderlineColorAttributeName` is absent, also when the text uses the colour of the context. | Measured | T3 |
+| `kCTUnderlineColorAttributeName` with a `CGColor` is used only when the string has `kCTForegroundColorAttributeName`. With `kCTForegroundColorFromContextAttributeName` the line stays black, and the underline colour attribute has no effect. Thus the drawing sets the foreground colour itself, and the layout with no colour (the height of a band) uses the context. | Measured | T3, four variants of the same string |
+| A `CGColor` of `CGColorCreateGenericRGB` is in the generic RGB space, and the bitmap context of a label is in the device RGB space. The conversion changes the colour: a pure blue becomes `(4, 51, 255)` on this Mac, thus a label colour would not be the value of the profile. A colour of `CGColorSpaceCreateDeviceRGB` gives `(0, 0, 255)` again. The module makes the colour of the text in the device RGB space. | Measured | T3; the test `the_label_has_its_colour_size_and_weight` |
+| The block of a line is higher by 0.2 of the font size when it has an underline, thus the line is inside the area at `Align::Bottom`: at 20 pixels the underline ends 3 pixels above the bottom of a 112-pixel face. The band of an underlined label of "Mail" is 4 pixels higher at 20 pixels. | Measured | Test `an_underline_is_drawn_below_the_text_and_stays_in_the_area`; T3 |
+| An underlined label at the bottom of its area moves up by the room of the line. That is the look that decision 0043 gives. | Measured | T3; the window check of #453 |
+
 ## Not known
 
 - The physical footprint of the full application with GPUI and the label
@@ -214,6 +231,9 @@ repository. T2 ran on the same computer as T (an Apple M1 Max, arm64, macOS
 - Whether a macOS interface language localizes the family names of the list,
   and which languages do. The font files have the names (see above), and the
   interface language was not changed for the measurement.
+- The underline position and thickness of a font whose descent is smaller
+  than the line needs. The measurement covers the system font and four
+  installed families at 10 to 40 pixels.
 - Performance and output on Linux and Windows. Core Text needs a replacement
   there. The other candidates were tested only on macOS.
 - A full licence audit of transitive crates. The table gives candidate licences.

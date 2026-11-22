@@ -33,12 +33,14 @@ fn a_client_that_closes_its_write_side_still_gets_each_response() {
         json!({"id": 2, "method": "state", "params": {}}),
         json!({"id": 3, "method": "nothing", "params": {"long": long}}),
     );
-    client.0.get_mut().write_all(lines.as_bytes()).unwrap();
-    client
-        .0
-        .get_mut()
-        .shutdown(std::net::Shutdown::Write)
-        .unwrap();
+    // The writer sends while this thread reads: a reply that is larger than
+    // the buffer of the socket (the reply of "state" is about 8 KiB) would
+    // stop the worker before it reads the rest of the request.
+    let mut writer = client.0.get_ref().try_clone().unwrap();
+    let write = std::thread::spawn(move || {
+        writer.write_all(lines.as_bytes()).unwrap();
+        writer.shutdown(std::net::Shutdown::Write).unwrap();
+    });
     assert_eq!(client.read()["id"], 1);
     let state = client.read();
     assert_eq!(state["id"], 2);
@@ -46,6 +48,7 @@ fn a_client_that_closes_its_write_side_still_gets_each_response() {
     assert_eq!(client.read()["error"]["code"], "unknown_method");
     // After the last response the worker closes the connection.
     assert_eq!(client.0.read(&mut [0]).unwrap(), 0);
+    write.join().unwrap();
 }
 
 #[test]

@@ -788,7 +788,8 @@ impl DeviceView {
     }
 
     /// The row "Text": the popup button of the size, the colour button, and
-    /// the toggle button "B" for bold.
+    /// the toggle buttons "B" for bold, "I" for italic, and "U" for
+    /// underline.
     fn label_text(
         &self,
         content: &SurfaceContent,
@@ -799,7 +800,6 @@ impl DeviceView {
         // engine default until the default title style of the profile comes
         // (decision 0043).
         let style = content.label_style.resolve(&LabelStyle::default());
-        let bold = style.bold;
         div()
             .flex()
             .items_center()
@@ -807,22 +807,68 @@ impl DeviceView {
             .child(self.size_popup(style.size, window, cx))
             .child(self.text_colour(content, window, cx))
             .child(
-                controls::toggle_button(
+                self.text_toggle(
                     "label-bold",
                     div()
                         .text_size(theme::TEXT_BODY)
                         .font_weight(gpui_kit::FontWeight::BOLD)
                         .child("B"),
-                    bold,
                     "Bold",
-                )
-                .on_click(cx.listener(move |view, _, window, cx| {
-                    view.set_label_style(LabelChange::Bold(Some(!bold)));
-                    view.close_kinds();
-                    view.focus_workspace(window, cx);
-                    cx.notify();
-                })),
+                    style.bold,
+                    LabelChange::Bold(Some(!style.bold)),
+                    cx,
+                ),
             )
+            .child(
+                self.text_toggle(
+                    "label-italic",
+                    div()
+                        .text_size(theme::TEXT_BODY)
+                        .font_weight(gpui_kit::FontWeight::BOLD)
+                        .italic()
+                        .child("I"),
+                    "Italic",
+                    style.italic,
+                    LabelChange::Italic(Some(!style.italic)),
+                    cx,
+                ),
+            )
+            .child(
+                self.text_toggle(
+                    "label-underline",
+                    div()
+                        .text_size(theme::TEXT_BODY)
+                        .font_weight(gpui_kit::FontWeight::BOLD)
+                        .underline()
+                        .child("U"),
+                    "Underline",
+                    style.underline,
+                    LabelChange::Underline(Some(!style.underline)),
+                    cx,
+                ),
+            )
+            .into_any_element()
+    }
+
+    /// One toggle button of the row "Text". A click makes the value of
+    /// `change`, closes the open menus, and gives the focus back to the
+    /// window.
+    fn text_toggle(
+        &self,
+        id: &'static str,
+        content: impl IntoElement,
+        label: &'static str,
+        on: bool,
+        change: LabelChange,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        controls::toggle_button(id, content, on, label)
+            .on_click(cx.listener(move |view, _, window, cx| {
+                view.set_label_style(change.clone());
+                view.close_kinds();
+                view.focus_workspace(window, cx);
+                cx.notify();
+            }))
             .into_any_element()
     }
 

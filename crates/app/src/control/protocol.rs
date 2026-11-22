@@ -1119,6 +1119,10 @@ pub struct LabelStyle {
     pub size: u8,
     pub color: Option<String>,
     pub bold: bool,
+    /// Italic. A family with no italic face is slanted.
+    pub italic: bool,
+    /// A single underline.
+    pub underline: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

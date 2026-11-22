@@ -215,6 +215,8 @@ fn surface_image_on(
         size: style.size,
         bold: style.bold,
         family: style.font.clone(),
+        italic: style.italic,
+        underline: style.underline,
     };
     let text_color = style.color.unwrap_or_else(|| text_color(base.tone()));
     let width = size.width.saturating_sub(2 * MARGIN);

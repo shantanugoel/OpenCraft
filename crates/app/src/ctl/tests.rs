@@ -191,8 +191,18 @@ fn the_flags_make_the_params_of_the_protocol() {
         json!({
             "target": {"profile": "p", "page": "g"},
             "surface": {"kind": "key_face", "number": 2},
-            "style": {"position": "top", "size": 20, "bold": true}
+            "style": {"position": "top", "size": 20, "bold": true, "italic": false, "underline": false}
         })
+    );
+    // Italic and underline are styles of the title.
+    assert_eq!(
+        params(
+            "opencraft ctl surface set-label-style --profile p --page g --surface key_face:2 \
+             --italic true --underline true",
+            None
+        )
+        .unwrap()["style"],
+        json!({"size": 20, "bold": true, "italic": true, "underline": true})
     );
     // The font of a surface is a family, or the word "system".
     assert_eq!(
