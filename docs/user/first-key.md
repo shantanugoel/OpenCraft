@@ -408,6 +408,9 @@ and card of the window with the keyboard.
 - The control with the focus has a blue ring. The ring shows only when you
   use the keyboard. A click does not move the focus to a control, and it
   removes the ring.
+- The inspector moves a control into view when the focus reaches it. It does
+  not move back while the control keeps the focus, thus you can also move the
+  inspector with the wheel or the scrollbar.
 - Tab goes through the sidebar, the toolbar, the page header, the tabs of
   the right panel, and the inspector, in this order. In a sheet, in the
   command palette, and in a popover, Tab stays in that part. When you open

@@ -217,7 +217,7 @@ fn runtime_choice_lists_keep_order_and_remove_saved_unavailable_values(cx: &mut 
     );
 }
 
-fn kind() -> KindDescription {
+pub(super) fn kind() -> KindDescription {
     KindDescription {
         kind: "test.kind".into(),
         name: "Test action".into(),
