@@ -16,13 +16,44 @@
 use crate::profile::{Color, DEFAULT_LABEL_SIZE, MIN_LABEL_SIZE};
 use image::RgbImage;
 
+/// One installed font family (decision 0043, section 1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FontFamily {
+    /// The family name that the profile stores: the non-localized name of
+    /// `CTFontCopyName`. A profile with this name loads on a computer with a
+    /// different interface language.
+    pub name: String,
+    /// The family name for the interface. The list of Core Text can localize
+    /// it. The picker shows this name and sends [`Self::name`].
+    pub display: String,
+}
+
+/// The installed font families, sorted by the display name with no
+/// difference between capital and small letters. A hidden system family (a
+/// name that starts with `.`) and a duplicate are not in the list.
+///
+/// The function makes the list again at each call, thus a font that the user
+/// installs while OpenCraft runs shows at the next call. The shell calls it
+/// when the font picker opens. The engine makes the list at the first label
+/// that names a family. The list is behind a lock, because the engine thread
+/// draws and the GUI thread reads the list.
+///
+/// The list is empty on an operating system that is not macOS.
+pub fn font_families() -> Vec<FontFamily> {
+    platform::font_families()
+}
+
 /// The font of a label.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Font {
     /// The size that the label tries first, in pixels.
     pub size: u8,
     /// Bold, or the regular weight.
     pub bold: bool,
+    /// The family that the profile names. `None` is the system font. A
+    /// family that is not installed draws in the system font, and the
+    /// profile keeps the name (decision 0043, section 1).
+    pub family: Option<String>,
 }
 
 impl Default for Font {
@@ -31,6 +62,7 @@ impl Default for Font {
         Self {
             size: DEFAULT_LABEL_SIZE,
             bold: true,
+            family: None,
         }
     }
 }
@@ -39,7 +71,7 @@ impl Font {
     /// The font sizes that the label tries, in pixels, from the first to the
     /// smallest: the size of the font, and then 2 pixels smaller each time,
     /// to [`MIN_LABEL_SIZE`].
-    pub fn sizes(self) -> Vec<f64> {
+    pub fn sizes(&self) -> Vec<f64> {
         let mut sizes: Vec<f64> = (MIN_LABEL_SIZE..=self.size.max(MIN_LABEL_SIZE))
             .rev()
             .step_by(2)
@@ -79,7 +111,7 @@ pub struct Area {
 /// The height of the band above or below the image of a surface that the
 /// label `text` needs. `width` is the width for the text, and
 /// `surface_height` is the height of the surface.
-pub fn band_height(text: &str, font: Font, width: u32, surface_height: u32) -> u32 {
+pub fn band_height(text: &str, font: &Font, width: u32, surface_height: u32) -> u32 {
     let limit = (f64::from(surface_height) * BAND_PART) as u32;
     let text_height = platform::fit_height(text, font, width, limit.saturating_sub(2 * BAND_SPACE));
     (text_height + 2 * BAND_SPACE).min(limit)
@@ -88,7 +120,14 @@ pub fn band_height(text: &str, font: Font, width: u32, surface_height: u32) -> u
 /// Draw `text` in `font` and `color` in `area` on `canvas`, at the vertical
 /// place `align`. The parts of `area` that are not on the canvas are
 /// ignored.
-pub fn draw(canvas: &mut RgbImage, area: Area, text: &str, font: Font, color: Color, align: Align) {
+pub fn draw(
+    canvas: &mut RgbImage,
+    area: Area,
+    text: &str,
+    font: &Font,
+    color: Color,
+    align: Align,
+) {
     let x = area.x.min(canvas.width());
     let y = area.y.min(canvas.height());
     let area = Area {
@@ -105,9 +144,14 @@ pub fn draw(canvas: &mut RgbImage, area: Area, text: &str, font: Font, color: Co
 
 #[cfg(not(target_os = "macos"))]
 mod platform {
-    use super::{Align, Area, Color, Font, RgbImage};
+    use super::{Align, Area, Color, Font, FontFamily, RgbImage};
 
-    pub fn fit_height(_text: &str, _font: Font, _width: u32, limit: u32) -> u32 {
+    /// No Core Text: the engine offers no font family.
+    pub fn font_families() -> Vec<FontFamily> {
+        Vec::new()
+    }
+
+    pub fn fit_height(_text: &str, _font: &Font, _width: u32, limit: u32) -> u32 {
         limit
     }
 
@@ -115,7 +159,7 @@ mod platform {
         _canvas: &mut RgbImage,
         _area: Area,
         _text: &str,
-        _font: Font,
+        _font: &Font,
         _color: Color,
         _align: Align,
     ) {
@@ -124,28 +168,140 @@ mod platform {
 
 #[cfg(target_os = "macos")]
 mod platform {
-    use super::{Align, Area, Color, Font, RgbImage};
+    use super::{Align, Area, Color, Font, FontFamily, RgbImage};
     use core_foundation::attributed_string::CFMutableAttributedString;
     use core_foundation::base::{CFRange, TCFType};
     use core_foundation::boolean::CFBoolean;
-    use core_foundation::string::CFString;
+    use core_foundation::dictionary::CFDictionary;
+    use core_foundation::string::{CFString, CFStringRef};
     use core_graphics::base::{kCGBitmapByteOrder32Big, kCGImageAlphaPremultipliedLast};
     use core_graphics::color_space::CGColorSpace;
     use core_graphics::context::CGContext;
     use core_graphics::geometry::{CGPoint, CGRect, CGSize};
     use core_graphics::path::CGPath;
     use core_text::font::{
-        kCTFontEmphasizedSystemFontType, kCTFontSystemFontType, new_ui_font_for_language,
+        kCTFontEmphasizedSystemFontType, kCTFontSystemFontType, new_from_descriptor,
+        new_ui_font_for_language, CTFont,
     };
+    use core_text::font_descriptor::{
+        kCTFontBoldTrait, kCTFontFamilyNameAttribute, new_from_attributes,
+    };
+    use core_text::font_manager;
     use core_text::framesetter::CTFramesetter;
     use core_text::line::CTLine;
     use core_text::string_attributes::{
         kCTFontAttributeName, kCTForegroundColorFromContextAttributeName,
     };
+    use std::sync::{Mutex, MutexGuard};
 
     /// A height for the layout frame that no label needs. The layout then
     /// has each line of the text.
     const TALL: f64 = 10_000.0;
+
+    /// The size for a font that the list of families reads. The family and
+    /// not the size is the answer.
+    const LIST_SIZE: f64 = 12.0;
+
+    /// The installed font families of the last [`font_families`] call, or
+    /// `None` before the first call. See [`installed_family`].
+    static FAMILIES: Mutex<Option<Vec<FontFamily>>> = Mutex::new(None);
+
+    pub fn font_families() -> Vec<FontFamily> {
+        let mut cache = lock();
+        let families = installed_families();
+        *cache = Some(families.clone());
+        families
+    }
+
+    fn lock() -> MutexGuard<'static, Option<Vec<FontFamily>>> {
+        FAMILIES.lock().unwrap_or_else(|error| error.into_inner())
+    }
+
+    /// The installed families from Core Text: the display name of each
+    /// family, with the family name of the profile file. A hidden family
+    /// (a name that starts with `.`) and a duplicate are not in the list.
+    fn installed_families() -> Vec<FontFamily> {
+        let names = font_manager::copy_available_font_family_names();
+        let mut families: Vec<FontFamily> = Vec::new();
+        for display in names.iter().map(|name| name.to_string()) {
+            if display.starts_with('.') {
+                continue;
+            }
+            // The list gives the name for the interface. The profile stores
+            // the non-localized family name, which CTFontCopyName gives.
+            let name = family_font(&display, LIST_SIZE).family_name();
+            if families.iter().any(|family| family.name == name) {
+                continue;
+            }
+            families.push(FontFamily { name, display });
+        }
+        families.sort_by(|a, b| {
+            a.display
+                .to_lowercase()
+                .cmp(&b.display.to_lowercase())
+                .then_with(|| a.display.cmp(&b.display))
+        });
+        families
+    }
+
+    /// `family` is installed: it is in the list of the last
+    /// [`font_families`] call.
+    ///
+    /// The test is necessary because `CTFontCreateWithName` and a font
+    /// descriptor take a name and give a best match, not an error. A missing
+    /// family gives Helvetica. See decision 0043, section 1.
+    fn installed_family(family: &str) -> bool {
+        let mut cache = lock();
+        let families = cache.get_or_insert_with(installed_families);
+        families.iter().any(|known| known.name == family)
+    }
+
+    /// The font of `family` at `size`, from the family descriptor. The font
+    /// descriptor takes a family name, thus it gives the family and not a
+    /// single face of it.
+    pub(super) fn family_font(family: &str, size: f64) -> CTFont {
+        let key =
+            unsafe { CFString::wrap_under_get_rule(kCTFontFamilyNameAttribute as CFStringRef) };
+        let value = CFString::new(family);
+        let attributes = CFDictionary::from_CFType_pairs(&[(key, value.as_CFType())]);
+        new_from_descriptor(&new_from_attributes(&attributes), size)
+    }
+
+    /// The system font at `size`, in the weight for emphasis (`bold`) or in
+    /// the regular weight.
+    fn system_font(size: f64, bold: bool) -> CTFont {
+        // The system font. Bold is the weight for emphasis: a label on a
+        // small display is easier to read in this weight.
+        let kind = if bold {
+            kCTFontEmphasizedSystemFontType
+        } else {
+            kCTFontSystemFontType
+        };
+        new_ui_font_for_language(kind, size, None)
+    }
+
+    /// The font that the label of `font` starts with, at its size.
+    ///
+    /// - A family that is installed gives the font of that family. The bold
+    ///   face is the font with the bold trait. A family with no bold face
+    ///   keeps its regular face: there is no synthetic bold (decision 0043,
+    ///   section 1).
+    /// - A family that is missing gives the system font, and no error.
+    fn base_font(font: &Font) -> CTFont {
+        let size = f64::from(font.size.max(super::MIN_LABEL_SIZE));
+        let Some(family) = font.family.as_deref().filter(|name| installed_family(name)) else {
+            return system_font(size, font.bold);
+        };
+        let regular = family_font(family, size);
+        if !font.bold {
+            return regular;
+        }
+        match regular.clone_with_symbolic_traits(kCTFontBoldTrait, kCTFontBoldTrait) {
+            Some(bold) => bold,
+            // A family with no bold face shows its regular face.
+            None => regular,
+        }
+    }
 
     /// One line of a layout.
     struct Line {
@@ -162,15 +318,10 @@ mod platform {
         height: f64,
     }
 
-    fn layout(text: &str, size: f64, bold: bool, width: u32) -> Layout {
-        // The system font. Bold is the weight for emphasis: a label on a
-        // small display is easier to read in this weight.
-        let kind = if bold {
-            kCTFontEmphasizedSystemFontType
-        } else {
-            kCTFontSystemFontType
-        };
-        let font = new_ui_font_for_language(kind, size, None);
+    fn layout(text: &str, base: &CTFont, size: f64, width: u32) -> Layout {
+        // The base font is the family at its size. A smaller size is a copy
+        // of the same font: no new font descriptor for each step.
+        let font = base.clone_with_font_size(size);
         let mut styled = CFMutableAttributedString::new();
         styled.replace_str(&CFString::new(text), CFRange::init(0, 0));
         let range = CFRange::init(0, styled.char_len());
@@ -226,11 +377,14 @@ mod platform {
     /// The layout of `text` for an area of `width` × `height`: at the first
     /// font size at which the text fits, or at the smallest size with the end
     /// of the text cut.
-    fn fit(text: &str, font: Font, width: u32, height: u32) -> Layout {
+    fn fit(text: &str, font: &Font, width: u32, height: u32) -> Layout {
         let text = text.trim();
+        // The font of the family is made one time for this fit. Each smaller
+        // size is a copy of it (decision 0043, section 1).
+        let base = base_font(font);
         let sizes = font.sizes();
         for &size in &sizes {
-            let layout = layout(text, size, font.bold, width);
+            let layout = layout(text, &base, size, width);
             if fits(&layout, width, height) {
                 return layout;
             }
@@ -240,26 +394,22 @@ mod platform {
         let smallest = sizes[sizes.len() - 1];
         let ends: Vec<usize> = text.char_indices().map(|(i, _)| i).collect();
         if ends.is_empty() {
-            return layout("", smallest, font.bold, width);
+            return layout("", &base, smallest, width);
         }
         let cut = |n: usize| format!("{}…", text[..ends[n]].trim_end());
         let (mut low, mut high) = (0, ends.len() - 1);
         while low < high {
             let middle = (low + high).div_ceil(2);
-            if fits(
-                &layout(&cut(middle), smallest, font.bold, width),
-                width,
-                height,
-            ) {
+            if fits(&layout(&cut(middle), &base, smallest, width), width, height) {
                 low = middle;
             } else {
                 high = middle - 1;
             }
         }
-        layout(&cut(low), smallest, font.bold, width)
+        layout(&cut(low), &base, smallest, width)
     }
 
-    pub fn fit_height(text: &str, font: Font, width: u32, limit: u32) -> u32 {
+    pub fn fit_height(text: &str, font: &Font, width: u32, limit: u32) -> u32 {
         if width == 0 || limit == 0 {
             return limit;
         }
@@ -270,7 +420,7 @@ mod platform {
         canvas: &mut RgbImage,
         area: Area,
         text: &str,
-        font: Font,
+        font: &Font,
         color: Color,
         align: Align,
     ) {
@@ -335,6 +485,8 @@ mod platform {
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
+    use crate::label::platform;
+    use core_text::font_descriptor::kCTFontBoldTrait;
     use image::Rgb;
 
     const DARK: Rgb<u8> = Rgb([20, 30, 50]);
@@ -368,10 +520,10 @@ mod tests {
 
     /// Draw with the default font, at the middle.
     fn put(canvas: &mut RgbImage, area: Area, text: &str, color: Color) {
-        draw(canvas, area, text, Font::default(), color, Align::Middle);
+        draw(canvas, area, text, &Font::default(), color, Align::Middle);
     }
 
-    fn drawn_with(text: &str, font: Font, align: Align) -> RgbImage {
+    fn drawn_with(text: &str, font: &Font, align: Align) -> RgbImage {
         let mut image = canvas(112, 112);
         let area = full(&image);
         draw(&mut image, area, text, font, Color::WHITE, align);
@@ -380,7 +532,13 @@ mod tests {
 
     #[test]
     fn the_sizes_go_down_in_steps_of_two_to_the_smallest() {
-        let sizes = |size| Font { size, bold: true }.sizes();
+        let sizes = |size| {
+            Font {
+                size,
+                ..Font::default()
+            }
+            .sizes()
+        };
         assert_eq!(sizes(20), [20.0, 18.0, 16.0, 14.0, 12.0, 10.0]);
         assert_eq!(sizes(15), [15.0, 13.0, 11.0, 10.0]);
         assert_eq!(sizes(10), [10.0]);
@@ -390,10 +548,10 @@ mod tests {
     #[test]
     fn the_alignment_puts_the_text_at_the_top_the_middle_or_the_bottom() {
         let font = Font::default();
-        let (_, top, _, _) = ink(&drawn_with("Mail", font, Align::Top)).unwrap();
+        let (_, top, _, _) = ink(&drawn_with("Mail", &font, Align::Top)).unwrap();
         let (_, middle_top, _, middle_bottom) =
-            ink(&drawn_with("Mail", font, Align::Middle)).unwrap();
-        let (_, _, _, bottom) = ink(&drawn_with("Mail", font, Align::Bottom)).unwrap();
+            ink(&drawn_with("Mail", &font, Align::Middle)).unwrap();
+        let (_, _, _, bottom) = ink(&drawn_with("Mail", &font, Align::Bottom)).unwrap();
         assert!(top < 8, "{top}");
         assert!(bottom > 104, "{bottom}");
         assert!(
@@ -404,21 +562,25 @@ mod tests {
 
     #[test]
     fn the_size_and_the_weight_change_the_text() {
-        let font = |size, bold| Font { size, bold };
-        let width = |font| {
+        let font = |size, bold| Font {
+            size,
+            bold,
+            ..Font::default()
+        };
+        let width = |font: &Font| {
             let (left, _, right, _) = ink(&drawn_with("Mail", font, Align::Middle)).unwrap();
             right - left
         };
-        let pixels = |font| {
+        let pixels = |font: &Font| {
             drawn_with("Mail", font, Align::Middle)
                 .pixels()
                 .filter(|p| **p != DARK)
                 .count()
         };
         let regular = font(20, false);
-        assert!(width(font(32, false)) > width(regular) + 10);
-        assert!(width(font(12, false)) + 10 < width(regular));
-        assert!(pixels(font(20, true)) > pixels(regular) * 11 / 10);
+        assert!(width(&font(32, false)) > width(&regular) + 10);
+        assert!(width(&font(12, false)) + 10 < width(&regular));
+        assert!(pixels(&font(20, true)) > pixels(&regular) * 11 / 10);
     }
 
     fn drawn(width: u32, height: u32, text: &str) -> RgbImage {
@@ -486,6 +648,129 @@ mod tests {
         assert!(left >= 1 && right <= 110 && top >= 1 && bottom <= 110);
     }
 
+    /// A font with the family `family` and the default weight.
+    fn family_font(family: &str, bold: bool) -> Font {
+        Font {
+            family: Some(family.into()),
+            bold,
+            ..Font::default()
+        }
+    }
+
+    /// The width of the ink of `font` on "Mail".
+    fn ink_width(font: &Font) -> u32 {
+        let (left, _, right, _) = ink(&drawn_with("Mail", font, Align::Middle)).unwrap();
+        right - left
+    }
+
+    /// The number of pixels of the ink of `font` on "Mail".
+    fn ink_pixels(font: &Font) -> usize {
+        drawn_with("Mail", font, Align::Middle)
+            .pixels()
+            .filter(|pixel| **pixel != DARK)
+            .count()
+    }
+
+    #[test]
+    fn the_font_list_has_no_hidden_name_no_duplicate_and_no_dots() {
+        let families = font_families();
+        assert!(!families.is_empty(), "the system has font families");
+        for family in &families {
+            assert!(!family.display.is_empty(), "{family:?}");
+            assert!(!family.display.starts_with('.'), "{family:?}");
+            assert!(!family.name.is_empty(), "{family:?}");
+        }
+        let mut names: Vec<&str> = families.iter().map(|f| f.name.as_str()).collect();
+        names.sort_unstable();
+        let count = names.len();
+        names.dedup();
+        assert_eq!(names.len(), count, "a stored name is in the list two times");
+        // The order is the display name, with no difference between capital
+        // and small letters.
+        let displays: Vec<String> = families.iter().map(|f| f.display.to_lowercase()).collect();
+        let mut sorted = displays.clone();
+        sorted.sort();
+        assert_eq!(displays, sorted);
+        // The families that the tests need are installed.
+        assert!(
+            families.iter().any(|family| family.name == "Menlo"),
+            "Menlo is installed"
+        );
+    }
+
+    #[test]
+    fn an_installed_font_is_not_the_system_font() {
+        let system = Font::default();
+        let menlo = family_font("Menlo", true);
+        assert!(ink(&drawn_with("Mail", &menlo, Align::Middle)).is_some());
+        assert_ne!(
+            drawn_with("Mail", &menlo, Align::Middle).as_raw(),
+            drawn_with("Mail", &system, Align::Middle).as_raw()
+        );
+        // The two fonts have different widths at the same size.
+        assert_ne!(ink_width(&menlo), ink_width(&system));
+    }
+
+    #[test]
+    fn a_font_that_is_not_installed_draws_in_the_system_font() {
+        let system = Font::default();
+        for missing in [
+            "No Such Font Family 12345",
+            "Menlo-Regular",
+            "menlo",
+            ".AppleSystemUIFont",
+        ] {
+            let font = family_font(missing, true);
+            if missing == ".AppleSystemUIFont" {
+                // A hidden family is not in the list, thus it is missing.
+                assert!(
+                    !font_families().iter().any(|family| family.name == missing),
+                    "{missing} is in the list"
+                );
+            }
+            assert_eq!(
+                drawn_with("Mail", &font, Align::Middle).as_raw(),
+                drawn_with("Mail", &system, Align::Middle).as_raw(),
+                "{missing}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_font_family_uses_its_bold_face() {
+        let regular = family_font("Menlo", false);
+        let bold = family_font("Menlo", true);
+        assert!(
+            ink_pixels(&bold) > ink_pixels(&regular) * 11 / 10,
+            "{} {}",
+            ink_pixels(&bold),
+            ink_pixels(&regular)
+        );
+    }
+
+    #[test]
+    fn a_family_with_no_bold_face_shows_its_regular_face() {
+        // A family with no bold face keeps its regular face: no synthetic
+        // bold (decision 0043, section 1). Not every system has one, thus the
+        // test looks for one and stops with no family to test.
+        let without = font_families().into_iter().find(|family| {
+            platform::family_font(&family.name, 20.0)
+                .clone_with_symbolic_traits(kCTFontBoldTrait, kCTFontBoldTrait)
+                .is_none()
+        });
+        let Some(family) = without else {
+            return;
+        };
+        let regular = family_font(&family.name, false);
+        let bold = family_font(&family.name, true);
+        assert_eq!(
+            drawn_with("Mail", &regular, Align::Middle).as_raw(),
+            drawn_with("Mail", &bold, Align::Middle).as_raw(),
+            "{}",
+            family.name
+        );
+    }
+
     #[test]
     fn text_that_is_not_latin_shows() {
         // Devanagari, CJK, Arabic, and an emoji.
@@ -536,18 +821,19 @@ mod tests {
     #[test]
     fn the_band_is_as_high_as_the_text_needs_and_not_more_than_its_limit() {
         let font = Font::default();
-        let one = band_height("Mail", font, 104, 112);
-        let two = band_height("Volume up and down", font, 104, 112);
-        let many = band_height(&"word ".repeat(50), font, 104, 112);
+        let one = band_height("Mail", &font, 104, 112);
+        let two = band_height("Volume up and down", &font, 104, 112);
+        let many = band_height(&"word ".repeat(50), &font, 104, 112);
         assert!((16..=30).contains(&one), "{one}");
         assert!(two > one, "{one} {two}");
         assert!(two <= 44 && many <= 44, "{two} {many}");
         // A smaller font needs a lower band.
         let small = band_height(
             "Mail",
-            Font {
+            &Font {
                 size: 10,
                 bold: true,
+                ..Font::default()
             },
             104,
             112,

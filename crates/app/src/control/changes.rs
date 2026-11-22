@@ -344,6 +344,17 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                 .as_ref()
                 .and_then(|style| style.position)
                 .map(|position| e::Auto::Value(position.into()));
+            // The word "system" is the system font of the surface, and an
+            // absent font inherits the default title style of the profile
+            // (decision 0043, section 2).
+            let font = match style.as_ref().and_then(|style| style.font.clone()) {
+                None => None,
+                Some(text) if text == "system" => Some(e::Auto::Auto),
+                Some(text) if text.trim().is_empty() => {
+                    return Err("the font family is empty".into());
+                }
+                Some(text) => Some(e::Auto::Value(text)),
+            };
             let size = style.as_ref().map(|style| style.size);
             let color = match style.as_ref().and_then(|style| style.color.clone()) {
                 None => None,
@@ -356,6 +367,11 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                 C::Group {
                     name: "Set Title Style".into(),
                     commands: vec![
+                        C::SetLabelStyle {
+                            surface,
+                            change: e::LabelChange::Font(font),
+                        }
+                        .for_face(p.on),
                         C::SetLabelStyle {
                             surface,
                             change: e::LabelChange::Position(position),

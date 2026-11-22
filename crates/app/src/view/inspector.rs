@@ -38,6 +38,8 @@ pub(super) struct InspectorState {
     pub(super) fit_open: bool,
     /// The icon picker of the row "Icon" (section 14).
     pub(super) icon_picker: super::icon_picker::IconPicker,
+    /// The font picker of the row "Font" (decision 0043, section 1).
+    pub(super) font_picker: super::font_picker::FontPicker,
 }
 
 impl InspectorState {
@@ -79,6 +81,7 @@ impl InspectorState {
             _text_colour_subscription: text_subscription,
             fit_open: false,
             icon_picker: super::icon_picker::IconPicker::new(window, cx),
+            font_picker: super::font_picker::FontPicker::new(window, cx),
         }
     }
 
@@ -90,6 +93,7 @@ impl InspectorState {
             || self.text_colour_open
             || self.fit_open
             || self.icon_picker.open
+            || self.font_picker.open
     }
 
     /// Close each menu and popover of the "Appearance" section and of the
@@ -100,6 +104,7 @@ impl InspectorState {
         self.text_colour_open = false;
         self.fit_open = false;
         self.icon_picker.open = false;
+        self.font_picker.open = false;
     }
 }
 
@@ -375,7 +380,7 @@ impl DeviceView {
     }
 
     /// Change one label option of the selected surface.
-    fn set_label_style(&mut self, change: LabelChange) {
+    pub(super) fn set_label_style(&mut self, change: LabelChange) {
         if let Some(surface) = self.state.edit_surface() {
             self.send_surface(surface, Command::SetLabelStyle { surface, change });
         }
@@ -420,6 +425,7 @@ impl DeviceView {
             ),
             row("Position", self.label_position(&content, cx)),
             row("Text", self.label_text(&content, window, cx)),
+            row("Font", self.font_row(&content, window, cx)),
             row("Fill", self.fill_samples(id, window, cx)),
         ]
         .into_iter()

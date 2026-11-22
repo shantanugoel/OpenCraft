@@ -117,7 +117,7 @@ the knob:
 | Row | What it does |
 |---|---|
 | **Face** | Shows the image of the bar panel, as the device shows it |
-| **Icon**, **Title**, **Position**, **Text**, **Fill** | Change the bar panel, as in the **Appearance** section of a bar panel. See [Set the title and the fill](first-key.md#2-set-the-title-and-the-fill). |
+| **Icon**, **Title**, **Position**, **Text**, **Font**, **Fill** | Change the bar panel, as in the **Appearance** section of a bar panel. See [Set the title and the fill](first-key.md#2-set-the-title-and-the-fill). |
 | **Tap** | The card of the action for a tap on that bar panel |
 
 Thus you can configure the knob and its bar panel in one inspector.

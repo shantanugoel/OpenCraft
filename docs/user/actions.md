@@ -678,8 +678,8 @@ of **Tap** of a bar panel, is a toggle, the inspector shows the section
   The second line of the inspector header also shows the state, for example
   "Toggle · the state now is Off".
 - Click **Off** or **On** to change that face. Both faces have the same
-  rows: **Icon** (or an image file), **Title**, **Position**, **Text** and
-  **Fill**.
+  rows: **Icon** (or an image file), **Title**, **Position**, **Text**,
+  **Font** and **Fill**.
 - Until you change the **On** face, it shows the **Off** face with a frame.
   The first change starts with a copy of the **Off** face. The **On** face
   then replaces the **Off** face and the frame when the state is on.

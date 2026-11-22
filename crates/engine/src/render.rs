@@ -168,6 +168,7 @@ fn surface_image_on(
     let font = Font {
         size: style.size,
         bold: style.bold,
+        family: style.font.clone(),
     };
     let text_color = style.color.unwrap_or_else(|| text_color(base.tone()));
     let width = size.width.saturating_sub(2 * MARGIN);
@@ -184,7 +185,7 @@ fn surface_image_on(
     let (mut image_top, mut image_height) = (0, size.height);
     match (text, has_picture, position) {
         (Some(text), true, LabelPosition::Top | LabelPosition::Bottom) => {
-            let band = label::band_height(text, font, width, size.height);
+            let band = label::band_height(text, &font, width, size.height);
             image_height = size.height - band;
             let y = if position == LabelPosition::Top {
                 image_top = band;
@@ -198,10 +199,10 @@ fn surface_image_on(
                 width,
                 height: band.saturating_sub(MARGIN / 2),
             };
-            label::draw(&mut canvas, area, text, font, text_color, Align::Middle);
+            label::draw(&mut canvas, area, text, &font, text_color, Align::Middle);
         }
         (Some(text), false, _) => {
-            label::draw(&mut canvas, full, text, font, text_color, align(position));
+            label::draw(&mut canvas, full, text, &font, text_color, align(position));
         }
         _ => {}
     }
@@ -223,7 +224,7 @@ fn surface_image_on(
     }
     // A label at the middle is on the picture.
     if let (Some(text), true, LabelPosition::Middle) = (text, has_picture, position) {
-        label::draw(&mut canvas, full, text, font, text_color, Align::Middle);
+        label::draw(&mut canvas, full, text, &font, text_color, Align::Middle);
     }
     canvas
 }

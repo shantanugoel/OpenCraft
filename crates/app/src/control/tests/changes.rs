@@ -443,6 +443,46 @@ fn each_surface_request_sets_and_removes_its_part() {
 }
 
 #[test]
+fn the_style_request_sets_the_font_family_and_the_system_font() {
+    let mut live = Live::new();
+    let surface = surface_1();
+    let target = live.at(0);
+    let font = |live: &mut Live| {
+        live.content(target.clone())["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == surface)
+            .unwrap()["label_style"]["font"]
+            .clone()
+    };
+    let style = |font: serde_json::Value| {
+        json!({"target": target, "surface": surface,
+               "style": {"font": font, "position": null, "size": 20, "color": null, "bold": true}})
+    };
+
+    // The profile stores the name of the family.
+    live.ok("set_label_style", style(json!("Menlo")));
+    assert_eq!(font(&mut live), "Menlo");
+    assert_eq!(live.read("history")["undo"], "Set Title Style");
+
+    // The word "system" is the system font of the surface, not a family.
+    live.ok("set_label_style", style(json!("system")));
+    assert!(font(&mut live).is_null());
+
+    // An empty family is a refusal, and a request with no font inherits.
+    let (code, text) = live.fails("set_label_style", style(json!("")));
+    assert_eq!(code, "invalid_params");
+    assert!(text.contains("font"), "{text}");
+    live.ok(
+        "set_label_style",
+        json!({"target": target, "surface": surface,
+               "style": {"position": null, "size": 20, "color": null, "bold": true}}),
+    );
+    assert!(font(&mut live).is_null());
+}
+
+#[test]
 fn the_surface_requests_can_write_and_read_the_on_face() {
     let mut live = Live::new();
     let surface = surface_1();
@@ -489,7 +529,7 @@ fn the_surface_requests_can_write_and_read_the_on_face() {
     assert_eq!(key["on"]["label"], "Live");
     assert_eq!(
         key["on"]["label_style"],
-        json!({"position": "top", "size": 24, "color": "#FF0000", "bold": false})
+        json!({"font": null, "position": "top", "size": 24, "color": "#FF0000", "bold": false})
     );
     assert_eq!(key["on"]["color"], "#00FF00");
     assert!(key["on"]["image"].as_str().unwrap().starts_with("images/"));

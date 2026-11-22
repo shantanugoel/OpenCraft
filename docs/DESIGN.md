@@ -275,6 +275,7 @@ engine holds the inactivity deadline; the view makes no timer.
 | `MenuKeys`, `MenuRow` | `view/menu.rs` | The keys of a drawn menu. `popup_menu` adds them. |
 | `group`, `row`, `line_row` | `settings_window/parts.rs` | The group boxes of the Settings window |
 | Icon picker popover | `view/icon_picker.rs` | Only the icon picker (it has an arrow) |
+| Font picker popover | `view/font_picker.rs` | The row "Font" of "Appearance": "System font" and the installed families of Core Text in a list with a search field (decision 0043, section 1). The list is data of the engine (`label::font_families`), not a list of the window. Up and Down move the highlight, Return selects, Escape closes. |
 | Application picker | `view/application_picker.rs` | A path field of kind Application, and "Add an application…" in the profile sheet. The list shows the name and the icon of each installed application, a search field, and "Choose a different application…". For a link, a row whose application is linked to a different profile shows "Linked to “*profile*”" at its end, in `TEXT_CAPTION` and `text_tertiary()`, at most 55 % of the row, with "…" (decision 0035, section 5). The row label for VoiceOver is "*name*, Linked to “*profile*”". It has no arrow. |
 | Native menu (`NativeMenu`) | `view/sidebar.rs`, `view/clipboard.rs`, `view/nested.rs` | A command menu at the pointer: a right-click menu, the "⋯" menu, the device switcher |
 | Native alert (`window.prompt`) | `view/pages.rs` (`confirm_remove`) | The confirmation of a destructive command |

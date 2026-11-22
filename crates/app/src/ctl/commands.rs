@@ -712,6 +712,7 @@ pub const COMMANDS: &[Command] = &[
             TARGET,
             SURFACE,
             &[
+                arg("font", "style.font", Kind::Text, "A family of an installed font, or `system`. Leave it out to inherit the default title style."),
                 arg("position", "style.position", Kind::Text, "`top`, `middle`, `bottom`, or `hidden`. Leave it out for the automatic position."),
                 fill("size", "style.size", Kind::Int, "20", "The size of the font, in pixels. The default is 20."),
                 arg("color", "style.color", Kind::Text, "A colour. Leave it out for black or white."),

@@ -241,3 +241,185 @@ fn the_label_rows_are_as_high_as_a_text_field_and_aligned_with_the_title(cx: &mu
         assert!(size.bottom() < fill.top());
     }
 }
+
+/// The fixed font families of a window test: the popover does not need the
+/// fonts of the computer.
+fn fixed_fonts() -> Vec<opencraft_engine::label::FontFamily> {
+    [
+        ("Menlo", "Menlo"),
+        ("Avenir Next", "Avenir Next"),
+        ("Zapfino", "Zapfino"),
+    ]
+    .into_iter()
+    .map(|(name, display)| opencraft_engine::label::FontFamily {
+        name: name.into(),
+        display: display.into(),
+    })
+    .collect()
+}
+
+/// Give the picker the families of the test.
+fn use_fixed_fonts(view: &gpui_kit::Entity<DeviceView>, cx: &mut VisualTestContext) {
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.inspector.font_picker.use_fixed_families(fixed_fonts())
+        })
+    });
+}
+
+/// The names of the families of the open popover, without "System font".
+fn shown_families(view: &gpui_kit::Entity<DeviceView>, cx: &mut VisualTestContext) -> Vec<String> {
+    cx.update(|_, cx| view.read(cx).inspector.font_picker.shown_families())
+}
+
+#[gpui_kit::test]
+fn the_font_row_sets_a_family_and_the_system_font(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    use_fixed_fonts(&view, cx);
+    click(cx, "surface-key face 2");
+    assert!(cx.debug_bounds("font-picker").is_none());
+    click(cx, "label-font");
+    assert!(cx.debug_bounds("font-picker").is_some(), "the popover");
+    // The first row is the system font, and then the families.
+    assert_eq!(
+        shown_families(&view, cx),
+        ["Menlo", "Avenir Next", "Zapfino"]
+    );
+
+    // A click on a family sends its stored name.
+    click(cx, "font-row-1");
+    assert!(cx.debug_bounds("font-picker").is_none());
+    assert_eq!(
+        changes(&sent, key()),
+        [LabelChange::Font(Some(Auto::Value("Menlo".into())))]
+    );
+
+    // The profile of the surface puts the check on its family.
+    send(
+        cx,
+        &tx,
+        styled(
+            key(),
+            LabelStyle {
+                font: Some(Auto::Value("Menlo".into())),
+                ..LabelStyle::default()
+            },
+            false,
+        ),
+    );
+    click(cx, "label-font");
+    // The check mark of row 1 is drawn: the row exists.
+    assert!(cx.debug_bounds("font-row-1").is_some());
+    // Escape closes the popover with no change.
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("font-picker").is_none());
+
+    // The row "System font" makes the automatic font, not an inherited one.
+    sent.borrow_mut().clear();
+    click(cx, "label-font");
+    click(cx, "font-row-0");
+    assert_eq!(changes(&sent, key()), [LabelChange::Font(Some(Auto::Auto))]);
+}
+
+#[gpui_kit::test]
+fn the_font_search_finds_a_family_and_the_keys_choose_a_row(cx: &mut TestAppContext) {
+    let (view, cx, _tx, sent) = window(cx);
+    use_fixed_fonts(&view, cx);
+    click(cx, "surface-bar panel 3");
+    click(cx, "label-font");
+    // Down moves the highlight: the system font, Menlo, Avenir Next.
+    cx.simulate_keystrokes("down");
+    cx.simulate_keystrokes("down");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("font-picker").is_none());
+    assert_eq!(
+        changes(&sent, bar()),
+        [LabelChange::Font(Some(Auto::Value("Avenir Next".into())))]
+    );
+
+    // The search field has the focus, and finds a part of the name.
+    sent.borrow_mut().clear();
+    click(cx, "label-font");
+    cx.simulate_input("av");
+    cx.run_until_parked();
+    assert_eq!(shown_families(&view, cx), ["Avenir Next"]);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        changes(&sent, bar()),
+        [LabelChange::Font(Some(Auto::Value("Avenir Next".into())))]
+    );
+
+    // A text that matches no family shows the empty state.
+    click(cx, "label-font");
+    cx.simulate_input("zzzz");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("font-empty").is_some());
+    assert!(shown_families(&view, cx).is_empty());
+
+    // Escape closes the popover, and the next opening has an empty field.
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("font-picker").is_none());
+    click(cx, "label-font");
+    assert_eq!(shown_families(&view, cx).len(), 3);
+}
+
+#[gpui_kit::test]
+fn a_family_that_is_not_installed_shows_the_hint(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    use_fixed_fonts(&view, cx);
+    send(
+        cx,
+        &tx,
+        styled(
+            key(),
+            LabelStyle {
+                font: Some(Auto::Value("Futura X".into())),
+                ..LabelStyle::default()
+            },
+            false,
+        ),
+    );
+    click(cx, "surface-key face 2");
+    assert!(cx.debug_bounds("label-font-missing").is_some(), "the hint");
+    // An installed family has no hint.
+    send(
+        cx,
+        &tx,
+        styled(
+            key(),
+            LabelStyle {
+                font: Some(Auto::Value("Menlo".into())),
+                ..LabelStyle::default()
+            },
+            false,
+        ),
+    );
+    assert!(cx.debug_bounds("label-font-missing").is_none());
+    // The system font has no hint.
+    send(cx, &tx, styled(key(), LabelStyle::default(), false));
+    assert!(cx.debug_bounds("label-font-missing").is_none());
+}
+
+/// The families of the computer: the engine gives the list, and the picker
+/// shows it. The list of another operating system is empty.
+#[cfg(target_os = "macos")]
+#[gpui_kit::test]
+fn the_font_picker_shows_the_families_of_the_computer(cx: &mut TestAppContext) {
+    let (view, cx, _tx, _sent) = window(cx);
+    click(cx, "surface-key face 2");
+    click(cx, "label-font");
+    let shown = shown_families(&view, cx);
+    assert!(
+        shown.iter().any(|name| name == "Menlo"),
+        "Menlo is installed"
+    );
+    assert!(shown.len() > 100, "the system has many families");
+    // The search finds a family by a part of its name.
+    cx.simulate_input("menlo");
+    cx.run_until_parked();
+    assert_eq!(shown_families(&view, cx), ["Menlo"]);
+}

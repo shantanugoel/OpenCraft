@@ -194,6 +194,25 @@ fn the_flags_make_the_params_of_the_protocol() {
             "style": {"position": "top", "size": 20, "bold": true}
         })
     );
+    // The font of a surface is a family, or the word "system".
+    assert_eq!(
+        params(
+            "opencraft ctl surface set-label-style --profile p --page g --surface key_face:2 \
+             --font Menlo",
+            None
+        )
+        .unwrap()["style"]["font"],
+        "Menlo"
+    );
+    assert_eq!(
+        params(
+            "opencraft ctl surface set-label-style --profile p --page g --surface key_face:2",
+            None
+        )
+        .unwrap()["style"]
+            .get("font"),
+        None
+    );
     assert_eq!(
         params(
             "opencraft ctl surface set-label --profile p --page g --surface key_face:2",

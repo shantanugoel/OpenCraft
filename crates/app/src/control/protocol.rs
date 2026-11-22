@@ -1062,6 +1062,10 @@ pub struct SurfaceFace {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabelStyle {
+    /// The family of the font, or `"system"` for the system font. An
+    /// absent value inherits the default title style of the profile.
+    #[serde(default)]
+    pub font: Option<String>,
     pub position: Option<LabelPosition>,
     pub size: u8,
     pub color: Option<String>,

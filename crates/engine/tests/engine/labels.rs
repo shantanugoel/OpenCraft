@@ -183,3 +183,82 @@ fn a_profile_of_version_three_shows_as_before_and_gets_the_current_version_at_th
         "{text}"
     );
 }
+
+#[test]
+fn the_font_stays_in_the_file_and_a_missing_font_shows_the_system_font() {
+    let mut rig = Rig::new();
+    rig.engine.command(Command::SetLabel {
+        surface: KEY_3,
+        label: Some("Mail".into()),
+    });
+    let system = last_state(&rig.take_events(), KEY_3).image.clone();
+
+    // A font of the user changes the image.
+    style(
+        &mut rig,
+        LabelChange::Font(Some(Auto::Value("Menlo".into()))),
+    );
+    let events = rig.take_events();
+    let menlo = last_state(&events, KEY_3);
+    assert_eq!(
+        menlo.content.label_style.font,
+        Some(Auto::Value("Menlo".into()))
+    );
+    #[cfg(target_os = "macos")]
+    assert_ne!(*menlo.image, *system, "Menlo is not the system font");
+
+    // A font that is not installed keeps its name and shows the system font,
+    // with no problem.
+    style(
+        &mut rig,
+        LabelChange::Font(Some(Auto::Value("No Such Font Family 12345".into()))),
+    );
+    let events = rig.take_events();
+    assert!(problems(&events).is_empty(), "{events:?}");
+    let missing = last_state(&events, KEY_3);
+    assert_eq!(
+        missing.content.label_style.font,
+        Some(Auto::Value("No Such Font Family 12345".into()))
+    );
+    #[cfg(target_os = "macos")]
+    assert_eq!(
+        *missing.image, *system,
+        "a font that is not installed shows the system font"
+    );
+
+    rig.poll_for(Duration::from_secs(1));
+    let text = rig.profile_text().unwrap();
+    assert!(
+        text.contains("label_font = \"No Such Font Family 12345\""),
+        "{text}"
+    );
+
+    // The word "system" is the system font, also when the profile default
+    // has a font.
+    style(&mut rig, LabelChange::Font(Some(Auto::Auto)));
+    rig.poll_for(Duration::from_secs(1));
+    let text = rig.profile_text().unwrap();
+    assert!(text.contains("label_font = \"system\""), "{text}");
+    let events = rig.take_events();
+    #[cfg(target_os = "macos")]
+    assert_eq!(*last_state(&events, KEY_3).image, *system);
+
+    // A new start loads the font, and a font that is missing then shows the
+    // system font.
+    style(
+        &mut rig,
+        LabelChange::Font(Some(Auto::Value("No Such Font Family 12345".into()))),
+    );
+    rig.take_events();
+    rig.poll_for(Duration::from_secs(1));
+    let mut rig = rig.restart();
+    let events = rig.take_events();
+    let state = last_state(&events, KEY_3);
+    assert!(problems(&events).is_empty(), "{events:?}");
+    assert_eq!(
+        state.content.label_style.font,
+        Some(Auto::Value("No Such Font Family 12345".into()))
+    );
+    #[cfg(target_os = "macos")]
+    assert_eq!(*state.image, *system);
+}
