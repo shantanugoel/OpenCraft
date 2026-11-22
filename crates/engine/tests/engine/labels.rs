@@ -122,7 +122,7 @@ fn a_size_out_of_the_range_goes_into_the_range() {
             .content(KEY_3)
             .label_style
             .size,
-        Some(40)
+        Some(80)
     );
     style(&mut rig, LabelChange::Size(Some(0)));
     assert_eq!(

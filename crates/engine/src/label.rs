@@ -13,7 +13,7 @@
 //! On an operating system that is not macOS, the module draws no text. No
 //! type of Core Text is in the interface of the module.
 
-use crate::profile::{Color, DEFAULT_LABEL_SIZE, MIN_LABEL_SIZE};
+use crate::profile::{Color, DEFAULT_LABEL_SIZE, LABEL_SIZES, MAX_LABEL_SIZE, MIN_LABEL_SIZE};
 use image::RgbImage;
 
 /// One installed font family (decision 0043, section 1).
@@ -76,16 +76,34 @@ impl Default for Font {
 
 impl Font {
     /// The font sizes that the label tries, in pixels, from the first to the
-    /// smallest: the size of the font, and then 2 pixels smaller each time,
-    /// to [`MIN_LABEL_SIZE`].
+    /// smallest (decision 0043, section 3). At a size of 40 or less, the
+    /// font size and then 2 pixels smaller each time to [`MIN_LABEL_SIZE`].
+    /// Above 40, the font size, then each size of [`LABEL_SIZES`] above 40
+    /// and below the font size, then 40, then the 2-pixel steps.
     pub fn sizes(&self) -> Vec<f64> {
-        let mut sizes: Vec<f64> = (MIN_LABEL_SIZE..=self.size.max(MIN_LABEL_SIZE))
-            .rev()
-            .step_by(2)
-            .map(f64::from)
-            .collect();
-        if sizes.last() != Some(&f64::from(MIN_LABEL_SIZE)) {
-            sizes.push(f64::from(MIN_LABEL_SIZE));
+        let size = self.size.clamp(MIN_LABEL_SIZE, MAX_LABEL_SIZE);
+        if size <= 40 {
+            let mut sizes: Vec<f64> = (MIN_LABEL_SIZE..=size)
+                .rev()
+                .step_by(2)
+                .map(f64::from)
+                .collect();
+            if sizes.last() != Some(&f64::from(MIN_LABEL_SIZE)) {
+                sizes.push(f64::from(MIN_LABEL_SIZE));
+            }
+            return sizes;
+        }
+        let mut sizes = vec![f64::from(size)];
+        for large in LABEL_SIZES.into_iter().rev() {
+            if large > 40 && large < size {
+                sizes.push(f64::from(large));
+            }
+        }
+        sizes.push(40.0);
+        let mut step = 38;
+        while step >= MIN_LABEL_SIZE {
+            sizes.push(f64::from(step));
+            step -= 2;
         }
         sizes
     }
@@ -675,6 +693,69 @@ mod tests {
         assert_eq!(sizes(15), [15.0, 13.0, 11.0, 10.0]);
         assert_eq!(sizes(10), [10.0]);
         assert_eq!(sizes(4), [10.0]);
+        // Above 40 the steps are 8 pixels down to 40, then 2 pixels.
+        assert_eq!(
+            sizes(40),
+            (10..=40)
+                .rev()
+                .step_by(2)
+                .map(f64::from)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            sizes(80),
+            [
+                80.0, 72.0, 64.0, 56.0, 48.0, 40.0, 38.0, 36.0, 34.0, 32.0, 30.0, 28.0, 26.0, 24.0,
+                22.0, 20.0, 18.0, 16.0, 14.0, 12.0, 10.0
+            ]
+        );
+        assert_eq!(sizes(50)[..4], [50.0, 48.0, 40.0, 38.0]);
+        assert_eq!(sizes(96)[0], 80.0, "the maximum is 80");
+    }
+
+    /// The ink of `text` at `size`, as left, top, right, bottom.
+    #[cfg(target_os = "macos")]
+    fn emoji_ink(text: &str, size: u8) -> (u32, u32, u32, u32) {
+        let font = Font {
+            size,
+            ..Font::default()
+        };
+        ink(&drawn_with(text, &font, Align::Middle))
+            .unwrap_or_else(|| panic!("no ink for {text} at {size}"))
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn an_emoji_fills_the_face_at_a_large_size_and_does_not_touch_an_edge() {
+        // 60 % of a 112-pixel key face.
+        let least = 68;
+        for text in ["😀", "🔇", "👨‍💻"] {
+            for size in [72, 80] {
+                let (left, top, right, bottom) = emoji_ink(text, size);
+                let (width, height) = (right - left + 1, bottom - top + 1);
+                // The two-person ZWJ glyph has wider side bearings: its ink
+                // is 64 pixels wide at 72, and 71 at 80. The height and the
+                // 80-pixel width are above 60 %.
+                let least_width = if text == "👨‍💻" && size == 72 {
+                    60
+                } else {
+                    least
+                };
+                assert!(
+                    width >= least_width && height >= least,
+                    "{text} at {size} is {width} × {height}"
+                );
+                assert!(
+                    left > 0 && top > 0 && right < 111 && bottom < 111,
+                    "{text} at {size} touches an edge: {left} {top} {right} {bottom}"
+                );
+                let (x, y) = ((left + right) / 2, (top + bottom) / 2);
+                assert!(
+                    x.abs_diff(56) <= 4 && y.abs_diff(56) <= 4,
+                    "{text} at {size} is not centred: {x} {y}"
+                );
+            }
+        }
     }
 
     #[test]

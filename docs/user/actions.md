@@ -835,8 +835,8 @@ time again at once.
 
 The clock uses the **Text** row of its key: the position, the size, the
 colour, and the bold button. For large digits, click the size button and
-select **32 pt**, the largest size in the window of this version. Give the
-key no image and no icon, so that the digits use the full face.
+select **48 pt** or more, up to **80 pt**. Give the key no image and no
+icon, so that the digits use the full face.
 
 A clock key sends no work to the computer when you push it. The time is on
 the key that the device shows, and the window shows the same time.
