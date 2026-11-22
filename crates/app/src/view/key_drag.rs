@@ -187,16 +187,16 @@ impl DeviceView {
         let Some(to) = self.key_beside(from, row, column) else {
             self.show_message(
                 format!(
-                    "{} has no key at its {}",
+                    "{} has no key {}",
                     control_name(from),
                     if row < 0 {
-                        "top"
+                        "above"
                     } else if row > 0 {
-                        "bottom"
+                        "below"
                     } else if column < 0 {
-                        "left"
+                        "at its left"
                     } else {
-                        "right"
+                        "at its right"
                     }
                 ),
                 window,

@@ -315,7 +315,7 @@ fn a_move_with_no_key_beside_it_sends_nothing(cx: &mut TestAppContext) {
     assert!(moves(&sent).is_empty(), "{:?}", sent.borrow());
     assert_eq!(
         message(&view, cx).as_deref(),
-        Some("Key 2 has no key at its top")
+        Some("Key 2 has no key above")
     );
 }
 
