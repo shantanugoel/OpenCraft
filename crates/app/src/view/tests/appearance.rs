@@ -8,17 +8,19 @@ use crate::{
     settings::{self, Appearance as Choice},
     shell::ShellCommand,
 };
-use gpui_kit::{Hsla, WindowAppearance};
+use gpui_kit::{AnyWindowHandle, Hsla, WindowAppearance};
+
+/// True if the two colours are the same.
+fn same(a: Hsla, b: Hsla) -> bool {
+    (a.h - b.h).abs() < 1e-4
+        && (a.s - b.s).abs() < 1e-4
+        && (a.l - b.l).abs() < 1e-4
+        && (a.a - b.a).abs() < 1e-4
+}
 
 /// True if the frame of the window paints a quad with `colour`.
 fn painted(cx: &mut VisualTestContext, colour: gpui_kit::Rgba) -> bool {
     let wanted = Hsla::from(colour);
-    let same = |a: Hsla, b: Hsla| {
-        (a.h - b.h).abs() < 1e-4
-            && (a.s - b.s).abs() < 1e-4
-            && (a.l - b.l).abs() < 1e-4
-            && (a.a - b.a).abs() < 1e-4
-    };
     cx.update(|window, _| {
         window
             .painted_quads()
@@ -26,6 +28,20 @@ fn painted(cx: &mut VisualTestContext, colour: gpui_kit::Rgba) -> bool {
             .filter_map(|quad| quad.background.as_solid())
             .any(|solid| same(solid, wanted))
     })
+}
+
+/// True if the frame that the window `handle` drew last paints a quad with
+/// `colour`.
+fn painted_in(cx: &mut VisualTestContext, handle: AnyWindowHandle, colour: gpui_kit::Rgba) -> bool {
+    let wanted = Hsla::from(colour);
+    cx.update_window(handle, |_, window, _| {
+        window
+            .painted_quads()
+            .iter()
+            .filter_map(|quad| quad.background.as_solid())
+            .any(|solid| same(solid, wanted))
+    })
+    .unwrap_or(false)
 }
 
 /// Draw a frame with the palette of `appearance` and the theme of the kit
@@ -58,6 +74,49 @@ fn the_window_draws_in_both_appearances(cx: &mut TestAppContext) {
             );
         }
     }
+}
+
+/// A window that opens after macOS changed the appearance has the palette
+/// of macOS (H2 of review 2). OpenCraft runs with no window open, thus no
+/// observer of a window sees that change: the shell sets the palette before
+/// it opens the window (`docs/kb/gpui.md` gives the frame that this saves).
+#[gpui_kit::test]
+fn a_window_that_opens_later_has_the_appearance_of_macos(cx: &mut TestAppContext) {
+    let (view, cx, _tx, _sent) = window(cx);
+    let _keep = theme::keep_appearance_for_test();
+    let shell = cx.update(|_, cx| view.read(cx).shell.clone());
+    let canvas = |appearance| {
+        let _scope = theme::set_appearance_for_test(appearance);
+        theme::bg_canvas()
+    };
+    let light_canvas = canvas(theme::Appearance::Light);
+    let dark_canvas = canvas(theme::Appearance::Dark);
+    // The palette is dark, as it was when macOS was dark, and the test
+    // platform has the light appearance of macOS now.
+    cx.update(|_, cx| appearance::refresh(Choice::Dark, WindowAppearance::Dark, cx));
+    cx.run_until_parked();
+    assert_eq!(theme::appearance(), theme::Appearance::Dark);
+    assert_eq!(
+        cx.update(|_, cx| cx.window_appearance()),
+        WindowAppearance::Light
+    );
+    // The window opens, and its first frame has the palette of macOS: the
+    // window of the test platform is not the window of the test.
+    let before = cx.update(|_, cx| cx.windows());
+    cx.update(|_, cx| shell.update(cx, |shell, cx| shell.open_window(cx)));
+    let opened = cx
+        .update(|_, cx| cx.windows())
+        .into_iter()
+        .find(|window| !before.contains(window))
+        .expect("the window did not open");
+    assert!(
+        painted_in(cx, opened, light_canvas),
+        "the first frame has the dark canvas"
+    );
+    assert!(!painted_in(cx, opened, dark_canvas));
+    cx.run_until_parked();
+    assert_eq!(theme::appearance(), theme::Appearance::Light);
+    assert!(painted_in(cx, opened, light_canvas));
 }
 
 /// With the choice System, the appearance of macOS gives the palette of the

@@ -34,6 +34,10 @@ pub(super) fn image_surface(
         image: Arc::new(RgbImage::new(image_area.0, image_area.1)),
         image_size: Some(image_size),
         image_area: Some(image_area),
+        // The On face shows the image of the base face when it has no image
+        // of its own: the two sizes agree.
+        on_image_size: Some(image_size),
+        on_image_area: Some(image_area),
         states: None,
     })
 }
@@ -73,6 +77,61 @@ fn zoom(value: u16, x: i16, y: i16) -> Option<ImageCrop> {
     Some(ImageCrop { zoom: value, x, y })
 }
 
+/// A surface event with an image on both faces, and the sizes that the engine
+/// sends for the image of each face.
+fn two_faces_surface(
+    id: SurfaceId,
+    crop: Option<ImageCrop>,
+    image_size: (u32, u32),
+    on_image_size: (u32, u32),
+) -> Event {
+    Event::Surface(SurfaceState {
+        id,
+        content: SurfaceContent {
+            label: Some("Mail".into()),
+            image: Some("images/0123456789abcdef.png".into()),
+            image_crop: crop,
+            on: Some(Box::new(SurfaceContent {
+                label: Some("Mail".into()),
+                image: Some("images/fedcba9876543210.png".into()),
+                image_crop: crop,
+                ..Default::default()
+            })),
+            ..Default::default()
+        },
+        image: Arc::new(RgbImage::new(112, 112)),
+        image_size: Some(image_size),
+        image_area: Some((112, 112)),
+        on_image_size: Some(on_image_size),
+        on_image_area: Some((112, 112)),
+        states: None,
+    })
+}
+
+/// A window on the key face 2, whose Press action has two states, with the
+/// section "Appearance for each state" and the face "On" selected.
+fn window_on_the_on_face(
+    cx: &mut TestAppContext,
+) -> (
+    Entity<DeviceView>,
+    &mut VisualTestContext,
+    async_channel::Sender<Event>,
+    Commands,
+) {
+    let (view, cx, tx, sent) = super::nested::open(
+        cx,
+        Action {
+            kind: "test.toggle".into(),
+            settings: [("label".to_string(), Value::Text("Old".into()))]
+                .into_iter()
+                .collect(),
+        },
+    );
+    click(cx, "state-on");
+    assert!(cx.debug_bounds("state-faces").is_some(), "no faces");
+    (view, cx, tx, sent)
+}
+
 #[gpui_kit::test]
 fn the_crop_rows_show_only_when_the_face_has_an_image(cx: &mut TestAppContext) {
     let (_view, cx, tx, sent) = window(cx);
@@ -109,6 +168,8 @@ fn the_crop_rows_show_only_when_the_face_has_an_image(cx: &mut TestAppContext) {
             image: Arc::new(RgbImage::new(176, 112)),
             image_size: None,
             image_area: None,
+            on_image_size: None,
+            on_image_area: None,
             states: None,
         }),
     );
@@ -268,6 +329,79 @@ fn the_warning_shows_when_the_image_is_smaller_than_the_area(cx: &mut TestAppCon
     state.image_area = None;
     send(cx, &tx, event);
     assert!(!warning_shows(cx));
+}
+
+#[gpui_kit::test]
+fn the_crop_of_the_on_face_reads_the_image_and_the_area_of_the_on_face(cx: &mut TestAppContext) {
+    // A Toggle whose On face has an image of 40 × 40 of its own, and a base
+    // face with an image of 300 × 300 (M3 of review 2).
+    let (view, cx, tx, sent) = window_on_the_on_face(cx);
+    send(
+        cx,
+        &tx,
+        two_faces_surface(key(), None, (300, 300), (40, 40)),
+    );
+    // The warning is that of the image of the On face.
+    assert!(
+        warning_shows(cx),
+        "the small image of the On face has no warning"
+    );
+    // The base face has a large image of its own: no warning there.
+    click(cx, "state-off");
+    assert!(!warning_shows(cx), "the base image is large enough");
+    // The opposite: a small base image, and a large image on the On face.
+    send(
+        cx,
+        &tx,
+        two_faces_surface(key(), None, (40, 40), (300, 300)),
+    );
+    assert!(warning_shows(cx), "the base image is small");
+    click(cx, "state-on");
+    assert!(!warning_shows(cx), "the On image is large enough");
+    // The arrows of the On face move the crop of the On face.
+    send(
+        cx,
+        &tx,
+        two_faces_surface(key(), zoom(200, 0, 0), (40, 40), (300, 300)),
+    );
+    click(cx, "image-offset-right");
+    // The command changes the crop of the On face (decision 0043).
+    assert_eq!(
+        sent.borrow().last(),
+        Some(
+            &Command::SetImageCrop {
+                surface: key(),
+                crop: zoom(200, 100, 0),
+            }
+            .for_face(true)
+        )
+    );
+    cx.update(|_, cx| assert!(view.read(cx).editing_on_face(key())));
+}
+
+#[gpui_kit::test]
+fn the_arrows_do_nothing_at_the_fit_with_no_size_of_the_image(cx: &mut TestAppContext) {
+    // At the fit the image is never larger than the area: an arrow changes
+    // no pixel, also when the engine sends no size (M3 of review 2).
+    let (_view, cx, tx, sent) = window_with_image(cx, None, (10, 10), (112, 112));
+    let mut event = image_surface(key(), None, (10, 10), (112, 112));
+    let Event::Surface(state) = &mut event else {
+        panic!()
+    };
+    state.image_size = None;
+    state.image_area = None;
+    state.on_image_size = None;
+    state.on_image_area = None;
+    send(cx, &tx, event);
+    for id in [
+        "image-offset-left",
+        "image-offset-right",
+        "image-offset-up",
+        "image-offset-down",
+    ] {
+        click(cx, id);
+        assert!(crops(&sent).is_empty(), "{id} at the fit");
+    }
 }
 
 #[gpui_kit::test]

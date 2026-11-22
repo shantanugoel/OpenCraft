@@ -683,6 +683,12 @@ pub struct SurfaceState {
     /// The size of the area of the picture on the face after the band of the
     /// label, in pixels. `None` when the face has no image.
     pub image_area: Option<(u32, u32)>,
+    /// The decoded size of the image of the On face, in pixels, and the size of
+    /// the area of the picture on that face. `None` when the On face has no
+    /// image. They agree with [`Self::image_size`] and [`Self::image_area`]
+    /// when the On face shows the image of the base face.
+    pub on_image_size: Option<(u32, u32)>,
+    pub on_image_area: Option<(u32, u32)>,
     /// The image of each state, when the feedback on the surface has a
     /// state (decision 0017). One of the two is `image`. The shell shows
     /// them in the appearance of each state (decision 0029, section 10.5).
@@ -3035,12 +3041,26 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             let area = render::image_area(size, &content, true);
             (area.width, area.height)
         });
+        // The On face has its own image, and its own band of the label. A
+        // surface with no On face shows the picture of the base face on On.
+        let on_content = content.face(true);
+        let on_image_size = if content.on.is_none() {
+            image_size
+        } else {
+            on_source.map(|image| (image.width(), image.height()))
+        };
+        let on_image_area = on_image_size.map(|_| {
+            let area = render::image_area(size, on_content, true);
+            (area.width, area.height)
+        });
         (self.sink)(Event::Surface(SurfaceState {
             id: surface.id,
             content: own,
             image,
             image_size,
             image_area,
+            on_image_size,
+            on_image_area,
             states,
         }));
     }

@@ -189,6 +189,24 @@ fn a_key_drag_shows_the_drop_target_on_key_faces_only(cx: &mut TestAppContext) {
     assert!(cx.debug_bounds("drop-key face 4").is_some());
     assert!(cx.debug_bounds("drop-key face 8").is_some());
     assert!(cx.debug_bounds("drop-bar panel 3").is_none());
+    // A key does not go to itself: the key in the drag shows no target (L1
+    // of review 2).
+    assert!(
+        cx.debug_bounds("drop-key face 2").is_none(),
+        "the source key shows the target"
+    );
+}
+
+#[gpui_kit::test]
+fn a_key_back_on_itself_shows_no_target_and_sends_nothing(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, sent) = three_key_window(cx);
+    drag_over(cx, "surface-key face 2", "surface-key face 2");
+    assert!(
+        cx.debug_bounds("drop-key face 2").is_none(),
+        "the source key shows the target"
+    );
+    release(cx, "surface-key face 2");
+    assert!(moves(&sent).is_empty(), "{:?}", sent.borrow());
 }
 
 #[gpui_kit::test]

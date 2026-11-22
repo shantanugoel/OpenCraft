@@ -91,6 +91,10 @@ a value.
 | `badge_on_image()` | The backing of a text on an image: the size text of a preview, and the text "Drop here" of a drop target |
 | `kind_tile_*()`, `kind_tile(group)` | The tile of an action kind, from its group |
 | `device_*()` | The device drawing only |
+| `device_text_secondary()` | The name of a control with no surface, and the text of the "Touch bar" control |
+| `device_text_tertiary()` | The name below a knob, when the knob is not selected |
+| `device_accent_text()` | The name below the selected knob |
+| `device_touch_bar_bg()` | The "Touch bar" control when it is not selected |
 | `FILL_COLOURS`, `TITLE_COLOURS`, `KNOB_COLOURS`, `PROFILE_COLOURS`, `ICON_COLOURS` | Colour samples. These are data: the profile keeps them. Do not change a value. |
 
 ### 2.2 States
@@ -103,7 +107,8 @@ a value.
 | `pressed()` | Each pressed control (`.active`) |
 | `menu_highlight()` | The highlighted row of a menu that the window draws |
 | `selected_unfocused()` | A selected row in a pane that does not have the selection |
-| `neutral_tint()` | The live state pill and the touch bar control when they are not active |
+| `neutral_tint()` | The live state pill |
+| `device_touch_bar_bg()` | The "Touch bar" control when it is not selected (section 2.9) |
 | `accent_line_hover()` | The outline of a canvas control under the pointer |
 | `MAIN_HOVER_OPACITY`, `MAIN_PRESSED_OPACITY` | The main button under the pointer, and pressed |
 | `modal_dim()` | The layer behind a sheet or the palette |
@@ -242,6 +247,7 @@ them. WCAG gives the ratio of contrast from 1 to 21.
 | `border_field()` on `bg_field()` | at least 1.25:1 |
 | `hover_row()` and `selected_unfocused()` over their surface | at least 1.08:1 |
 | `menu_highlight()` over its surface | at least 1.2:1 |
+| `device_text_secondary()` on `device_display()`, and on `device_touch_bar_bg()` over `device_display()`; `device_text_secondary()`, `device_text_tertiary()`, and `device_accent_text()` on `device_body()` | at least 4.5:1. The device drawing is dark in both appearances. |
 
 - **The device picture does not change with the appearance.** The body, the
   display, the knob, the touch bar, and an empty key face have the colours
@@ -249,6 +255,13 @@ them. WCAG gives the ratio of contrast from 1 to 21.
   `LIGHT`. A key face shows the image of the device, which is the same image
   in both appearances. Only `device_body_border()` and
   `device_body_shadow()` follow the canvas.
+- **A name on the device picture keeps the colours of the hardware too.**
+  `text_secondary()`, `text_tertiary()`, and `accent_text()` read on a light
+  surface, not on the dark body and display. The window uses
+  `device_text_secondary()`, `device_text_tertiary()`, and
+  `device_accent_text()` for a name on the device, and
+  `device_touch_bar_bg()` for the "Touch bar" control when it is not
+  selected. Those values are the same in `DARK` and `LIGHT`.
 - **The kind tiles keep their saturated colours** in both appearances, as
   the icons of a macOS toolbar do. The white letter reads on each one.
 

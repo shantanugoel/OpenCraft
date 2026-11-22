@@ -99,6 +99,8 @@ fn the_window_shows_each_control_of_the_test_model_and_no_other(cx: &mut TestApp
                 image: Arc::new(RgbImage::new(96, 96)),
                 image_size: None,
                 image_area: None,
+                on_image_size: None,
+                on_image_area: None,
                 states: None,
             }),
         );
