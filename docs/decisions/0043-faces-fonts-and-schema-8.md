@@ -428,11 +428,22 @@ action with the choice `format`:
   smaller of 10 seconds and the time to the next minute boundary. Thus the
   minute changes at the boundary when the computer is awake, and a wait is at
   most 10 seconds. There are about 6 wakes each minute while a clock shows.
-- At each wake, the worker reads the wall time. It calls `libc::tzset()`
-  before `libc::localtime_r`. It formats the text for each visible binding,
-  and sends `Message::Feedback` only when the text is different from the last
-  text of that binding. `Appear` sends the current text at once. `Invoke`
-  sends it at once. `Disappear` removes the binding.
+- At each wake, the worker reads the wall time one time. It calls
+  `libc::tzset()` before `libc::localtime_r`. It formats the text for each
+  visible binding, and sends `Message::Feedback` only when the text is
+  different from the last text of that binding. `Appear` makes a binding a
+  visible clock and sends the current text at once. `Invoke` sends the current
+  text at once for a binding that is a visible clock. `Disappear` removes the
+  binding.
+- An `Invoke` has the binding of the outer action when the clock is inside a
+  Sequence, a Toggle, an action cycle, or the multi-function knob, and the
+  engine sends no `Appear` and no `Disappear` to the clock handler for it. The
+  worker does not keep such a binding: it would wake for ever and write a text
+  for the outer action.
+- The text and the wait to the next turn use the same reading of the wall
+  time. The text of one reading with the wait of a second reading can be the
+  old minute with the wait to the next minute boundary, thus 10 seconds of a
+  stale minute.
 - The clock sends a `Feedback` with only a label. The engine draws the label
   with the style of the surface (decision 0013). The engine does not read the
   clock settings (rule 8). No engine change is necessary.

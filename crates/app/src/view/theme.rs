@@ -18,7 +18,9 @@
 //! because its value does not change with the appearance.
 //!
 //! The window has the dark appearance only today. A later change adds the
-//! light palette and the settings that select the appearance.
+//! light palette and the settings that select the appearance. Until that
+//! change, only a test sets the appearance: a function that nothing calls is
+//! dead code (docs/DESIGN.md, section 8).
 
 use gpui_kit::{point, px, BoxShadow, Pixels, Rgba};
 use opencraft_engine::Color;
@@ -79,11 +81,34 @@ pub fn appearance() -> Appearance {
     APPEARANCE.with(Cell::get)
 }
 
-/// Set the appearance of the window of this thread. The caller redraws the
-/// window. Decision 0029, section 21 uses this function.
-#[allow(dead_code)]
-pub fn set_appearance(appearance: Appearance) {
+/// Set the appearance of the window of this thread. A test uses
+/// [`set_appearance_for_test`], which puts the appearance back. The window
+/// has the dark value only today, thus only a test sets an appearance.
+/// Decision 0029, section 21 adds the caller of the window.
+#[cfg(test)]
+fn set_appearance(appearance: Appearance) {
     APPEARANCE.with(|cell| cell.set(appearance));
+}
+
+/// Set the appearance of the window of this thread until the end of a test,
+/// also when the test panics. A test of another appearance must not change
+/// the colours of the tests that follow on the same thread.
+#[cfg(test)]
+pub(crate) fn set_appearance_for_test(appearance: Appearance) -> AppearanceGuard {
+    let before = self::appearance();
+    set_appearance(appearance);
+    AppearanceGuard(before)
+}
+
+/// Puts back the appearance of the thread that it had before a test.
+#[cfg(test)]
+pub(crate) struct AppearanceGuard(Appearance);
+
+#[cfg(test)]
+impl Drop for AppearanceGuard {
+    fn drop(&mut self) {
+        set_appearance(self.0);
+    }
 }
 
 /// The colour tokens of one appearance. Each colour token of this module
@@ -163,6 +188,13 @@ struct Palette {
     picture_panel_empty: Rgba,
     success_fill: Rgba,
     accent_tint_start: Rgba,
+    // The colours of the shadows (section 2.8). A shadow function reads its
+    // colour here, thus the compiler needs a value in each palette.
+    shadow_device_body: Rgba,
+    shadow_input_glow: Rgba,
+    shadow_drag: Rgba,
+    shadow_popover: Rgba,
+    shadow_sheet: Rgba,
 }
 
 /// The dark appearance: the values of the window today.
@@ -240,6 +272,12 @@ const DARK: Palette = Palette {
     picture_panel_empty: hex(0x1a1f2a),
     success_fill: hex(0x1e7a46),
     accent_tint_start: hex_alpha(0x1a6fd8, 0.16),
+    shadow_device_body: hex_alpha(0x000000, 0.45),
+    // The glow of a control on the device is `input_glow` at 55 %.
+    shadow_input_glow: hex_alpha(0xffce73, 0.55),
+    shadow_drag: hex_alpha(0x000000, 0.5),
+    shadow_popover: hex_alpha(0x000000, 0.5),
+    shadow_sheet: hex_alpha(0x000000, 0.55),
 };
 
 /// The colours of the appearance of this thread.
@@ -583,7 +621,7 @@ pub fn accent_line_hover() -> Rgba {
 /// The shadow of the body of the device: 0 24 60, black at 45 %.
 pub fn device_body_shadow() -> Vec<BoxShadow> {
     vec![BoxShadow {
-        color: hex_alpha(0x000000, 0.45).into(),
+        color: palette().shadow_device_body.into(),
         offset: point(px(0.), px(24.)),
         blur_radius: px(60.),
         spread_radius: px(0.),
@@ -591,10 +629,11 @@ pub fn device_body_shadow() -> Vec<BoxShadow> {
     }]
 }
 
-/// The glow around a control that the user operates on the device.
+/// The glow around a control that the user operates on the device: the
+/// colour of [`input_glow()`] at 55 %.
 pub fn input_glow_shadow() -> Vec<BoxShadow> {
     vec![BoxShadow {
-        color: hex_alpha(0xffce73, 0.55).into(),
+        color: palette().shadow_input_glow.into(),
         offset: point(px(0.), px(0.)),
         blur_radius: px(14.),
         spread_radius: px(1.),
@@ -605,7 +644,7 @@ pub fn input_glow_shadow() -> Vec<BoxShadow> {
 /// The shadow of the drag picture: 0 12 28, black at 50 % (section 3.2).
 pub fn drag_shadow() -> Vec<BoxShadow> {
     vec![BoxShadow {
-        color: hex_alpha(0x000000, 0.5).into(),
+        color: palette().shadow_drag.into(),
         offset: point(px(0.), px(12.)),
         blur_radius: px(28.),
         spread_radius: px(0.),
@@ -617,7 +656,7 @@ pub fn drag_shadow() -> Vec<BoxShadow> {
 /// black at 50 %.
 pub fn popover_shadow() -> Vec<BoxShadow> {
     vec![BoxShadow {
-        color: hex_alpha(0x000000, 0.5).into(),
+        color: palette().shadow_popover.into(),
         offset: point(px(0.), px(18.)),
         blur_radius: px(40.),
         spread_radius: px(0.),
@@ -1215,7 +1254,7 @@ pub const KEY_HINT_PADDING_X: Pixels = px(5.);
 /// The shadow of a sheet and of the command palette: 0 24 60, black at 55 %.
 pub fn sheet_shadow() -> Vec<BoxShadow> {
     vec![BoxShadow {
-        color: hex_alpha(0x000000, 0.55).into(),
+        color: palette().shadow_sheet.into(),
         offset: point(px(0.), px(24.)),
         blur_radius: px(60.),
         spread_radius: px(0.),
@@ -1459,6 +1498,8 @@ impl gpui_kit::AssetSource for WindowAssets {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use gpui_kit::Hsla;
     use std::path::{Path, PathBuf};
 
     /// The window code: the main window (`view`), the Settings window, and
@@ -1564,5 +1605,54 @@ mod tests {
         assert!(literals("images::from_rgb(&image); theme::sample(value)").is_empty());
         assert!(literals("Color::rgb(r, g, b); fn f() -> Rgba {").is_empty());
         assert!(literals("// rgb(0x112233) in a comment").is_empty());
+    }
+
+    /// The parts of a colour. GPUI has no equality for `Hsla`, thus a test
+    /// compares the parts. A shadow colour is the `Hsla` of a palette value.
+    fn parts(colour: Hsla) -> (f32, f32, f32, f32) {
+        (colour.h, colour.s, colour.l, colour.a)
+    }
+
+    /// The shadows keep the dark values of section 2.8. A change of the
+    /// palette of another appearance must not change them.
+    #[test]
+    fn the_shadows_keep_their_dark_values() {
+        assert_eq!(
+            parts(device_body_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0x000000, 0.45)))
+        );
+        assert_eq!(
+            parts(input_glow_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0xffce73, 0.55)))
+        );
+        assert_eq!(
+            parts(drag_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0x000000, 0.5)))
+        );
+        assert_eq!(
+            parts(popover_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0x000000, 0.5)))
+        );
+        assert_eq!(
+            parts(sheet_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0x000000, 0.55)))
+        );
+    }
+
+    /// A test changes the appearance of its thread only inside a scope, also
+    /// when an assertion of the scope fails. The window has the dark
+    /// appearance only today, thus the test checks the value and the guard
+    /// that APP-21 uses.
+    #[test]
+    fn the_appearance_of_a_scope_goes_back_at_its_end() {
+        assert_eq!(appearance(), Appearance::Dark);
+        {
+            let _scope = set_appearance_for_test(Appearance::Dark);
+            assert_eq!(appearance(), Appearance::Dark);
+        }
+        assert_eq!(appearance(), Appearance::Dark);
+        // A second scope leaves the appearance of the first one.
+        drop(set_appearance_for_test(Appearance::Dark));
+        assert_eq!(appearance(), Appearance::Dark);
     }
 }

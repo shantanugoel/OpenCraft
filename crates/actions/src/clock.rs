@@ -1,9 +1,12 @@
 //! One worker for all clock and date keys.
 //!
 //! The worker keeps the visible clock bindings. With no clock it blocks on
-//! its request channel and wakes only for a request. With a clock it wakes at
-//! least each 10 seconds and at the next minute boundary, reads the local
-//! wall time, and sends a label only when the text is different. The engine
+//! its request channel and wakes only for a request, and it reads no wall
+//! time. With a clock it wakes at least each 10 seconds and at the next minute
+//! boundary, reads the local wall time one time, and sends a label only when
+//! the text is different. The same reading gives the text and the wait to the
+//! next turn: two readings could give the old minute with the wait to the next
+//! boundary, and the clock would show a stale minute for 10 seconds. The engine
 //! draws the label with the style of the surface, thus the handler sends no
 //! style (architecture rule 8). Decision 0043, section 6 has the reasons.
 //!
@@ -137,10 +140,9 @@ impl Clocks {
     }
 
     fn handle(&mut self, request: Request, sender: &Option<MessageSender>) {
-        let (binding, action) = match request {
-            Request::Appear { binding, action } | Request::Invoke { binding, action } => {
-                (binding, action)
-            }
+        let (binding, action, appear) = match request {
+            Request::Appear { binding, action } => (binding, action, true),
+            Request::Invoke { binding, action } => (binding, action, false),
             Request::Disappear { binding } => {
                 self.0.remove(&binding);
                 return;
@@ -155,13 +157,23 @@ impl Clocks {
                 return;
             }
         };
-        let entry = self
-            .0
-            .entry(binding)
-            .or_insert(Entry { format, last: None });
-        entry.format = format;
-        // Appear and Invoke send the text at once.
-        entry.last = None;
+        match self.0.get_mut(&binding) {
+            // Appear and Invoke send the text at once.
+            Some(entry) => {
+                entry.format = format;
+                entry.last = None;
+            }
+            None if appear => {
+                self.0.insert(binding, Entry { format, last: None });
+            }
+            // An action inside a Sequence, a Toggle, an action cycle, or the
+            // multi-function knob sends `Invoke` with the binding of the outer
+            // action. The engine sends `Appear` and `Disappear` to the handler
+            // of the outer action only, thus a clock that kept this binding
+            // would wake and write a text for the outer action for ever. Only
+            // `Appear` makes a binding a visible clock.
+            None => {}
+        }
     }
 
     /// Send the text of each visible clock when it is different from the
@@ -189,6 +201,22 @@ impl Clocks {
         }
     }
 
+    /// One turn of the worker: read the wall time, send the text that the
+    /// engine does not have, and give the wait to the next turn.
+    ///
+    /// The turn reads the wall time one time, and only while a clock is
+    /// visible. The text and the wait must come from the same reading: two
+    /// readings can fall on two sides of a minute boundary. The text of
+    /// `14:05:59` with the wait to the boundary of `14:06:00` is 10 seconds,
+    /// and the clock shows `14:05` in that time. A second is the shortest
+    /// wait, thus a reading at the boundary gives the text of the new minute
+    /// at the same turn.
+    fn turn(&mut self, wall: &WallClock, sender: &Option<MessageSender>) -> Option<Duration> {
+        let time = if self.0.is_empty() { None } else { wall() };
+        self.wake(time, sender);
+        self.wait(time)
+    }
+
     fn run(
         mut self,
         requests: mpsc::Receiver<Request>,
@@ -196,7 +224,7 @@ impl Clocks {
         sender: &Option<MessageSender>,
     ) {
         loop {
-            let request = match self.wait(wall()) {
+            let request = match self.turn(&wall, sender) {
                 Some(wait) => match requests.recv_timeout(wait) {
                     Ok(request) => Some(request),
                     Err(mpsc::RecvTimeoutError::Timeout) => None,
@@ -210,8 +238,6 @@ impl Clocks {
             if let Some(request) = request {
                 self.handle(request, sender);
             }
-            // Read the wall time again: the wait or the request took time.
-            self.wake(wall(), sender);
         }
     }
 }
