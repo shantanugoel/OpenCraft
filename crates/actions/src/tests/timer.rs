@@ -241,6 +241,90 @@ fn navigation_hides_feedback_but_preserves_a_running_paused_or_finished_timer() 
 }
 
 #[test]
+fn an_invoke_of_a_binding_that_no_key_shows_keeps_no_wake() {
+    let mut r = Rig::new(Settings::from([(
+        "mode".into(),
+        Value::Text("stopwatch".into()),
+    )]));
+    // The engine sends `Invoke` with the binding of the outer action for an
+    // action inside a Sequence, a Toggle, an action cycle, or the
+    // multi-function knob. It sends no `Appear` and no `Disappear` to this
+    // worker for it, thus the action must keep no wake.
+    r.press();
+    r.quiet();
+    assert_eq!(
+        r.timers.next_wake(r.now),
+        None,
+        "a hidden stopwatch has no wake"
+    );
+    r.seconds(3600);
+    r.quiet();
+    assert!(r.system.calls().is_empty(), "a stopwatch never rings");
+    assert_eq!(
+        r.timers.next_wake(r.now),
+        None,
+        "no wake stays after the wait"
+    );
+}
+
+#[test]
+fn a_hidden_timer_wakes_only_for_the_bell_of_its_countdown() {
+    let mut r = Rig::countdown(10);
+    r.appear();
+    r.shows("00:10", Off);
+    r.press();
+    r.shows("00:10", On);
+    r.seconds(3);
+    r.shows("00:07", On);
+    r.disappear();
+    // One turn at zero, and no turn for each second of text that no key shows.
+    assert_eq!(
+        r.timers.next_wake(r.now),
+        Some(r.now + Duration::from_secs(7))
+    );
+    r.seconds(6);
+    r.quiet();
+    assert_eq!(
+        r.timers.next_wake(r.now),
+        Some(r.now + Duration::from_secs(1))
+    );
+    r.seconds(1);
+    assert_eq!(r.system.calls(), [Call::Bell]);
+    r.seconds(60);
+    r.quiet();
+    assert_eq!(
+        r.timers.next_wake(r.now),
+        None,
+        "a finished timer has no wake"
+    );
+}
+
+#[test]
+fn a_hidden_stopwatch_keeps_its_time_with_no_wake() {
+    let mut r = Rig::new(Settings::from([(
+        "mode".into(),
+        Value::Text("stopwatch".into()),
+    )]));
+    r.appear();
+    r.shows("00:00", Off);
+    r.press();
+    r.shows("00:00", On);
+    r.seconds(2);
+    r.shows("00:02", On);
+    r.disappear();
+    assert_eq!(
+        r.timers.next_wake(r.now),
+        None,
+        "no turn for a hidden stopwatch"
+    );
+    r.seconds(3598);
+    r.quiet();
+    // The elapsed time comes from the clock, thus the timer kept its time.
+    r.appear();
+    r.shows("1:00:00", On);
+}
+
+#[test]
 fn editing_a_running_timer_resets_it_and_bell_choice_controls_playback() {
     for (bell, expected) in [
         (

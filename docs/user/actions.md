@@ -808,7 +808,12 @@ The surface uses the **On** face while the timer runs.
 A timer continues to run when you change pages or folders. A countdown
 sounds its bell at zero, also when its key is not visible. Push and release
 the key again to start a new countdown. A change to the timer settings
-resets the timer.
+resets the timer. OpenCraft does no work each second for a timer that no
+key shows.
+
+A timer needs a key to show its time. A Timer inside a Sequence, a Toggle,
+an action cycle, or a knob function has no key of its own: its countdown
+sounds the bell at zero one time, and its stopwatch does nothing.
 
 ## Clock and date
 
