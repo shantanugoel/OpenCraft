@@ -341,6 +341,35 @@ impl LabelStyle {
             LabelChange::Underline(underline) => self.underline = underline,
         }
     }
+
+    /// The style with each part in the range of the profile file. The engine
+    /// applies a style that a shell sends through this function, thus a
+    /// value cannot leave the range.
+    pub fn normalized(mut self) -> Self {
+        self.font = normalize_font(self.font);
+        self.size = self
+            .size
+            .map(|size| size.clamp(MIN_LABEL_SIZE, MAX_LABEL_SIZE));
+        self
+    }
+
+    /// The style as own values: the resolved value of each part, and no
+    /// inherited part. The renderer takes this form, with the empty profile
+    /// default, thus a drawing uses the resolution of the profile default
+    /// (decision 0043, section 2). Do not write this style to the file: it
+    /// has an own value for each part.
+    pub(crate) fn as_own(&self, profile_default: &LabelStyle) -> Self {
+        let resolved = self.resolve(profile_default);
+        Self {
+            font: resolved.font.map(Auto::Value),
+            position: resolved.position.map(Auto::Value),
+            size: Some(resolved.size),
+            color: resolved.color.map(Auto::Value),
+            bold: Some(resolved.bold),
+            italic: Some(resolved.italic),
+            underline: Some(resolved.underline),
+        }
+    }
 }
 
 /// The font of a change, without an empty family name and without the
@@ -467,6 +496,18 @@ impl SurfaceContent {
             && self.icon.is_none()
             && self.image_crop.is_none()
             && self.on.is_none()
+    }
+
+    /// The content with the title style of the profile resolved into own
+    /// values. The renderer uses this form (decision 0043, section 2). The
+    /// engine sends the content with the own values to the shell.
+    pub(crate) fn with_resolved_label_style(&self, profile_default: &LabelStyle) -> Self {
+        let mut content = self.clone();
+        content.label_style = content.label_style.as_own(profile_default);
+        if let Some(on) = content.on.as_deref_mut() {
+            on.label_style = on.label_style.as_own(profile_default);
+        }
+        content
     }
 
     /// Get the requested face, using the base face if On has no replacement.
@@ -875,6 +916,10 @@ pub struct Profile {
     pub color: Option<Color>,
     /// The applications that this profile is for (decision 0035).
     pub applications: Vec<ApplicationLink>,
+    /// The default title style of the profile (decision 0043, section 2).
+    /// A surface follows a value of it when the surface has no own value.
+    /// [`LabelStyle::default()`] is the empty style: the engine default.
+    pub default_label_style: LabelStyle,
     /// The pages. A profile has one page or more: see [`Profile::new`].
     pages: Vec<Page>,
     /// The folders, in the order of the sidebar. A folder is not a page of
@@ -920,6 +965,7 @@ impl Profile {
             model: model.into(),
             color: None,
             applications: Vec::new(),
+            default_label_style: LabelStyle::default(),
             pages,
             folders: Vec::new(),
         }

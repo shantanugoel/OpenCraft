@@ -319,3 +319,181 @@ fn italic_and_underline_stay_in_the_file_and_change_the_image() {
     assert!(!text.contains("label_italic"), "{text}");
     assert!(!text.contains("label_underline"), "{text}");
 }
+
+/// The default title style of the test.
+fn default_style() -> LabelStyle {
+    LabelStyle {
+        font: Some(Auto::Value("Menlo".into())),
+        position: Some(Auto::Value(LabelPosition::Top)),
+        size: Some(30),
+        color: Some(Auto::Value(BLUE)),
+        bold: Some(false),
+        italic: Some(true),
+        underline: Some(true),
+    }
+}
+
+#[test]
+fn a_surface_inherits_the_profile_default_and_an_own_value_wins() {
+    let mut rig = Rig::new();
+    rig.engine.command(Command::SetLabel {
+        surface: KEY_3,
+        label: Some("Mail".into()),
+    });
+    let profile = rig.engine.active_profile().to_string();
+    assert!(rig.engine.command(Command::SetProfileDefaultLabelStyle {
+        profile: profile.clone(),
+        style: default_style(),
+    }));
+    let events = rig.take_events();
+    let state = last_state(&events, KEY_3);
+    // The surface has no own style: the event keeps the inheritance.
+    assert_eq!(state.content.label_style, LabelStyle::default());
+    let inherited = state
+        .content
+        .label_style
+        .resolve(&rig.engine.profile().default_label_style);
+    assert_eq!(inherited.font.as_deref(), Some("Menlo"));
+    assert_eq!(inherited.position, Some(LabelPosition::Top));
+    assert_eq!(inherited.size, 30);
+    assert_eq!(inherited.color, Some(BLUE));
+    assert!(!inherited.bold);
+    assert!(inherited.italic);
+    assert!(inherited.underline);
+
+    // One own value wins, and the other parts still inherit.
+    style(&mut rig, LabelChange::Size(Some(14)));
+    let events = rig.take_events();
+    let state = last_state(&events, KEY_3);
+    let resolved = state
+        .content
+        .label_style
+        .resolve(&rig.engine.profile().default_label_style);
+    assert_eq!(resolved.size, 14);
+    assert_eq!(resolved.font.as_deref(), Some("Menlo"));
+    assert_eq!(resolved.position, Some(LabelPosition::Top));
+
+    // An explicit automatic value wins over the profile default.
+    style(&mut rig, LabelChange::Font(Some(Auto::Auto)));
+    style(&mut rig, LabelChange::Position(Some(Auto::Auto)));
+    style(&mut rig, LabelChange::Color(Some(Auto::Auto)));
+    let events = rig.take_events();
+    let state = last_state(&events, KEY_3);
+    let resolved = state
+        .content
+        .label_style
+        .resolve(&rig.engine.profile().default_label_style);
+    assert_eq!(resolved.font, None);
+    assert_eq!(resolved.position, None);
+    assert_eq!(resolved.position_for(false), LabelPosition::Middle);
+    assert_eq!(resolved.color, None);
+
+    // A reset to inherit shows the profile default again.
+    for change in [
+        LabelChange::Font(None),
+        LabelChange::Position(None),
+        LabelChange::Size(None),
+        LabelChange::Color(None),
+        LabelChange::Bold(None),
+        LabelChange::Italic(None),
+        LabelChange::Underline(None),
+    ] {
+        style(&mut rig, change);
+    }
+    let events = rig.take_events();
+    let state = last_state(&events, KEY_3);
+    assert_eq!(state.content.label_style, LabelStyle::default());
+    let resolved = state
+        .content
+        .label_style
+        .resolve(&rig.engine.profile().default_label_style);
+    assert_eq!(resolved.size, 30);
+    assert_eq!(resolved.font.as_deref(), Some("Menlo"));
+}
+
+#[test]
+fn a_change_of_the_profile_default_repaints_each_surface_that_inherits_it() {
+    let mut rig = Rig::new();
+    let _device = rig.connect();
+    rig.take_events();
+    rig.engine.command(Command::SetLabel {
+        surface: KEY_3,
+        label: Some("Mail".into()),
+    });
+    rig.engine.command(Command::SetLabel {
+        surface: BAR_2,
+        label: Some("Vol".into()),
+    });
+    // The key has its own size, and the bar panel inherits it.
+    style(&mut rig, LabelChange::Size(Some(20)));
+    rig.take_events();
+    let profile = rig.engine.active_profile().to_string();
+    assert!(rig.engine.command(Command::SetProfileDefaultLabelStyle {
+        profile: profile.clone(),
+        style: LabelStyle {
+            size: Some(40),
+            ..LabelStyle::default()
+        },
+    }));
+    let events = rig.take_events();
+    let entries = events
+        .iter()
+        .find_map(|event| match event {
+            Event::Profiles { profiles, .. } => Some(profiles),
+            _ => None,
+        })
+        .expect("the profiles come with the change");
+    assert_eq!(
+        entries
+            .iter()
+            .find(|entry| entry.id == profile)
+            .unwrap()
+            .default_label_style
+            .size,
+        Some(40)
+    );
+    let surfaces: Vec<SurfaceId> = events
+        .iter()
+        .filter_map(|event| match event {
+            Event::Surface(state) => Some(state.id),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        surfaces.contains(&BAR_2),
+        "the bar panel inherits the size: {surfaces:?}"
+    );
+    assert!(
+        !surfaces.contains(&KEY_3),
+        "the key has an own size: {surfaces:?}"
+    );
+    assert_eq!(
+        last_state(&events, BAR_2)
+            .content
+            .label_style
+            .resolve(&rig.engine.profile().default_label_style)
+            .size,
+        40,
+        "the bar panel shows the larger size"
+    );
+
+    // The change is not a step of the history.
+    assert!(events
+        .iter()
+        .all(|event| !matches!(event, Event::History { .. })));
+
+    // The file keeps the default before the pages, and a new start loads it.
+    rig.poll_for(Duration::from_secs(1));
+    let text = rig.profile_text().unwrap();
+    let table = text.find("[default_label_style]").unwrap();
+    let pages = text.find("[[pages]]").unwrap();
+    assert!(table < pages, "{text}");
+    assert!(text.contains("size = 40"), "{text}");
+    let mut rig = rig.restart();
+    let events = rig.take_events();
+    assert_eq!(
+        rig.engine.profile().default_label_style.size,
+        Some(40),
+        "{events:?}"
+    );
+}

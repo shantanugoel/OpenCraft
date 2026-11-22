@@ -249,6 +249,98 @@ fn a_new_name_goes_to_the_engine_when_the_sheet_closes(cx: &mut TestAppContext) 
     assert_eq!(sent.borrow().len(), 1);
 }
 
+/// The profile `work` with the default title style `style`.
+fn work_with_style(style: opencraft_engine::LabelStyle) -> Event {
+    let mut work = entry("work", "Work", &["Mail", "Calls"], 1);
+    work.default_label_style = style;
+    profiles(
+        vec![
+            entry("default", "Default", &["Main", "Meetings", "Media"], 0),
+            work,
+        ],
+        "default",
+    )
+}
+
+#[gpui_kit::test]
+fn the_default_title_style_rows_send_the_profile_default(cx: &mut TestAppContext) {
+    use opencraft_engine::{Auto, LabelChange, LabelPosition, LabelStyle};
+    let (_view, cx, tx, sent) = sheet_window(cx);
+    open_sheet(cx, "profile-work");
+    let style = |sent: &Commands| match last(sent) {
+        Some(Command::SetProfileDefaultLabelStyle { profile, style }) => {
+            assert_eq!(profile, "work");
+            style
+        }
+        other => panic!("{other:?}"),
+    };
+
+    // The position is an own value, and a second click on it sends nothing.
+    click(cx, "profile-title-position-top");
+    let mut current = style(&sent);
+    assert_eq!(current.position, Some(Auto::Value(LabelPosition::Top)));
+    send(cx, &tx, work_with_style(current.clone()));
+    click(cx, "profile-title-position-top");
+    assert_eq!(sent.borrow().len(), 1, "a selected segment sends nothing");
+
+    // The size.
+    click(cx, "profile-title-size");
+    assert!(cx.debug_bounds("profile-title-size-menu").is_some());
+    click(cx, "profile-title-size-28");
+    current = style(&sent);
+    assert_eq!(current.size, Some(28));
+    send(cx, &tx, work_with_style(current.clone()));
+
+    // The weight of the font, the italic form, the underline, and the colour.
+    click(cx, "profile-title-bold");
+    current = style(&sent);
+    assert_eq!(current.bold, Some(false));
+    send(cx, &tx, work_with_style(current.clone()));
+    click(cx, "profile-title-italic");
+    current = style(&sent);
+    assert_eq!(current.italic, Some(true));
+    send(cx, &tx, work_with_style(current.clone()));
+    click(cx, "profile-title-underline");
+    current = style(&sent);
+    assert_eq!(current.underline, Some(true));
+    send(cx, &tx, work_with_style(current.clone()));
+    click(cx, "profile-title-colour-0");
+    current = style(&sent);
+    assert_eq!(
+        current.color,
+        Some(Auto::Value(colour(theme::TITLE_COLOURS[0])))
+    );
+    send(cx, &tx, work_with_style(current.clone()));
+
+    // The font goes to the engine when the field loses the focus.
+    let input = cx.update(|_, cx| _view.read(cx).sheet.title_font.clone());
+    cx.update(|window, cx| {
+        input.update(cx, |input, cx| {
+            input.set_value("Menlo", window, cx);
+            input.focus(window, cx);
+        });
+    });
+    click(cx, "profile-done");
+    current = style(&sent);
+    assert_eq!(current.font, Some(Auto::Value("Menlo".into())));
+    assert!(!is_open(cx));
+
+    // Reset clears each part.
+    open_sheet(cx, "profile-work");
+    let current = cx.update(|_, cx| {
+        _view
+            .read(cx)
+            .profile("work")
+            .unwrap()
+            .default_label_style
+            .clone()
+    });
+    assert_eq!(current.size, Some(28));
+    click(cx, "profile-title-reset");
+    assert_eq!(style(&sent), LabelStyle::default(), "{:?}", sent.borrow());
+    let _ = LabelChange::Size(None);
+}
+
 #[gpui_kit::test]
 fn remove_asks_for_a_confirmation_and_the_sheet_closes_with_its_profile(cx: &mut TestAppContext) {
     let (_view, cx, tx, sent) = sheet_window(cx);

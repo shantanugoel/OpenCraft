@@ -308,6 +308,8 @@ pub struct Summary {
     /// The links that the file names. The summary uses the same check as
     /// the full read. When that check gives an error, the list is empty.
     pub applications: Vec<ApplicationLink>,
+    /// The default title style of the profile (decision 0043, section 2).
+    pub default_label_style: LabelStyle,
 }
 
 /// One profile directory.
@@ -452,6 +454,7 @@ impl ProfileStore {
             page_ids,
             first_page,
             applications: applications_of(&table).unwrap_or_default(),
+            default_label_style: default_label_style_of(&table),
         }
     }
 
@@ -776,6 +779,11 @@ struct FileData {
     /// The links. The key came in version 5. `None`: the file has no key.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     applications: Option<Vec<ApplicationData>>,
+    /// The default title style of the profile. It came in version 8. The
+    /// field is before `pages`, thus the serializer writes the table before
+    /// the array of the page tables (decision 0043, section 7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    default_label_style: Option<DefaultLabelStyleData>,
     #[serde(default)]
     pages: Vec<PageData>,
     /// The folders. The key came in version 5. `None` means the key is not
@@ -876,6 +884,98 @@ impl BackgroundData {
                 image: Some(image.clone()),
                 fit: (*fit != BackgroundFit::default()).then(|| fit.key().to_string()),
             },
+        }
+    }
+}
+
+/// The table `[default_label_style]` of a profile file. The keys have no
+/// `label_` prefix (decision 0043, section 2). An absent key is the engine
+/// default, and an absent table is a profile with no own value.
+#[derive(Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct DefaultLabelStyleData {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    font: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    position: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    size: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bold: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    italic: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    underline: Option<bool>,
+}
+
+impl DefaultLabelStyleData {
+    /// The style of the table. An empty table is the empty style.
+    fn style(&self) -> std::result::Result<LabelStyle, String> {
+        let font = match &self.font {
+            None => None,
+            Some(name) if name == SYSTEM_FONT_WORD => Some(Auto::Auto),
+            Some(name) if name.trim().is_empty() => {
+                return Err("default_label_style.font is empty".to_string())
+            }
+            Some(name) => Some(Auto::Value(name.clone())),
+        };
+        let position = match &self.position {
+            None => None,
+            Some(text) if text == AUTO_WORD => Some(Auto::Auto),
+            Some(text) => Some(Auto::Value(LabelPosition::from_key(text).ok_or_else(
+                || format!("default_label_style.position '{text}' is not a position"),
+            )?)),
+        };
+        let size = match self.size {
+            None => None,
+            Some(size) if (MIN_LABEL_SIZE..=MAX_LABEL_SIZE).contains(&size) => Some(size),
+            Some(size) => {
+                return Err(format!(
+                "default_label_style.size {size} is not from {MIN_LABEL_SIZE} to {MAX_LABEL_SIZE}"
+            ))
+            }
+        };
+        let color = match &self.color {
+            None => None,
+            Some(text) if text == AUTO_WORD => Some(Auto::Auto),
+            Some(text) => {
+                Some(Auto::Value(text.parse::<Color>().map_err(|e| {
+                    format!("default_label_style.color '{text}': {e}")
+                })?))
+            }
+        };
+        Ok(LabelStyle {
+            font,
+            position,
+            size,
+            color,
+            bold: self.bold,
+            italic: self.italic,
+            underline: self.underline,
+        })
+    }
+
+    /// The table of `style`. The caller writes no table for the empty style.
+    fn from_style(style: &LabelStyle) -> Self {
+        Self {
+            font: style.font.as_ref().map(|font| match font {
+                Auto::Auto => SYSTEM_FONT_WORD.to_string(),
+                Auto::Value(name) => name.clone(),
+            }),
+            position: style.position.as_ref().map(|position| match position {
+                Auto::Auto => AUTO_WORD.to_string(),
+                Auto::Value(position) => position.key().to_string(),
+            }),
+            size: style.size,
+            color: style.color.as_ref().map(|color| match color {
+                Auto::Auto => AUTO_WORD.to_string(),
+                Auto::Value(color) => color.to_string(),
+            }),
+            bold: style.bold,
+            italic: style.italic,
+            underline: style.underline,
         }
     }
 }
@@ -1404,6 +1504,14 @@ pub(crate) fn parse(text: &str) -> std::result::Result<Profile, BackupReason> {
     let mut profile = Profile::for_model(model, file.name, pages);
     profile.color = color;
     profile.applications = check_links(version, file.applications).map_err(invalid)?;
+    if let Some(table) = file.default_label_style {
+        if version < FACES_VERSION {
+            return Err(invalid(format!(
+                "version {version} has no default title style"
+            )));
+        }
+        profile.default_label_style = table.style().map_err(invalid)?;
+    }
     if let Some(first) = first_page {
         profile.mark_first_page(first);
     }
@@ -1468,6 +1576,25 @@ fn applications_of(table: &toml::Table) -> std::result::Result<Vec<ApplicationLi
     check_links(version, Some(links))
 }
 
+/// The default title style of a summary table. A schema version before 8
+/// has no table, and an invalid table gives the empty style: the full read
+/// reports the error.
+fn default_label_style_of(table: &toml::Table) -> LabelStyle {
+    let version = table
+        .get("schema_version")
+        .and_then(toml::Value::as_integer)
+        .and_then(|number| u32::try_from(number).ok())
+        .unwrap_or_default();
+    if version < FACES_VERSION {
+        return LabelStyle::default();
+    }
+    table
+        .get("default_label_style")
+        .and_then(|value| DefaultLabelStyleData::deserialize(value.clone()).ok())
+        .and_then(|table| table.style().ok())
+        .unwrap_or_default()
+}
+
 /// The text of the profile file for `profile`.
 pub(crate) fn to_text(profile: &Profile) -> Result<String> {
     let file = FileData {
@@ -1486,6 +1613,8 @@ pub(crate) fn to_text(profile: &Profile) -> Result<String> {
                 })
                 .collect()
         }),
+        default_label_style: (profile.default_label_style != LabelStyle::default())
+            .then(|| DefaultLabelStyleData::from_style(&profile.default_label_style)),
         pages: profile
             .pages()
             .iter()
@@ -2266,6 +2395,102 @@ color = "#1E6FD9"
         let text = fs::read_to_string(store.profile_path()).unwrap();
         assert!(text.contains("label_font = \"system\""), "{text}");
         assert_eq!(store.load().unwrap().profile, profile);
+    }
+
+    #[test]
+    fn the_default_title_style_saves_before_the_pages_and_loads_again() {
+        let (_dir, store) = store();
+        let mut profile = Profile::new("P", vec![Page::new("Main")]);
+        profile.default_label_style = LabelStyle {
+            font: Some(Auto::Value("Avenir Next".into())),
+            position: Some(Auto::Value(LabelPosition::Top)),
+            size: Some(30),
+            color: Some(Auto::Value(Color::rgb(0x12, 0x34, 0x56))),
+            bold: Some(false),
+            italic: Some(true),
+            underline: Some(true),
+        };
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        let table = text.find("[default_label_style]").unwrap();
+        let pages = text.find("[[pages]]").unwrap();
+        assert!(table < pages, "{text}");
+        for line in [
+            "font = \"Avenir Next\"",
+            "position = \"top\"",
+            "size = 30",
+            "color = \"#123456\"",
+            "bold = false",
+            "italic = true",
+            "underline = true",
+        ] {
+            assert!(text.contains(line), "{line} in {text}");
+        }
+        assert_eq!(
+            store.load().unwrap().profile.default_label_style,
+            profile.default_label_style
+        );
+
+        // The empty style writes no table.
+        profile.default_label_style = LabelStyle::default();
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(!text.contains("[default_label_style]"), "{text}");
+        assert_eq!(store.load().unwrap().profile, profile);
+    }
+
+    #[test]
+    fn an_old_schema_refuses_the_default_title_style() {
+        for version in 1..FACES_VERSION {
+            let model = if version >= 3 {
+                "model = \"n4-pro\"\n"
+            } else {
+                ""
+            };
+            let id = if version >= 6 {
+                "id = \"0000000000000001\"\n"
+            } else {
+                ""
+            };
+            let text = format!(
+                "schema_version = {version}\nname = \"Old\"\n{model}\
+                 [default_label_style]\nfont = \"Menlo\"\n\n\
+                 [[pages]]\n{id}name = \"Main\"\n"
+            );
+            let error = parse(&text).unwrap_err().to_string();
+            assert!(
+                error.contains("default title style"),
+                "version {version}: {error}"
+            );
+        }
+        let text = format!(
+            "schema_version = {FACES_VERSION}\nname = \"New\"\nmodel = \"n4-pro\"\n\
+             [default_label_style]\nfont = \"Menlo\"\n\n\
+             [[pages]]\nid = \"0000000000000001\"\nname = \"Main\"\n"
+        );
+        assert_eq!(
+            parse(&text).unwrap().default_label_style.font,
+            Some(Auto::Value("Menlo".into()))
+        );
+    }
+
+    #[test]
+    fn the_default_title_style_refuses_a_bad_value() {
+        for (key, value, text) in [
+            ("font", "\"\"", "font is empty"),
+            ("size", "4", "size 4 is not from"),
+            ("size", "81", "size 81 is not from"),
+            ("position", "\"centre\"", "is not a position"),
+            ("color", "\"red\"", "color 'red'"),
+        ] {
+            let file = format!(
+                "schema_version = {FACES_VERSION}\nname = \"P\"\nmodel = \"n4-pro\"\n\
+                 [default_label_style]\n{key} = {value}\n\n\
+                 [[pages]]\nid = \"0000000000000001\"\nname = \"Main\"\n"
+            );
+            let error = parse(&file).unwrap_err().to_string();
+            assert!(error.contains(text), "{key}: {error}");
+        }
     }
 
     #[test]

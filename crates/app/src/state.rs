@@ -3,7 +3,7 @@
 use opencraft_engine::{
     ActiveCause, BackgroundState, BindingId, BindingState, ControlId, ControlKind, DeviceLayout,
     DeviceSettings, Event, FolderEntry, Gesture, GestureKind, InputEvent, KindDescription,
-    Location, ProfileEntry, Status, SurfaceId, SurfaceKind, SurfaceState,
+    LabelStyle, Location, ProfileEntry, Status, SurfaceId, SurfaceKind, SurfaceState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -136,6 +136,17 @@ pub struct ViewState {
 }
 
 impl ViewState {
+    /// The default title style of the active profile. A surface resolves its
+    /// own title style with it (decision 0043, section 2). The value comes in
+    /// each `ProfileEntry` of `Event::Profiles`.
+    pub fn default_label_style(&self) -> LabelStyle {
+        self.profile
+            .as_ref()
+            .and_then(|id| self.profiles.iter().find(|p| &p.id == id))
+            .map(|p| p.default_label_style.clone())
+            .unwrap_or_default()
+    }
+
     /// Apply an engine event. Return the deadline of a new short highlight.
     pub fn apply(&mut self, event: Event, now: Instant) -> Option<(ControlId, Instant)> {
         match event {

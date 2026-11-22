@@ -22,6 +22,7 @@ use super::{
 use gpui_kit::component::input::AnyInputState;
 use gpui_kit::{assets::IconName, component::Icon, FontWeight};
 use opencraft_engine::share::EXTENSION;
+use opencraft_engine::{Auto, LabelChange, LabelPosition, LabelStyle, LABEL_SIZES};
 use std::path::PathBuf;
 
 /// The state of the sheet.
@@ -37,7 +38,12 @@ pub(super) struct ProfileSheet {
     sent_name: Option<String>,
     /// True while the menu of "First page" is open.
     pub(super) pages_open: bool,
+    /// True while the menu of the default title size is open.
+    pub(super) style_size_open: bool,
+    /// The field "Font" of the default title style.
+    pub(super) title_font: Entity<InputState>,
     _subscription: Subscription,
+    _title_font_subscription: Subscription,
 }
 
 impl ProfileSheet {
@@ -48,13 +54,23 @@ impl ProfileSheet {
                 view.save_sheet_name(cx);
             }
         });
+        let title_font = cx.new(|cx| InputState::new(window, cx).placeholder("System font"));
+        let title_font_subscription =
+            cx.subscribe_in(&title_font, window, |view, _, event, _, cx| {
+                if matches!(event, TextEvent::Blur) {
+                    view.save_sheet_title_font(cx);
+                }
+            });
         Self {
             profile: None,
             focus: cx.focus_handle(),
             name,
             sent_name: None,
             pages_open: false,
+            style_size_open: false,
+            title_font,
             _subscription: subscription,
+            _title_font_subscription: title_font_subscription,
         }
     }
 }
@@ -128,12 +144,22 @@ impl DeviceView {
             return;
         };
         self.end_text_edit(cx);
+        let font = self
+            .profile(&id)
+            .and_then(|p| p.default_label_style.font.as_ref())
+            .and_then(Auto::value)
+            .cloned()
+            .unwrap_or_default();
         self.sheet.profile = Some(id);
         self.sheet.sent_name = None;
         self.sheet.pages_open = false;
+        self.sheet.style_size_open = false;
         self.sheet
             .name
             .update(cx, |input, cx| input.set_value(name, window, cx));
+        self.sheet
+            .title_font
+            .update(cx, |input, cx| input.set_value(font, window, cx));
         self.prepare_applications(window, cx);
         window.focus(&self.sheet.focus, cx);
         cx.notify();
@@ -142,9 +168,11 @@ impl DeviceView {
     /// Close the sheet. A new name in the field goes to the engine first.
     pub(super) fn close_profile_sheet(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.save_sheet_name(cx);
+        self.save_sheet_title_font(cx);
         self.dismiss_application_picker(window, cx);
         self.sheet.profile = None;
         self.sheet.pages_open = false;
+        self.sheet.style_size_open = false;
         self.focus_workspace(window, cx);
         cx.notify();
     }
@@ -165,6 +193,58 @@ impl DeviceView {
         }
         self.sheet.sent_name = Some(name.clone());
         (self.send)(Command::RenameProfile { profile: id, name });
+    }
+
+    /// Send the font in the field of the default title style, if it is a new
+    /// family. An empty field is the system font.
+    fn save_sheet_title_font(&mut self, cx: &mut Context<Self>) {
+        let Some(id) = self.sheet.profile.clone() else {
+            return;
+        };
+        let Some(entry) = self.profile(&id).cloned() else {
+            return;
+        };
+        let text = self.sheet.title_font.read(cx).value().trim().to_string();
+        let font = (!text.is_empty()).then_some(Auto::Value(text));
+        let mut style = entry.default_label_style.clone();
+        style.apply(LabelChange::Font(font));
+        if style != entry.default_label_style {
+            (self.send)(Command::SetProfileDefaultLabelStyle { profile: id, style });
+        }
+    }
+
+    /// Change the default title style of the profile of the sheet with
+    /// `change`. `None` makes the part the engine default.
+    fn set_default_title_style(&mut self, change: LabelChange) {
+        let Some(id) = self.sheet.profile.clone() else {
+            return;
+        };
+        let Some(entry) = self.profile(&id) else {
+            return;
+        };
+        let mut style = entry.default_label_style.clone();
+        let before = style.clone();
+        style.apply(change);
+        if style != before {
+            (self.send)(Command::SetProfileDefaultLabelStyle { profile: id, style });
+        }
+    }
+
+    /// Clear each part of the default title style of the profile of the
+    /// sheet: each part is the engine default again.
+    fn reset_default_title_style(&mut self) {
+        let Some(id) = self.sheet.profile.clone() else {
+            return;
+        };
+        let Some(entry) = self.profile(&id) else {
+            return;
+        };
+        if entry.default_label_style != LabelStyle::default() {
+            (self.send)(Command::SetProfileDefaultLabelStyle {
+                profile: id,
+                style: LabelStyle::default(),
+            });
+        }
     }
 
     /// Apply the part of an engine event that the sheet uses: the sheet
@@ -251,6 +331,13 @@ impl DeviceView {
             }
             return;
         }
+        if self.sheet.style_size_open {
+            if key == ModalKey::Escape {
+                self.sheet.style_size_open = false;
+                cx.notify();
+            }
+            return;
+        }
         self.close_profile_sheet(window, cx);
     }
 
@@ -286,7 +373,7 @@ impl DeviceView {
             .px(theme::SPACE_24)
             .flex()
             .flex_col()
-            .gap(theme::SPACE_12)
+            .gap(theme::SPACE_8)
             .child(sheet_row(
                 "Name",
                 controls::text_field_sized(
@@ -308,7 +395,7 @@ impl DeviceView {
         let applications = self.applications_section(&entry, window, cx);
         let share = div()
             .flex_shrink_0()
-            .mt(theme::SPACE_16)
+            .mt(theme::SPACE_8)
             .px(theme::SPACE_24)
             .pb(theme::SPACE_24)
             .flex()
@@ -345,10 +432,310 @@ impl DeviceView {
                 format!("Profile “{}” · {}", entry.name, page_count(pages.len())),
             ))
             .child(form)
+            .child(self.default_title_style(&entry, window, cx))
             .child(applications)
             .child(share)
             .child(button_row(Some(remove), vec![done]));
         Some(modal.render(content, window))
+    }
+
+    /// The section "Default title style": the font, the size, the weight of
+    /// the font, the position, and the colour of a title that has no own
+    /// style (decision 0043, section 2).
+    fn default_title_style(
+        &self,
+        entry: &opencraft_engine::ProfileEntry,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let style = &entry.default_label_style;
+        let size = style.size.unwrap_or(opencraft_engine::DEFAULT_LABEL_SIZE);
+        let position = style.position.as_ref();
+        let shown_colour = style.color.as_ref().and_then(Auto::value).copied();
+        let bold = style.bold.unwrap_or(true);
+        let italic = style.italic.unwrap_or(false);
+        let underline = style.underline.unwrap_or(false);
+
+        let size_popup = self.default_size_popup(size, window, cx);
+        let font_row = div()
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_8)
+            .child(
+                controls::text_field_sized(
+                    &AnyInputState::Input(self.sheet.title_font.clone()),
+                    "Default title font",
+                    theme::bg_bar(),
+                    FieldSize::sheet(),
+                    window,
+                    cx,
+                )
+                .id("profile-title-font")
+                .debug_selector(|| "profile-title-font".into()),
+            )
+            .child(size_popup)
+            .child(
+                controls::toggle_button(
+                    "profile-title-bold",
+                    div()
+                        .text_size(theme::TEXT_BODY)
+                        .font_weight(FontWeight::BOLD)
+                        .child("B"),
+                    bold,
+                    "Bold",
+                )
+                .on_click(cx.listener(|view, _, _, cx| {
+                    let value = view
+                        .profile(view.sheet.profile.as_deref().unwrap_or_default())
+                        .map(|p| p.default_label_style.bold.unwrap_or(true))
+                        .unwrap_or(true);
+                    view.set_default_title_style(LabelChange::Bold(Some(!value)));
+                    cx.notify();
+                })),
+            )
+            .child(
+                controls::toggle_button(
+                    "profile-title-italic",
+                    div()
+                        .text_size(theme::TEXT_BODY)
+                        .font_weight(FontWeight::BOLD)
+                        .italic()
+                        .child("I"),
+                    italic,
+                    "Italic",
+                )
+                .on_click(cx.listener(|view, _, _, cx| {
+                    let value = view
+                        .profile(view.sheet.profile.as_deref().unwrap_or_default())
+                        .map(|p| p.default_label_style.italic.unwrap_or(false))
+                        .unwrap_or(false);
+                    view.set_default_title_style(LabelChange::Italic(Some(!value)));
+                    cx.notify();
+                })),
+            )
+            .child(
+                controls::toggle_button(
+                    "profile-title-underline",
+                    div()
+                        .text_size(theme::TEXT_BODY)
+                        .font_weight(FontWeight::BOLD)
+                        .underline()
+                        .child("U"),
+                    underline,
+                    "Underline",
+                )
+                .on_click(cx.listener(|view, _, _, cx| {
+                    let value = view
+                        .profile(view.sheet.profile.as_deref().unwrap_or_default())
+                        .map(|p| p.default_label_style.underline.unwrap_or(false))
+                        .unwrap_or(false);
+                    view.set_default_title_style(LabelChange::Underline(Some(!value)));
+                    cx.notify();
+                })),
+            );
+
+        let positions = [
+            ("profile-title-position-auto", "Automatic", None),
+            (
+                "profile-title-position-top",
+                "Top",
+                Some(LabelPosition::Top),
+            ),
+            (
+                "profile-title-position-middle",
+                "Middle",
+                Some(LabelPosition::Middle),
+            ),
+            (
+                "profile-title-position-bottom",
+                "Bottom",
+                Some(LabelPosition::Bottom),
+            ),
+            (
+                "profile-title-position-none",
+                "None",
+                Some(LabelPosition::Hidden),
+            ),
+        ];
+        let segments = positions
+            .into_iter()
+            .map(|(id, text, value)| {
+                let selected = match (position, value) {
+                    (None, None) => true,
+                    (Some(Auto::Auto), None) => true,
+                    (Some(Auto::Value(shown)), Some(value)) => *shown == value,
+                    _ => false,
+                };
+                controls::segment(id, text, selected, theme::HEIGHT_SHEET_CONTROL)
+                    .min_w_0()
+                    .when(!selected, |d| {
+                        d.on_click(cx.listener(move |view, _, _, cx| {
+                            let change = match value {
+                                None => LabelChange::Position(None),
+                                Some(value) => LabelChange::Position(Some(Auto::Value(value))),
+                            };
+                            view.set_default_title_style(change);
+                            cx.notify();
+                        }))
+                    })
+            })
+            .collect();
+        let position_row = controls::segmented("profile-title-position", segments)
+            .flex_1()
+            .min_w_0();
+
+        let automatic = controls::colour_sample(
+            "profile-title-colour-auto",
+            None,
+            shown_colour.is_none(),
+            "Automatic: black or white for the fill",
+            true,
+        )
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_size(theme::TEXT_CAPTION)
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(theme::text_secondary())
+        .child("A")
+        .when(shown_colour.is_some(), |d| {
+            d.on_click(cx.listener(|view, _, _, cx| {
+                view.set_default_title_style(LabelChange::Color(None));
+                cx.notify();
+            }))
+        });
+        let samples: Vec<_> = theme::TITLE_COLOURS
+            .into_iter()
+            .chain(theme::FILL_COLOURS)
+            .enumerate()
+            .map(|(index, value)| {
+                let shown = shown_colour == Some(colour(value));
+                controls::colour_sample(
+                    format!("profile-title-colour-{index}"),
+                    Some(theme::sample(value)),
+                    shown,
+                    format!("Title #{value:06X}"),
+                    true,
+                )
+                .when(!shown, |d| {
+                    d.on_click(cx.listener(move |view, _, _, cx| {
+                        view.set_default_title_style(LabelChange::Color(Some(Auto::Value(
+                            colour(value),
+                        ))));
+                        cx.notify();
+                    }))
+                })
+            })
+            .collect();
+        let colour_row = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(theme::SPACE_6)
+            .child(automatic)
+            .children(samples);
+
+        let reset = controls::small_button(
+            "profile-title-reset",
+            "Reset",
+            style != &LabelStyle::default(),
+        )
+        .when(style != &LabelStyle::default(), |d| {
+            d.on_click(cx.listener(|view, _, _, cx| {
+                view.reset_default_title_style();
+                cx.notify();
+            }))
+        })
+        .into_any_element();
+
+        div()
+            .flex_shrink_0()
+            .mt(theme::SPACE_8)
+            .px(theme::SPACE_24)
+            .flex()
+            .flex_col()
+            .gap(theme::SPACE_6)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(theme::SPACE_8)
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .child(sheet_section_header("Default title style")),
+                    )
+                    .child(reset),
+            )
+            .child(sheet_row("Font", font_row))
+            .child(sheet_row("Position", position_row))
+            .child(sheet_row("Colour", colour_row))
+            .into_any_element()
+    }
+
+    /// The popup button of the size of the default title style, with the
+    /// sizes of [`LABEL_SIZES`].
+    fn default_size_popup(&self, size: u8, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let open = self.sheet.style_size_open;
+        let menu = open.then(|| {
+            let rows = LABEL_SIZES
+                .into_iter()
+                .map(|item| {
+                    controls::menu_row(format!("profile-title-size-{item}"))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .w(theme::ICON_SMALL)
+                                .when(item == size, |d| {
+                                    d.child(Icon::new(IconName::Check).size(theme::ICON_SMALL))
+                                }),
+                        )
+                        .child(format!("{item} pt"))
+                        .on_click(cx.listener(move |view, _, _, cx| {
+                            view.sheet.style_size_open = false;
+                            view.set_default_title_style(LabelChange::Size(Some(item)));
+                            cx.notify();
+                        }))
+                        .into_any_element()
+                })
+                .collect();
+            controls::popup_menu(
+                "profile-title-size-menu",
+                controls::MenuPlace {
+                    button_height: theme::HEIGHT_SHEET_CONTROL,
+                    width: theme::WIDTH_SIZE_MENU,
+                    align_end: false,
+                },
+                rows,
+                window,
+                cx.listener(|view, _, _, cx| {
+                    view.sheet.style_size_open = false;
+                    cx.notify();
+                }),
+            )
+        });
+        div()
+            .relative()
+            .flex_shrink_0()
+            .w(theme::WIDTH_SIZE_POPUP)
+            .flex()
+            .child(
+                controls::popup_button(
+                    "profile-title-size",
+                    "Default title size",
+                    format!("{size} pt"),
+                    theme::HEIGHT_SHEET_CONTROL,
+                    open,
+                    div().truncate().child(format!("{size} pt")),
+                )
+                .on_click(cx.listener(move |view, _, _, cx| {
+                    view.sheet.style_size_open = !open;
+                    cx.notify();
+                })),
+            )
+            .children(menu)
+            .into_any_element()
     }
 
     /// The colour circles: "None" and the colours of
@@ -486,7 +873,7 @@ impl DeviceView {
     ) -> Div {
         div()
             .flex_shrink_0()
-            .mt(theme::SPACE_16)
+            .mt(theme::SPACE_12)
             .px(theme::SPACE_24)
             .flex()
             .flex_col()

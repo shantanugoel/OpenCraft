@@ -298,6 +298,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `profile remove` | `--profile` | Remove with its pages |
 | `profile select` | `--profile` | Make it the active profile |
 | `profile set-color` | `--profile` `--color` | Set or remove the colour |
+| `profile set-title-style` | `--profile` `--font` `--position` `--size` `--color` `--bold` `--italic` `--underline` | Set the default title style; no style flag: each part is the engine default |
 | `profile set-default` | `--profile` | Make it the default profile |
 | `profile link-app` | `--profile` `--bundle-id` `--name` | Link an application |
 | `profile unlink-app` | `--profile` `--bundle-id` | Remove the link |

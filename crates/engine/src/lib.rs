@@ -73,11 +73,13 @@ pub use icons::{icon_set, Icon, IconCategory, IconSet};
 pub use profile::{
     ApplicationLink, Auto, Background, BackgroundFit, Color, Folder, FolderEntry, FolderId,
     ImageCrop, LabelChange, LabelPosition, LabelStyle, Page, PageId, ParseFolderIdError,
-    ParsePageIdError, Profile, ResolvedLabelStyle, SurfaceContent, SurfaceIcon, IMAGE_ZOOMS,
-    LABEL_SIZES, MAX_IMAGE_PAN, MAX_IMAGE_ZOOM, MIN_IMAGE_ZOOM,
+    ParsePageIdError, Profile, ResolvedLabelStyle, SurfaceContent, SurfaceIcon, DEFAULT_LABEL_SIZE,
+    IMAGE_ZOOMS, LABEL_SIZES, MAX_IMAGE_PAN, MAX_IMAGE_ZOOM, MIN_IMAGE_ZOOM,
 };
 pub use profiles::{LinkOwner, ProfileEntry, ProfilesDir};
-pub use render::{icon_color, image_overflow, image_scaled_size, label_color, page_preview};
+pub use render::{
+    icon_color, image_overflow, image_scaled_size, label_color, label_color_for, page_preview,
+};
 pub use store::{
     default_profiles_dir, profile_from_text, Backup, BackupReason, Loaded, ProfileStore,
 };

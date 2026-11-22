@@ -166,7 +166,7 @@ navigation that shows a page on the device.
 | Control | Copy, paste, clear, and copy to all pages |
 | Page | Add, duplicate, rename, move, remove, and select a page. Set its first-page mark, its background, and the fit of the background. |
 | Folder | Add, rename, move, remove, open, and close a folder |
-| Profile | Add, rename, remove, and select a profile. Set its colour, the default profile, and its application links. Turn the automatic switch to the front application on or off. Export and import. |
+| Profile | Add, rename, remove, and select a profile. Set its colour, its default title style, the default profile, and its application links. Turn the automatic switch to the front application on or off. Export and import. |
 | Device | Set the device settings |
 | History | Undo and redo |
 

@@ -12,7 +12,7 @@
 use super::*;
 use gpui_kit::{assets::IconName, component::input::AnyInputState, component::Icon, relative};
 use opencraft_engine::{
-    image_overflow, label_color, Auto, ControlLayout, DeviceLayout, ImageCrop, LabelChange,
+    image_overflow, label_color_for, Auto, ControlLayout, DeviceLayout, ImageCrop, LabelChange,
     LabelPosition, LabelStyle, SurfaceContent, IMAGE_ZOOMS, LABEL_SIZES,
 };
 
@@ -438,6 +438,7 @@ impl DeviceView {
             row("Font", self.font_row(&content, window, cx)),
             row("Fill", self.fill_samples(id, window, cx)),
         ];
+        rows.push(self.title_default_row(&content, cx));
         // A face with an image has the crop of that image (decision 0043).
         if content.image.is_some() {
             rows.extend(self.image_crop_rows(id, &content, window, cx));
@@ -445,6 +446,65 @@ impl DeviceView {
         rows.into_iter()
             .map(IntoElement::into_any_element)
             .collect()
+    }
+
+    /// The row below the title rows: whether the title follows the default
+    /// title style of the profile, with "Reset to the profile default" when
+    /// it has own values (decision 0043, section 2).
+    fn title_default_row(&self, content: &SurfaceContent, cx: &mut Context<Self>) -> AnyElement {
+        let own = content.label_style != LabelStyle::default();
+        let text = if own {
+            "This title has its own style."
+        } else {
+            "This title follows the profile default."
+        };
+        let reset = own.then(|| {
+            controls::small_button("title-style-reset", "Reset to the profile default", true)
+                .on_click(cx.listener(|view, _, window, cx| {
+                    view.reset_label_style();
+                    view.focus_workspace(window, cx);
+                    cx.notify();
+                }))
+                .into_any_element()
+        });
+        div()
+            .id("title-style-default")
+            .debug_selector(|| "title-style-default".into())
+            .readable_text(text)
+            .flex()
+            .items_center()
+            .gap(theme::SPACE_8)
+            .text_size(theme::TEXT_HELP)
+            .text_color(theme::text_tertiary())
+            .child(div().flex_1().min_w_0().child(text))
+            .children(reset)
+            .into_any_element()
+    }
+
+    /// Clear each own value of the title style of the edited face: the title
+    /// follows the profile default again. It is one step of the history.
+    fn reset_label_style(&mut self) {
+        let Some(surface) = self.state.edit_surface() else {
+            return;
+        };
+        let on = self.editing_on_face(surface);
+        let changes = [
+            LabelChange::Font(None),
+            LabelChange::Position(None),
+            LabelChange::Size(None),
+            LabelChange::Color(None),
+            LabelChange::Bold(None),
+            LabelChange::Italic(None),
+            LabelChange::Underline(None),
+        ];
+        let commands = changes
+            .into_iter()
+            .map(|change| Command::SetLabelStyle { surface, change }.for_face(on))
+            .collect();
+        (self.send)(Command::Group {
+            name: "Reset the Title Style".into(),
+            commands,
+        });
     }
 
     /// The rows of the crop of an image: "Zoom", "Offset", "Reset", and the
@@ -758,7 +818,10 @@ impl DeviceView {
     /// surface shows, also when the profile has no position (the engine
     /// gives the automatic position).
     fn label_position(&self, content: &SurfaceContent, cx: &mut Context<Self>) -> AnyElement {
-        let current = content.label_style.position_for(content.has_picture());
+        let current = content
+            .label_style
+            .resolve(&self.state.default_label_style())
+            .position_for(content.has_picture());
         let segments = LabelPosition::ALL
             .into_iter()
             .map(|position| {
@@ -797,9 +860,11 @@ impl DeviceView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         // The values that show: the own values of the surface, or else the
-        // engine default until the default title style of the profile comes
+        // default title style of the profile, and then the engine default
         // (decision 0043).
-        let style = content.label_style.resolve(&LabelStyle::default());
+        let style = content
+            .label_style
+            .resolve(&self.state.default_label_style());
         div()
             .flex()
             .items_center()
@@ -958,7 +1023,7 @@ impl DeviceView {
             .as_ref()
             .and_then(Auto::value)
             .copied();
-        let shown = label_color(content);
+        let shown = label_color_for(content, &self.state.default_label_style());
         let tooltip = match current {
             Some(colour) => format!("Text colour {}", colour_text(colour)),
             None => format!("Text colour: automatic ({})", colour_text(shown)),

@@ -17,6 +17,14 @@ Last update: 2026-11-22
 | The extra crate count is the set difference from the image-only baseline. The command is `cargo tree -e normal,build --prefix none --format '{p}'`, for the host target. A name and version pair counts once. The count includes the candidate and build dependencies. It excludes dev dependencies and inactive targets. | Measured | T: `tree-*.txt`, `measure.py` |
 | The extra binary size is the file size minus the image-only binary. All binaries have the same profile and PNG writer. The baseline is 582 864 bytes. The single-font binaries include the font bytes. System frameworks and system font files are not in the binary size. | Measured | T: `bins/`, `measure.py` |
 
+## The profile default title style
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A surface resolves each part of its title style in this order: the own value of the surface, the value of the default title style of the profile, the engine default. | Source | `crates/engine/src/profile.rs`, `LabelStyle::resolve` |
+| The profile file has the table `[default_label_style]`. `FileData` puts the field before `pages`, thus the TOML serializer writes the table before the array of page tables. | Source | `crates/engine/src/store.rs`, `FileData` and `to_text` |
+| A file of schema 1 to 7 with `[default_label_style]` is an error with a backup. A file of schema 8 loads it, and the engine writes no table for the empty style. | Source | `crates/engine/src/store.rs`, the schema tests |
+
 ## Candidates and fonts
 
 | Fact | Confidence | Source |
