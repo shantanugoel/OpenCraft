@@ -26,7 +26,7 @@ use gpui_kit::{
 };
 use opencraft_engine::{
     label::{self, FontFamily},
-    Auto, LabelChange, LabelStyle, SurfaceContent,
+    Auto, LabelChange, SurfaceContent,
 };
 use std::cell::{Cell, Ref, RefCell};
 
@@ -209,7 +209,9 @@ impl DeviceView {
         // The family that shows: the own family of the surface, or else the
         // engine default until the default title style of the profile comes
         // (decision 0043).
-        let style = content.label_style.resolve(&LabelStyle::default());
+        let style = content
+            .label_style
+            .resolve(&self.state.default_label_style());
         let current = style.font.clone();
         let value = match &current {
             Some(family) => family.clone(),
@@ -332,7 +334,9 @@ impl DeviceView {
             return;
         };
         let content = self.edited_face(surface);
-        let style = content.label_style.resolve(&LabelStyle::default());
+        let style = content
+            .label_style
+            .resolve(&self.state.default_label_style());
         let picker = &mut self.inspector.font_picker;
         let index = match &style.font {
             None => 0,
@@ -550,7 +554,7 @@ impl DeviceView {
         let current = self.state.edit_surface().map(|surface| {
             self.edited_face(surface)
                 .label_style
-                .resolve(&LabelStyle::default())
+                .resolve(&self.state.default_label_style())
                 .font
         });
         let checked = match row {

@@ -74,6 +74,8 @@ pub struct ProfileEntry {
     /// The owner of each link in `applications`, in the same order. A link
     /// does not apply if its owner is a different profile.
     pub link_owners: Vec<LinkOwner>,
+    /// The default title style of the profile (decision 0043, section 2).
+    pub default_label_style: crate::profile::LabelStyle,
 }
 
 /// The owner of a link to an application: the first profile, in the order of
@@ -97,6 +99,7 @@ impl ProfileEntry {
             page_ids: profile.pages().iter().map(Page::id).collect(),
             first_page: profile.first_page(),
             applications: profile.applications.clone(),
+            default_label_style: profile.default_label_style.clone(),
             ..Self::default()
         }
     }
@@ -146,6 +149,7 @@ impl ProfilesDir {
                     page_ids: summary.page_ids,
                     first_page: summary.first_page,
                     applications: summary.applications,
+                    default_label_style: summary.default_label_style,
                     ..ProfileEntry::default()
                 });
             }

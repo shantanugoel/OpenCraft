@@ -500,6 +500,24 @@ pub const COMMANDS: &[Command] = &[
         &[PROFILE, COLOR]
     ),
     change!(
+        "profile set-title-style",
+        "set_profile_default_label_style",
+        "Set the default title style of a profile. Leave out all values to make each part the engine default.",
+        "opencraft ctl profile set-title-style --profile work --font 'Avenir Next' --size 24 --bold false",
+        &[
+            PROFILE,
+            &[
+                arg("font", "style.font", Kind::Text, "A family of an installed font, or `system`. Leave it out for the system font."),
+                arg("position", "style.position", Kind::Text, "`top`, `middle`, `bottom`, or `none`. Leave it out for the automatic position."),
+                arg("size", "style.size", Kind::Int, "The size of the font, in pixels, from 10 to 80. Leave it out for 20."),
+                arg("color", "style.color", Kind::Text, "A colour as `#RRGGBB`, or `auto`. Leave it out for the automatic colour."),
+                arg("bold", "style.bold", Kind::Bool, "`true` or `false`. Leave it out for bold."),
+                arg("italic", "style.italic", Kind::Bool, "`true` or `false`. Leave it out for upright."),
+                arg("underline", "style.underline", Kind::Bool, "`true` or `false`. Leave it out for no underline."),
+            ]
+        ]
+    ),
+    change!(
         "profile set-default",
         "set_default_profile",
         "Make a profile the default profile.",

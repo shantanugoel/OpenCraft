@@ -334,6 +334,11 @@ fn the_profile_sheet_is_a_dialog_with_labels(cx: &mut TestAppContext) {
     assert_has(&nodes, Role::Label, "Profile settings");
     assert_has(&nodes, Role::TextInput, "Name");
     assert_has(&nodes, Role::ComboBox, "First page");
+    assert_has(&nodes, Role::TextInput, "Default title font");
+    assert_has(&nodes, Role::ComboBox, "Default title size");
+    assert_has(&nodes, Role::RadioButton, "Automatic");
+    assert_has(&nodes, Role::RadioButton, "Title #FFFFFF");
+    assert_has(&nodes, Role::Button, "Reset");
     assert_has(&nodes, Role::Button, "Add an application…");
     assert_has(&nodes, Role::Switch, "Default profile");
     assert_has(&nodes, Role::Button, "Done");

@@ -336,7 +336,13 @@ fn align(position: LabelPosition) -> Align {
 /// or else black or white for the fill (see [`text_color`]). A shell can use
 /// it to show the colour of the label.
 pub fn label_color(content: &SurfaceContent) -> Color {
-    let style = content.label_style.resolve(&LabelStyle::default());
+    label_color_for(content, &LabelStyle::default())
+}
+
+/// The colour of the label of `content`, resolved with the default title
+/// style of the profile (decision 0043, section 2).
+pub fn label_color_for(content: &SurfaceContent, profile_default: &LabelStyle) -> Color {
+    let style = content.label_style.resolve(profile_default);
     style
         .color
         .unwrap_or_else(|| text_color(content.color.unwrap_or(DEFAULT_COLOR)))

@@ -75,6 +75,12 @@ below the field **Title**.
   band, and the icon or the image is smaller. A title at the middle is on
   the icon or the image.
 - A bar panel has the same rows.
+- A key with no own title style follows the default title style of the
+  profile. The row below the title rows says "This title follows the profile
+  default." When you change a part of the title style, it says "This title
+  has its own style." and it shows **Reset to the profile default**. Click
+  the button to clear each own part, so that the title follows the profile
+  default again. The change is one step of Edit > Undo.
 
 ## 3. Set an icon (optional)
 

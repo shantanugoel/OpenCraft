@@ -62,8 +62,8 @@ use crate::location::{Holder, Location};
 use crate::power::{DisplayState, Power, PowerNotice};
 use crate::profile::{
     image_uses_of, ApplicationLink, Background, BackgroundFit, Color, Folder, FolderEntry,
-    FolderId, ImageCrop, LabelChange, Page, PageId, Profile, SurfaceContent, SurfaceIcon,
-    DEFAULT_PROFILE_NAME,
+    FolderId, ImageCrop, LabelChange, LabelStyle, Page, PageId, Profile, SurfaceContent,
+    SurfaceIcon, DEFAULT_PROFILE_NAME,
 };
 use crate::profile_list::ProfileList;
 use crate::profiles::{ProfileEntry, ProfilesDir};
@@ -294,6 +294,12 @@ pub enum Command {
         profile: String,
         color: Option<Color>,
     },
+    /// Give the profile `profile` the default title style `style`
+    /// (decision 0043, section 2). A part of the style that is `None` gives
+    /// the engine default. The undo history does not cover it: it is a
+    /// profile setting, as the colour is. The engine redraws each surface of
+    /// the active page and the open folder that inherits a changed part.
+    SetProfileDefaultLabelStyle { profile: String, style: LabelStyle },
     /// Make `page` the first page of the profile `profile`: the page that
     /// the device shows when the profile becomes the active profile. For
     /// the active profile, this is a step of the history, because the mark
@@ -572,10 +578,11 @@ fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Tar
         | Command::AddProfile { .. }
         | Command::RenameProfile { .. }
         | Command::RemoveProfile { .. }
-        // The colour is a part of the profile that is not in the pages, as
-        // the name. An export changes nothing. An import adds a profile and
-        // makes it the active profile.
+        // The colour and the default title style are parts of the profile
+        // that are not in the pages, as the name. An export changes nothing.
+        // An import adds a profile and makes it the active profile.
         | Command::SetProfileColor { .. }
+        | Command::SetProfileDefaultLabelStyle { .. }
         | Command::ExportProfile { .. }
         | Command::ImportProfile { .. }
         | Command::AddStarterProfile { .. }
@@ -2589,6 +2596,59 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         self.send_profiles();
     }
 
+    /// Change the default title style of a profile (decision 0043, section
+    /// 2). A change of the active profile redraws each surface of the active
+    /// page and the open folder that inherits a changed part. The engine
+    /// sends the profiles before the surfaces, thus a shell resolves the
+    /// surfaces with the new default.
+    fn set_profile_default_label_style(&mut self, id: String, style: LabelStyle) {
+        let style = style.normalized();
+        if !self.is_profile(&id) {
+            return;
+        }
+        if id != self.profile_id {
+            self.change_profile_settings(id, "default title style", |profile| {
+                std::mem::replace(&mut profile.default_label_style, style.clone()) != style
+            });
+            return;
+        }
+        let before = self.profile.default_label_style.clone();
+        if before == style {
+            return;
+        }
+        if !self.profile.edit_if(|profile| {
+            std::mem::replace(&mut profile.default_label_style, style.clone()) != style
+        }) {
+            return;
+        }
+        self.update_entry();
+        self.send_profiles();
+        self.redraw_default_label_style(&before);
+    }
+
+    /// Redraw each surface of the active page and the open folder whose title
+    /// style shows a different value after a change of the profile default.
+    fn redraw_default_label_style(&mut self, before: &LabelStyle) {
+        let after = &self.profile.default_label_style;
+        let changed: BTreeSet<SurfaceId> = self
+            .descriptor
+            .slot_surfaces()
+            .filter(|surface| {
+                let content = self.location.content(&self.profile, surface.id);
+                let style_changed =
+                    content.label_style.resolve(before) != content.label_style.resolve(after);
+                let on_changed = content.on.as_deref().is_some_and(|on| {
+                    on.label_style.resolve(before) != on.label_style.resolve(after)
+                });
+                style_changed || on_changed
+            })
+            .map(|surface| surface.id)
+            .collect();
+        if !changed.is_empty() {
+            self.redraw_surfaces(Some(changed));
+        }
+    }
+
     fn set_first_page(&mut self, id: String, page: usize) {
         if id == self.profile_id {
             if !self.is_page(page) {
@@ -2900,7 +2960,11 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
     /// Make the image of `surface` from the profile, keep it, and send the
     /// state of the surface.
     fn render(&mut self, surface: &Surface) {
-        let content = self.location.content(&self.profile, surface.id);
+        let own = self.location.content(&self.profile, surface.id);
+        // The renderer takes the title style with the profile default
+        // resolved into own values (decision 0043, section 2). The shell gets
+        // the own values, thus the inspector can show an inherited part.
+        let content = own.with_resolved_label_style(&self.profile.default_label_style);
         let mut load = |face: &SurfaceContent| {
             face.image
                 .as_deref()
@@ -2973,7 +3037,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
         });
         (self.sink)(Event::Surface(SurfaceState {
             id: surface.id,
-            content,
+            content: own,
             image,
             image_size,
             image_area,
@@ -3395,6 +3459,9 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
                 self.change_profile_settings(profile, "colour of the profile", |p| {
                     std::mem::replace(&mut p.color, color) != color
                 })
+            }
+            Command::SetProfileDefaultLabelStyle { profile, style } => {
+                self.set_profile_default_label_style(profile, style)
             }
             Command::SetFirstPage { profile, page } => self.set_first_page(profile, page),
             Command::ExportProfile { profile, path } => self.export_profile(profile, path),

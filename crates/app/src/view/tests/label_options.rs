@@ -125,6 +125,77 @@ fn the_size_menu_sets_each_size_and_shows_the_size_of_the_profile(cx: &mut TestA
     assert_eq!(changes(&sent, key()).len(), want.len());
 }
 
+/// The profiles event with the active profile `default` and the default
+/// title style `style`.
+fn profile_default(style: LabelStyle) -> Event {
+    Event::Profiles {
+        profiles: vec![opencraft_engine::ProfileEntry {
+            id: "default".into(),
+            name: "Default".into(),
+            default_label_style: style,
+            ..Default::default()
+        }],
+        active: "default".into(),
+        default: "default".into(),
+        cause: opencraft_engine::ActiveCause::Selected,
+    }
+}
+
+#[gpui_kit::test]
+fn the_title_shows_whether_it_follows_the_profile_default(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    let default = LabelStyle {
+        font: Some(Auto::Value("Menlo".into())),
+        position: Some(Auto::Value(LabelPosition::Top)),
+        size: Some(30),
+        color: Some(Auto::Value(colour(0xb83f4c))),
+        bold: Some(false),
+        italic: Some(true),
+        underline: Some(true),
+    };
+    send(cx, &tx, profile_default(default.clone()));
+    cx.update(|_, cx| {
+        assert_eq!(_view.read(cx).state.default_label_style().size, Some(30));
+    });
+    send(cx, &tx, styled(key(), LabelStyle::default(), false));
+    assert!(cx.debug_bounds("title-style-default").is_some());
+    assert!(
+        cx.debug_bounds("title-style-reset").is_none(),
+        "a title with no own style has nothing to reset"
+    );
+
+    // An own value shows the reset, and the reset clears each part.
+    let own = LabelStyle {
+        size: Some(14),
+        ..LabelStyle::default()
+    };
+    send(cx, &tx, styled(key(), own, false));
+    assert!(cx.debug_bounds("title-style-reset").is_some());
+    click(cx, "title-style-reset");
+    let Some(Command::Group { name, commands }) = sent.borrow().last().cloned() else {
+        panic!("{:?}", sent.borrow());
+    };
+    assert_eq!(name, "Reset the Title Style");
+    assert_eq!(commands.len(), 7);
+    for command in commands {
+        let Command::SetLabelStyle { surface, change } = command else {
+            panic!("{command:?}");
+        };
+        assert_eq!(surface, key());
+        assert!(matches!(
+            change,
+            LabelChange::Font(None)
+                | LabelChange::Position(None)
+                | LabelChange::Size(None)
+                | LabelChange::Color(None)
+                | LabelChange::Bold(None)
+                | LabelChange::Italic(None)
+                | LabelChange::Underline(None)
+        ));
+    }
+}
+
 #[gpui_kit::test]
 fn the_colour_popover_sets_automatic_a_sample_or_a_hex_value(cx: &mut TestAppContext) {
     let (_view, cx, tx, sent) = window(cx);

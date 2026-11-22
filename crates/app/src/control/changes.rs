@@ -121,6 +121,18 @@ impl From<w::LabelPosition> for e::LabelPosition {
     }
 }
 
+impl From<w::AutoLabelPosition> for e::LabelPosition {
+    fn from(position: w::AutoLabelPosition) -> Self {
+        match position {
+            w::AutoLabelPosition::Auto => Self::Middle,
+            w::AutoLabelPosition::Top => Self::Top,
+            w::AutoLabelPosition::Middle => Self::Middle,
+            w::AutoLabelPosition::Bottom => Self::Bottom,
+            w::AutoLabelPosition::Hidden => Self::Hidden,
+        }
+    }
+}
+
 impl From<w::BackgroundFit> for e::BackgroundFit {
     fn from(fit: w::BackgroundFit) -> Self {
         match fit {
@@ -293,6 +305,7 @@ fn named(method: &w::Method) -> w::Changed {
         M::Undo(p) | M::Redo(p) => profile(&p.profile),
         M::RenameProfile(p) => profile(&p.profile),
         M::SetProfileColor(p) => profile(&p.profile),
+        M::SetProfileDefaultLabelStyle(p) => profile(&p.profile),
         M::LinkApplication(p) => profile(&p.profile),
         M::UnlinkApplication(p) => profile(&p.profile),
         M::ExportProfile(p) => profile(&p.profile),
@@ -409,6 +422,45 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                     ],
                 },
             ))
+        }
+        M::SetProfileDefaultLabelStyle(p) => {
+            profile_of(state, &p.profile)?;
+            let style = match p.style {
+                None => e::LabelStyle::default(),
+                Some(style) => {
+                    let font = match style.font {
+                        None => None,
+                        Some(text) if text == "system" => Some(e::Auto::Auto),
+                        Some(text) if text.trim().is_empty() => {
+                            return Err("the font family is empty".into());
+                        }
+                        Some(text) => Some(e::Auto::Value(text)),
+                    };
+                    let position = style.position.map(|position| match position {
+                        w::AutoLabelPosition::Auto => e::Auto::Auto,
+                        position => e::Auto::Value(position.into()),
+                    });
+                    let color = match style.color {
+                        None => None,
+                        Some(text) if text == "auto" => Some(e::Auto::Auto),
+                        Some(text) => Some(e::Auto::Value(parse(text, "colour")?)),
+                    };
+                    e::LabelStyle {
+                        font,
+                        position,
+                        size: style.size,
+                        color,
+                        bold: style.bold,
+                        italic: style.italic,
+                        underline: style.underline,
+                    }
+                    .normalized()
+                }
+            };
+            nothing(C::SetProfileDefaultLabelStyle {
+                profile: p.profile,
+                style,
+            })
         }
         M::SetColor(p) => {
             let surface = surface(p.surface, state)?;
@@ -827,6 +879,7 @@ pub(super) fn content(
             Ok(w::Surface::from_content(
                 s.id,
                 &location.content(profile, id),
+                &profile.default_label_style,
             ))
         })
         .collect::<Result<_, String>>()?;

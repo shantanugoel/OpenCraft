@@ -365,6 +365,24 @@ sheet is open.
 | **Name** | The name of the profile. The new name applies when you push Return, click **Done**, or click a different control. An empty name does not change the name. |
 | **Colour** | The colour of the profile icon in the sidebar. The circle with no colour removes the colour. |
 | **First page** | The page that the device shows when the profile becomes the active profile, also when OpenCraft starts. If you remove this page, the first page in the list is the first page again. |
+| **Default title style** | The font, the size, the weight of the font, the position, and the colour of a title that has no own style. A key with no own title style follows these values. **Reset** makes each part the engine default again. |
+
+The section **Default title style** is below the settings above. It has the
+rows **Font**, **Position**, and **Colour**. The row **Font** also has the
+size, **B**, **I**, and **U**.
+- **Font** is a field for the family of an installed font. An empty field is
+  the system font.
+- **Position** has **Automatic**, **Top**, **Middle**, **Bottom**, and
+  **None**. **Automatic** puts the title at the middle of a key with no
+  image or icon, and at the bottom of a key with an image or an icon.
+- **Colour** has **A** for the automatic colour, white, black, and the fill
+  colours. The automatic colour is black or white for the fill.
+- **Reset** is at the end of the section. It makes each part the engine
+  default: the system font, the automatic position, 20 pt, the automatic
+  colour, bold, upright, and no underline.
+
+A key with no own title style follows these values at once. A part that the
+key has as its own value does not change.
 
 ### Applications
 

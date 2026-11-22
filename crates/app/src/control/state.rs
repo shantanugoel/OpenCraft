@@ -72,6 +72,17 @@ impl From<e::LabelPosition> for w::LabelPosition {
     }
 }
 
+impl From<e::LabelPosition> for w::AutoLabelPosition {
+    fn from(position: e::LabelPosition) -> Self {
+        match position {
+            e::LabelPosition::Top => Self::Top,
+            e::LabelPosition::Middle => Self::Middle,
+            e::LabelPosition::Bottom => Self::Bottom,
+            e::LabelPosition::Hidden => Self::Hidden,
+        }
+    }
+}
+
 impl From<e::BackgroundFit> for w::BackgroundFit {
     fn from(fit: e::BackgroundFit) -> Self {
         match fit {
@@ -370,18 +381,40 @@ impl From<&e::ProfileEntry> for w::Profile {
                     profile: l.profile.clone(),
                 })
                 .collect(),
+            default_label_style: w::DefaultLabelStyle::from(&profile.default_label_style),
         }
     }
 }
 
-impl From<&e::SurfaceState> for w::Surface {
-    fn from(surface: &e::SurfaceState) -> Self {
-        Self::from_content(surface.id.into(), &surface.content)
+impl From<&e::LabelStyle> for w::DefaultLabelStyle {
+    fn from(style: &e::LabelStyle) -> Self {
+        Self {
+            font: style.font.as_ref().map(|font| match font {
+                e::Auto::Auto => "system".to_string(),
+                e::Auto::Value(name) => name.clone(),
+            }),
+            position: style.position.as_ref().map(|position| match position {
+                e::Auto::Auto => w::AutoLabelPosition::Auto,
+                e::Auto::Value(position) => (*position).into(),
+            }),
+            size: style.size,
+            color: style.color.as_ref().map(|color| match color {
+                e::Auto::Auto => "auto".to_string(),
+                e::Auto::Value(color) => color.to_string(),
+            }),
+            bold: style.bold,
+            italic: style.italic,
+            underline: style.underline,
+        }
     }
 }
 
 impl w::Surface {
-    pub(super) fn from_content(id: w::SurfaceId, c: &e::SurfaceContent) -> Self {
+    pub(super) fn from_content(
+        id: w::SurfaceId,
+        c: &e::SurfaceContent,
+        default: &e::LabelStyle,
+    ) -> Self {
         let w::SurfaceFace {
             label,
             label_style,
@@ -391,7 +424,7 @@ impl w::Surface {
             image_zoom,
             image_offset_x,
             image_offset_y,
-        } = w::SurfaceFace::from_content(c);
+        } = w::SurfaceFace::from_content(c, default);
         Self {
             id,
             label,
@@ -402,17 +435,20 @@ impl w::Surface {
             image_zoom,
             image_offset_x,
             image_offset_y,
-            on: c.on.as_deref().map(w::SurfaceFace::from_content),
+            on: c
+                .on
+                .as_deref()
+                .map(|on| w::SurfaceFace::from_content(on, default)),
         }
     }
 }
 
 impl w::SurfaceFace {
-    fn from_content(c: &e::SurfaceContent) -> Self {
+    fn from_content(c: &e::SurfaceContent, default: &e::LabelStyle) -> Self {
         // The wire has the values that show, not the own values of the
-        // surface: a part with no own value shows the engine default until
-        // the default title style of the profile comes (decision 0043).
-        let style = c.label_style.resolve(&e::LabelStyle::default());
+        // surface: a part with no own value shows the default title style of
+        // the profile, and then the engine default (decision 0043).
+        let style = c.label_style.resolve(default);
         Self {
             label: c.label.clone(),
             label_style: w::LabelStyle {
@@ -472,6 +508,36 @@ impl From<&e::DeviceSettings> for w::DeviceSettings {
 }
 
 impl w::State {
+    /// The default title style of the active profile. The wire profile has
+    /// it from `Event::Profiles` (decision 0043, section 2).
+    fn default_label_style(&self) -> e::LabelStyle {
+        let Some(active) = self.profiles.active.as_ref() else {
+            return e::LabelStyle::default();
+        };
+        let Some(profile) = self.profiles.profiles.iter().find(|p| &p.id == active) else {
+            return e::LabelStyle::default();
+        };
+        let style = &profile.default_label_style;
+        e::LabelStyle {
+            font: style.font.as_ref().map(|font| match font.as_str() {
+                "system" => e::Auto::Auto,
+                name => e::Auto::Value(name.to_string()),
+            }),
+            position: style.position.map(|position| match position {
+                w::AutoLabelPosition::Auto => e::Auto::Auto,
+                position => e::Auto::Value(position.into()),
+            }),
+            size: style.size,
+            color: style.color.as_ref().map(|color| match color.as_str() {
+                "auto" => e::Auto::Auto,
+                text => e::Auto::Value(text.parse().unwrap_or_default()),
+            }),
+            bold: style.bold,
+            italic: style.italic,
+            underline: style.underline,
+        }
+    }
+
     /// Each event has an explicit policy. This runs on the engine thread, in
     /// the sink, and it cannot fail; the copy contains no rendered pixels.
     pub(super) fn apply(&mut self, event: &e::Event) {
@@ -627,7 +693,8 @@ impl w::State {
             e::Event::DeviceSettings(settings) => self.device_settings = Some(settings.into()),
             e::Event::Surface(surface) => {
                 // The place of a surface in the list does not change.
-                let wire = w::Surface::from(surface);
+                let default = self.default_label_style();
+                let wire = w::Surface::from_content(surface.id.into(), &surface.content, &default);
                 match self.content.surfaces.iter_mut().find(|s| s.id == wire.id) {
                     Some(old) => *old = wire,
                     None => {
@@ -705,6 +772,7 @@ pub(super) fn permitted(command: &e::Command) -> bool {
         e::Command::RenameProfile { .. } => true,
         e::Command::RemoveProfile { .. } => true,
         e::Command::SetProfileColor { .. } => true,
+        e::Command::SetProfileDefaultLabelStyle { .. } => true,
         e::Command::SetFirstPage { .. } => true,
         e::Command::ExportProfile { .. } => true,
         e::Command::ImportProfile { .. } => true,

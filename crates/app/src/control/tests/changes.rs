@@ -640,6 +640,91 @@ fn the_image_crop_requests_set_read_and_reset_the_crop() {
 }
 
 #[test]
+fn the_default_title_style_request_sets_reads_and_clears_the_profile_default() {
+    let mut live = Live::new();
+    let first = live.active.clone();
+    let surface = surface_1();
+    let key = |live: &mut Live| {
+        live.content(live.at(0))["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == surface)
+            .unwrap()
+            .clone()
+    };
+    live.ok(
+        "set_profile_default_label_style",
+        json!({"profile": first, "style": {"font": "Menlo", "position": "top",
+               "size": 30, "color": "#ff0000", "bold": false, "italic": true,
+               "underline": true}}),
+    );
+    let entry = live.read("profiles")["profiles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == first)
+        .unwrap()
+        .clone();
+    assert_eq!(entry["default_label_style"]["font"], "Menlo");
+    assert_eq!(entry["default_label_style"]["position"], "top");
+    assert_eq!(entry["default_label_style"]["size"], 30);
+    assert_eq!(entry["default_label_style"]["color"], "#FF0000");
+    assert_eq!(entry["default_label_style"]["bold"], false);
+    assert_eq!(entry["default_label_style"]["italic"], true);
+    assert_eq!(entry["default_label_style"]["underline"], true);
+    // The surface has no own style: the read shows the profile default.
+    let shown = key(&mut live);
+    assert_eq!(shown["label_style"]["font"], "Menlo");
+    assert_eq!(shown["label_style"]["position"], "top");
+    assert_eq!(shown["label_style"]["size"], 30);
+    assert_eq!(shown["label_style"]["color"], "#FF0000");
+    assert_eq!(shown["label_style"]["bold"], false);
+    assert_eq!(shown["label_style"]["italic"], true);
+    assert_eq!(shown["label_style"]["underline"], true);
+
+    // The word "system" is the automatic font of the profile default.
+    live.ok(
+        "set_profile_default_label_style",
+        json!({"profile": first, "style": {"font": "system", "position": "auto"}}),
+    );
+    let entry = live.read("profiles")["profiles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == first)
+        .unwrap()
+        .clone();
+    assert_eq!(entry["default_label_style"]["font"], "system");
+    let shown = key(&mut live);
+    assert!(shown["label_style"]["font"].is_null());
+
+    // No style clears each part.
+    live.ok(
+        "set_profile_default_label_style",
+        json!({"profile": first, "style": null}),
+    );
+    let entry = live.read("profiles")["profiles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == first)
+        .unwrap()
+        .clone();
+    assert_eq!(entry["default_label_style"], json!({}));
+    let shown = key(&mut live);
+    assert!(shown["label_style"]["font"].is_null());
+    assert_eq!(shown["label_style"]["size"], 20);
+
+    let (code, text) = live.fails(
+        "set_profile_default_label_style",
+        json!({"profile": first, "style": {"font": "  "}}),
+    );
+    assert_eq!(code, "invalid_params");
+    assert!(text.contains("font"), "{text}");
+}
+
+#[test]
 fn binding_and_control_requests_set_remove_copy_paste_clear_and_copy_to_all_pages() {
     let mut live = Live::new();
     let profile = live.active.clone();

@@ -338,6 +338,15 @@ pub struct SetProfileColorParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct SetProfileDefaultLabelStyleParams {
+    pub profile: String,
+    /// No style clears each part: the profile then follows the engine
+    /// default. A value that is left out inherits the engine default.
+    pub style: Option<DefaultLabelStyle>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LinkApplicationParams {
     pub profile: String,
     pub link: ApplicationLink,
@@ -455,6 +464,7 @@ pub enum Method {
     RemoveProfile(ProfileParams),
     SelectProfile(ProfileParams),
     SetProfileColor(SetProfileColorParams),
+    SetProfileDefaultLabelStyle(SetProfileDefaultLabelStyleParams),
     SetFirstPage(PageTargetParams),
     SetDefaultProfile(ProfileParams),
     LinkApplication(LinkApplicationParams),
@@ -521,6 +531,7 @@ impl Method {
             | Self::RemoveProfile(_)
             | Self::SelectProfile(_)
             | Self::SetProfileColor(_)
+            | Self::SetProfileDefaultLabelStyle(_)
             | Self::SetFirstPage(_)
             | Self::SetDefaultProfile(_)
             | Self::LinkApplication(_)
@@ -580,6 +591,7 @@ impl Method {
             Self::RemoveProfile(_) => "remove_profile",
             Self::SelectProfile(_) => "select_profile",
             Self::SetProfileColor(_) => "set_profile_color",
+            Self::SetProfileDefaultLabelStyle(_) => "set_profile_default_label_style",
             Self::SetFirstPage(_) => "set_first_page",
             Self::SetDefaultProfile(_) => "set_default_profile",
             Self::LinkApplication(_) => "link_application",
@@ -642,6 +654,7 @@ pub const METHODS: &[&str] = &[
     "remove_profile",
     "select_profile",
     "set_profile_color",
+    "set_profile_default_label_style",
     "set_first_page",
     "set_default_profile",
     "link_application",
@@ -1022,6 +1035,8 @@ pub struct Profile {
     pub applications: Vec<ApplicationLink>,
     pub applied: Vec<ApplicationLink>,
     pub link_owners: Vec<LinkOwner>,
+    /// The default title style of the profile (decision 0043, section 2).
+    pub default_label_style: DefaultLabelStyle,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1125,6 +1140,41 @@ pub struct SurfaceFace {
     /// `None` is 0.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_offset_y: Option<i16>,
+}
+
+/// The own values of the default title style of a profile. An absent value
+/// is the engine default (decision 0043, section 2).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DefaultLabelStyle {
+    /// The family of the font, or `"system"` for the system font.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<AutoLabelPosition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u8>,
+    /// A colour as `#RRGGBB`, or `"auto"` for the automatic colour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bold: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub italic: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underline: Option<bool>,
+}
+
+/// The position of the default title style: a value, or the automatic
+/// position (`"auto"`), which is a value of the profile default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoLabelPosition {
+    Auto,
+    Top,
+    Middle,
+    Bottom,
+    Hidden,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
