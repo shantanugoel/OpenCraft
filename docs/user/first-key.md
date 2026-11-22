@@ -148,6 +148,8 @@ A face with an image has three more rows in **Appearance**:
 | **Offset** | The four arrows move the image. The left and the right arrows move it across, and the up and the down arrows move it up and down. An arrow of a side that has no space does nothing: it is grey. |
 | **Reset** | Shows all of the image again: the zoom becomes 100 %, and the image is at the centre. The button is grey when the image is at the fit. |
 
+![Key 1 with the image at 200 %, key 2 with an image of 64 × 64 pixels, and the rows Zoom, Offset, and Reset in the Appearance section](images/image-crop.png)
+
 The zoom and the offsets are part of the face. A key face and a bar panel
 keep their own crop, and the On face of a key keeps its own crop too. The
 zoom and the offsets also stay in the profile, thus they show again after a

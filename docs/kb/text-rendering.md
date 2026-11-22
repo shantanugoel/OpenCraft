@@ -155,6 +155,12 @@ warm-up, and the mean of 100 calls: no decode is in the time.
 - The engine draws one surface after each zoom or move. The engine test
   `the_zoom_and_the_pan_show_on_the_device_and_in_the_state` shows that the
   device gets the same picture (rule 11).
+- On 2026-11-22, a real window at 1440 × 900 and at 1080 × 700 showed the
+  three rows with no cut, and the four arrows and Reset were grey at the fit
+  and enabled at zoom 200 %, as the accessibility tree said. A key of the
+  N4 Pro showed the same picture as the window at zoom 200 % with a pan to
+  the left edge (the left half of a test image) and at the fit (measured
+  with the camera of an installed phone).
 
 ## The label module of the engine
 
