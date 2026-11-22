@@ -254,20 +254,17 @@ impl DeviceView {
 
     /// Set the image of `surface` from the system pasteboard. The bytes go
     /// to a temporary file, because the engine makes the copy (rule 9).
-    /// The file goes away when the engine sends the surface, or when a
-    /// problem names it, or at the stop (decision 0043, section 5).
+    /// The shell removes the file when the engine has read it, also when the
+    /// image does not change and the engine sends no surface (decision 0043,
+    /// section 5).
     fn paste_image(&mut self, surface: SurfaceId, image: ClipboardImage, cx: &mut Context<Self>) {
-        let path = match image {
-            ClipboardImage::File(path) => path,
+        let (path, temporary) = match image {
+            // A path of the user is not a temporary file: the engine reads
+            // it and the window keeps it.
+            ClipboardImage::File(path) => (path, false),
             ClipboardImage::Bytes { bytes, extension } => {
                 match pasteboard::temporary_image(&bytes, extension) {
-                    Ok(path) => {
-                        self.pending_images.push(PendingImage {
-                            path: path.clone(),
-                            surface,
-                        });
-                        path
-                    }
+                    Ok(path) => (path, true),
                     Err(error) => {
                         self.state
                             .problems
@@ -278,7 +275,16 @@ impl DeviceView {
                 }
             }
         };
-        self.set_image_path(surface, path);
+        if temporary {
+            let command = Command::SetImage {
+                surface,
+                path: Some(path.clone()),
+            }
+            .for_face(self.editing_on_face(surface));
+            self.send_temporary_image(command, path, cx);
+        } else {
+            self.set_image_path(surface, path);
+        }
     }
 
     /// Paste the item of the system pasteboard when it is possible. Return
@@ -287,15 +293,16 @@ impl DeviceView {
     /// (KEY-13). Any other image sets the image.
     fn paste_system_image(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.refresh_system_clipboard();
-        let (Some(surface), Some(image)) = (
-            self.paste_surface(),
-            self.state.system_clipboard.image.clone(),
-        ) else {
+        let Some(surface) = self.paste_surface() else {
             return false;
         };
         if !self.system_image_is_newer() {
             return false;
         }
+        // The window reads the bytes only now, when the user pastes.
+        let Some(image) = self.state.system_clipboard.image() else {
+            return false;
+        };
         if let ClipboardImage::File(path) = &image {
             if crate::applications::is_application_bundle(path) {
                 let path = path.clone();
@@ -336,6 +343,9 @@ impl DeviceView {
         let Some(control) = self.clipboard_control() else {
             return;
         };
+        // A screenshot or a copy in another application does not draw a
+        // frame. Read the pasteboard before the menu shows Paste.
+        self.refresh_system_clipboard();
         // The menu sends its action to the focus: the root element.
         self.focus_workspace(window, cx);
         let mut menu = NativeMenu::new();

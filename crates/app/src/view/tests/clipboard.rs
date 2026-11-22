@@ -7,6 +7,7 @@ use super::*;
 use crate::app_menu::{Clear, Copy, CopyToAllPages, Paste};
 use crate::pasteboard::{ClipboardImage, SystemClipboard};
 use gpui_kit::{ExternalPaths, FileDropEvent, MouseButton, MouseDownEvent, PlatformInput};
+use opencraft_engine::Counters;
 
 const KEY: ControlId = ControlId::new(ControlKind::Key, 2);
 const KNOB: ControlId = ControlId::new(ControlKind::Knob, 2);
@@ -215,6 +216,7 @@ fn set_system_clipboard(
         view.update(cx, |view, cx| {
             view.state.system_clipboard = SystemClipboard {
                 change_count,
+                item: None,
                 image,
             };
             cx.notify();
@@ -293,8 +295,16 @@ fn a_pasted_image_goes_to_a_temporary_file_and_sets_the_image(cx: &mut TestAppCo
         "{} is not in the temporary directory",
         path.display()
     );
-    // The engine reads the file and sends the surface: the file goes away.
+    // A surface of an earlier change does not delete the file: the engine
+    // reads it on its thread. The reply to the ReadCounters after the image
+    // command proves the read (review 1, H3).
     send(cx, &tx, surface(key(), "Picture"));
+    assert!(
+        path.exists(),
+        "{} went before the engine read it",
+        path.display()
+    );
+    send(cx, &tx, Event::Counters(Counters::default()));
     assert!(!path.exists(), "{} stays", path.display());
 }
 
@@ -311,6 +321,7 @@ fn a_paste_reads_the_pasteboard_even_when_the_last_frame_saw_no_image(cx: &mut T
         view.update(cx, |view, _| {
             view.state.system_clipboard = SystemClipboard {
                 change_count: 7,
+                item: None,
                 image: Some(ClipboardImage::File(path.clone())),
             };
         });
@@ -370,8 +381,87 @@ fn the_newer_of_the_control_and_the_system_pasteboard_item_wins(cx: &mut TestApp
     assert_eq!(target, key());
     assert_eq!(&std::fs::read(&path).unwrap()[..2], b"BM");
     // The engine reads the file and sends the surface: the file goes away.
-    send(cx, &tx, surface(key(), "Picture"));
+    send(cx, &tx, Event::Counters(Counters::default()));
     assert!(!path.exists(), "{} stays", path.display());
+}
+
+#[gpui_kit::test]
+fn a_repeated_paste_of_one_image_removes_each_temporary_file(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    let bytes = image_bytes(image::ImageFormat::Png);
+    let mut paths = Vec::new();
+    for count in [4, 5] {
+        set_system_clipboard(
+            &view,
+            cx,
+            count,
+            Some(ClipboardImage::Bytes {
+                bytes: bytes.clone(),
+                extension: "png",
+            }),
+        );
+        keys(cx, "cmd-v");
+        paths.push(last_image(&sent).expect("the paste sets the image").1);
+    }
+    assert_ne!(paths[0], paths[1]);
+    assert!(paths.iter().all(|path| path.exists()));
+    // One Counters reply for each ReadCounters of the shell: the files go
+    // in the order of the commands, also when the engine sends no surface
+    // because the image did not change (review 1, H3).
+    send(cx, &tx, Event::Counters(Counters::default()));
+    assert!(!paths[0].exists(), "{} stays", paths[0].display());
+    assert!(paths[1].exists(), "{} went too early", paths[1].display());
+    send(cx, &tx, Event::Counters(Counters::default()));
+    assert!(!paths[1].exists(), "{} stays", paths[1].display());
+}
+
+#[gpui_kit::test]
+fn a_closed_window_does_not_delete_a_temporary_image_before_the_engine_reads_it(
+    cx: &mut TestAppContext,
+) {
+    let (view, cx, tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    set_system_clipboard(
+        &view,
+        cx,
+        4,
+        Some(ClipboardImage::Bytes {
+            bytes: image_bytes(image::ImageFormat::Png),
+            extension: "png",
+        }),
+    );
+    keys(cx, "cmd-v");
+    let path = last_image(&sent).expect("the paste sets the image").1;
+    cx.update(|_, cx| {
+        for window in cx.windows() {
+            let _ = window.update(cx, |_, window, _| window.remove_window());
+        }
+    });
+    cx.run_until_parked();
+    // The shell owns the file, not the window (review 1, H3).
+    assert!(path.exists(), "the window deleted {}", path.display());
+    send(cx, &tx, Event::Counters(Counters::default()));
+    assert!(!path.exists(), "{} stays", path.display());
+}
+
+#[gpui_kit::test]
+fn a_file_that_is_not_an_image_does_not_hide_a_copied_control(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    // The copy of the control at change count 1.
+    set_system_clipboard(&view, cx, 1, None);
+    keys(cx, "cmd-c");
+    send(cx, &tx, Event::Clipboard(ControlKind::Key));
+    // Finder copies a text file. The system pasteboard has a newer item,
+    // but it is not an image or an application bundle: it must not hide the
+    // copy of the control (review 1, H2).
+    set_system_clipboard(&view, cx, 7, None);
+    keys(cx, "cmd-v");
+    assert_eq!(
+        clipboard_commands(&sent).last(),
+        Some(&Command::PasteControl { control: KEY })
+    );
 }
 
 #[gpui_kit::test]

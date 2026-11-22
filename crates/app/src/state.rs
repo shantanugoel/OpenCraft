@@ -261,7 +261,16 @@ impl ViewState {
                 self.undo = undo;
                 self.redo = redo;
             }
-            Event::Clipboard(kind) => self.clipboard = Some(kind),
+            Event::Clipboard(kind) => {
+                self.clipboard = Some(kind);
+                // A copy of a control keeps the change count of its time,
+                // also in the state of the shell: a new window gives the
+                // same precedence to a later paste. A copy from the control
+                // socket comes here without a window.
+                self.control_copy_change_count = Some(crate::pasteboard::current_change_count(
+                    &self.system_clipboard,
+                ));
+            }
             // The window shows a message for these events.
             Event::FollowFrontApplication(follow) => self.follow_front = follow,
             Event::ProfileRead { .. }

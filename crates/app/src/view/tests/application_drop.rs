@@ -8,6 +8,8 @@ use super::*;
 use crate::pasteboard::{ClipboardImage, SystemClipboard};
 use crate::view::application_drop::DROP_APPLICATION_STEP;
 use gpui_kit::{ExternalPaths, FileDropEvent, PlatformInput};
+#[cfg(target_os = "macos")]
+use opencraft_engine::Counters;
 use opencraft_engine::InputType;
 
 /// The kind that the engine describes for an application, as the real
@@ -163,8 +165,12 @@ fn an_application_dropped_on_a_key_face_sets_the_action_the_image_and_the_title(
         assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
         let icon = image::load_from_memory(&bytes).unwrap();
         assert_eq!((icon.width(), icon.height()), (256, 256));
-        // The engine read the file: the window removes it.
+        // The window does not delete the file: the shell deletes it when
+        // the engine has read it (review 1, H3).
         tx.try_send(surface(key(), "Demo")).unwrap();
+        cx.run_until_parked();
+        assert!(path.exists(), "the window deleted {}", path.display());
+        tx.try_send(Event::Counters(Counters::default())).unwrap();
         cx.run_until_parked();
         assert!(!path.exists(), "{} stays", path.display());
     }
@@ -236,6 +242,7 @@ fn a_pasted_application_bundle_sets_the_action_and_the_title(cx: &mut TestAppCon
         view.update(cx, |view, _| {
             view.state.system_clipboard = SystemClipboard {
                 change_count: 9,
+                item: None,
                 image: Some(ClipboardImage::File(bundle.clone())),
             };
         });

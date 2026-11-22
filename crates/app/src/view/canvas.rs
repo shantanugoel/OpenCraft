@@ -769,9 +769,12 @@ impl DeviceView {
                         d.border_1().border_color(theme::device_surface_border())
                     }),
             )
-            // During a drag the plus icon is not there, so that the text
-            // "Drop here" of the drop target is readable on an empty key.
-            .when(empty && !drop_zone, |d| {
+            // During a drag the plus icon goes away only on the control
+            // under the pointer, so that the text "Drop here" of the drop
+            // target is readable on an empty key. A drag that is not for the
+            // key, for example a pane divider or a key drag, leaves the plus
+            // icons of the other keys (review 1, M5).
+            .when(empty, |d| {
                 d.child(
                     div()
                         .id(format!("empty-{id}"))
@@ -784,6 +787,11 @@ impl DeviceView {
                         .items_center()
                         .justify_center()
                         .text_color(theme::device_key_empty_icon())
+                        .drag_over::<ExternalPaths>(|s, _, _, _| s.opacity(0.))
+                        .drag_over::<KeyDrag>(|s, _, _, _| s.opacity(0.))
+                        .when(drag, |d| {
+                            d.drag_over::<KindDrag>(|s, _, _, _| s.opacity(0.))
+                        })
                         .child(
                             Icon::new(IconName::Plus)
                                 .size(px(theme::DEVICE_KEY_EMPTY_ICON_SIZE * scale)),

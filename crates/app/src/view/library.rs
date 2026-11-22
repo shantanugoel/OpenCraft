@@ -284,6 +284,19 @@ impl DeviceView {
     /// (decision 0030). A group in `change` gives its commands to this
     /// group. A change that sends nothing sends no group.
     pub(super) fn one_step(&mut self, name: &str, change: impl FnOnce(&mut Self)) {
+        if let Some(command) = self.one_step_command(name, change) {
+            (self.send)(command);
+        }
+    }
+
+    /// The group that [`Self::one_step`] sends. A caller that must do more
+    /// with the group, for example send a temporary image file with it,
+    /// sends it itself.
+    pub(super) fn one_step_command(
+        &mut self,
+        name: &str,
+        change: impl FnOnce(&mut Self),
+    ) -> Option<Command> {
         let commands: Rc<RefCell<Vec<Command>>> = Rc::default();
         let collect = commands.clone();
         let send = std::mem::replace(
@@ -300,12 +313,13 @@ impl DeviceView {
                 command => vec![command],
             })
             .collect();
-        if !commands.is_empty() {
-            (self.send)(Command::Group {
-                name: name.into(),
-                commands,
-            });
+        if commands.is_empty() {
+            return None;
         }
+        Some(Command::Group {
+            name: name.into(),
+            commands,
+        })
     }
 
     /// True while a row of the library is in a drag. A drag of a different

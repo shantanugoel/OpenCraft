@@ -125,14 +125,6 @@ fn control_name(id: ControlId) -> String {
 /// engine event from it (decision 0020). The view keeps its own copy because
 /// it also does work for each event in the window: the images, the text
 /// fields, and the changes that wait for a reply.
-/// A temporary image file that the engine has not read yet. The window
-/// removes it when the surface of the destination comes, when a problem
-/// names it, or at the stop (decision 0043, section 5).
-struct PendingImage {
-    path: PathBuf,
-    surface: SurfaceId,
-}
-
 pub struct DeviceView {
     pub(crate) state: ViewState,
     shell: Entity<Shell>,
@@ -189,9 +181,6 @@ pub struct DeviceView {
     repaint: repaint::Repaint,
     /// A window that becomes visible or active draws a frame at once.
     _frame_observers: [Subscription; 2],
-    /// The temporary image files of the pastes that the engine has not
-    /// read yet (decision 0043, section 5).
-    pending_images: Vec<PendingImage>,
     /// The control of the key that is in a drag on the canvas (KEY-14).
     /// `None` when no key is in a drag.
     dragging_key: Option<ControlId>,
@@ -301,7 +290,6 @@ impl DeviceView {
             _focus_return: focus_return,
             repaint: repaint::Repaint::default(),
             _frame_observers: frame_observers,
-            pending_images: Vec::new(),
             dragging_key: None,
         };
         // The selection can already be in the state when the window opens,
@@ -315,7 +303,6 @@ impl DeviceView {
     }
 
     fn receive(&mut self, event: Event, window: &mut Window, cx: &mut Context<Self>) {
-        self.remove_read_images(&event);
         if let Event::Binding(binding) = &event {
             self.acknowledge(binding);
             self.permission_event(binding, window, cx);
@@ -477,7 +464,7 @@ impl DeviceView {
         {
             let count = pasteboard::change_count();
             if count != self.state.system_clipboard.change_count {
-                self.state.system_clipboard = pasteboard::read(count);
+                self.state.system_clipboard = pasteboard::probe(count);
             }
         }
     }
@@ -485,42 +472,16 @@ impl DeviceView {
     /// The change count of the system pasteboard now. A test and a
     /// different platform use the value of the state.
     fn system_change_count(&self) -> i64 {
-        #[cfg(all(target_os = "macos", not(test)))]
-        {
-            pasteboard::change_count()
-        }
-        #[cfg(not(all(target_os = "macos", not(test))))]
-        {
-            self.state.system_clipboard.change_count
-        }
+        pasteboard::current_change_count(&self.state.system_clipboard)
     }
 
-    /// Remove the temporary image files that the engine has read, or that
-    /// it refused with a problem that names the file (decision 0043,
-    /// section 5).
-    fn remove_read_images(&mut self, event: &Event) {
-        match event {
-            Event::Surface(surface) => {
-                if let Some(index) = self
-                    .pending_images
-                    .iter()
-                    .position(|pending| pending.surface == surface.id)
-                {
-                    let pending = self.pending_images.remove(index);
-                    let _ = std::fs::remove_file(pending.path);
-                }
-            }
-            Event::Problem(text) => {
-                self.pending_images.retain(|pending| {
-                    let named = text.contains(pending.path.to_string_lossy().as_ref());
-                    if named {
-                        let _ = std::fs::remove_file(&pending.path);
-                    }
-                    !named
-                });
-            }
-            _ => {}
-        }
+    /// Send `command` and remove `path` when the engine has read it. The
+    /// shell owns the file, not this window: a close of the window does not
+    /// delete a file that the engine still reads (decision 0043, section 5).
+    fn send_temporary_image(&mut self, command: Command, path: PathBuf, cx: &mut Context<Self>) {
+        (self.send)(command);
+        self.shell
+            .update(cx, |shell, _| shell.remove_when_read(vec![path]));
     }
 
     fn set_title(&mut self, surface: SurfaceId, label: Option<String>) {
@@ -674,16 +635,6 @@ impl DeviceView {
             .text_color(theme::text_primary())
             .text_size(theme::TEXT_BODY)
             .child(self.panes_layout(window, cx))
-    }
-}
-
-/// A window that stops removes the temporary image files of the pastes
-/// that the engine did not read (decision 0043, section 5).
-impl Drop for DeviceView {
-    fn drop(&mut self) {
-        for pending in self.pending_images.drain(..) {
-            let _ = std::fs::remove_file(pending.path);
-        }
     }
 }
 
