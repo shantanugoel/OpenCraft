@@ -246,6 +246,24 @@ release build, with no device.
 | The block of a line is higher by 0.2 of the font size when it has an underline, thus the line is inside the area at `Align::Bottom`: at 20 pixels the underline ends 3 pixels above the bottom of a 112-pixel face. The band of an underlined label of "Mail" is 4 pixels higher at 20 pixels. | Measured | Test `an_underline_is_drawn_below_the_text_and_stays_in_the_area`; T3 |
 | An underlined label at the bottom of its area moves up by the room of the line. That is the look that decision 0043 gives. | Measured | T3; the window check of #453 |
 
+### A new line in a label (fact 14, 2026-11-22)
+
+Fact 14 of the look-ahead in
+[checks/phase-10-checks.md](../checks/phase-10-checks.md) asked if the user can
+give a title two lines. Issue [#203](https://github.com/shantanugoel/OpenCraft/issues/203).
+The check ran in the real window of the release build at `f81664b` with
+`cua-driver` 0.49.3, in the background, and on the connected N4 Pro with the
+USB camera.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The Title field of the inspector is a one-line Kit `Input` (`AnyInputState::Input`), and not a text area. Option-Return in the field inserts no character: the keys `two`, Option-Return, `lines` gave the text `twolines`. | Measured | Background keys in the real window; window picture |
+| A label value with a new line draws on two lines. The clock format "Time and date" gives `16:27` and `Nov 22` in two lines; the window and the device show both lines, and the device showed the new minute 91 seconds later. | Measured | Window picture; camera frame; `docs/kb/footprint.md` |
+| The test `a_label_with_a_new_line_uses_two_lines` gives one block of ink rows for `AB` and two blocks for `A\nB`, and both lines stay in the area. | Measured | `crates/engine/src/label.rs` |
+| Thus the answer to fact 14 is "the Title field keeps one line". A user gets two lines only from a value that already has a new line: the two clock formats "Weekday and date" and "Time and date", or a profile file that a person writes. There is no command to put a new line into a title. | Source; Measured | This check |
+| A key face that wraps a long one-line title shows it on more lines (the label wraps at the width of the face). That is not a new line in the value: the same title changes its lines when the size or the font changes. | Measured | The key `Imagetwolines` of the check profile; the wrap test `a_long_label_goes_to_more_lines_and_stays_in_the_area` |
+
+
 ## Not known
 
 - The physical footprint of the full application with GPUI and the label

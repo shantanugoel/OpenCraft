@@ -13,6 +13,7 @@ This directory holds the scripts for work on the computer of a developer.
 | `make-icon.swift` | Draws the application icon `assets/macos/OpenCraft.icns` |
 | `record-input.sh` | Records the input reports of each control of the connected device. The first argument is the output directory. The steps come from its descriptor. See [the fixture README](../crates/core/tests/fixtures/input/README.md). |
 | `phase-10-check.sh` | Guides the owner through the physical checks of Phase 10 and saves the answers. See [phase-10-checks.md](../docs/checks/phase-10-checks.md). |
+| `phase-11-check.sh` | Guides the owner through the physical checks of Phase 11 on a copy of the profiles and saves the answers. See [phase-11-checks.md](../docs/checks/phase-11-checks.md). |
 
 ## measure-footprint.sh
 
@@ -412,3 +413,25 @@ and saves the results to `/tmp/opencraft-phase-10-answers.txt`.
 ```sh
 scripts/phase-10-check.sh
 ```
+
+## phase-11-check.sh
+
+This script guides the owner through the checks of
+[Phase 11](../docs/checks/phase-11-checks.md). It copies the profiles
+directory to a temporary directory, adds the profile
+`docs/checks/phase-11-checks.opencraft`, and starts a release build on the
+copy. It prompts each step with a single-key `y` or `n` answer and saves the
+results to `/tmp/opencraft-phase-11-answers.txt`. The copy is removed at the
+end, and the installed OpenCraft starts again.
+
+The copy is necessary: a Phase 11 build writes profile schema version 8, and
+release 0.6.0 cannot read that version. The script never opens the profiles of
+the owner.
+
+```sh
+scripts/phase-11-check.sh
+```
+
+`--dry-run` prints the steps and tests the check profile. It reads no profile
+of the owner and starts no program. `--no-device` starts the build with
+`OPENCRAFT_NO_DEVICE=1`, to look at the window with no device.

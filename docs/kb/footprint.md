@@ -7,49 +7,133 @@ This entry holds the measured values for the
 software: see [vsd-craft.md](vsd-craft.md#footprint-when-it-runs). Measure
 again at the end of each phase.
 
-## Phase 11: the clock key (2026-11-22)
+## Phase 11: the clock key and three installed fonts (2026-11-22)
 
-Issue [#456](https://github.com/shantanugoel/OpenCraft/issues/456) (ACT-31)
-adds the Clock and date kind. This section measures its idle processor use.
-[Decision 0043](../decisions/0043-faces-fonts-and-schema-8.md), section 6 has
-the design.
+Issues [#456](https://github.com/shantanugoel/OpenCraft/issues/456) (ACT-31,
+the clock key) and [#459](https://github.com/shantanugoel/OpenCraft/issues/459)
+(P11-M2, the footprint of the faces) measure the idle cost of Phase 11.
+[Decision 0043](../decisions/0043-faces-fonts-and-schema-8.md) has the design.
 
-### Idle processor use of one clock key (2026-11-22)
+### Memory and processor use with the faces of Phase 11 (2026-11-22)
 
-The program is the release binary of the workspace at commit `2e17252`. It
-ran with a scratch `OPENCRAFT_PROFILES_DIR` whose active profile has one
-clock key on the **Press** gesture of key 3 (`format = "24h"`, label size
-32), and the window open. The connected N4 Pro showed the time, and no
-person operated the device. The installed application did not run during the
-measurement. The camera showed `10:52` and then `10:53` on the key, one
-minute apart.
+The program is the release binary of the workspace at commit `f81664b`. A
+scratch `OPENCRAFT_PROFILES_DIR` held one schema-8 profile with seven keys:
+an image at zoom 200 with a pan, `Menlo` italic and underlined at 32 pixels,
+an emoji at 80 pixels, a clock with the 24-hour format, the labels `Avenir`
+in Avenir Next at 28 pixels and `Georgia` in Georgia at 22 pixels, and a
+clock with the format "Time and date", which shows two lines. Thus three
+installed font families were in use. The connected N4 Pro showed the profile,
+and no person operated the device. The installed application did not run.
 
-`scripts/measure-footprint.sh --pid` made one sample each 5 seconds for 120
-seconds, 116 seconds after the start of the process.
+The Mac ran from the power adapter, and the battery was at 80 % with the
+display awake ("AC attached; not charging"). The window was 1440 × 900 on the
+screen, was not the key window, and about 70 % of it was not covered: another
+window covered its bottom-right part. `scripts/measure-footprint.sh --pid`
+made one sample each 5 seconds for 300 seconds, 60 seconds after the start of
+the process.
 
-| Measurement | One clock key | Confidence |
-|---|---|---|
-| Processes | 1 | Measured |
-| Physical footprint: minimum, median, maximum | 51.1, 51.1, 55.8 MiB | Measured |
-| Resident size, median | 115.9 MiB | Measured |
-| Processor time in 120 seconds | 0.72 s | Measured |
-| Processor use, mean (100 % is one core) | 0.6 % | Measured |
-| Processor use, maximum of a sample | 1.0 % | Measured |
+| Measurement | Window open | Start with `--login` | Confidence |
+|---|---|---|---|
+| Processes | 1 | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 59.6, 64.9, 69.5 MiB | 28.8, 28.8, 30.8 MiB | Measured |
+| Resident size, median | 144.4 MiB | 120.5 MiB | Measured |
+| Processor time in 300 seconds | 1.51 s | 0.42 s | Measured |
+| Processor use, mean (100 % is one core) | 0.50 % | 0.14 % | Measured |
+| Processor use, maximum of a sample | 1.4 % | 0.2 % | Measured |
+| Threads at the start and at the end of the measurement | 25, 27 | 23, 23 | Measured: `ps -M`, rows without the header |
 
-- The worker wakes about 6 times each minute while a clock is visible. It
-  sends a label only at the minute boundary, and each label is one image.
-  (Source: decision 0043, section 6)
-- A debug build with the same clock key visible for 7 hours 4 minutes used
-  2 minutes 43 seconds of processor time, which is 0.64 %. That value
-  includes the start and the window. (Measured: `ps -o time`)
-- The mean of 0.6 % is above the phase target of 0.5 % of one core. The
-  same program with no clock key could not be measured in this run: the
-  scratch program chose the profile with the clock key at each start. P11-M2
-  measures the phase target with all the features of Phase 11.
-- The clock handler is not the likely cause of the distance from 0.5 %: the
-  7-hour run and this 120-second run have the same rate, and the clock adds
-  6 wakes and one image each minute. The cause needs a measurement with and
-  without the clock key. (Inference)
+- The physical footprint is 64.9 MiB (68.1 MB) with the window open, with a
+  maximum of 69.5 MiB (72.9 MB), and 28.8 MiB (30.2 MB) after a start with
+  `--login`. Both meet the target of less than 80 MB. (Measured)
+- The faces of Phase 11 add 12.0 MiB of footprint with the window open and
+  5.4 MiB with `--login`, against
+  [Phase 10](#memory-and-processor-use-2026-11-21), which measured 52.9 MiB
+  and 23.4 MiB with no installed font in use. The resident size is 28.6 MiB
+  higher with the window open and 24.5 MiB higher with `--login`. The likely
+  cost is the font data of three installed families in Core Text. It is not
+  the image, the emoji, or the clock: they use the label path that Phase 10
+  also used. The Core Text cache grew from 11.5 MiB to 19.6 MiB across five
+  samples in the test of
+  [text-rendering.md](text-rendering.md#time-and-memory). (Measured;
+  Inference for the cause)
+- The mean idle processor use is 0.14 % after a start with `--login`, and no
+  sample is above 0.2 %. It meets the target of less than 0.5 % of one core.
+  (Measured)
+- With the window open and about 70 % of it not covered, the mean is 0.50 %
+  (1.51 s in 300 seconds) and one sample reached 1.4 %. The main thread draws
+  while the window is visible: in one control of 30 seconds it used 0.09 s
+  (0.3 % of one core), and the engine and clock threads used 0.05 s and less.
+  The value is at the target, not below it. A window that is covered draws no
+  frames: the Phase 10 measurement had 0.14 % with such a window, and the
+  measurement of the clock key below had 0.08 %. (Measured; Inference for the
+  cause)
+- A footprint measurement must record the power state of the machine, and if
+  the window was on the screen and how much of it was visible. Without these
+  two facts, the values of two runs are not comparable: the difference
+  between 0.08 % and 0.50 % of one core is the drawing of a visible window,
+  and not a change in the program. (Inference from Measured)
+
+### The clock key alone (2026-11-22)
+
+An earlier entry here gave 0.6 % of one core for one clock key, and named
+that value as above the target. The measurement of ACT-31 that gave it had
+no control (the scratch program chose the clock profile at each start), and
+the session used 2.2 times more processor time for the same fixed work than a
+second session. The correction below comes from a new measurement of the
+release binary of `origin/main` at commit `86580bf` in a second session. Each
+case is a new process with one profile, and each had 25 samples in 120
+seconds, 60 seconds after the start. All runs were under the GUI lock, and
+the window was on the screen and was not the key window.
+
+| Case | Processor time | Use, mean | Use, maximum of one sample | Footprint, median | Resident, median | Confidence |
+|---|---|---|---|---|---|---|
+| One clock key, window open | 0.13 s | 0.11 % | 0.2 % | 57.8 MiB | 116.2 MiB | Measured |
+| No clock key, window open | 0.10 s | 0.08 % | 0.2 % | 51.6 MiB | 116.0 MiB | Measured |
+| Release 0.6.0, one clock key, window open | 0.17 s | 0.14 % | 0.2 % | 52.4 MiB | 118.1 MiB | Measured |
+| One clock key, `--login` | 0.11 s | 0.09 % | 0.2 % | 22.8 MiB | 92.2 MiB | Measured |
+| No clock key, `--login` | 0.12 s | 0.10 % | 0.2 % | 22.7 MiB | 91.7 MiB | Measured |
+| Two clock keys (the profile of ACT-31), window open | 0.18 s | 0.15 % | 0.6 % | 51.8 MiB | 116.0 MiB | Measured |
+| One clock key, window open, 300 seconds (61 samples) | 0.40 s | 0.13 % | 0.6 % | 51.8 MiB | 116.1 MiB | Measured |
+| One clock key, the window as the key window, 150 seconds | 0.21 s | 0.14 % | 0.4 % | 57.3 MiB | 117.0 MiB | Measured |
+
+- A clock key adds no measurable cost: 0.11 % against 0.08 % with the window
+  open, and 0.09 % against 0.10 % with `--login`. The difference is below the
+  resolution of the measurement. The clock key meets the target of less than
+  0.5 % of one core. (Measured)
+- The only cost of the clock is the label at a new minute: in the 300-second
+  run the samples with 0.4 to 0.6 % are 60 seconds apart, thus the minute
+  boundary. Each is 0.02 to 0.03 s of processor time for the draw and the
+  write of one surface. The mean effect is about 0.05 % of one core. With two
+  clock keys the two labels go in the same frame. (Measured)
+- The worker thread of the clock waited on a semaphore in every sample
+  (`sample`, thread `opencraft-clock`). No thread was busy. (Measured)
+- Release 0.6.0 with the same profile has the same value, 0.14 %: there is no
+  regression from 0.6.0 to Phase 11 in the clock. (Measured)
+- The 0.6 % of the ACT-31 run is not the cost of the clock. The lane's own
+  control run had 0.57 %, and its fixed start-up work used about 2.2 times the
+  processor time of the second session (0.87 to 1.01 s at 116 seconds,
+  against 0.40 to 0.42 s). The likely causes are a lower processor clock rate
+  (power or thermal state) in that session and a window that drew frames. The
+  session is over, thus these two cannot be separated. (Measured; Inference
+  for the cause)
+- The debug run of ACT-31 for 7 hours 4 minutes used 0.64 %. That agrees with
+  a debug build, about 5 times the release value, and it is no target value.
+  (Measured; Inference)
+
+### Checks with the camera (2026-11-22)
+
+A USB camera (Insta360 GO 3S, 1920 × 1080) recorded the connected N4 Pro while
+the release binary ran the profile above. The camera is chosen by its name
+through AVFoundation. A fixed index is not stable: an iPhone (Continuity
+Camera) and the Insta360 virtual camera also appear as cameras, and their
+order changes.
+
+| Fact | Confidence |
+|---|---|
+| The device showed the image at zoom 200 with the pan, `Menlo` in italic with the underline, the emoji at 80 pixels that fills the face, and the clock `16:27`. The labels `Avenir` (Avenir Next) and `Georgia` (Georgia) were in their fonts. Key 7 showed two lines, `16:27` and `Nov 22`. | Measured |
+| 91 seconds later, the same view showed `16:28` on the two clock keys, and the other keys did not change. The clock updates at the minute boundary on the device. | Measured |
+| The colours agreed with the window: a black fill, white text, the same part of the image, and the same emoji. The italic and the underline are visible. The label `Menlo` at 32 pixels is sharp. The `Georgia` label at 22 pixels is readable, but at this distance the camera cannot show the shape of small text. | Measured |
+| A two-line clock label and a label with a new line draw on two lines on the device (key 7). The Title field of the window cannot make a new line: see [text-rendering.md](text-rendering.md#a-new-line-in-a-label-fact-14-2026-11-22). | Measured |
 
 ## Phase 10: gesture timers, key states, and new actions (2026-11-21)
 

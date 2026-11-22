@@ -1,0 +1,30 @@
+format = "OpenCraft profile"
+version = 1
+
+[images]
+
+[profile]
+schema_version = 8
+name = "Phase 11 checks"
+model = "n4-pro"
+
+[[profile.pages]]
+id = "0f3a9c27d41b8e65"
+name = "Page 1"
+
+[profile.pages.surfaces.key-face-3]
+label = "Menlo"
+label_font = "Menlo"
+label_size = 32
+label_italic = true
+label_underline = true
+
+[profile.pages.surfaces.key-face-4]
+label = "\U0001F600"
+label_size = 80
+
+[profile.pages.bindings.key-5.press]
+kind = "opencraft.clock"
+
+[profile.pages.bindings.key-5.press.settings]
+format = "24h"
