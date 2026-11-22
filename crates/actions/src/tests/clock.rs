@@ -3,6 +3,7 @@
 use super::*;
 use crate::kinds::clock::{self, Format};
 use opencraft_engine::{Action, ControlId, ControlKind, GestureKind, Settings, Value};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// A fixed local time: Saturday 22 November, 14:05 and 30 seconds.
 fn time(hour: u8, minute: u8, second: u8) -> LocalTime {
@@ -20,6 +21,38 @@ fn settings(format: Option<&str>) -> Settings {
     match format {
         Some(format) => Settings::from([("format".into(), Value::Text(format.into()))]),
         None => Settings::new(),
+    }
+}
+
+/// A fake wall time for one turn of the worker: it gives the next time of
+/// the list for each read, and it counts the reads. A list of more than one
+/// time makes a second read in one turn visible: the first time gives the
+/// text and the second time would give the wait.
+struct FakeWall {
+    times: Vec<Option<LocalTime>>,
+    count: AtomicUsize,
+}
+
+impl FakeWall {
+    fn new(times: &[Option<LocalTime>]) -> Arc<Self> {
+        Arc::new(Self {
+            times: times.to_vec(),
+            count: AtomicUsize::new(0),
+        })
+    }
+
+    /// The wall clock that the worker reads. Each read takes the next time.
+    fn clock(self: &Arc<Self>) -> WallClock {
+        let wall = Arc::clone(self);
+        Arc::new(move || {
+            let index = wall.count.fetch_add(1, Ordering::SeqCst);
+            wall.times.get(index).copied().flatten()
+        })
+    }
+
+    /// The count of the reads of the clock since the start of the test.
+    fn reads(&self) -> usize {
+        self.count.load(Ordering::SeqCst)
     }
 }
 
@@ -267,6 +300,79 @@ fn an_invoke_sends_the_text_again_at_once() {
     r.quiet();
     r.invoke(Some("date"));
     r.shows("Nov 22");
+}
+
+#[test]
+fn an_invoke_of_a_binding_that_is_not_visible_keeps_no_clock() {
+    let mut r = Rig::new();
+    // The engine sends `Invoke` with the binding of the outer action for an
+    // action inside a Sequence, a Toggle, an action cycle, or the
+    // multi-function knob. It sends no `Appear` and no `Disappear` to this
+    // handler for it.
+    r.invoke(Some("24h"));
+    r.quiet();
+    assert_eq!(r.wait(), None, "an invoke keeps no clock");
+    // A later minute must not wake the worker: no clock is visible.
+    r.set(time(14, 6, 0));
+    r.wake();
+    r.quiet();
+    assert_eq!(r.wait(), None);
+
+    // The same after a clock appeared and disappeared: the outer action was
+    // replaced, thus the engine sent `Disappear` to the handler of the outer
+    // action only.
+    r.appear(Some("24h"));
+    r.shows("14:06");
+    r.disappear();
+    r.invoke(Some("24h"));
+    r.quiet();
+    r.set(time(14, 7, 0));
+    r.wake();
+    r.quiet();
+    assert_eq!(r.wait(), None, "no clock stays after a disappear");
+}
+
+#[test]
+fn an_invoke_of_a_bad_format_is_a_problem_and_keeps_no_clock() {
+    let mut r = Rig::new();
+    r.invoke(Some("tomorrow"));
+    r.problem();
+    r.quiet();
+    assert_eq!(r.wait(), None);
+}
+
+#[test]
+fn no_clock_means_no_read_of_the_wall_time_and_no_wake() {
+    let mut r = Rig::new();
+    let wall = FakeWall::new(&[Some(time(14, 5, 30)), Some(time(14, 6, 0))]);
+    assert_eq!(r.clocks.turn(&wall.clock(), &r.sender), None);
+    assert_eq!(wall.reads(), 0, "no visible clock reads no wall time");
+    r.quiet();
+}
+
+#[test]
+fn a_turn_reads_the_wall_time_one_time_and_the_same_minute_sets_the_wait() {
+    let mut r = Rig::new();
+    r.appear(Some("24h"));
+    r.shows("14:05");
+    // The first read is 14:05:59, and the second read, which a turn must not
+    // make, is 14:06:00. An old minute with the wait to the next boundary
+    // would keep 14:05 on the key for 10 seconds.
+    let wall = FakeWall::new(&[Some(time(14, 5, 59)), Some(time(14, 6, 0))]);
+    let clock = wall.clock();
+    assert_eq!(
+        r.clocks.turn(&clock, &r.sender),
+        Some(Duration::from_secs(1))
+    );
+    assert_eq!(wall.reads(), 1, "a turn reads the wall time one time");
+    // The text is 14:05, which the engine has: a turn sends nothing.
+    r.quiet();
+
+    // The turn at the boundary sends the text of the new minute at once, and
+    // its wait is the whole minute, capped to 10 seconds.
+    assert_eq!(r.clocks.turn(&clock, &r.sender), Some(MAX_WAIT));
+    assert_eq!(wall.reads(), 2);
+    r.shows("14:06");
 }
 
 #[test]
