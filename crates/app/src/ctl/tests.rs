@@ -155,6 +155,39 @@ fn each_example_makes_a_request_that_the_protocol_accepts() {
 }
 
 #[test]
+fn the_position_values_of_the_help_are_the_values_of_the_control_protocol() {
+    // The help text of `--position` names the values of the control protocol,
+    // not the values of the profile file: `hidden` is the value of the
+    // protocol, and the profile file writes `none` (review 3, M5).
+    let command = COMMANDS
+        .iter()
+        .find(|command| command.name == "profile set-title-style")
+        .unwrap();
+    let help = command
+        .arguments()
+        .into_iter()
+        .find(|argument| argument.flag == "position")
+        .unwrap()
+        .help;
+    // Each value in backticks is a value of --position.
+    let values: Vec<&str> = help.split('`').skip(1).step_by(2).collect();
+    assert_eq!(values, ["auto", "top", "middle", "bottom", "hidden"]);
+    for value in values {
+        let line =
+            format!("opencraft ctl profile set-title-style --profile work --position {value}");
+        let parse::Parsed::Run {
+            command: found,
+            flags,
+        } = parse::parse(&arguments(&line)).unwrap_or_else(|e| panic!("{line}: {e}"))
+        else {
+            panic!("{line} is help");
+        };
+        let params = parse::params(found, &flags, None).unwrap_or_else(|e| panic!("{line}: {e}"));
+        super::request(found.method, params).unwrap_or_else(|e| panic!("--position {value}: {e}"));
+    }
+}
+
+#[test]
 fn each_surface_change_accepts_the_on_flag() {
     let mut count = 0;
     for command in COMMANDS

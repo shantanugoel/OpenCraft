@@ -27,12 +27,14 @@ The checks use the connected N4 Pro and the OpenCraft window. The import file
    ```
 
    The script copies your profiles to a temporary directory and adds the
-   profile of this check. It never opens your own profiles: the new build
-   writes schema version 8, and release 0.6.0 cannot read that version. The
-   script asks each step in order, moves to the next step when you press `y`
-   or `n`, and saves your answers to
-   `/tmp/opencraft-phase-11-answers.txt`. At the end it removes the copy and
-   starts your installed OpenCraft again.
+   profile of this check. It never opens your own profiles. The new build
+   writes schema version 8, and release 0.6.0 cannot read that version.
+
+   The script asks each step in order. It moves to the next step when you
+   press `y` or `n`. It saves your answers to
+   `/tmp/opencraft-phase-11-answers.txt`. At the end, the script removes the
+   copy. It starts your installed OpenCraft again, also if you quit it in
+   step 2. If you press Ctrl-C, the script does the same and stops.
 
 The check profile has five keys on page 1:
 
@@ -65,7 +67,8 @@ Issues: [#452](https://github.com/shantanugoel/OpenCraft/issues/452),
 [#456](https://github.com/shantanugoel/OpenCraft/issues/456).
 
 Look at key 1 (the image), key 3 (`Menlo`, italic and underlined), key 4
-(the emoji), and key 5 (the clock), on the device and in the window.
+(the emoji), and key 5 (the clock). Look at them on the device and in the
+window.
 
 1. Are the colours of the four keys the same on the device and in the window?
    yes/no
@@ -117,21 +120,22 @@ must stop first. The script stops it for this step.
    write two files? yes/no
 
 The next phase can ask you if an agent may read the `profiles` folder of VSD
-Craft in its application support directory, instead of this step.
+Craft. That folder is in its application support directory. When you agree,
+this step is not necessary.
 
 ## Fact 14 of Phase 10: a new line in a title (answered, no step)
 
 The look-ahead in [phase-10-checks.md](phase-10-checks.md#look-ahead-for-phase-11-a-new-line-in-a-label-fact-14)
 asked if a title can have two lines. An agent answered it in the real window:
 the Title field is one line, and Option-Return inserts no character. A label
-with two lines needs a value that already has a new line, for example the
-clock formats "Weekday and date" and "Time and date". The device shows the
+with two lines needs a value that already has a new line. The clock formats
+"Weekday and date" and "Time and date" have a new line. The device shows the
 two lines. See
 [text-rendering.md](../kb/text-rendering.md#a-new-line-in-a-label-fact-14-2026-11-22).
 You do not do this check.
 
 ## Finish
 
-1. Quit the Phase 11 build of OpenCraft.
+1. Quit the Phase 11 build of OpenCraft, if it still runs.
 2. Start your installed OpenCraft again. The script does this for you.
 3. Tell the agent that `/tmp/opencraft-phase-11-answers.txt` is ready.
