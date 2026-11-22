@@ -156,6 +156,36 @@ fn the_arrow_keys_and_return_select_an_item_of_the_kind_menu(cx: &mut TestAppCon
     );
 }
 
+/// A drawn menu whose items become fewer shows its last row as the
+/// highlighted row in the next frame, also in the accessibility tree
+/// (review 3, L3).
+#[gpui_kit::test]
+fn a_menu_that_becomes_shorter_highlights_its_last_row(cx: &mut TestAppContext) {
+    let (cx, tx, _sent) = start(cx);
+    click(cx, "gesture-Release-kind");
+    // The last row has the highlight.
+    keys(cx, "end");
+    // The engine sends fewer kinds while the menu is open, thus the menu
+    // has fewer rows than the highlight.
+    crate::view::controls::accessibility_log::take_selected();
+    tx.try_send(Event::Kinds(vec![
+        kind("test.open", "Open an application", "System"),
+        kind("test.text", "Type text", "System"),
+    ]))
+    .unwrap();
+    cx.run_until_parked();
+    // The menu asks for the frame that shows the clamped highlight: the
+    // test platform runs the callbacks of the next frame when the test asks.
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    cx.run_until_parked();
+    let mut selected: Vec<String> = crate::view::controls::accessibility_log::take_selected()
+        .into_iter()
+        .filter_map(|(row, selected)| (selected && row.starts_with("kind-")).then_some(row))
+        .collect();
+    selected.dedup();
+    assert_eq!(selected, ["kind-1"], "the last row of the menu is the row");
+}
+
 #[gpui_kit::test]
 fn escape_closes_the_menu_and_keys_with_no_menu_do_nothing(cx: &mut TestAppContext) {
     let (cx, _tx, sent) = start(cx);

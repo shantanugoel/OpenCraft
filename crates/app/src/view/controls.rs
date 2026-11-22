@@ -27,10 +27,11 @@ use gpui_kit::{
     },
     deferred, div, point,
     prelude::*,
-    px, Anchor, AnyElement, App, ClickEvent, Div, Entity, FocusHandle, MouseButton, MouseDownEvent,
+    px, Anchor, AnyElement, App, Bounds, ClickEvent, Div, Element, ElementId, Entity, FocusHandle,
+    GlobalElementId, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent,
     Pixels, Rgba, Role, SharedString, Stateful, Toggled, Window,
 };
-use std::rc::Rc;
+use std::{panic::Location, rc::Rc};
 
 /// The result of a click, as `Div::on_click` takes it.
 type Handler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
@@ -165,20 +166,6 @@ pub(crate) fn keyboard_focus(control: Stateful<Div>, ring: Ring) -> Stateful<Div
     focus_look(control.tab_index(0), Some(ring))
 }
 
-/// A control that the keyboard reaches as one Tab stop, and that shows no
-/// focus ring of its own: a group in which the arrow keys change the choice
-/// and the ring shows on the choice (a [`segmented`] control).
-fn keyboard_group(control: Stateful<Div>) -> Stateful<Div> {
-    focus_look(control.tab_index(0), None)
-}
-
-/// A control that only the owner's keys and the pointer reach: it can take
-/// the focus, but Tab does not stop at it. The selected choice of a
-/// [`segmented`] control shows the ring of the group with `in_focus`.
-fn focus_reachable(control: Stateful<Div>) -> Stateful<Div> {
-    focus_look(control.tab_index(-1).tab_stop(false), None)
-}
-
 /// A [`keyboard_focus`] with a focus handle of the owner, for a group in
 /// which the owner moves the focus, for example the cards of the first
 /// start window: the arrow keys move the selection and the focus. Set
@@ -211,16 +198,20 @@ fn focus_look(control: Stateful<Div>, ring: Option<Ring>) -> Stateful<Div> {
                     .border_color(theme::accent_line()),
             })
         })
-        // This listener runs before the listener that GPUI adds for the
-        // focus of the element, and stops it and the one of each parent.
-        .on_mouse_down(MouseButton::Left, |_, window, cx| {
-            // A control or a field in this control had the click first.
-            if window.default_prevented() {
-                return;
-            }
-            window.prevent_default();
-            window.dispatch_action(Box::new(FocusOwner), cx);
-        })
+        .on_mouse_down(MouseButton::Left, click_keeps_the_focus)
+}
+
+/// The click of a control that the keyboard can reach: the focus stays
+/// where it is ([`FocusOwner`]), as a click on a control of macOS does. The
+/// listener runs before the listener that GPUI adds for the focus of the
+/// element, and stops it and the one of each parent.
+fn click_keeps_the_focus(_: &MouseDownEvent, window: &mut Window, cx: &mut App) {
+    // A control or a field in this control had the click first.
+    if window.default_prevented() {
+        return;
+    }
+    window.prevent_default();
+    window.dispatch_action(Box::new(FocusOwner), cx);
 }
 
 /// A button with a small padding. A button that is not enabled shows dim
@@ -585,8 +576,10 @@ pub(crate) fn switch_if(
 /// The keyboard reads it as one control, as a radio group of macOS
 /// (section 5, "Keyboard"):
 ///
-/// - Tab reaches the track one time, and the ring shows on the selected
-///   choice.
+/// - Tab reaches the control one time, and the ring shows on the selected
+///   choice. The selected choice holds the focus handle of the control
+///   ([`ChoiceFocus`]), thus the ring moves with the choice and shows only
+///   while the control has the focus (review 3, H1).
 /// - Left and Up choose the choice before, Right and Down choose the choice
 ///   after. The ends wrap around, and a disabled choice is skipped.
 /// - The change goes to the click handler of the choice, thus the mouse and
@@ -600,6 +593,7 @@ pub(crate) fn segmented(id: impl Into<SharedString>, segments: Vec<Segment>) -> 
         .iter()
         .map(|segment| segment.on_click.clone())
         .collect();
+    let choice_id = id.clone();
     let track = div()
         .id(id.clone())
         .debug_selector(move || id.to_string())
@@ -609,8 +603,20 @@ pub(crate) fn segmented(id: impl Into<SharedString>, segments: Vec<Segment>) -> 
         .rounded(theme::RADIUS_TRACK)
         .bg(theme::bg_field())
         .role(Role::RadioGroup)
-        .children(segments.into_iter().map(Segment::into_element))
-        .map(keyboard_group);
+        .children(segments.into_iter().enumerate().map(|(index, segment)| {
+            if Some(index) == selected {
+                ChoiceFocus::new(choice_id.clone(), move |focus| {
+                    segment.into_element(Some(focus))
+                })
+                .into_any_element()
+            } else {
+                segment.into_element(None).into_any_element()
+            }
+        }))
+        // The keys of the track change the choice, the click of a choice
+        // keeps the focus of the window where it is, and the test action
+        // names the control, not the choice that it builds.
+        .map(|track| focus_look(track, None));
     if count == 0 {
         return track;
     }
@@ -679,6 +685,10 @@ pub(crate) fn segment_if(
     }
 }
 
+/// The function that builds one choice of a [`segmented`] control, with the
+/// focus handle of the control for the selected choice.
+type Choice = Box<dyn FnOnce(&FocusHandle) -> Stateful<Div>>;
+
 /// A choice of a [`segmented`] control, before the control builds it.
 pub(crate) struct Segment {
     id: SharedString,
@@ -709,7 +719,11 @@ impl Segment {
         self
     }
 
-    fn into_element(self) -> Stateful<Div> {
+    /// The element of the choice. `focus` is the focus handle of the
+    /// [`segmented`] control: the selected choice takes it, thus Tab stops
+    /// at the choice and the ring shows on it ([`ChoiceFocus`]). The other
+    /// choices take no handle.
+    fn into_element(self, focus: Option<&FocusHandle>) -> Stateful<Div> {
         let id = self.id.clone();
         let selector = self.id.to_string();
         let text = self.text.clone();
@@ -745,21 +759,19 @@ impl Segment {
             // that the selected choice changed (issue 483).
             .highlighted(&selector, selected)
             .child(text);
-        let control = if enabled {
-            // The choice can take the focus of the group, but Tab does not
-            // stop at it: the control is one Tab stop.
-            let control = focus_reachable(control);
-            if selected {
-                control.in_focus(|style| {
+        // The ring shows on the selected choice while the choice has the
+        // focus of the control: an ancestor with the focus (the window or
+        // the card of a sheet) does not paint it (review 3, H1).
+        let control = match focus.filter(|_| enabled && selected) {
+            Some(focus) => control
+                .track_focus(focus)
+                .focus(|style| {
                     style
                         .shadow(theme::focus_ring_inside())
                         .border_color(theme::accent_line())
                 })
-            } else {
-                control
-            }
-        } else {
-            control
+                .on_mouse_down(MouseButton::Left, click_keeps_the_focus),
+            None => control,
         };
         let control = match &self.tooltip {
             Some(text) => {
@@ -772,6 +784,115 @@ impl Segment {
             Some(handler) => control.on_click(move |event, window, cx| handler(event, window, cx)),
             None => control,
         }
+    }
+}
+
+/// The selected choice of a [`segmented`] control. The element makes the
+/// focus handle of the control in the state of the element, and the choice
+/// tracks it: Tab stops at the choice, the ring shows on it while the
+/// control has the focus, and the handle stays while the control is in the
+/// frame, thus the ring follows the choice when the arrow keys change the
+/// selection (`docs/DESIGN.md`, section 5; review 3, H1).
+struct ChoiceFocus {
+    /// The ID of the control: the state of the element, and the ID that the
+    /// window test reads for the ring.
+    key: SharedString,
+    /// The function that builds the choice with the handle.
+    build: Option<Choice>,
+    child: Option<AnyElement>,
+}
+
+impl ChoiceFocus {
+    fn new(key: SharedString, build: impl FnOnce(&FocusHandle) -> Stateful<Div> + 'static) -> Self {
+        Self {
+            key,
+            build: Some(Box::new(build)),
+            child: None,
+        }
+    }
+
+    /// The child. GPUI calls the methods of an element one time at each
+    /// frame, in the order of the frame, thus the child is there.
+    fn child(&mut self) -> &mut AnyElement {
+        self.child
+            .as_mut()
+            .expect("GPUI prepares an element after its layout request")
+    }
+}
+
+impl IntoElement for ChoiceFocus {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Element for ChoiceFocus {
+    /// The handle that Tab reaches: GPUI keeps it in the state of the
+    /// element, thus the control keeps it while it is in the frame.
+    type RequestLayoutState = FocusHandle;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        Some(ElementId::Name(self.key.clone()))
+    }
+
+    fn source_location(&self) -> Option<&'static Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        id: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, FocusHandle) {
+        let id = id.expect("a choice has an element identifier");
+        let focus = window.with_element_state(id, |state: Option<FocusHandle>, _: &mut Window| {
+            let focus = state.unwrap_or_else(|| cx.focus_handle().tab_stop(true).tab_index(0));
+            (focus.clone(), focus)
+        });
+        let mut child =
+            (self.build.take().expect("The choice builds one time"))(&focus).into_any_element();
+        let layout = child.request_layout(window, cx);
+        self.child = Some(child);
+        (layout, focus)
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        focus: &mut FocusHandle,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        // The test platform of GPUI has no shadow in its scene: the test
+        // reads the state that the ring style reads, and no other state.
+        #[cfg(test)]
+        if focus.is_focused(window) {
+            let key = self.key.to_string();
+            tests::RINGED.with(|ringed| ringed.borrow_mut().push(key));
+        }
+        #[cfg(not(test))]
+        let _ = focus;
+        self.child().prepaint(window, cx);
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut FocusHandle,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.child().paint(window, cx);
     }
 }
 
@@ -1526,6 +1647,18 @@ pub(crate) mod tests {
     thread_local! {
         /// The ID of the control that answered [`WhoHasFocus`] last.
         pub(super) static FOCUSED: RefCell<Option<ElementId>> = const { RefCell::new(None) };
+        /// The IDs of the [`super::segmented`] controls that show the focus
+        /// ring in the frame, in the order of the frame.
+        pub(super) static RINGED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// The IDs of the segmented controls that show the focus ring since the
+    /// last call, in the order of the frame.
+    pub(crate) fn ringed(cx: &mut VisualTestContext) -> Vec<String> {
+        RINGED.with(|ringed| ringed.borrow_mut().clear());
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        RINGED.with(|ringed| std::mem::take(&mut *ringed.borrow_mut()))
     }
 
     /// The ID of the control with the keyboard focus, or `None` when no

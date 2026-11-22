@@ -207,9 +207,12 @@ impl DeviceView {
                 },
             ))
         };
+        // The mode and the colours are two rows of the section: each one
+        // has its own name, else they share the state of a row of the panel
+        // (review 3, M1).
         let mut section =
             form::section("knob-lights", "Knob lights", None).child(super::reveal::row(
-                "Knob lights",
+                "Knob lights mode",
                 segmented(
                     "knob-mode",
                     vec![
@@ -222,7 +225,7 @@ impl DeviceView {
         if mode == KnobLightMode::Colors && !lights.colors.is_empty() {
             section =
                 section.child(super::reveal::row(
-                    "Knob lights",
+                    "Knob lights colours",
                     div()
                         .id("knob-colour-grid")
                         .debug_selector(|| "knob-colour-grid".into())

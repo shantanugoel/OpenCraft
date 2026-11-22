@@ -810,12 +810,15 @@ impl DeviceView {
             BackgroundMode::Image => Some(self.background_image_row(size, window, cx)),
         };
         Some(
+            // The kind of the background and its body are two rows of the
+            // section: each one has its own name, else they share the state
+            // of a row of the panel (review 3, M1).
             form::section("background", "Background", None)
-                .child(super::reveal::row("Background", segments))
+                .child(super::reveal::row("Background kind", segments))
                 .children(body.map(|body| {
                     div()
                         .mt(theme::SPACE_12)
-                        .child(super::reveal::row("Background", body))
+                        .child(super::reveal::row("Background body", body))
                 }))
                 .child(
                     form::help(

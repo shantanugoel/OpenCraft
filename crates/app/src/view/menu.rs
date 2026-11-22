@@ -432,7 +432,11 @@ impl Element for MenuKeys {
         let mut state = nav.borrow_mut();
         let count = state.items.len();
         if count > 0 && state.highlighted >= count {
+            // The rows of this frame read the highlight before the clamp:
+            // they painted no row and no `AXSelected`. The next frame shows
+            // the last row as the highlighted one (review 3, L3).
             state.highlighted = count - 1;
+            window.request_animation_frame();
         }
     }
 }
