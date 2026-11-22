@@ -10,13 +10,11 @@
 //! Thus the window reads the bytes only and writes them to a temporary
 //! file. The engine gets the existing `Command::SetImage` with that path.
 
-use std::{
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{fs, io::Write, path::PathBuf};
 
-/// An image on the system pasteboard.
+/// An image on the system pasteboard. A different platform has no
+/// pasteboard that makes one, thus the variants have no constructor there.
+#[cfg_attr(not(any(test, target_os = "macos")), expect(dead_code))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ClipboardImage {
     /// The bytes of an image, and the file extension of their format.
@@ -119,7 +117,7 @@ fn image_bytes(
 /// True if `path` is a file that the image decoders can read. A directory
 /// (an application bundle) is not an image.
 #[cfg(any(test, all(target_os = "macos", not(test))))]
-pub(crate) fn is_image(path: &Path) -> bool {
+pub(crate) fn is_image(path: &std::path::Path) -> bool {
     image::ImageReader::open(path)
         .and_then(|reader| reader.with_guessed_format())
         .is_ok_and(|reader| reader.format().is_some())
