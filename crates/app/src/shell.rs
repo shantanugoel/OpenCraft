@@ -18,7 +18,7 @@ use crate::{
     app_menu::{EditMenu, OpenAbout, OpenSettings},
     first_start::FirstStartView,
     menu::{Brightness, MenuState},
-    settings::{self, Panes, Settings, SettingsPane},
+    settings::{self, Appearance, Panes, Settings, SettingsPane},
     settings_window::{kind_waiting_for_permission, SettingsView, Snapshot},
     starters::{self, STARTERS},
     state::ViewState,
@@ -176,6 +176,9 @@ pub enum ShellCommand {
     /// Turn the opening of the window at the start on if it is off, and off
     /// if it is on.
     ToggleShowWindowAtStart,
+    /// Show the windows in this appearance, and keep it in `shell.toml`
+    /// (decision 0029, section 21).
+    SetAppearance(Appearance),
     /// Permit or stop control by other programs of this user.
     ToggleAllowControl,
     /// Open the licence notices file of the bundle.
@@ -490,6 +493,7 @@ impl Shell {
             ShellCommand::ToggleShowWindowAtStart => {
                 self.set_show_window_at_start(!self.settings.show_window_at_start, cx)
             }
+            ShellCommand::SetAppearance(appearance) => self.set_appearance(appearance, cx),
             ShellCommand::ToggleAllowControl => {
                 // The switch shows the socket. A setting that is on with no
                 // socket shows the switch off, and a click tries to open it.
@@ -669,7 +673,6 @@ impl Shell {
     }
 
     /// The settings of the shell.
-    #[cfg(test)]
     pub fn settings(&self) -> &Settings {
         &self.settings
     }
@@ -992,6 +995,18 @@ impl Shell {
         }
         self.settings.settings_pane = pane;
         self.save_settings("the pane of the Settings window", cx);
+        cx.notify();
+    }
+
+    /// Show the windows in `appearance`, and keep it in `shell.toml`. The
+    /// native parts of macOS follow the same choice (`appearance`).
+    fn set_appearance(&mut self, appearance: Appearance, cx: &mut Context<Self>) {
+        if self.settings.appearance == appearance {
+            return;
+        }
+        self.settings.appearance = appearance;
+        self.save_settings("the appearance of the windows", cx);
+        crate::appearance::apply(appearance, cx);
         cx.notify();
     }
 

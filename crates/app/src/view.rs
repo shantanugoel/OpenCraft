@@ -206,6 +206,9 @@ impl DeviceView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        // A change of the appearance of macOS redraws the window with the
+        // new palette while the choice is System (`crate::appearance`).
+        crate::appearance::follow(window, shell);
         let input = cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
         let subscription = cx.subscribe_in(&input, window, |view, input, event, _, cx| {
             view.text_edit_event(input.entity_id(), event, cx);

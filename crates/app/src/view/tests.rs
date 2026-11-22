@@ -255,6 +255,7 @@ fn label_replies_do_not_overwrite_typing_and_empty_text_removes_label(cx: &mut T
 
 mod accessibility;
 mod actions;
+mod appearance;
 mod application_drop;
 mod backgrounds;
 mod canvas;

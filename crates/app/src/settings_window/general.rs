@@ -6,9 +6,10 @@ use super::{
     parts::{group, row},
     tilde, Permission, SettingsView,
 };
+use crate::settings::Appearance;
 use crate::shell::{Place, ShellCommand};
 use crate::view::{
-    controls::{button, small_button, switch, Accessible},
+    controls::{button, segment_if, segmented, small_button, switch, Accessible},
     theme,
 };
 use gpui_kit::{
@@ -35,6 +36,9 @@ pub const FOLLOW_FRONT: (&str, &str) = (
     "Change the profile with the front application",
     "OpenCraft changes the profile when you go to an application that needs a different profile.",
 );
+
+/// The appearance of the windows (decision 0029, section 21).
+pub const APPEARANCE: (&str, &str) = ("Appearance", "System follows the appearance of macOS.");
 
 /// The control permission (decision 0040). Off until the user permits it.
 pub const ALLOW_CONTROL: (&str, &str) = (
@@ -70,6 +74,26 @@ impl SettingsView {
             .flex()
             .flex_col()
             .gap(theme::SPACE_14)
+            .child(group([row(
+                APPEARANCE.0,
+                APPEARANCE.1,
+                div().w(theme::WIDTH_SETTINGS_APPEARANCE).child(segmented(
+                    "appearance",
+                    [Appearance::System, Appearance::Light, Appearance::Dark]
+                        .into_iter()
+                        .map(|appearance| {
+                            segment_if(
+                                format!("appearance-{}", appearance.name().to_lowercase()),
+                                appearance.name(),
+                                settings.appearance == appearance,
+                                true,
+                                theme::HEIGHT_SEGMENT,
+                            )
+                            .on_click(self.on_click(ShellCommand::SetAppearance(appearance)))
+                        })
+                        .collect(),
+                )),
+            )]))
             .child(group([
                 row(
                     START_AT_LOGIN.0,

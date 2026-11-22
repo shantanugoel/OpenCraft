@@ -34,6 +34,11 @@ pub struct Settings {
     /// 0029, section 17). A start at login never opens the window (decision
     /// 0021).
     pub show_window_at_start: bool,
+    /// The appearance of the windows: the appearance of macOS, or the light
+    /// or the dark appearance (decision 0029, section 21). Settings >
+    /// General changes it.
+    #[serde(deserialize_with = "appearance")]
+    pub appearance: Appearance,
     /// The pane of the Settings window that was visible last.
     #[serde(deserialize_with = "settings_pane")]
     pub settings_pane: SettingsPane,
@@ -55,6 +60,7 @@ impl Default for Settings {
             allow_control: false,
             show_dock_icon: true,
             show_window_at_start: true,
+            appearance: Appearance::default(),
             settings_pane: SettingsPane::default(),
             panes: Panes::default(),
             recent_icons: Vec::new(),
@@ -74,6 +80,31 @@ impl Settings {
         self.recent_icons.insert(0, name.to_string());
         self.recent_icons.truncate(theme::RECENT_ICONS);
         true
+    }
+}
+
+/// The appearance of the windows (decision 0029, section 21), from Settings >
+/// General. "System" follows the appearance of macOS, also while the
+/// application runs. The other two keep one appearance.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Appearance {
+    /// The appearance of macOS.
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Appearance {
+    /// The appearance for its name in `shell.toml`, and for the segment of
+    /// Settings > General.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::System => "System",
+            Self::Light => "Light",
+            Self::Dark => "Dark",
+        }
     }
 }
 
@@ -184,6 +215,10 @@ fn tab<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RightPanelTab, D::E
     lenient(deserializer, RightPanelTab::Inspector, |_| true)
 }
 
+fn appearance<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Appearance, D::Error> {
+    lenient(deserializer, Appearance::System, |_| true)
+}
+
 fn settings_pane<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SettingsPane, D::Error> {
     lenient(deserializer, SettingsPane::default(), |_| true)
 }
@@ -262,7 +297,7 @@ mod tests {
         save(&config, &hidden).unwrap();
         assert_eq!(
             std::fs::read_to_string(config.join(FILE_NAME)).unwrap(),
-            "allow_control = false\nshow_dock_icon = false\nshow_window_at_start = true\nsettings_pane = \"general\"\n\
+            "allow_control = false\nshow_dock_icon = false\nshow_window_at_start = true\nappearance = \"system\"\nsettings_pane = \"general\"\n\
              sidebar_visible = true\ninspector_visible = true\n\
              sidebar_width = 240.0\ninspector_width = 360.0\nright_panel_tab = \"inspector\"\n"
         );
@@ -306,6 +341,43 @@ mod tests {
         // The panes are the ones of the tabs, in order.
         let names: Vec<_> = SettingsPane::ALL.iter().map(|p| p.name()).collect();
         assert_eq!(names, ["General", "Shortcuts", "About"]);
+    }
+
+    /// The choice of Settings > General is kept, and an unknown name gives
+    /// the appearance of macOS.
+    #[test]
+    fn the_appearance_is_kept_and_an_unknown_name_gives_system() {
+        let dir = tempfile::tempdir().unwrap();
+        for (appearance, name) in [
+            (Appearance::System, "system"),
+            (Appearance::Light, "light"),
+            (Appearance::Dark, "dark"),
+        ] {
+            let settings = Settings {
+                appearance,
+                ..Settings::default()
+            };
+            save(dir.path(), &settings).unwrap();
+            let text = std::fs::read_to_string(dir.path().join(FILE_NAME)).unwrap();
+            assert!(text.contains(&format!("appearance = \"{name}\"")), "{text}");
+            assert_eq!(load(dir.path()), (settings, None));
+        }
+        // The names for the segment of the window.
+        assert_eq!(Appearance::System.name(), "System");
+        assert_eq!(Appearance::Light.name(), "Light");
+        assert_eq!(Appearance::Dark.name(), "Dark");
+        // An unknown name, and no value, give System. The other values stay.
+        std::fs::write(
+            dir.path().join(FILE_NAME),
+            "appearance = \"sepia\"\nshow_dock_icon = false\n",
+        )
+        .unwrap();
+        let (loaded, problem) = load(dir.path());
+        assert_eq!(problem, None);
+        assert_eq!(loaded.appearance, Appearance::System);
+        assert!(!loaded.show_dock_icon);
+        std::fs::write(dir.path().join(FILE_NAME), "").unwrap();
+        assert_eq!(load(dir.path()).0.appearance, Appearance::System);
     }
 
     #[test]

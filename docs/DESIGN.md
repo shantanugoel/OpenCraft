@@ -46,9 +46,12 @@ a value.
 - **A colour of the engine** (a fill, a knob light, a profile colour) goes
   through `theme::colour(Color)`. A colour sample of the data goes through
   `theme::sample(u32)`.
-- The window is dark only. The palette `DARK` of `theme.rs` holds its
-  values. A light appearance is a second palette for the same names
-  (decision 0029, section 21).
+- The window has two appearances. The palette `DARK` and the palette
+  `LIGHT` of `theme.rs` hold the value of each colour token in the dark and
+  the light appearance (decision 0029, section 21). The choice in
+  Settings > General is System (the appearance of macOS), Light, or Dark
+  (`crate::appearance`). Section 2.9 gives the contrast rules that both
+  palettes obey.
 
 ### 2.1 Colours
 
@@ -73,7 +76,10 @@ a value.
 | `text_secondary()` | A form label, an icon button, a value at the end of a row |
 | `text_tertiary()` | A section title, a caption, a help text, an empty state, a placeholder |
 | `text_disabled()` | A disabled control, a dot of "Not connected" |
-| `text_on_accent()` | Text on `accent()` or on `bg_segment_on()` |
+| `text_on_accent()` | Text on `accent()` or on `success_fill()`. Not on a segment, a tile, or a tint. |
+| `text_on_segment()` | The text of a selected segment, a selected tab of the Settings window, and a toggle button that is on |
+| `text_on_tile()` | The icon of a tile with `bg_tile()` |
+| `text_on_tint()` | The text of a selected chip, on `accent_tint_chip()` |
 | `accent()` | The selected row, the main button, a switch that is on, a slider fill |
 | `accent_line()` | The selection outline, the focus border of a field, the focus ring, the border of a control with an open menu or popover |
 | `accent_text()`, `accent_text_hover()` | A link; the label of a selected knob; the dot of the last input |
@@ -82,6 +88,7 @@ a value.
 | `warning()` | A warning icon, a warning text, "not given" |
 | `destructive_text()`, `destructive_tint()`, `destructive_line()` | A button that removes; the message rows above the status bar |
 | `input_glow()`, `input_glow_shadow()` | A control that the user operates on the device |
+| `badge_on_image()` | The backing of a text on an image: the size text of a preview, and the text "Drop here" of a drop target |
 | `kind_tile_*()`, `kind_tile(group)` | The tile of an action kind, from its group |
 | `device_*()` | The device drawing only |
 | `FILL_COLOURS`, `TITLE_COLOURS`, `KNOB_COLOURS`, `PROFILE_COLOURS`, `ICON_COLOURS` | Colour samples. These are data: the profile keeps them. Do not change a value. |
@@ -205,6 +212,45 @@ The font is the system font. The window has no font file.
 | `sheet_shadow()` | A sheet, the palette |
 | `drag_shadow()` | The drag picture |
 | `device_body_shadow()` | The body of the device |
+
+A shadow of the light appearance is weaker than the shadow of the dark
+appearance: black at 18 % for a popover, a drag picture, and the body of the
+device, at 22 % for a sheet. The glow of a control that the user operates on
+the device does not change, because it is on the device drawing.
+
+### 2.9 The light appearance
+
+The same tokens give the light appearance. The values are in the palette
+`LIGHT` of `theme.rs`. Both palettes obey these rules. The test
+`view::theme::tests::both_palettes_meet_the_contrast_rules_of_design` reads
+them. WCAG gives the ratio of contrast from 1 to 21.
+
+| Part | Rule |
+|---|---|
+| `text_primary()` on `bg_canvas()`, `bg_bar()`, `bg_sidebar()`, `bg_panel()`, `bg_card()`, `bg_field()`, and `bg_control()` | at least 7:1 |
+| `text_secondary()` on the same surfaces | at least 4.5:1 |
+| `text_tertiary()` on `bg_canvas()`, `bg_bar()`, `bg_sidebar()`, `bg_panel()`, and `bg_card()` | at least 4.5:1 |
+| `text_disabled()` on `bg_canvas()` | at least 3:1. A disabled control is quiet, but its text stays readable. |
+| `accent_line()` on each of those surfaces, for the focus ring and the selection outline | at least 3:1 |
+| `accent()` against `bg_canvas()`, for a selected row | at least 3:1 |
+| `text_on_accent()` on `accent()` and on `success_fill()` | at least 4.5:1 |
+| `accent_text()` on the surface of a link | at least 4.5:1 |
+| `success_text()`, `destructive_text()`, and `warning()` on `bg_canvas()`, `bg_bar()`, `bg_panel()`, and `bg_card()` | at least 4.5:1 |
+| `text_on_segment()` on `bg_segment_on()`, `text_on_tile()` on `bg_tile()`, `text_on_tint()` on `accent_tint_chip()` over `bg_card()` and `bg_panel()` | at least 4.5:1 |
+| `switch_knob_colour()` on `bg_segment_on()` | at least 1.3:1. The position of the knob also shows the state. |
+| `border_control()` on `bg_card()`, and `border_overlay()` on `bg_card()` | at least 1.4:1 |
+| `border_field()` on `bg_field()` | at least 1.25:1 |
+| `hover_row()` and `selected_unfocused()` over their surface | at least 1.08:1 |
+| `menu_highlight()` over its surface | at least 1.2:1 |
+
+- **The device picture does not change with the appearance.** The body, the
+  display, the knob, the touch bar, and an empty key face have the colours
+  of the hardware in both appearances: the same values in `DARK` and
+  `LIGHT`. A key face shows the image of the device, which is the same image
+  in both appearances. Only `device_body_border()` and
+  `device_body_shadow()` follow the canvas.
+- **The kind tiles keep their saturated colours** in both appearances, as
+  the icons of a macOS toolbar do. The white letter reads on each one.
 
 ## 3. Components
 
@@ -365,6 +411,7 @@ an element with no role are not in the accessibility tree
 | Test command | “Test the action” ignores an input event that this process sent. A synthetic click on the test button must not invoke the command again. All action kinds use the same guard; no kind check. | `view/synthetic_input.rs`, `view/gesture_card.rs` |
 | One code path | The mouse, the menu, the keys, and the palette call the same function for the same operation. A command of the window is one row of `app_menu::commands`: the menus, the "Shortcuts" pane, and the palette read that table. An action kind goes to a control through `assign_kind`. | `app_menu.rs`, `view/library.rs` |
 | Tooltip and label | Each icon button has a tooltip. The tooltip text is also the accessible label; the shared controls set both. Each clickable element has a role and a label (section 3.4). | `controls.rs` |
+| Appearance | Settings > General has System, Light, and Dark. System follows macOS, also while the window is open: the appearance of the window changes the palette, and the window draws again. Light and Dark set the appearance of the whole application, thus the native parts follow them too (the window buttons, the title bar, the menus, the alerts, and the file panels). The choice is in `shell.toml`, and each window follows a change of the appearance of macOS. | `appearance.rs`, `settings.rs`, `settings_window/general.rs` |
 
 ## 6. Text rules
 
@@ -422,6 +469,7 @@ Use one name for each thing. The user guide uses the same names.
 | command palette | search window | The window of ⌘K |
 | Settings window | preferences | The window of ⌘, |
 | connected, not connected | online, offline | The state of the device |
+| appearance | theme, colour scheme | The light or the dark look of the windows, from the row **Appearance** of Settings > General. The section **Appearance** of the key inspector is the icon, title, colour, and font of the key face. A sentence names the place. |
 
 The names of the action kinds and the gestures come from the engine
 (`KindDescription::name`, `state::gestures`). Do not write them in the
@@ -485,7 +533,8 @@ corrections.
       directory and the GUI lock, and looked at pictures of each changed
       state at 1440 × 900 and at 1080 × 700. Hover, selected, disabled,
       focus, and open menus agree with this document. The pull request has a
-      picture.
+      picture. A change to a colour token or to a part with a colour shows
+      both appearances (section 2.9).
 - [ ] The user guide (`docs/user`) and its pictures show the change.
 - [ ] The pull request lists each decision that this document or the record
       did not give.

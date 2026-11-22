@@ -450,6 +450,73 @@ fn the_dock_icon_switch_follows_and_keeps_the_option(cx: &mut TestAppContext) {
     assert!(f.settings_on_disk().show_dock_icon);
 }
 
+// MARK: The appearance
+
+/// The appearance control sends the choice to the shell, which keeps it in
+/// `shell.toml` and changes the palette of the windows and the theme of the
+/// kit at once. The choice System follows the appearance of macOS.
+#[gpui_kit::test]
+fn the_appearance_control_switches_the_palette_and_keeps_the_choice(cx: &mut TestAppContext) {
+    use crate::view::controls::accessibility_log;
+    use gpui_kit::{Role, WindowAppearance};
+
+    let (f, cx) = window(cx);
+    let _keep = theme::keep_appearance_for_test();
+    assert_eq!(
+        f.settings_on_disk().appearance,
+        settings::Appearance::System
+    );
+
+    // VoiceOver reads the three names. The control is a radio group: its
+    // segments are radio buttons.
+    accessibility_log::take();
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let nodes = accessibility_log::take();
+    for name in ["System", "Light", "Dark"] {
+        assert!(
+            nodes
+                .iter()
+                .any(|(role, label)| *role == Role::RadioButton && label == name),
+            "no segment “{name}”: {nodes:#?}"
+        );
+    }
+
+    click(cx, "appearance-light");
+    assert_eq!(f.settings_on_disk().appearance, settings::Appearance::Light);
+    assert_eq!(theme::appearance(), theme::Appearance::Light);
+    cx.update(|_, cx| {
+        assert_eq!(Theme::global(cx).mode, ThemeMode::Light);
+        assert_eq!(
+            f.view.read(cx).snapshot.settings.appearance,
+            settings::Appearance::Light
+        );
+    });
+
+    click(cx, "appearance-dark");
+    assert_eq!(f.settings_on_disk().appearance, settings::Appearance::Dark);
+    assert_eq!(theme::appearance(), theme::Appearance::Dark);
+    cx.update(|_, cx| assert_eq!(Theme::global(cx).mode, ThemeMode::Dark));
+
+    click(cx, "appearance-system");
+    assert_eq!(
+        f.settings_on_disk().appearance,
+        settings::Appearance::System
+    );
+    // The observer of the window calls `appearance::refresh` with the
+    // appearance of macOS while the choice is System.
+    cx.update(|_, cx| {
+        crate::appearance::refresh(settings::Appearance::System, WindowAppearance::Dark, cx)
+    });
+    cx.run_until_parked();
+    assert_eq!(theme::appearance(), theme::Appearance::Dark);
+    cx.update(|_, cx| {
+        crate::appearance::refresh(settings::Appearance::System, WindowAppearance::Light, cx)
+    });
+    cx.run_until_parked();
+    assert_eq!(theme::appearance(), theme::Appearance::Light);
+}
+
 #[cfg(unix)]
 #[gpui_kit::test]
 fn the_control_switch_applies_at_once_and_stays_on_after_a_new_start(cx: &mut TestAppContext) {
@@ -1277,6 +1344,9 @@ fn tab_reaches_the_tabs_and_each_control_and_space_operates_them(cx: &mut TestAp
         "settings-tab-general",
         "settings-tab-shortcuts",
         "settings-tab-about",
+        "appearance-system",
+        "appearance-light",
+        "appearance-dark",
         "switch-start-at-login",
         "switch-dock-icon",
         "switch-window-at-start",
@@ -1304,6 +1374,14 @@ fn tab_reaches_the_tabs_and_each_control_and_space_operates_them(cx: &mut TestAp
         crate::view::controls::tests::focused(cx).as_deref(),
         Some("switch-dock-icon")
     );
+    // Space on the segment Light changes the appearance at once.
+    let _keep = theme::keep_appearance_for_test();
+    while crate::view::controls::tests::focused(cx).as_deref() != Some("appearance-light") {
+        cx.simulate_keystrokes("tab");
+    }
+    push(cx, "space");
+    assert_eq!(theme::appearance(), theme::Appearance::Light);
+    assert_eq!(f.settings_on_disk().appearance, settings::Appearance::Light);
     // Return on a tab shows its pane, and the tab keeps the focus.
     assert_eq!(focus_order(cx, "shift-tab", 2)[1], "settings-tab-about");
     push(cx, "enter");

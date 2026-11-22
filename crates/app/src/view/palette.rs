@@ -722,7 +722,7 @@ impl DeviceView {
                 .justify_center()
                 .rounded(theme::RADIUS_PALETTE_TILE)
                 .bg(theme::bg_tile())
-                .text_color(theme::text_on_accent())
+                .text_color(theme::text_on_tile())
                 .child(Icon::new(*icon).size(theme::ICON_PALETTE_TILE)),
         };
         div()

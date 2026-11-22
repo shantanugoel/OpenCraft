@@ -12,15 +12,15 @@
 //!
 //! A colour token is a function, for example `bg_canvas()`. Its value comes
 //! from the palette of the appearance of the thread: the same name gives the
-//! dark value today and the light value when decision 0029, section 21 adds
-//! the light appearance. A new colour token also gets its value in each
-//! palette, else the module does not build. A size token is a constant,
-//! because its value does not change with the appearance.
+//! dark value in the dark appearance and the light value in the light
+//! appearance (decision 0029, section 21). A new colour token also gets its
+//! value in each palette, else the module does not build. A size token is a
+//! constant, because its value does not change with the appearance.
 //!
-//! The window has the dark appearance only today. A later change adds the
-//! light palette and the settings that select the appearance. Until that
-//! change, only a test sets the appearance: a function that nothing calls is
-//! dead code (docs/DESIGN.md, section 8).
+//! `crate::appearance` sets the appearance of the thread from the choice of
+//! Settings > General (System, Light, or Dark) and from the appearance that
+//! macOS gives the window. A test uses [`set_appearance_for_test`], which
+//! puts the appearance back at the end of its scope.
 
 use gpui_kit::{point, px, BoxShadow, Pixels, Rgba};
 use opencraft_engine::Color;
@@ -61,12 +61,14 @@ pub const fn sample(value: u32) -> Rgba {
 
 /// The appearance of the window.
 ///
-/// A window has one appearance. Decision 0029, section 21 adds the light
-/// appearance. Until then each token has the dark value only.
+/// A window has one appearance. The values of each colour token in the two
+/// appearances are the palettes [`DARK`] and [`LIGHT`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Appearance {
-    /// The dark appearance: the values of this module today.
+    /// The dark appearance.
     Dark,
+    /// The light appearance.
+    Light,
 }
 
 thread_local! {
@@ -81,12 +83,11 @@ pub fn appearance() -> Appearance {
     APPEARANCE.with(Cell::get)
 }
 
-/// Set the appearance of the window of this thread. A test uses
-/// [`set_appearance_for_test`], which puts the appearance back. The window
-/// has the dark value only today, thus only a test sets an appearance.
-/// Decision 0029, section 21 adds the caller of the window.
-#[cfg(test)]
-fn set_appearance(appearance: Appearance) {
+/// Set the appearance of the window of this thread. The window changes it
+/// when the user selects an appearance, and when macOS changes the colour
+/// scheme while the choice is System (`crate::appearance`). A test uses
+/// [`set_appearance_for_test`], which puts the appearance back.
+pub(crate) fn set_appearance(appearance: Appearance) {
     APPEARANCE.with(|cell| cell.set(appearance));
 }
 
@@ -98,6 +99,15 @@ pub(crate) fn set_appearance_for_test(appearance: Appearance) -> AppearanceGuard
     let before = self::appearance();
     set_appearance(appearance);
     AppearanceGuard(before)
+}
+
+/// Keep the appearance of the thread that it has now, and put it back at the
+/// end of a test. A test that changes the appearance through the window
+/// (a setting, or the appearance of macOS) uses it, because the window uses
+/// [`set_appearance`] directly.
+#[cfg(test)]
+pub(crate) fn keep_appearance_for_test() -> AppearanceGuard {
+    AppearanceGuard(self::appearance())
 }
 
 /// Puts back the appearance of the thread that it had before a test.
@@ -136,6 +146,9 @@ struct Palette {
     text_tertiary: Rgba,
     text_disabled: Rgba,
     text_on_accent: Rgba,
+    text_on_segment: Rgba,
+    text_on_tile: Rgba,
+    text_on_tint: Rgba,
     accent: Rgba,
     accent_line: Rgba,
     accent_text: Rgba,
@@ -220,6 +233,9 @@ const DARK: Palette = Palette {
     text_tertiary: hex(0x8b8e96),
     text_disabled: hex(0x6b6e76),
     text_on_accent: hex(0xffffff),
+    text_on_segment: hex(0xffffff),
+    text_on_tile: hex(0xffffff),
+    text_on_tint: hex(0xffffff),
     accent: hex(0x1a6fd8),
     accent_line: hex(0x3b95ff),
     accent_text: hex(0x4da3ff),
@@ -280,10 +296,107 @@ const DARK: Palette = Palette {
     shadow_sheet: hex_alpha(0x000000, 0.55),
 };
 
+/// The light appearance: the same tokens on light surfaces, as macOS uses
+/// them in the light appearance. Section 2.9 of docs/DESIGN.md gives the
+/// contrast rules of these values. The device drawing keeps the colours of
+/// the hardware (the dark body, the display, the knob, and the empty key
+/// face); only the border of the body and the shadow on the canvas change.
+const LIGHT: Palette = Palette {
+    bg_canvas: hex(0xf3f4f6),
+    bg_bar: hex(0xfbfbfc),
+    bg_sidebar: hex(0xeaecf0),
+    bg_panel: hex(0xf6f7f9),
+    bg_card: hex(0xffffff),
+    bg_control: hex(0xffffff),
+    bg_field: hex(0xffffff),
+    bg_segment_on: hex(0xd3d7de),
+    bg_tile: hex(0xe2e5ea),
+    line_pane: hex(0xdcdfe4),
+    line_section: hex(0xe4e6ea),
+    border_field: hex(0xd2d5db),
+    border_control: hex(0xc6cad1),
+    border_overlay: hex(0xbfc4cc),
+    border_device_card: hex(0xd6dae0),
+    line_sidebar: hex(0xe0e3e7),
+    text_primary: hex(0x17191d),
+    text_secondary: hex(0x545963),
+    text_tertiary: hex(0x62676f),
+    text_disabled: hex(0x83888f),
+    text_on_accent: hex(0xffffff),
+    text_on_segment: hex(0x1b1e23),
+    text_on_tile: hex(0x20242a),
+    text_on_tint: hex(0x0b4fa8),
+    accent: hex(0x0b5fcc),
+    accent_line: hex(0x1f6fd8),
+    accent_text: hex(0x0b5fcc),
+    accent_text_hover: hex(0x094fab),
+    accent_tint: hex_alpha(0x0b5fcc, 0.10),
+    accent_tint_drag: hex_alpha(0x0b5fcc, 0.12),
+    success: hex(0x1b8a3c),
+    success_text: hex(0x0b6e2e),
+    success_tint: hex_alpha(0x1b8a3c, 0.12),
+    destructive_text: hex(0xb3261e),
+    destructive_tint: hex_alpha(0xb3261e, 0.10),
+    destructive_line: hex_alpha(0xb3261e, 0.35),
+    warning: hex(0x8a5a00),
+    // The glow is on the device drawing, which stays dark in both
+    // appearances.
+    input_glow: hex(0xffce73),
+    hover_control: hex(0xf1f3f5),
+    hover_icon: hex_alpha(0x000000, 0.05),
+    transparent: hex_alpha(0x000000, 0.),
+    hover_row: hex_alpha(0x000000, 0.045),
+    menu_highlight: hex_alpha(0x0b5fcc, 0.16),
+    selected_unfocused: hex_alpha(0x000000, 0.06),
+    pressed: hex(0xe5e8ec),
+    neutral_tint: hex_alpha(0x000000, 0.06),
+    border_sample_other: hex(0x8a8f98),
+    switch_knob_colour: hex(0xffffff),
+    // The kind tiles keep a saturated colour in both appearances, as the
+    // icons of a macOS toolbar do. The white letter reads on each one.
+    kind_tile_system: hex(0x3a3f47),
+    kind_tile_media: hex(0x2350a8),
+    kind_tile_navigation: hex(0x1f6f6b),
+    kind_tile_logic: hex(0x7a3e2e),
+    kind_tile_other: hex(0x4b3b7a),
+    kind_tile_unavailable: hex(0x3a3c42),
+    // The device drawing: the same pixels as the hardware, in both
+    // appearances. Only the border of the body follows the canvas.
+    device_body: hex(0x0b0c0e),
+    device_body_border: hex(0x3c4048),
+    device_display: hex(0x0f1724),
+    device_surface_border: hex_alpha(0xffffff, 0.06),
+    device_knob: hex(0x1c1e23),
+    device_knob_ring: hex(0x3a3c42),
+    device_touch_bar_border: hex_alpha(0xffffff, 0.10),
+    device_knob_dot: hex(0xececee),
+    device_key_empty_border: hex(0x3a3f4c),
+    device_key_empty_icon: hex(0x5a5f6b),
+    device_touch_bar_hover: hex_alpha(0xffffff, 0.10),
+    accent_line_hover: hex_alpha(0x1f6fd8, 0.55),
+    badge_on_image: hex_alpha(0x000000, 0.6),
+    accent_tint_drop: hex_alpha(0x0b5fcc, 0.18),
+    modal_dim: hex_alpha(0x000000, 0.2),
+    tile_on_accent: hex_alpha(0xffffff, 0.22),
+    bg_context_chip: hex(0xe5e8ec),
+    text_icon_cell: hex(0x33373e),
+    accent_tint_chip: hex_alpha(0x0b5fcc, 0.14),
+    picture_panel_empty: hex(0xe7eaef),
+    success_fill: hex(0x157a3a),
+    accent_tint_start: hex_alpha(0x0b5fcc, 0.10),
+    // A shadow is weaker on a light canvas.
+    shadow_device_body: hex_alpha(0x000000, 0.18),
+    shadow_input_glow: hex_alpha(0xffce73, 0.55),
+    shadow_drag: hex_alpha(0x000000, 0.18),
+    shadow_popover: hex_alpha(0x000000, 0.18),
+    shadow_sheet: hex_alpha(0x000000, 0.22),
+};
+
 /// The colours of the appearance of this thread.
 fn palette() -> &'static Palette {
     match appearance() {
         Appearance::Dark => &DARK,
+        Appearance::Light => &LIGHT,
     }
 }
 
@@ -392,6 +505,24 @@ pub fn text_disabled() -> Rgba {
 /// Text on an accent fill.
 pub fn text_on_accent() -> Rgba {
     palette().text_on_accent
+}
+
+/// The text of a selected segment, of a selected tab, and of a toggle button
+/// that is on: the text on [`bg_segment_on()`].
+pub fn text_on_segment() -> Rgba {
+    palette().text_on_segment
+}
+
+/// The icon of a tile with [`bg_tile()`], for example a command tile of the
+/// palette.
+pub fn text_on_tile() -> Rgba {
+    palette().text_on_tile
+}
+
+/// The text on a tinted background: a selected chip
+/// ([`accent_tint_chip()`]).
+pub fn text_on_tint() -> Rgba {
+    palette().text_on_tint
 }
 
 /// The selected row, and the main button.
@@ -880,7 +1011,8 @@ pub const RADIUS_PAGE_PICTURE_ITEM: Pixels = px(2.);
 pub const BACKGROUND_PREVIEW_WIDTH: Pixels = px(140.);
 pub const BACKGROUND_PREVIEW_HEIGHT: Pixels = px(84.);
 pub const BACKGROUND_BADGE_INSET: Pixels = SPACE_6;
-/// The backing of the size text on a background image.
+/// The backing of a text on an image: the size text of a background preview,
+/// and the text "Drop here" of a drop target.
 pub fn badge_on_image() -> Rgba {
     palette().badge_on_image
 }
@@ -1141,6 +1273,9 @@ pub const SETTINGS_TITLE_HEIGHT: Pixels = px(34.);
 pub const SETTINGS_WINDOW_BUTTONS: (Pixels, Pixels) = (px(13.), px(10.));
 /// A tab of the Settings window.
 pub const SETTINGS_TAB: (Pixels, Pixels) = (px(78.), px(50.));
+/// The width of the segmented control "Appearance" of Settings > General:
+/// three segments of 70.
+pub const WIDTH_SETTINGS_APPEARANCE: Pixels = px(210.);
 /// The height of the title area of the Settings window: the title bar, the
 /// row of tabs with its padding, and the line below. The window of the
 /// measurement has this height, and a window that cannot measure its content
@@ -1619,10 +1754,11 @@ mod tests {
         (colour.h, colour.s, colour.l, colour.a)
     }
 
-    /// The shadows keep the dark values of section 2.8. A change of the
-    /// palette of another appearance must not change them.
+    /// The shadows keep the values of section 2.8 of each appearance. A
+    /// change of the palette of another appearance must not change them.
     #[test]
-    fn the_shadows_keep_their_dark_values() {
+    fn the_dark_shadows_keep_their_values() {
+        let _scope = set_appearance_for_test(Appearance::Dark);
         assert_eq!(
             parts(device_body_shadow()[0].color),
             parts(Hsla::from(hex_alpha(0x000000, 0.45)))
@@ -1645,20 +1781,255 @@ mod tests {
         );
     }
 
+    /// The light shadows are weaker than the dark ones, because a light
+    /// canvas shows a black shadow more.
+    #[test]
+    fn the_light_shadows_are_weaker_than_the_dark_ones() {
+        let _scope = set_appearance_for_test(Appearance::Light);
+        assert_eq!(
+            parts(device_body_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0x000000, 0.18)))
+        );
+        assert_eq!(
+            parts(drag_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0x000000, 0.18)))
+        );
+        assert_eq!(
+            parts(popover_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0x000000, 0.18)))
+        );
+        assert_eq!(
+            parts(sheet_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0x000000, 0.22)))
+        );
+        // The glow of a control is on the device drawing, which is dark in
+        // both appearances.
+        assert_eq!(
+            parts(input_glow_shadow()[0].color),
+            parts(Hsla::from(hex_alpha(0xffce73, 0.55)))
+        );
+        for (light, dark) in [
+            (LIGHT.shadow_device_body.a, DARK.shadow_device_body.a),
+            (LIGHT.shadow_drag.a, DARK.shadow_drag.a),
+            (LIGHT.shadow_popover.a, DARK.shadow_popover.a),
+            (LIGHT.shadow_sheet.a, DARK.shadow_sheet.a),
+            (LIGHT.modal_dim.a, DARK.modal_dim.a),
+        ] {
+            assert!(light < dark, "{light} is not below {dark}");
+        }
+    }
+
+    /// The relative luminance of `colour` over `base`, as WCAG defines it.
+    fn luminance(colour: Rgba, base: Rgba) -> f32 {
+        let over = |c: f32, b: f32| c * colour.a + b * (1. - colour.a);
+        let linear = |c: f32| {
+            if c <= 0.04045 {
+                c / 12.92
+            } else {
+                ((c + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * linear(over(colour.r, base.r))
+            + 0.7152 * linear(over(colour.g, base.g))
+            + 0.0722 * linear(over(colour.b, base.b))
+    }
+
+    /// The contrast of `colour` over `base` from 1 to 21, as WCAG defines it.
+    fn contrast(colour: Rgba, base: Rgba) -> f32 {
+        let a = luminance(colour, base);
+        let b = luminance(base, base);
+        let (high, low) = if a > b { (a, b) } else { (b, a) };
+        (high + 0.05) / (low + 0.05)
+    }
+
+    /// The rules of section 2.9 of docs/DESIGN.md, for both palettes. A rule
+    /// that the dark appearance keeps today also holds for the light one.
+    #[test]
+    fn both_palettes_meet_the_contrast_rules_of_design() {
+        for (name, palette) in [("dark", &DARK), ("light", &LIGHT)] {
+            let surfaces = [
+                ("bg_canvas", palette.bg_canvas),
+                ("bg_bar", palette.bg_bar),
+                ("bg_sidebar", palette.bg_sidebar),
+                ("bg_panel", palette.bg_panel),
+                ("bg_card", palette.bg_card),
+                ("bg_field", palette.bg_field),
+                ("bg_control", palette.bg_control),
+            ];
+            let check = |what: &str, colour: Rgba, base: Rgba, least: f32| {
+                let ratio = contrast(colour, base);
+                assert!(
+                    ratio >= least,
+                    "{name}: {what} is {ratio:.2}:1, below {least}:1"
+                );
+            };
+
+            // Body text, labels, and help texts.
+            for (_, base) in surfaces {
+                check("text_primary", palette.text_primary, base, 7.);
+                check("text_secondary", palette.text_secondary, base, 4.5);
+                check("accent_line", palette.accent_line, base, 3.);
+            }
+            for (_, base) in surfaces.iter().take(5) {
+                check("text_tertiary", palette.text_tertiary, *base, 4.5);
+            }
+            check(
+                "text_disabled on the canvas",
+                palette.text_disabled,
+                palette.bg_canvas,
+                3.,
+            );
+
+            // A link, a status text, and the text of a coloured fill.
+            for (_, base) in surfaces.iter().take(5) {
+                check("accent_text", palette.accent_text, *base, 4.5);
+            }
+            for (_, base) in [
+                ("bg_canvas", palette.bg_canvas),
+                ("bg_bar", palette.bg_bar),
+                ("bg_panel", palette.bg_panel),
+                ("bg_card", palette.bg_card),
+            ] {
+                check("success_text", palette.success_text, base, 4.5);
+                check("destructive_text", palette.destructive_text, base, 4.5);
+                check("warning", palette.warning, base, 4.5);
+            }
+            check(
+                "text_on_accent",
+                palette.text_on_accent,
+                palette.accent,
+                4.5,
+            );
+            check(
+                "text_on_accent on success_fill",
+                palette.text_on_accent,
+                palette.success_fill,
+                4.5,
+            );
+            check("accent", palette.accent, palette.bg_canvas, 3.);
+
+            // The state of a control with no accent fill.
+            check(
+                "text_on_segment",
+                palette.text_on_segment,
+                palette.bg_segment_on,
+                4.5,
+            );
+            check("text_on_tile", palette.text_on_tile, palette.bg_tile, 4.5);
+            for base in [palette.bg_card, palette.bg_panel] {
+                check("text_on_tint", palette.text_on_tint, base, 4.5);
+            }
+            check(
+                "switch_knob_colour",
+                palette.switch_knob_colour,
+                palette.bg_segment_on,
+                1.3,
+            );
+
+            // A border is visible, and a state tint is visible.
+            check(
+                "border_control",
+                palette.border_control,
+                palette.bg_card,
+                1.4,
+            );
+            check("border_field", palette.border_field, palette.bg_field, 1.25);
+            check(
+                "border_overlay",
+                palette.border_overlay,
+                palette.bg_card,
+                1.4,
+            );
+            for (_, base) in surfaces {
+                check("hover_row", palette.hover_row, base, 1.08);
+                check("selected_unfocused", palette.selected_unfocused, base, 1.08);
+            }
+            for base in [palette.bg_card, palette.bg_field, palette.bg_bar] {
+                check("menu_highlight", palette.menu_highlight, base, 1.2);
+            }
+
+            // A sheet on a light canvas needs less dimming.
+            if name == "light" {
+                assert!(palette.modal_dim.a < DARK.modal_dim.a);
+            }
+        }
+    }
+
+    /// The device picture keeps the colours of the hardware in both
+    /// appearances. Only the border of the body and its shadow follow the
+    /// canvas.
+    #[test]
+    fn the_device_picture_keeps_the_colours_of_the_hardware() {
+        for (field, dark, light) in [
+            ("device_body", DARK.device_body, LIGHT.device_body),
+            ("device_display", DARK.device_display, LIGHT.device_display),
+            (
+                "device_surface_border",
+                DARK.device_surface_border,
+                LIGHT.device_surface_border,
+            ),
+            ("device_knob", DARK.device_knob, LIGHT.device_knob),
+            (
+                "device_knob_ring",
+                DARK.device_knob_ring,
+                LIGHT.device_knob_ring,
+            ),
+            (
+                "device_touch_bar_border",
+                DARK.device_touch_bar_border,
+                LIGHT.device_touch_bar_border,
+            ),
+            (
+                "device_knob_dot",
+                DARK.device_knob_dot,
+                LIGHT.device_knob_dot,
+            ),
+            (
+                "device_key_empty_border",
+                DARK.device_key_empty_border,
+                LIGHT.device_key_empty_border,
+            ),
+            (
+                "device_key_empty_icon",
+                DARK.device_key_empty_icon,
+                LIGHT.device_key_empty_icon,
+            ),
+            (
+                "device_touch_bar_hover",
+                DARK.device_touch_bar_hover,
+                LIGHT.device_touch_bar_hover,
+            ),
+            ("input_glow", DARK.input_glow, LIGHT.input_glow),
+        ] {
+            assert_eq!(dark, light, "{field} changes with the appearance");
+        }
+        assert_ne!(
+            DARK.device_body_border, LIGHT.device_body_border,
+            "the border of the body follows the canvas"
+        );
+        assert_ne!(
+            DARK.shadow_device_body, LIGHT.shadow_device_body,
+            "the shadow of the body follows the canvas"
+        );
+    }
+
     /// A test changes the appearance of its thread only inside a scope, also
-    /// when an assertion of the scope fails. The window has the dark
-    /// appearance only today, thus the test checks the value and the guard
-    /// that APP-21 uses.
+    /// when an assertion of the scope fails. The palette of the thread
+    /// follows the appearance.
     #[test]
     fn the_appearance_of_a_scope_goes_back_at_its_end() {
         assert_eq!(appearance(), Appearance::Dark);
+        assert_eq!(bg_canvas(), DARK.bg_canvas);
         {
-            let _scope = set_appearance_for_test(Appearance::Dark);
-            assert_eq!(appearance(), Appearance::Dark);
+            let _scope = set_appearance_for_test(Appearance::Light);
+            assert_eq!(appearance(), Appearance::Light);
+            assert_eq!(bg_canvas(), LIGHT.bg_canvas);
+            assert_ne!(bg_canvas(), DARK.bg_canvas);
         }
         assert_eq!(appearance(), Appearance::Dark);
+        assert_eq!(bg_canvas(), DARK.bg_canvas);
         // A second scope leaves the appearance of the first one.
-        drop(set_appearance_for_test(Appearance::Dark));
+        drop(set_appearance_for_test(Appearance::Light));
         assert_eq!(appearance(), Appearance::Dark);
     }
 }
