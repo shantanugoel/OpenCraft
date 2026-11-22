@@ -235,3 +235,127 @@ fn the_drop_is_one_step_and_undo_sends_the_command(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(sent.borrow().last(), Some(&Command::Undo));
 }
+
+/// A window with three key faces and the key 2 selected.
+fn keyboard_key_window(
+    cx: &mut TestAppContext,
+) -> (
+    Entity<DeviceView>,
+    &mut VisualTestContext,
+    async_channel::Sender<Event>,
+    Commands,
+) {
+    let (view, cx, tx, sent) = three_key_window(cx);
+    click(cx, "surface-key face 2");
+    (view, cx, tx, sent)
+}
+
+/// Do the command `command` from the palette: ⌘K, the title of the command,
+/// Return. The test reads the rows that the palette shows.
+fn run_palette_command(cx: &mut VisualTestContext, title: &str) {
+    cx.simulate_keystrokes("cmd-k");
+    cx.run_until_parked();
+    cx.simulate_input(title);
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("palette-row-0").is_some(),
+        "the palette has no row for {title}"
+    );
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+}
+
+#[gpui_kit::test]
+fn the_palette_moves_the_selected_key_to_an_empty_key(cx: &mut TestAppContext) {
+    let (view, cx, _tx, sent) = keyboard_key_window(cx);
+    run_palette_command(cx, "move the key right");
+    assert_eq!(
+        moves(&sent),
+        [Command::MoveControl {
+            from: KEY_2,
+            to: KEY_4,
+        }]
+    );
+    // The destination is the selection, as after a drag.
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.selected, Some(key_face_4())));
+    assert_eq!(message(&view, cx).as_deref(), Some("Key 2 moves to Key 4"));
+}
+
+#[gpui_kit::test]
+fn the_palette_swaps_the_selected_key_with_the_key_beside_it(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = keyboard_key_window(cx);
+    send(cx, &tx, surface(key_face_4(), "Other"));
+    cx.run_until_parked();
+    run_palette_command(cx, "move the key right");
+    assert_eq!(
+        moves(&sent),
+        [Command::MoveControl {
+            from: KEY_2,
+            to: KEY_4,
+        }]
+    );
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.selected, Some(key_face_4())));
+    assert_eq!(
+        message(&view, cx).as_deref(),
+        Some("Key 2 and Key 4 are swapped")
+    );
+}
+
+#[gpui_kit::test]
+fn a_move_with_no_key_beside_it_sends_nothing(cx: &mut TestAppContext) {
+    let (view, cx, _tx, sent) = keyboard_key_window(cx);
+    // Key 2 is the left key of the only row: no key at its left or above.
+    run_palette_command(cx, "move the key left");
+    assert!(moves(&sent).is_empty(), "{:?}", sent.borrow());
+    assert_eq!(
+        message(&view, cx).as_deref(),
+        Some("Key 2 has no key at its left")
+    );
+    run_palette_command(cx, "move the key up");
+    assert!(moves(&sent).is_empty(), "{:?}", sent.borrow());
+    assert_eq!(
+        message(&view, cx).as_deref(),
+        Some("Key 2 has no key above")
+    );
+}
+
+#[gpui_kit::test]
+fn the_palette_shows_the_move_of_a_key_only_for_a_key_with_content(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = three_key_window(cx);
+    // An empty key has nothing to move: no command.
+    click(cx, "surface-key face 4");
+    cx.simulate_keystrokes("cmd-k");
+    cx.run_until_parked();
+    cx.simulate_input("move the key");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("palette-no-result").is_some());
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    // A knob moves with no command of the palette.
+    click(cx, "control-knob 2");
+    cx.simulate_keystrokes("cmd-k");
+    cx.run_until_parked();
+    cx.simulate_input("move the key");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("palette-no-result").is_some());
+}
+
+#[gpui_kit::test]
+fn the_move_of_the_palette_is_one_step_and_undo_restores_it(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = keyboard_key_window(cx);
+    run_palette_command(cx, "move the key right");
+    // One command, thus the engine makes one step of the history.
+    assert_eq!(moves(&sent).len(), 1);
+    send(
+        cx,
+        &tx,
+        Event::History {
+            undo: Some("Move Key".into()),
+            redo: None,
+        },
+    );
+    assert!(cx.update(|window, cx| window.is_action_available(&crate::app_menu::Undo, cx)));
+    cx.simulate_keystrokes("cmd-z");
+    cx.run_until_parked();
+    assert_eq!(sent.borrow().last(), Some(&Command::Undo));
+}

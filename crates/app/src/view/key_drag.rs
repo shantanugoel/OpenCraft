@@ -146,6 +146,84 @@ impl DeviceView {
         self.show_message(text, window, cx);
     }
 
+    /// True when the selected control is a key face with an appearance or a
+    /// binding: a key that the commands of the palette can move (issue 485).
+    pub(super) fn can_move_key(&self) -> bool {
+        self.state.selected_control.is_some_and(|control| {
+            control.kind == ControlKind::Key && self.key_has_content(control)
+        })
+    }
+
+    /// Move the selected key face by one place of the grid: the commands of
+    /// the palette, the keyboard path of a move (issue 485). `row` is 1 for
+    /// the row below and -1 for the row above; `column` is 1 for the key at
+    /// the right and -1 for the key at the left.
+    ///
+    /// It sends the same [`Command::MoveControl`] as a drop of the key, thus
+    /// the engine cancels the gesture timers of both keys and one step of
+    /// the history restores the key.
+    pub(super) fn move_key_by(
+        &mut self,
+        row: i8,
+        column: i8,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(from) = self.state.selected_control else {
+            return;
+        };
+        if from.kind != ControlKind::Key {
+            self.show_message("Select a key face first", window, cx);
+            return;
+        }
+        if !self.key_has_content(from) {
+            self.show_message(
+                format!("{} has nothing to move", control_name(from)),
+                window,
+                cx,
+            );
+            return;
+        }
+        let Some(to) = self.key_beside(from, row, column) else {
+            self.show_message(
+                format!(
+                    "{} has no key {}",
+                    control_name(from),
+                    if row < 0 {
+                        "above"
+                    } else if row > 0 {
+                        "below"
+                    } else if column < 0 {
+                        "at its left"
+                    } else {
+                        "at its right"
+                    }
+                ),
+                window,
+                cx,
+            );
+            return;
+        };
+        self.select_control(to, window, cx);
+        self.drop_key(from, to, window, cx);
+    }
+
+    /// The key face next to `control` at `row` and `column` places on the
+    /// layout of the device. `None` when the device has no key there, or
+    /// when the key is on a page or in a folder that does not have that
+    /// place: the engine refuses a move to another page.
+    fn key_beside(&self, control: ControlId, row: i8, column: i8) -> Option<ControlId> {
+        let layout = self.state.layout.as_ref()?;
+        let from = layout.controls.iter().find(|c| c.id == control)?;
+        let row = u8::try_from(i16::from(from.row) + i16::from(row)).ok()?;
+        let column = u8::try_from(i16::from(from.column) + i16::from(column)).ok()?;
+        layout
+            .controls
+            .iter()
+            .find(|c| c.id.kind == control.kind && c.row == row && c.column == column)
+            .map(|c| c.id)
+    }
+
     /// True if the control `control` has an appearance or a binding on the
     /// active page or folder.
     fn key_has_content(&self, control: ControlId) -> bool {

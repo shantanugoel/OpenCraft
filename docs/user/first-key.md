@@ -348,6 +348,24 @@ key.
 - A drop on the same key does nothing.
 - The move is one change. One Command-Z (**Undo Move Key**) puts both keys
   back.
+
+### Move a key with the keyboard
+
+Push Command-K and type one of these commands. Push Return.
+
+| Command | What it does |
+|---|---|
+| Move the key left | Moves the selected key to the key face at its left, or swaps the two keys |
+| Move the key right | The same, to the key face at its right |
+| Move the key up | The same, to the key face above |
+| Move the key down | The same, to the key face below |
+
+The window shows the command only when the selected control is a key face
+that has something to move. The destination key becomes the selected key,
+thus you push the command again to move the key more than one place. Each
+move is one change: one Command-Z puts both keys back. The status bar tells
+you when the device has no key at that place, for example "Key 5 has no key
+at its right".
 - A key of a folder moves inside the folder. The keys of the page below
   the folder do not change.
 

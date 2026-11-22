@@ -354,6 +354,12 @@ fn the_text_filters_each_group(cx: &mut TestAppContext) {
             (Group::Actions, "Send a hotkey".to_string()),
             (Group::Actions, "Media key".to_string()),
             (Group::Controls, "Key 2".to_string()),
+            // The four commands of a move of a key face (issue 485): the
+            // selected key of this window has content.
+            (Group::Commands, "Move the key left".to_string()),
+            (Group::Commands, "Move the key right".to_string()),
+            (Group::Commands, "Move the key up".to_string()),
+            (Group::Commands, "Move the key down".to_string()),
         ]
     );
     keys(cx, "escape");

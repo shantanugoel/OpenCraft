@@ -55,6 +55,25 @@ pub struct AddReadyProfile {
     pub index: usize,
 }
 
+/// Move the selected key face by one place of the grid: `row` is 1 for the
+/// row below and -1 for the row above, and `column` is 1 for the key at the
+/// right and -1 for the key at the left. The engine's `MoveControl` moves
+/// the key onto an empty key or swaps it with the key there, in one step of
+/// the history (KEY-14, issue 485).
+#[derive(Clone, PartialEq, Eq, Debug, Action)]
+#[action(namespace = opencraft, no_json)]
+pub struct MoveKey {
+    pub row: i8,
+    pub column: i8,
+}
+
+impl MoveKey {
+    const LEFT: Self = Self { row: 0, column: -1 };
+    const RIGHT: Self = Self { row: 0, column: 1 };
+    const UP: Self = Self { row: -1, column: 0 };
+    const DOWN: Self = Self { row: 1, column: 0 };
+}
+
 /// The key context of the root element of the window. The key commands of
 /// the window operate only when the focus is in this element, so that a
 /// focused text field keeps its own keys (`docs/kb/gpui.md`, "Key commands
@@ -254,6 +273,13 @@ pub fn commands(panes: &Panes, edit: &EditMenu) -> Vec<AppCommand> {
         .menu(View, 0)
         .shortcut("Hide or show the inspector")
         .palette(6),
+        // The four commands of a move of a key face (issue 485): the drag of
+        // KEY-14 has no keyboard path. They send the same `MoveControl` as
+        // the drag, thus one step of the history restores the key.
+        AppCommand::new("Move the key left", I::ArrowLeft, MoveKey::LEFT).palette(17),
+        AppCommand::new("Move the key right", I::ArrowRight, MoveKey::RIGHT).palette(18),
+        AppCommand::new("Move the key up", I::ArrowUp, MoveKey::UP).palette(19),
+        AppCommand::new("Move the key down", I::ArrowDown, MoveKey::DOWN).palette(20),
         // The sheet has no menu row: decision 0029, section 7.3, gives the
         // application no profile commands in the menu bar. The palette and
         // the key command open it, also from the keyboard (issue 482).
