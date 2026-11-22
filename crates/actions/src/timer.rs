@@ -1,4 +1,22 @@
 //! One worker for all countdowns and stopwatches.
+//!
+//! A timer that a key shows wakes the worker each second, because its text
+//! changes each second. A timer that no key shows draws no text: a countdown
+//! wakes the worker one time only, at zero, for its bell, and a stopwatch
+//! wakes it never. The elapsed time of a hidden stopwatch comes from the
+//! clock when a key shows the timer again. Thus only a timer that a key shows
+//! wakes the worker each second, and a timer that no key shows causes no
+//! endless wake.
+//!
+//! The engine sends `Invoke` to the handler of the kind of the action, with
+//! the binding of the handler that asked. An action inside a Sequence, a
+//! Toggle, an action cycle, or the multi-function knob thus sends `Invoke`
+//! with the binding of the outer action, and the engine sends no `Appear` and
+//! no `Disappear` to this worker for that binding. Such a timer stays hidden:
+//! its countdown rings one time at zero and keeps no wake after that, and its
+//! stopwatch has no effect. Decision 0017 has the reasons. A timer that a key
+//! showed keeps its state when the key goes away, because a countdown sounds
+//! its bell also on another page (`docs/user/actions.md`).
 
 use crate::backend::System;
 use crate::kinds::{kinds_of, problem, send, timer, Group};
@@ -176,6 +194,14 @@ fn format_time(seconds: u64) -> String {
 struct Timers(BTreeMap<BindingId, Entry>);
 
 impl Timers {
+    /// The deadline of the next turn of the worker.
+    ///
+    /// A timer that a key shows needs a turn at its next second, because the
+    /// text changes at each second. A timer that no key shows draws no text,
+    /// thus only the bell of its countdown needs a turn, at zero. A hidden
+    /// stopwatch has no deadline at all. Thus a timer that an action inside
+    /// another action starts, or that a page change hides, causes no wake at
+    /// each second, and no endless wake.
     fn next_wake(&self, now: Instant) -> Option<Instant> {
         self.0
             .values()
@@ -187,8 +213,21 @@ impl Timers {
                 else {
                     return None;
                 };
-                let second = entry.phase.elapsed(now).as_secs() + 1;
-                Some(started_at + (Duration::from_secs(second) - elapsed_before))
+                if entry.visible {
+                    let second = entry.phase.elapsed(now).as_secs() + 1;
+                    return Some(started_at + (Duration::from_secs(second) - elapsed_before));
+                }
+                match entry.settings.mode {
+                    // One turn for the bell at zero, and no turn for the text
+                    // that no key shows.
+                    Mode::Countdown => Some(
+                        started_at
+                            + Duration::from_secs(entry.settings.seconds)
+                                .saturating_sub(elapsed_before),
+                    ),
+                    // A stopwatch has no bell and no text while it is hidden.
+                    Mode::Stopwatch => None,
+                }
             })
             .min()
     }
