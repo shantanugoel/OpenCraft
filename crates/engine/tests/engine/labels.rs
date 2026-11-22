@@ -415,8 +415,7 @@ fn a_surface_inherits_the_profile_default_and_an_own_value_wins() {
 fn a_change_of_the_profile_default_repaints_each_surface_that_inherits_it() {
     let mut rig = Rig::new();
     let _device = rig.connect();
-    let connected = rig.take_events();
-    let before = last_state(&connected, BAR_2).image.clone();
+    rig.take_events();
     rig.engine.command(Command::SetLabel {
         surface: KEY_3,
         label: Some("Mail".into()),
@@ -468,8 +467,15 @@ fn a_change_of_the_profile_default_repaints_each_surface_that_inherits_it() {
         !surfaces.contains(&KEY_3),
         "the key has an own size: {surfaces:?}"
     );
-    let after = last_state(&events, BAR_2).image.clone();
-    assert_ne!(*before, *after, "the bar panel shows the larger size");
+    assert_eq!(
+        last_state(&events, BAR_2)
+            .content
+            .label_style
+            .resolve(&rig.engine.profile().default_label_style)
+            .size,
+        40,
+        "the bar panel shows the larger size"
+    );
 
     // The change is not a step of the history.
     assert!(events
