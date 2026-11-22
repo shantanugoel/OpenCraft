@@ -47,11 +47,15 @@ pub(super) struct FontPicker {
     pub(super) open: bool,
     search: Entity<InputState>,
     _search_subscription: Subscription,
-    /// The installed families of the last call. A font that the user
-    /// installs while OpenCraft runs shows at the next call.
+    /// The installed families of the last background scan. A font that the
+    /// user installs while OpenCraft runs shows after the next scan.
     families: RefCell<Vec<FontFamily>>,
-    /// The families are known: one call made the list.
-    known: Cell<bool>,
+    /// The list came from a scan, or from a test: a row can use it.
+    loaded: Cell<bool>,
+    /// A background scan runs now.
+    loading: Cell<bool>,
+    /// A scan that started earlier than this number is ignored.
+    generation: Cell<u64>,
     /// A test gave the list: do not ask the engine.
     #[cfg(test)]
     fixed: Cell<bool>,
@@ -100,6 +104,20 @@ fn place(button: Bounds<Pixels>, viewport: gpui_kit::Size<Pixels>) -> Place {
     }
 }
 
+/// The text of the popup button: "System font", the display name of the
+/// family when the list has it, or the stored name. Decision 0043, section
+/// 1: the picker shows the display name and sends the stored name.
+fn font_button_value(families: &[FontFamily], current: Option<&str>) -> String {
+    let Some(stored) = current else {
+        return "System font".into();
+    };
+    families
+        .iter()
+        .find(|known| known.name == stored)
+        .map(|known| known.display.clone())
+        .unwrap_or_else(|| stored.to_string())
+}
+
 /// The rows for the search text `query`: the system font, and the families
 /// whose display name or stored name has the text, with no difference
 /// between capital and small letters.
@@ -139,7 +157,9 @@ impl FontPicker {
             search,
             _search_subscription: subscription,
             families: RefCell::new(Vec::new()),
-            known: Cell::new(false),
+            loaded: Cell::new(false),
+            loading: Cell::new(false),
+            generation: Cell::new(0),
             #[cfg(test)]
             fixed: Cell::new(false),
             shown: Vec::new(),
@@ -150,25 +170,44 @@ impl FontPicker {
         }
     }
 
-    /// The installed families. The first call makes the list, and a later
-    /// call uses it. [`Self::reload`] makes a new list.
+    /// The installed families of the last scan. The method does not scan:
+    /// the shell scans on a background thread (`DeviceView::start_font_scan`),
+    /// thus the UI thread never waits for Core Text.
     pub(super) fn families(&self) -> Ref<'_, Vec<FontFamily>> {
-        if !self.known.get() {
-            *self.families.borrow_mut() = label::font_families();
-            self.known.set(true);
-        }
         self.families.borrow()
     }
 
-    /// Make the list of the installed families again: the popover then shows
-    /// a font that the user installed while OpenCraft runs.
-    pub(super) fn reload(&self) {
+    /// The list came from a scan, or from a test.
+    pub(super) fn loaded(&self) -> bool {
+        self.loaded.get()
+    }
+
+    /// Start a scan unless one runs, and give its generation. `None` if a
+    /// scan runs now, or a test gave the list.
+    pub(super) fn start_scan(&self) -> Option<u64> {
         #[cfg(test)]
         if self.fixed.get() {
-            return;
+            return None;
         }
-        *self.families.borrow_mut() = label::font_families();
-        self.known.set(true);
+        if self.loading.get() {
+            return None;
+        }
+        self.loading.set(true);
+        let generation = self.generation.get() + 1;
+        self.generation.set(generation);
+        Some(generation)
+    }
+
+    /// Use the families of the scan `generation`. An earlier scan gives
+    /// `false`, and its list is dropped.
+    pub(super) fn finish_scan(&self, generation: u64, families: Vec<FontFamily>) -> bool {
+        if self.generation.get() != generation {
+            return false;
+        }
+        self.loading.set(false);
+        *self.families.borrow_mut() = families;
+        self.loaded.set(true);
+        true
     }
 
     /// Use `families` and do not ask the engine. A window test calls this
@@ -177,7 +216,7 @@ impl FontPicker {
     #[cfg(test)]
     pub(super) fn use_fixed_families(&self, families: Vec<FontFamily>) {
         *self.families.borrow_mut() = families;
-        self.known.set(true);
+        self.loaded.set(true);
         self.fixed.set(true);
     }
 
@@ -213,11 +252,14 @@ impl DeviceView {
             .label_style
             .resolve(&self.state.default_label_style());
         let current = style.font.clone();
-        let value = match &current {
-            Some(family) => family.clone(),
-            None => "System font".into(),
-        };
+        // A named family needs the list for its display name and for the
+        // hint. Make the list one time on a background thread, not in this
+        // frame.
+        if current.is_some() && !picker.loaded() {
+            self.start_font_scan(window, cx);
+        }
         let families = picker.families();
+        let value = font_button_value(&families, current.as_deref());
         let missing = current
             .as_deref()
             .filter(|family| !families.iter().any(|known| &known.name == family));
@@ -280,11 +322,39 @@ impl DeviceView {
             .into_any_element()
     }
 
+    /// Start the scan of the installed families on the background executor.
+    /// The open popover shows the last list until the scan finishes, and a
+    /// first open shows "Loading the fonts…".
+    fn start_font_scan(&self, window: &Window, cx: &mut Context<Self>) {
+        let Some(generation) = self.inspector.font_picker.start_scan() else {
+            return;
+        };
+        cx.spawn_in(window, async move |view, cx| {
+            let families = cx
+                .background_executor()
+                .spawn(async { label::font_families() })
+                .await;
+            let _ = view.update_in(cx, |view, _, cx| {
+                if !view.inspector.font_picker.finish_scan(generation, families) {
+                    return;
+                }
+                view.refresh_font_rows(cx);
+                if view.inspector.font_picker.open {
+                    view.highlight_current_font();
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     /// Open the font picker: the families of now, an empty search field with
     /// the cursor, and the highlight on the current family.
-    fn open_font_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn open_font_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.close_kinds();
-        self.inspector.font_picker.reload();
+        // A font that the user installed while OpenCraft runs shows after
+        // this scan. The UI thread does not wait for it.
+        self.start_font_scan(window, cx);
         let picker = &mut self.inspector.font_picker;
         picker.open = true;
         let search = picker.search.clone();
@@ -310,7 +380,7 @@ impl DeviceView {
     /// Make the rows again for the search text, and show the start of the
     /// list.
     fn refresh_font_rows(&mut self, cx: &Context<Self>) {
-        let shown = {
+        let shown = if self.inspector.font_picker.loaded() {
             let families = self.inspector.font_picker.families();
             let query = self
                 .inspector
@@ -320,6 +390,10 @@ impl DeviceView {
                 .value()
                 .to_string();
             rows(&families, &query)
+        } else {
+            // The first scan of the fonts is not ready. The empty state says
+            // so, and the rows come when the scan finishes.
+            Vec::new()
         };
         let picker = &mut self.inspector.font_picker;
         if picker.shown != shown {
@@ -380,6 +454,23 @@ impl DeviceView {
     /// Use the row `row` on the selected surface. The profile stores the
     /// name of the family, and not the name for the interface.
     fn choose_font(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
+        // A click on the checked row changes nothing. Without this test the
+        // engine records an undo step and stores the automatic font, which
+        // stops an inheritance of the profile default (review 2, M4).
+        let current = self.state.edit_surface().and_then(|surface| {
+            self.edited_face(surface)
+                .label_style
+                .resolve(&self.state.default_label_style())
+                .font
+        });
+        let checked = match &row {
+            Row::System => current.is_none(),
+            Row::Family(family) => current.as_deref() == Some(family.name.as_str()),
+        };
+        if checked {
+            self.close_font_picker(window, cx);
+            return;
+        }
         let change = match row {
             Row::System => LabelChange::Font(Some(Auto::Auto)),
             Row::Family(family) => LabelChange::Font(Some(Auto::Value(family.name))),
@@ -544,6 +635,9 @@ impl DeviceView {
     }
 
     fn font_empty_text(&self, cx: &Context<Self>) -> String {
+        if !self.inspector.font_picker.loaded() {
+            return "Loading the fonts…".into();
+        }
         let query = self.inspector.font_picker.search.read(cx).value();
         let query = query.trim();
         if query.is_empty() {
@@ -606,5 +700,35 @@ impl DeviceView {
                 view.choose_font(row.clone(), window, cx);
             }))
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_button_shows_the_display_name_of_the_family() {
+        let families = [
+            FontFamily {
+                name: "Hiragino Sans GB".into(),
+                display: "ヒラギノ角ゴ 簡体中文".into(),
+            },
+            FontFamily {
+                name: "Menlo".into(),
+                display: "Menlo".into(),
+            },
+        ];
+        assert_eq!(font_button_value(&families, None), "System font");
+        assert_eq!(
+            font_button_value(&families, Some("Hiragino Sans GB")),
+            "ヒラギノ角ゴ 簡体中文"
+        );
+        assert_eq!(font_button_value(&families, Some("Menlo")), "Menlo");
+        // A family that is not installed keeps its stored name.
+        assert_eq!(
+            font_button_value(&families, Some("Missing Family")),
+            "Missing Family"
+        );
     }
 }

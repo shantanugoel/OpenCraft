@@ -34,9 +34,10 @@ pub struct FontFamily {
 ///
 /// The function makes the list again at each call, thus a font that the user
 /// installs while OpenCraft runs shows at the next call. The shell calls it
-/// when the font picker opens. The engine makes the list at the first label
-/// that names a family. The list is behind a lock, because the engine thread
-/// draws and the GUI thread reads the list.
+/// on a background thread when the font picker opens. The engine makes the
+/// list at the first label that names a family. The lock holds the list, not
+/// the scan: a thread that makes a new list does not make the engine thread
+/// wait.
 ///
 /// The list is empty on an operating system that is not macOS.
 pub fn font_families() -> Vec<FontFamily> {
@@ -237,6 +238,7 @@ mod platform {
         kCTForegroundColorFromContextAttributeName, kCTUnderlineColorAttributeName,
         kCTUnderlineStyleAttributeName,
     };
+    use foreign_types::ForeignType;
     use std::sync::{Mutex, MutexGuard};
 
     /// A height for the layout frame that no label needs. The layout then
@@ -247,9 +249,6 @@ mod platform {
 
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
-        /// The device RGB colour space of this Mac.
-        fn CGColorSpaceCreateDeviceRGB() -> CGColorSpaceRef;
-        fn CGColorSpaceRelease(space: CGColorSpaceRef);
         /// A colour of a colour space, from four components. The colour
         /// keeps the space, thus the caller releases its own reference.
         fn CGColorCreate(space: CGColorSpaceRef, components: *const CGFloat) -> CGColorRef;
@@ -264,9 +263,10 @@ mod platform {
     static FAMILIES: Mutex<Option<Vec<FontFamily>>> = Mutex::new(None);
 
     pub fn font_families() -> Vec<FontFamily> {
-        let mut cache = lock();
+        // Make the list with no lock, and hold the lock only to swap it in.
+        // The engine thread can read the old list while this scan runs.
         let families = installed_families();
-        *cache = Some(families.clone());
+        *lock() = Some(families.clone());
         families
     }
 
@@ -276,17 +276,22 @@ mod platform {
 
     /// The installed families from Core Text: the display name of each
     /// family, with the family name of the profile file. A hidden family
-    /// (a name that starts with `.`) and a duplicate are not in the list.
+    /// (a name that starts with `.`), the reserved word `"system"`, an empty
+    /// name, and a duplicate are not in the list.
     fn installed_families() -> Vec<FontFamily> {
         let names = font_manager::copy_available_font_family_names();
         let mut families: Vec<FontFamily> = Vec::new();
         for display in names.iter().map(|name| name.to_string()) {
-            if display.starts_with('.') {
+            // A hidden family and an empty name need no font.
+            if display.trim().is_empty() || display.starts_with('.') {
                 continue;
             }
             // The list gives the name for the interface. The profile stores
             // the non-localized family name, which CTFontCopyName gives.
             let name = family_font(&display, LIST_SIZE).family_name();
+            if !usable_family_name(&name, &display) {
+                continue;
+            }
             if families.iter().any(|family| family.name == name) {
                 continue;
             }
@@ -307,10 +312,31 @@ mod platform {
     /// The test is necessary because `CTFontCreateWithName` and a font
     /// descriptor take a name and give a best match, not an error. A missing
     /// family gives Helvetica. See decision 0043, section 1.
-    fn installed_family(family: &str) -> bool {
-        let mut cache = lock();
-        let families = cache.get_or_insert_with(installed_families);
-        families.iter().any(|known| known.name == family)
+    pub(super) fn installed_family(family: &str) -> bool {
+        // Read the cache with a short lock. If it is empty, make the list
+        // with no lock and then store it: a thread that makes a new list
+        // never makes this lookup wait for the scan.
+        {
+            let cache = lock();
+            if let Some(families) = cache.as_ref() {
+                return families.iter().any(|known| known.name == family);
+            }
+        }
+        let families = installed_families();
+        let found = families.iter().any(|known| known.name == family);
+        *lock() = Some(families);
+        found
+    }
+
+    /// `name` and `display` can be a family of the list. A family name is
+    /// not empty and does not start with `.`. The word `"system"` is
+    /// reserved for the system font (decision 0043, section 2).
+    pub(super) fn usable_family_name(name: &str, display: &str) -> bool {
+        !name.trim().is_empty()
+            && !name.starts_with('.')
+            && name != crate::profile::SYSTEM_FONT_WORD
+            && !display.trim().is_empty()
+            && !display.starts_with('.')
     }
 
     /// The font of `family` at `size`, from the family descriptor. The font
@@ -332,14 +358,13 @@ mod platform {
     fn device_colour(color: Color) -> CGColor {
         let [r, g, b] = color.0.map(|value| f64::from(value) / 255.0);
         let components: [CGFloat; 4] = [r, g, b, 1.0];
-        // SAFETY: the space is a device RGB space that this call owns, the
-        // four components are red, green, blue, and alpha, and the colour
-        // keeps the space.
+        // The colour space owns its reference and releases it when it goes
+        // out of scope, also if the colour cannot be made.
+        let space = CGColorSpace::create_device_rgb();
+        // SAFETY: the space is a device RGB space, and the four components
+        // are red, green, blue, and alpha. The colour keeps the space.
         unsafe {
-            let space = CGColorSpaceCreateDeviceRGB();
-            let colour = CGColor::wrap_under_create_rule(CGColorCreate(space, components.as_ptr()));
-            CGColorSpaceRelease(space);
-            colour
+            CGColor::wrap_under_create_rule(CGColorCreate(space.as_ptr(), components.as_ptr()))
         }
     }
 
@@ -908,6 +933,55 @@ mod tests {
         assert!(
             families.iter().any(|family| family.name == "Menlo"),
             "Menlo is installed"
+        );
+    }
+
+    #[test]
+    fn a_family_name_that_is_reserved_or_hidden_is_not_usable() {
+        assert!(platform::usable_family_name("Menlo", "Menlo"));
+        for (name, display) in [
+            ("", ""),
+            ("  ", "  "),
+            (".Hidden", ".Hidden"),
+            ("system", "system"),
+            ("Menlo", ".Hidden"),
+            ("Menlo", ""),
+        ] {
+            assert!(
+                !platform::usable_family_name(name, display),
+                "{name:?} {display:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_font_lookup_does_not_wait_for_a_new_font_list() {
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
+
+        // The cache has a list, thus the lookup below can read it while the
+        // other thread makes the new list.
+        let families = font_families();
+        assert!(families.iter().any(|family| family.name == "Menlo"));
+        let scan = Arc::new(std::sync::Barrier::new(2));
+        let other = {
+            let scan = scan.clone();
+            std::thread::spawn(move || {
+                scan.wait();
+                font_families()
+            })
+        };
+        scan.wait();
+        // Give the thread the time to start the scan and to keep the old
+        // lock behaviour for its whole length if that behaviour comes back.
+        std::thread::sleep(Duration::from_millis(10));
+        let start = Instant::now();
+        assert!(platform::installed_family("Menlo"));
+        let waited = start.elapsed();
+        other.join().unwrap();
+        assert!(
+            waited < Duration::from_millis(25),
+            "the lookup waited {waited:?}"
         );
     }
 

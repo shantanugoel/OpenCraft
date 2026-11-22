@@ -5060,6 +5060,7 @@ dependencies = [
  "core-foundation 0.10.1",
  "core-graphics 0.25.0",
  "core-text 22.0.0",
+ "foreign-types",
  "image",
  "opencraft-core",
  "resvg 0.46.0",
