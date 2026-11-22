@@ -190,6 +190,10 @@ struct Palette {
     device_key_empty_border: Rgba,
     device_key_empty_icon: Rgba,
     device_touch_bar_hover: Rgba,
+    device_text_secondary: Rgba,
+    device_text_tertiary: Rgba,
+    device_accent_text: Rgba,
+    device_touch_bar_bg: Rgba,
     accent_line_hover: Rgba,
     badge_on_image: Rgba,
     accent_tint_drop: Rgba,
@@ -277,6 +281,10 @@ const DARK: Palette = Palette {
     device_key_empty_border: hex(0x3a3f4c),
     device_key_empty_icon: hex(0x5a5f6b),
     device_touch_bar_hover: hex_alpha(0xffffff, 0.10),
+    device_text_secondary: hex(0xa0a3ab),
+    device_text_tertiary: hex(0x8b8e96),
+    device_accent_text: hex(0x4da3ff),
+    device_touch_bar_bg: hex_alpha(0xffffff, 0.06),
     accent_line_hover: hex_alpha(0x3b95ff, 0.5),
     badge_on_image: hex_alpha(0x000000, 0.55),
     accent_tint_drop: hex_alpha(0x1a6fd8, 0.28),
@@ -373,6 +381,12 @@ const LIGHT: Palette = Palette {
     device_key_empty_border: hex(0x3a3f4c),
     device_key_empty_icon: hex(0x5a5f6b),
     device_touch_bar_hover: hex_alpha(0xffffff, 0.10),
+    // A name on the device drawing, and the touch bar control, have the
+    // colours of the hardware: the same values in both appearances.
+    device_text_secondary: hex(0xa0a3ab),
+    device_text_tertiary: hex(0x8b8e96),
+    device_accent_text: hex(0x4da3ff),
+    device_touch_bar_bg: hex_alpha(0xffffff, 0.06),
     accent_line_hover: hex_alpha(0x1f6fd8, 0.55),
     badge_on_image: hex_alpha(0x000000, 0.6),
     accent_tint_drop: hex_alpha(0x0b5fcc, 0.18),
@@ -742,6 +756,27 @@ pub fn device_key_empty_icon() -> Rgba {
 /// The "Touch bar" control under the pointer.
 pub fn device_touch_bar_hover() -> Rgba {
     palette().device_touch_bar_hover
+}
+
+/// A name on the device drawing: the name of a control with no surface, and
+/// the text of the "Touch bar" control.
+pub fn device_text_secondary() -> Rgba {
+    palette().device_text_secondary
+}
+
+/// A quiet name on the device drawing: the name below a knob.
+pub fn device_text_tertiary() -> Rgba {
+    palette().device_text_tertiary
+}
+
+/// The name below the selected knob.
+pub fn device_accent_text() -> Rgba {
+    palette().device_accent_text
+}
+
+/// The "Touch bar" control when it is not selected.
+pub fn device_touch_bar_bg() -> Rgba {
+    palette().device_touch_bar_bg
 }
 
 /// The outline of a control under the pointer: [`accent_line()`] at 50 %.
@@ -1834,6 +1869,18 @@ mod tests {
             + 0.0722 * linear(over(colour.b, base.b))
     }
 
+    /// `colour`, at its opacity, over the opaque `base`: the colour that the
+    /// window paints where the two meet.
+    fn over(colour: Rgba, base: Rgba) -> Rgba {
+        let blend = |c: f32, b: f32| c * colour.a + b * (1. - colour.a);
+        Rgba {
+            r: blend(colour.r, base.r),
+            g: blend(colour.g, base.g),
+            b: blend(colour.b, base.b),
+            a: 1.,
+        }
+    }
+
     /// The contrast of `colour` over `base` from 1 to 21, as WCAG defines it.
     fn contrast(colour: Rgba, base: Rgba) -> f32 {
         let a = luminance(colour, base);
@@ -1916,8 +1963,37 @@ mod tests {
                 4.5,
             );
             check("text_on_tile", palette.text_on_tile, palette.bg_tile, 4.5);
+            // The chip has a tint over the surface: the text reads on the
+            // tinted chip, not on the surface only.
             for base in [palette.bg_card, palette.bg_panel] {
-                check("text_on_tint", palette.text_on_tint, base, 4.5);
+                let chip = over(palette.accent_tint_chip, base);
+                check("text_on_tint", palette.text_on_tint, chip, 4.5);
+            }
+            // The names on the device drawing. The drawing is dark in both
+            // appearances, thus those colours do not change with it.
+            check(
+                "device_text_secondary on the display",
+                palette.device_text_secondary,
+                palette.device_display,
+                4.5,
+            );
+            check(
+                "device_text_secondary on the touch bar",
+                palette.device_text_secondary,
+                over(palette.device_touch_bar_bg, palette.device_display),
+                4.5,
+            );
+            check(
+                "device_text_secondary on the body",
+                palette.device_text_secondary,
+                palette.device_body,
+                4.5,
+            );
+            for (what, colour) in [
+                ("device_text_tertiary", palette.device_text_tertiary),
+                ("device_accent_text", palette.device_accent_text),
+            ] {
+                check(what, colour, palette.device_body, 4.5);
             }
             check(
                 "switch_knob_colour",
@@ -1998,6 +2074,26 @@ mod tests {
                 "device_touch_bar_hover",
                 DARK.device_touch_bar_hover,
                 LIGHT.device_touch_bar_hover,
+            ),
+            (
+                "device_text_secondary",
+                DARK.device_text_secondary,
+                LIGHT.device_text_secondary,
+            ),
+            (
+                "device_text_tertiary",
+                DARK.device_text_tertiary,
+                LIGHT.device_text_tertiary,
+            ),
+            (
+                "device_accent_text",
+                DARK.device_accent_text,
+                LIGHT.device_accent_text,
+            ),
+            (
+                "device_touch_bar_bg",
+                DARK.device_touch_bar_bg,
+                LIGHT.device_touch_bar_bg,
             ),
             ("input_glow", DARK.input_glow, LIGHT.input_glow),
         ] {

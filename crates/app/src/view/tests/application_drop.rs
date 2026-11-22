@@ -10,7 +10,7 @@ use crate::view::application_drop::DROP_APPLICATION_STEP;
 use gpui_kit::{ExternalPaths, FileDropEvent, PlatformInput};
 #[cfg(target_os = "macos")]
 use opencraft_engine::Counters;
-use opencraft_engine::InputType;
+use opencraft_engine::{BindingState, InputType, TwoStates};
 
 /// The kind that the engine describes for an application, as the real
 /// description of "Open an application" does: a path field of kind
@@ -37,6 +37,25 @@ fn application_kind() -> KindDescription {
                 default: None,
             },
         ],
+        ..Default::default()
+    }
+}
+
+/// A kind with two states, as a toggle has: the label of the state On is a
+/// setting of the action (decision 0029, section 10.5).
+fn two_state_kind() -> KindDescription {
+    KindDescription {
+        kind: "test.toggle".into(),
+        name: "Two states".into(),
+        fields: vec![Field {
+            key: "label".into(),
+            label: "Label for on".into(),
+            input: InputType::Text,
+            default: None,
+        }],
+        states: Some(TwoStates {
+            on_label: Some("label".into()),
+        }),
         ..Default::default()
     }
 }
@@ -98,6 +117,56 @@ fn window_with_kind(
     tx.try_send(Event::Kinds(vec![application_kind()])).unwrap();
     cx.run_until_parked();
     (view, cx, tx, sent)
+}
+
+/// A window with the kind that opens an application and a kind with two
+/// states, with the key face 2 selected on its On face. The action of the
+/// key has the old label for On, thus a title command that goes to the On
+/// face also clears that label (decision 0043).
+fn window_editing_the_on_face(
+    cx: &mut TestAppContext,
+) -> (Entity<DeviceView>, &mut VisualTestContext, Commands) {
+    let (view, cx, tx, sent) = window(cx);
+    tx.try_send(Event::Kinds(vec![application_kind(), two_state_kind()]))
+        .unwrap();
+    tx.try_send(Event::Binding(BindingState {
+        binding: BindingId {
+            page: 0,
+            control: ControlId::new(ControlKind::Key, 2),
+            gesture: GestureKind::Press,
+            folder: None,
+        },
+        action: Some(Action {
+            kind: "test.toggle".into(),
+            settings: [("label".to_string(), Value::Text("Old".into()))]
+                .into_iter()
+                .collect(),
+        }),
+        available: true,
+        inert_by: None,
+    }))
+    .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    click(cx, "state-on");
+    assert!(cx.debug_bounds("state-faces").is_some(), "no faces");
+    assert!(cx.update(|_, cx| view.read(cx).faces.on.is_some()));
+    (view, cx, sent)
+}
+
+/// The commands of the one step of the drop in `sent`.
+fn the_one_step(sent: &Commands) -> Vec<Command> {
+    let group = sent
+        .borrow()
+        .iter()
+        .find(|command| matches!(command, Command::Group { .. }))
+        .cloned()
+        .expect("the drop is one step");
+    let Command::Group { name, commands } = group else {
+        unreachable!()
+    };
+    assert_eq!(name, DROP_APPLICATION_STEP);
+    commands
 }
 
 #[gpui_kit::test]
@@ -277,6 +346,75 @@ fn a_pasted_application_bundle_sets_the_action_and_the_title(cx: &mut TestAppCon
             label: Some("Demo".into()),
         }
     );
+}
+
+#[gpui_kit::test]
+fn an_application_dropped_on_the_on_face_sets_the_base_face(cx: &mut TestAppContext) {
+    // The action of the drop has one state, so the On face goes away: the
+    // title and the image must not go to the unreachable On face, and the
+    // old label for On must not come back with the binding (H1 of review 2).
+    let (view, cx, sent) = window_editing_the_on_face(cx);
+    let directory = tempfile::tempdir().unwrap();
+    let bundle = write_bundle(directory.path());
+    drop_file(cx, "surface-key face 2", bundle.clone());
+
+    let commands = the_one_step(&sent);
+    let binds = |command: &Command| matches!(command, Command::SetBinding { .. });
+    let set_binding = commands.iter().filter(|c| binds(c)).count();
+    assert_eq!(set_binding, 1, "one binding: {commands:#?}");
+    assert_eq!(
+        commands[1],
+        Command::SetLabel {
+            surface: key(),
+            label: Some("Demo".into()),
+        },
+        "the title goes to the base face"
+    );
+    assert!(
+        commands
+            .iter()
+            .all(|command| !matches!(command, Command::OnFace { .. })),
+        "no command goes to the On face: {commands:#?}"
+    );
+    assert!(!sent.borrow().iter().any(|command| matches!(
+        command,
+        Command::Group { name, .. } if name == "Set Title"
+    )));
+    cx.update(|_, cx| assert_eq!(view.read(cx).faces.on, None));
+}
+
+#[gpui_kit::test]
+fn an_application_pasted_on_the_on_face_sets_the_base_face(cx: &mut TestAppContext) {
+    let (view, cx, sent) = window_editing_the_on_face(cx);
+    let directory = tempfile::tempdir().unwrap();
+    let bundle = write_bundle(directory.path());
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.state.system_clipboard = SystemClipboard {
+                change_count: 9,
+                item: None,
+                image: Some(ClipboardImage::File(bundle.clone())),
+            };
+        });
+    });
+    cx.simulate_keystrokes("cmd-v");
+    cx.run_until_parked();
+    let commands = the_one_step(&sent);
+    assert_eq!(
+        commands[1],
+        Command::SetLabel {
+            surface: key(),
+            label: Some("Demo".into()),
+        },
+        "the title goes to the base face"
+    );
+    assert!(
+        commands
+            .iter()
+            .all(|command| !matches!(command, Command::OnFace { .. })),
+        "no command goes to the On face: {commands:#?}"
+    );
+    cx.update(|_, cx| assert_eq!(view.read(cx).faces.on, None));
 }
 
 #[gpui_kit::test]

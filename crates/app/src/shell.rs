@@ -898,6 +898,10 @@ impl Shell {
         let shell = cx.entity();
         let snapshot = crate::first_start::Snapshot::of(&self.state);
         let options = crate::first_start::window_options(cx);
+        // macOS can have changed the appearance while no window was open
+        // (APP-21). The new window then opens in the palette of that
+        // appearance, with no frame in the old one.
+        self.match_window_appearance(cx);
         let opened = cx.open_window(options, move |window, cx| {
             let view = cx.new(|cx| FirstStartView::new(&shell, snapshot, window, cx));
             cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
@@ -1004,6 +1008,8 @@ impl Shell {
         let send = self.send.clone();
         let panes = self.settings.panes;
         let options = window_options(cx);
+        // A window opens in the appearance of macOS now (APP-21).
+        self.match_window_appearance(cx);
         let opened = cx.open_window(options, move |window, cx| {
             if crate::start_trace() {
                 window.on_next_frame(|_, _| crate::trace_now("first frame"));
@@ -1046,6 +1052,8 @@ impl Shell {
         let shell = cx.entity();
         let snapshot = self.settings_snapshot();
         let options = crate::settings_window::window_options(&shell, &snapshot, cx);
+        // A window opens in the appearance of macOS now (APP-21).
+        self.match_window_appearance(cx);
         let opened = cx.open_window(options, move |window, cx| {
             let view = cx.new(|cx| SettingsView::new(&shell, snapshot, window, cx));
             cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
@@ -1081,6 +1089,14 @@ impl Shell {
         self.save_settings("the appearance of the windows", cx);
         crate::appearance::apply(appearance, cx);
         cx.notify();
+    }
+
+    /// Set the palette to the appearance that macOS has now, for the choice
+    /// of Settings > General. The window that opens next uses it in its first
+    /// frame, and `crate::appearance::follow` keeps it while the window is
+    /// open (APP-21).
+    fn match_window_appearance(&self, cx: &mut Context<Self>) {
+        crate::appearance::refresh(self.settings.appearance, cx.window_appearance(), cx);
     }
 
     fn set_show_window_at_start(&mut self, show: bool, cx: &mut Context<Self>) {
@@ -1352,6 +1368,8 @@ mod tests {
             image: Arc::new(RgbImage::new(90, 90)),
             image_size: None,
             image_area: None,
+            on_image_size: None,
+            on_image_area: None,
             states: None,
         })
     }

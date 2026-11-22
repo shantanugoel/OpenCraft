@@ -19,7 +19,7 @@ use opencraft_engine::{BindingId, FeedbackState, KindDescription, SurfaceContent
 pub(super) struct StateFaces {
     /// The control whose face "On" is selected. The face "Off" of each
     /// other control is selected.
-    on: Option<ControlId>,
+    pub(super) on: Option<ControlId>,
     /// The window images of the two states of each surface: Off, On.
     pub(super) images: BTreeMap<SurfaceId, (Arc<RenderImage>, Arc<RenderImage>)>,
 }

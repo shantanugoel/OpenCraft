@@ -238,6 +238,33 @@ pub(crate) fn knob_ring(settings: Option<&DeviceSettings>, knob: ControlId) -> R
         .map_or(theme::device_knob_ring(), |c| theme::colour(*c))
 }
 
+/// The name of a control that has no surface, and the text of the "Touch
+/// bar" control when it is not selected. The device drawing keeps the
+/// colours of the hardware in both appearances (docs/DESIGN.md, section
+/// 2.9), thus this name is not `text_secondary()`.
+fn device_name() -> Rgba {
+    theme::device_text_secondary()
+}
+
+/// The name below a knob: `device_accent_text()` when the knob is selected.
+fn device_knob_name(selected: bool) -> Rgba {
+    if selected {
+        theme::device_accent_text()
+    } else {
+        theme::device_text_tertiary()
+    }
+}
+
+/// The fill of the "Touch bar" control: `accent()` when it is selected, else
+/// the colour of the hardware, which does not follow the appearance.
+fn device_touch_bar_fill(selected: bool) -> Rgba {
+    if selected {
+        theme::accent()
+    } else {
+        theme::device_touch_bar_bg()
+    }
+}
+
 /// An outline around an element of `width` × `height` with the corner
 /// `radius`: a line of `line`, `gap` outside the element. The parent of the
 /// outline must have no border.
@@ -724,8 +751,10 @@ impl DeviceView {
         // only the control under the pointer shows it. A key in a drag goes
         // to a key face only (KEY-14).
         let key_drag = self.key_drag(cx);
+        // A key does not go to itself: the key in the drag shows no target.
+        let source = self.dragging_key;
         let drop_zone = if key_drag {
-            key_face && control.is_some()
+            key_face && control.is_some() && control != source
         } else {
             drag || cx.has_active_drag()
         };
@@ -872,7 +901,10 @@ impl DeviceView {
             .can_drop(move |value, _, _| {
                 value.downcast_ref::<ExternalPaths>().is_some()
                     || (drag && value.downcast_ref::<KindDrag>().is_some())
-                    || (key_face && value.downcast_ref::<KeyDrag>().is_some())
+                    || (key_face
+                        && value
+                            .downcast_ref::<KeyDrag>()
+                            .is_some_and(|key| Some(key.control) != control))
             })
             .on_drop(cx.listener(move |view, drag: &KeyDrag, window, cx| {
                 let (Some(control), true) = (control, key_face) else {
@@ -1122,7 +1154,7 @@ impl DeviceView {
                     .truncate()
                     .text_size(theme::TEXT_CAPTION)
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(theme::text_secondary())
+                    .text_color(device_name())
                     .child(name),
             )
             .map(|d| {
@@ -1319,11 +1351,7 @@ impl DeviceView {
                     .text_center()
                     .text_size(theme::TEXT_CAPTION)
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(if selected {
-                        theme::accent_text()
-                    } else {
-                        theme::text_tertiary()
-                    })
+                    .text_color(device_knob_name(selected))
                     .cursor_pointer()
                     .child(control_name(id))
                     .on_click(cx.listener(move |view, _, window, cx| {
@@ -1356,7 +1384,7 @@ impl DeviceView {
         let normal = if selected {
             theme::text_on_accent()
         } else {
-            theme::text_secondary()
+            device_name()
         };
         let arrow = |gesture: Gesture, icon: IconName| {
             div()
@@ -1397,11 +1425,11 @@ impl DeviceView {
                         .text_color(normal)
                         .cursor_pointer()
                         .map(|d| {
+                            let d = d.bg(device_touch_bar_fill(selected));
                             if selected {
-                                d.bg(theme::accent()).border_color(theme::accent_line())
+                                d.border_color(theme::accent_line())
                             } else {
-                                d.bg(theme::neutral_tint())
-                                    .border_color(theme::device_touch_bar_border())
+                                d.border_color(theme::device_touch_bar_border())
                                     .hover(|d| d.bg(theme::device_touch_bar_hover()))
                             }
                         })
@@ -1458,6 +1486,31 @@ mod tests {
             (body + 48. + 18. + theme::HELP_LINE_HEIGHT - 600.).abs() < 1e-3,
             "{body}"
         );
+    }
+
+    /// The names on the device drawing keep the colours of the hardware in
+    /// the light appearance too (docs/DESIGN.md, section 2.9): the device is
+    /// dark in both appearances, thus a token of the light surfaces reads
+    /// badly on it.
+    #[test]
+    fn the_names_on_the_device_keep_the_colours_of_the_hardware() {
+        let colours = || {
+            [
+                device_name(),
+                device_knob_name(false),
+                device_knob_name(true),
+                device_touch_bar_fill(false),
+            ]
+        };
+        let dark = {
+            let _dark = theme::set_appearance_for_test(theme::Appearance::Dark);
+            colours()
+        };
+        let light = {
+            let _light = theme::set_appearance_for_test(theme::Appearance::Light);
+            colours()
+        };
+        assert_eq!(dark, light, "a name of the device follows the appearance");
     }
 
     #[test]

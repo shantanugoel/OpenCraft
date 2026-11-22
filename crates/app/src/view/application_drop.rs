@@ -119,6 +119,13 @@ impl DeviceView {
         });
         let temporary = icon.clone();
         self.drop_edits(&[binding]);
+        // The action of the drop has one state: the On face of the control
+        // goes away, thus the title and the image go to the base face
+        // (KEY-13). Else the window writes them to the unreachable On face,
+        // and the old label of the On face comes back with the binding.
+        if self.editing_on_face(surface) {
+            self.faces.on = None;
+        }
         let group = self.one_step_command(DROP_APPLICATION_STEP, |view| {
             (view.send)(Command::SetBinding {
                 binding,

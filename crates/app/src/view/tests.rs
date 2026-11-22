@@ -87,6 +87,8 @@ fn surface(id: SurfaceId, label: &str) -> Event {
         image: Arc::new(RgbImage::new(90, 90)),
         image_size: None,
         image_area: None,
+        on_image_size: None,
+        on_image_area: None,
         states: None,
     })
 }

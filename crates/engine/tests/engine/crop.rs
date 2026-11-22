@@ -78,6 +78,9 @@ fn the_state_gives_the_size_of_the_image_and_of_the_area_of_the_picture() {
     let state = last_state(&events, KEY_3);
     assert_eq!(state.image_size, Some((120, 60)));
     assert_eq!(state.image_area, Some((112, 112)));
+    // The On face shows the image of the base face, and its area is the same.
+    assert_eq!(state.on_image_size, Some((120, 60)));
+    assert_eq!(state.on_image_area, Some((112, 112)));
 
     let file = halves(rig.dir.path(), 120, 60);
     set_image(&mut rig, BAR_2, file);
@@ -97,7 +100,66 @@ fn the_state_gives_the_size_of_the_image_and_of_the_area_of_the_picture() {
     let state = last(&mut rig, KEY_3);
     assert_eq!(state.image_size, None);
     assert_eq!(state.image_area, None);
+    assert_eq!(state.on_image_size, None);
+    assert_eq!(state.on_image_area, None);
     let _ = state;
+}
+
+/// The On face has the size of its own image, and the area of its own band of
+/// the label (M3 of review 2): the inspector reads them for the warning that
+/// the image is too small.
+#[test]
+fn the_state_gives_the_size_of_the_image_of_the_on_face() {
+    let mut rig = Rig::new();
+    let file = halves(rig.dir.path(), 120, 60);
+    set_image(&mut rig, KEY_3, file);
+    // A small image on the On face only.
+    let small = halves(rig.dir.path(), 40, 40);
+    command(
+        &mut rig,
+        Command::SetImage {
+            surface: KEY_3,
+            path: Some(small),
+        }
+        .for_face(true),
+    );
+    let state = last(&mut rig, KEY_3);
+    assert_eq!(state.image_size, Some((120, 60)));
+    assert_eq!(state.image_area, Some((112, 112)));
+    assert_eq!(state.on_image_size, Some((40, 40)));
+    assert_eq!(state.on_image_area, Some((112, 112)));
+
+    // A label at the bottom of the On face shrinks its area, and not the area
+    // of the base face. The height of the band of the label comes from the
+    // font of the platform, thus the test reads the width and a smaller area.
+    command(
+        &mut rig,
+        Command::SetLabel {
+            surface: KEY_3,
+            label: Some("Mail".into()),
+        }
+        .for_face(true),
+    );
+    let state = last(&mut rig, KEY_3);
+    assert_eq!(state.image_area, Some((112, 112)));
+    let (width, height) = state.on_image_area.expect("the area of the On face");
+    assert_eq!(width, 112);
+    assert!(height < 112, "the label takes no row of the On face");
+
+    // An On face with no image shows no picture, and the base face keeps
+    // its own.
+    command(
+        &mut rig,
+        Command::SetImage {
+            surface: KEY_3,
+            path: None,
+        }
+        .for_face(true),
+    );
+    let state = last(&mut rig, KEY_3);
+    assert_eq!(state.image_size, Some((120, 60)));
+    assert_eq!(state.on_image_size, None);
+    assert_eq!(state.on_image_area, None);
 }
 
 #[test]

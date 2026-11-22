@@ -13,7 +13,7 @@ use super::*;
 use gpui_kit::{assets::IconName, component::input::AnyInputState, component::Icon, relative};
 use opencraft_engine::{
     image_overflow, label_color_for, Auto, ControlLayout, DeviceLayout, ImageCrop, LabelChange,
-    LabelPosition, LabelStyle, SurfaceContent, IMAGE_ZOOMS, LABEL_SIZES,
+    LabelPosition, LabelStyle, SurfaceContent, IMAGE_ZOOMS, LABEL_SIZES, MIN_IMAGE_ZOOM,
 };
 
 /// The text colours of the popover of the label colour, before the fill
@@ -519,7 +519,7 @@ impl DeviceView {
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         let crop = content.image_crop.unwrap_or_default();
-        let overflow = self.face_overflow(id, content, crop);
+        let overflow = self.face_overflow(id, crop);
         let mut rows = vec![
             form::row(
                 "Zoom",
@@ -542,30 +542,30 @@ impl DeviceView {
             )
             .into_any_element(),
         ];
-        if let Some(warning) = self.small_image_warning(content, id) {
+        if let Some(warning) = self.small_image_warning(id) {
             rows.push(warning);
         }
         rows
     }
 
     /// The overflow of the image of the edited face on each axis, in pixels.
-    /// `None` when the window has no size of that image: the engine sends the
-    /// size of the image of the base face only.
-    fn face_overflow(
-        &self,
-        id: SurfaceId,
-        content: &SurfaceContent,
-        crop: ImageCrop,
-    ) -> Option<(u32, u32)> {
-        let state = self.state.surfaces.get(&id)?;
-        let source = state.image_size?;
-        let area = state.image_area?;
-        // The size is that of the base image. An On face with a different
-        // image has no size in the window.
-        if content.image != state.content.image {
-            return None;
-        }
+    /// `None` when the window has no size of that image.
+    fn face_overflow(&self, id: SurfaceId, crop: ImageCrop) -> Option<(u32, u32)> {
+        let (source, area) = self.face_image_size(id)?;
         Some(image_overflow(source, area, crop.zoom))
+    }
+
+    /// The decoded size of the image of the edited face of `id`, and the size
+    /// of the area of the picture on that face. `None` when the face has no
+    /// image. The engine sends the sizes of the image of the base face and of
+    /// the On face.
+    fn face_image_size(&self, id: SurfaceId) -> Option<((u32, u32), (u32, u32))> {
+        let state = self.state.surfaces.get(&id)?;
+        if self.editing_on_face(id) {
+            Some((state.on_image_size?, state.on_image_area?))
+        } else {
+            Some((state.image_size?, state.image_area?))
+        }
     }
 
     /// The popup button of the zoom of the image, for example "200 %", and
@@ -682,8 +682,9 @@ impl DeviceView {
             .gap(theme::SPACE_4)
             .children(arrows.into_iter().map(|(id, icon, label, axis, step)| {
                 // Both axes move only when the image is larger than the
-                // area there.
-                let enabled = overflow.is_none_or(|(x, y)| if axis == 0 { x } else { y } > 0);
+                // area there. At the fit no image is larger than the area.
+                let enabled = crop.zoom > MIN_IMAGE_ZOOM
+                    && overflow.is_none_or(|(x, y)| if axis == 0 { x } else { y } > 0);
                 let start = if axis == 0 { crop.x } else { crop.y };
                 controls::square_icon_button(
                     id,
@@ -726,22 +727,14 @@ impl DeviceView {
             .into_any_element()
     }
 
-    /// The warning that the image of `content` shows fewer pixels than the
-    /// area of the face, at its zoom: the device then shows a soft picture
+    /// The warning that the image of the edited face shows fewer pixels than
+    /// the area of the face, at its zoom: the device then shows a soft picture
     /// (decision 0043). `None` when the window has no size of that image, or
     /// when the image is large enough.
-    pub(super) fn small_image_warning(
-        &self,
-        content: &SurfaceContent,
-        id: SurfaceId,
-    ) -> Option<AnyElement> {
-        let state = self.state.surfaces.get(&id)?;
-        let (source_width, source_height) = state.image_size?;
-        let (area_width, area_height) = state.image_area?;
-        if content.image != state.content.image {
-            return None;
-        }
-        let zoom = u32::from(content.image_crop.unwrap_or_default().zoom);
+    pub(super) fn small_image_warning(&self, id: SurfaceId) -> Option<AnyElement> {
+        let ((source_width, source_height), (area_width, area_height)) =
+            self.face_image_size(id)?;
+        let zoom = u32::from(self.edited_face(id).image_crop.unwrap_or_default().zoom);
         // The pixels of the copied image that the face shows on each axis.
         let effective_width = source_width * 100 / zoom.max(1);
         let effective_height = source_height * 100 / zoom.max(1);

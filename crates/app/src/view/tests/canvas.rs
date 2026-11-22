@@ -413,6 +413,8 @@ fn an_empty_key_face_shows_a_plus_and_the_knob_rings_show_the_light_colours(
                 image: Arc::new(RgbImage::new(112, 112)),
                 image_size: None,
                 image_area: None,
+                on_image_size: None,
+                on_image_area: None,
                 states: None,
             }),
         );
