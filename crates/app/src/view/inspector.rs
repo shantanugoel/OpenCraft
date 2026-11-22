@@ -38,7 +38,7 @@ pub(super) struct InspectorState {
     /// The popover of the label colour is open.
     text_colour_open: bool,
     /// The field for `#RRGGBB` in that popover.
-    text_colour_input: Entity<InputState>,
+    pub(super) text_colour_input: Entity<InputState>,
     _text_colour_subscription: Subscription,
     /// The menu of the fit of the page background is open (section 10.6).
     pub(super) fit_open: bool,
@@ -122,10 +122,14 @@ impl InspectorState {
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// The click handler of a sample in the popover of the label colour.
-/// `None` is "Automatic".
+/// `None` is "Automatic": the own value of the surface, also when the
+/// profile default has a colour (decision 0043, section 2). The value goes
+/// in one change, thus it is one step of the history.
 fn choose_text_colour(value: Option<Color>, cx: &mut Context<DeviceView>) -> ClickHandler {
     Box::new(cx.listener(move |view, _, window, cx| {
-        view.set_label_style(LabelChange::Color(value.map(Auto::Value)));
+        view.set_label_style(LabelChange::Color(Some(
+            value.map_or(Auto::Auto, Auto::Value),
+        )));
         view.close_kinds();
         view.focus_workspace(window, cx);
         cx.notify();
@@ -1010,14 +1014,13 @@ impl DeviceView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let open = self.inspector.text_colour_open;
-        // The automatic colour and no own colour are both `None` here: the
-        // default title style of the profile comes in KEY-04.
+        // The colour that the label shows, also when it follows the default
+        // title style of the profile (decision 0043, section 2). `None` is
+        // the automatic colour.
         let current = content
             .label_style
-            .color
-            .as_ref()
-            .and_then(Auto::value)
-            .copied();
+            .resolve(&self.state.default_label_style())
+            .color;
         let shown = label_color_for(content, &self.state.default_label_style());
         let tooltip = match current {
             Some(colour) => format!("Text colour {}", colour_text(colour)),
@@ -1038,8 +1041,11 @@ impl DeviceView {
             .font_weight(gpui_kit::FontWeight::SEMIBOLD)
             .text_color(theme::text_secondary())
             .child("A")
-            // A selected swatch changes nothing: a click on "Automatic" on an
-            // automatic colour makes no undo step (decision 0043).
+            // A click on "Automatic" over the colour of the profile default
+            // is one change: the surface stops following the default colour
+            // and draws the automatic colour. A click on the selected
+            // "Automatic" changes nothing, thus it makes no undo step
+            // (decision 0043, section 2; review 3, H2).
             .when(current.is_some(), |d| {
                 d.on_click(choose_text_colour(None, cx))
             });
@@ -1048,14 +1054,18 @@ impl DeviceView {
                 .chain(COLOURS)
                 .enumerate()
                 .map(|(index, value)| {
+                    let selected = current == Some(colour(value));
                     controls::colour_sample(
                         format!("label-colour-{index}"),
                         Some(theme::sample(value)),
-                        current == Some(colour(value)),
+                        selected,
                         format!("Text #{value:06X}"),
                         true,
                     )
-                    .on_click(choose_text_colour(Some(colour(value)), cx))
+                    // A click on the selected sample changes nothing.
+                    .when(!selected, |d| {
+                        d.on_click(choose_text_colour(Some(colour(value)), cx))
+                    })
                 })
                 .collect();
             controls::popup_menu(

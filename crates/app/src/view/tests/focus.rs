@@ -8,11 +8,15 @@ use super::pages::{on, pages, profiles, send};
 use super::*;
 use crate::{
     settings::RightPanelTab,
-    view::{controls::tests::focused, sidebar::ProfileSettingsRow},
+    view::{
+        controls::tests::{focused, ringed},
+        sidebar::ProfileSettingsRow,
+    },
 };
 use gpui_kit::{Bounds, KeyUpEvent, MouseButton, MouseDownEvent, Pixels};
 use opencraft_engine::{
-    Auto, DeviceSettings, KnobLightMode, KnobLights, LabelChange, LabelPosition, LabelStyle,
+    Auto, DeviceLayout, DeviceSettings, KnobLightMode, KnobLights, LabelChange, LabelPosition,
+    LabelStyle, SurfaceLayout,
 };
 
 /// A window with two profiles and two pages in the active profile.
@@ -272,6 +276,105 @@ fn a_segmented_control_is_one_tab_stop_and_the_arrow_keys_change_the_choice(
     // Tab goes to the next control, not to the next segment.
     keys(cx, "tab");
     assert_eq!(focused(cx).as_deref(), Some("label-size"));
+}
+
+/// A segmented control shows the focus ring only while the control itself
+/// has the keyboard focus (`docs/DESIGN.md`, section 5): the window, the
+/// card of a sheet, and another control paint no ring on it (review 3, H1).
+/// The layout of the window tests, with a background surface of 400 × 300.
+fn layout_with_background() -> Event {
+    let Event::Layout(layout) = crate::state::tests::layout() else {
+        unreachable!()
+    };
+    let mut layout = DeviceLayout::clone(&layout);
+    layout.surfaces.push(SurfaceLayout {
+        id: SurfaceId::new(SurfaceKind::Background, 1),
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+    });
+    Event::Layout(Arc::new(layout))
+}
+
+/// Each row of a section scrolls the panel to its own control, also when
+/// two rows of one section are below the visible part: the mode and the
+/// samples of the "Background" section (review 3, M1).
+#[gpui_kit::test]
+fn the_panel_scrolls_to_the_row_of_each_control_of_a_section(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = focus_window(cx);
+    cx.update(|window, _| window.activate_window());
+    send(cx, &tx, layout_with_background());
+    // "Page settings" in the page header selects the page: its inspector
+    // has the section "Background".
+    click(cx, "page-settings");
+    click(cx, "background-colour");
+    cx.simulate_resize(size(px(1440.), px(400.)));
+    cx.run_until_parked();
+    // The end of the section starts below the visible part of the
+    // inspector: the row of the mode, and the row of the samples.
+    let (_, visible) = inspector_scroll(&view, cx);
+    for id in ["background-kind", "colour-0"] {
+        assert!(
+            bounds(cx, id).bottom() > visible.bottom(),
+            "the test needs {id} below the visible part"
+        );
+    }
+    // Tab reaches the mode: the panel shows its row.
+    tab_to(cx, "background-kind");
+    draw(cx);
+    assert!(shows(cx, "background-kind", &view), "the mode shows");
+    // Tab reaches the first sample of the body of the section: the panel
+    // follows the sample, not the row of the mode.
+    tab_to(cx, "colour-0");
+    draw(cx);
+    assert!(
+        shows(cx, "colour-0", &view),
+        "the focused sample shows in the visible part"
+    );
+}
+
+#[gpui_kit::test]
+fn the_focus_ring_of_a_segmented_control_shows_only_for_its_own_focus(cx: &mut TestAppContext) {
+    let (view, cx, _tx, _sent) = focus_window(cx);
+    // A click gives the focus to the window, not to a control. No segmented
+    // control shows the ring, also not the selected choice of the tabs.
+    click(cx, "surface-key face 2");
+    assert!(workspace_has_focus(&view, cx), "the window has the focus");
+    assert_eq!(ringed(cx), Vec::<String>::new(), "no ring for a click");
+
+    // Tab reaches the tabs of the right panel: the ring shows on that
+    // control, and on no other segmented control.
+    tab_to(cx, "right-tabs");
+    assert_eq!(focused(cx).as_deref(), Some("right-tabs"));
+    assert_eq!(ringed(cx), ["right-tabs"]);
+
+    // Shift-Tab leaves the control: no ring stays.
+    keys(cx, "shift-tab");
+    assert_eq!(
+        ringed(cx),
+        Vec::<String>::new(),
+        "no ring without the focus"
+    );
+
+    // The inspector of the key has a segmented control too.
+    tab_to(cx, "label-position");
+    assert_eq!(ringed(cx), ["label-position"]);
+    // The arrow keys change the choice and the control keeps the ring.
+    keys(cx, "right");
+    keys(cx, "left");
+    assert_eq!(ringed(cx), ["label-position"]);
+
+    // A sheet has the focus, not its segmented control.
+    cx.simulate_keystrokes("ctrl-cmd-p");
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("profile-sheet").is_some(),
+        "the sheet opens"
+    );
+    assert_eq!(ringed(cx), Vec::<String>::new(), "no ring for the sheet");
+    tab_to(cx, "profile-title-position");
+    assert_eq!(ringed(cx), ["profile-title-position"]);
 }
 
 #[gpui_kit::test]
@@ -547,13 +650,6 @@ fn the_inspector_scrolls_to_the_control_that_the_focus_reaches(cx: &mut TestAppC
     assert!(
         shows(cx, "gesture-DoublePress-kind", &view),
         "the card shows in the visible part after Tab"
-    );
-    eprintln!(
-        "SECTIONS header {:?} appearance {:?} gestures {:?} card {:?}",
-        cx.debug_bounds("inspector-header"),
-        cx.debug_bounds("appearance"),
-        cx.debug_bounds("gestures"),
-        cx.debug_bounds("gesture-DoublePress-kind")
     );
     // Shift-Tab moves the focus up, and the panel follows it: the row of
     // the card above shows too.

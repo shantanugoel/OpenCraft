@@ -244,7 +244,10 @@ fn the_colour_popover_sets_automatic_a_sample_or_a_hex_value(cx: &mut TestAppCon
             LabelChange::Color(Some(Auto::Value(colour(0x000000)))),
             LabelChange::Color(Some(Auto::Value(colour(COLOURS[8])))),
             LabelChange::Color(Some(Auto::Value(colour(0x123456)))),
-            LabelChange::Color(None),
+            // "Automatic" is an own value of the surface, not an inherited
+            // one: the colour stops following the profile default
+            // (decision 0043, section 2).
+            LabelChange::Color(Some(Auto::Auto)),
         ]
     );
     // Escape closes the popover with no change.
@@ -253,6 +256,61 @@ fn the_colour_popover_sets_automatic_a_sample_or_a_hex_value(cx: &mut TestAppCon
     cx.run_until_parked();
     assert!(cx.debug_bounds("label-colour-popover").is_none());
     assert_eq!(changes(&sent, bar()).len(), 5);
+}
+
+/// The colour popover shows the colour of the profile default when the
+/// title follows it, and "Automatic" over that colour is a choice
+/// (decision 0043, section 2; review 3, H2).
+#[gpui_kit::test]
+fn the_colour_popover_shows_the_colour_of_the_profile_default(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    let red = colour(0xb83f4c);
+    send(
+        cx,
+        &tx,
+        profile_default(LabelStyle {
+            color: Some(Auto::Value(red)),
+            ..LabelStyle::default()
+        }),
+    );
+    // The key has no own colour: it shows the colour of the profile default.
+    send(cx, &tx, styled(key(), LabelStyle::default(), false));
+    click(cx, "label-colour");
+    assert!(cx.debug_bounds("label-colour-popover").is_some());
+    let text = cx.update(|_, cx| {
+        view.read(cx)
+            .inspector
+            .text_colour_input
+            .read(cx)
+            .value()
+            .to_string()
+    });
+    assert_eq!(text, "#B83F4C", "the field shows the colour that shows");
+    // The sample of the colour that shows is selected, and a click on it
+    // makes no undo step. The samples are white and black, then the fills.
+    let index = theme::TITLE_COLOURS.len()
+        + theme::FILL_COLOURS
+            .iter()
+            .position(|value| *value == 0xb83f4c)
+            .expect("the colour of the profile default is a sample");
+    let sample = format!("label-colour-{index}");
+    click(cx, Box::leak(sample.into_boxed_str()));
+    assert!(
+        changes(&sent, key()).is_empty(),
+        "a click on the selected sample makes no change"
+    );
+    assert!(
+        cx.debug_bounds("label-colour-popover").is_some(),
+        "the popover stays open"
+    );
+    // "Automatic" stops the follow of the profile default for the colour:
+    // one change, thus one step of the history.
+    click(cx, "label-colour-automatic");
+    assert_eq!(
+        changes(&sent, key()),
+        [LabelChange::Color(Some(Auto::Auto))]
+    );
 }
 
 #[gpui_kit::test]
@@ -717,6 +775,117 @@ fn the_font_picker_shows_loading_before_the_list_arrives(cx: &mut TestAppContext
         "the rows are ready"
     );
     assert!(!shown_families(&view, cx).is_empty());
+}
+
+/// The hint of a family that is not installed comes with the list, not
+/// before it: a named family in the profile is not missing while the first
+/// scan runs (review 3, M4).
+#[cfg(target_os = "macos")]
+#[gpui_kit::test]
+fn a_family_is_missing_only_when_the_list_is_there(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    // The scan of the families runs, and it gives no list in these frames.
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.inspector.font_picker.use_a_scan_that_runs()
+        })
+    });
+    click(cx, "surface-key face 2");
+    send(
+        cx,
+        &tx,
+        styled(
+            key(),
+            LabelStyle {
+                font: Some(Auto::Value("Menlo".into())),
+                ..LabelStyle::default()
+            },
+            false,
+        ),
+    );
+    assert!(
+        cx.debug_bounds("label-font-missing").is_none(),
+        "no list yet: the family is not missing"
+    );
+    // The scan gives the list, and it has the family.
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            let picker = &view.inspector.font_picker;
+            picker.finish_scan(1, fixed_fonts());
+        })
+    });
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("label-font-missing").is_none(),
+        "Menlo is installed"
+    );
+    // A family that the computer does not have shows the hint.
+    tx.try_send(styled(
+        key(),
+        LabelStyle {
+            font: Some(Auto::Value("Futura X".into())),
+            ..LabelStyle::default()
+        },
+        false,
+    ))
+    .unwrap();
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("label-font-missing").is_some(),
+        "a family that is not installed shows the hint"
+    );
+}
+
+/// A scan that gives the list of now keeps the highlight that the user
+/// moved: only the first list puts the highlight on the current family
+/// (review 3, M4).
+#[cfg(target_os = "macos")]
+#[gpui_kit::test]
+fn a_refreshed_list_keeps_the_highlight_of_the_font_picker(cx: &mut TestAppContext) {
+    let (view, cx, tx, _sent) = window(cx);
+    send(
+        cx,
+        &tx,
+        styled(
+            key(),
+            LabelStyle {
+                font: Some(Auto::Value("Menlo".into())),
+                ..LabelStyle::default()
+            },
+            false,
+        ),
+    );
+    click(cx, "surface-key face 2");
+    // The first open scans the families.
+    click(cx, "label-font");
+    cx.run_until_parked();
+    // The user moves the highlight of the open picker.
+    cx.simulate_keystrokes("down");
+    cx.simulate_keystrokes("down");
+    let moved = highlighted_font_row(cx).expect("a highlighted row");
+    // A scan gives the list of now while the popover stays open: it keeps
+    // the highlight of the user. The open of the picker starts the same
+    // scan.
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| view.start_font_scan(window, cx));
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        highlighted_font_row(cx).as_deref(),
+        Some(moved.as_str()),
+        "the refresh keeps the highlight of the user"
+    );
+}
+
+/// The highlighted row of the font picker in a new frame, or `None` when no
+/// row is highlighted.
+#[cfg(target_os = "macos")]
+fn highlighted_font_row(cx: &mut VisualTestContext) -> Option<String> {
+    crate::view::controls::accessibility_log::take_selected();
+    cx.update(|window, _| window.refresh());
+    crate::view::controls::accessibility_log::take_selected()
+        .into_iter()
+        .find_map(|(row, selected)| (selected && row.starts_with("font-row-")).then_some(row))
 }
 
 /// The families of the computer: the engine gives the list, and the picker

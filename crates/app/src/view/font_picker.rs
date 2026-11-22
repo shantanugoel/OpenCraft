@@ -220,6 +220,16 @@ impl FontPicker {
         self.fixed.set(true);
     }
 
+    /// A scan of the families runs now; the list is not there yet. A window
+    /// test calls this to see the first frames of an open picker, before the
+    /// scan of Core Text gives the list.
+    #[cfg(all(test, target_os = "macos"))]
+    pub(super) fn use_a_scan_that_runs(&self) {
+        self.loading.set(true);
+        self.fixed.set(true);
+        self.generation.set(1);
+    }
+
     /// The families that the open popover shows, without the system font.
     #[cfg(test)]
     pub(super) fn shown_families(&self) -> Vec<String> {
@@ -260,8 +270,11 @@ impl DeviceView {
         }
         let families = picker.families();
         let value = font_button_value(&families, current.as_deref());
+        // A family is missing only when the list is from a scan: before the
+        // first list, each named family would look missing (review 3, M4).
         let missing = current
             .as_deref()
+            .filter(|_| picker.loaded())
             .filter(|family| !families.iter().any(|known| &known.name == family));
         drop(families);
         let button = div()
@@ -325,7 +338,11 @@ impl DeviceView {
     /// Start the scan of the installed families on the background executor.
     /// The open popover shows the last list until the scan finishes, and a
     /// first open shows "Loading the fonts…".
-    fn start_font_scan(&self, window: &Window, cx: &mut Context<Self>) {
+    pub(super) fn start_font_scan(&self, window: &Window, cx: &mut Context<Self>) {
+        // The first scan fills the list; a later scan only gives the list of
+        // now, and the open picker keeps the highlight that the user moved
+        // (review 3, M4).
+        let first = !self.inspector.font_picker.loaded();
         let Some(generation) = self.inspector.font_picker.start_scan() else {
             return;
         };
@@ -339,7 +356,17 @@ impl DeviceView {
                     return;
                 }
                 view.refresh_font_rows(cx);
-                if view.inspector.font_picker.open {
+                // The highlight goes to the current family when the list
+                // comes for the first time, and the search field is empty:
+                // a refresh does not move the highlight of the user.
+                let empty = view
+                    .inspector
+                    .font_picker
+                    .search
+                    .read(cx)
+                    .value()
+                    .is_empty();
+                if view.inspector.font_picker.open && first && empty {
                     view.highlight_current_font();
                 }
                 cx.notify();

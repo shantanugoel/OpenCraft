@@ -20,10 +20,12 @@ use super::{
     *,
 };
 use gpui_kit::component::input::AnyInputState;
-use gpui_kit::{assets::IconName, component::Icon, FontWeight};
+use gpui_kit::{assets::IconName, canvas, component::Icon, Focusable, FontWeight, Pixels};
 use opencraft_engine::share::EXTENSION;
 use opencraft_engine::{Auto, LabelChange, LabelPosition, LabelStyle, LABEL_SIZES};
+use std::cell::Cell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 /// The state of the sheet.
 pub(super) struct ProfileSheet {
@@ -42,6 +44,10 @@ pub(super) struct ProfileSheet {
     pub(super) style_size_open: bool,
     /// The field "Font" of the default title style.
     pub(super) title_font: Entity<InputState>,
+    /// The height of the title of the card in the last frame.
+    title_height: Rc<Cell<Option<Pixels>>>,
+    /// The height of the button row of the card in the last frame.
+    footer_height: Rc<Cell<Option<Pixels>>>,
     _subscription: Subscription,
     _title_font_subscription: Subscription,
 }
@@ -69,6 +75,8 @@ impl ProfileSheet {
             pages_open: false,
             style_size_open: false,
             title_font,
+            title_height: Rc::new(Cell::new(None)),
+            footer_height: Rc::new(Cell::new(None)),
             _subscription: subscription,
             _title_font_subscription: title_font_subscription,
         }
@@ -97,6 +105,27 @@ fn choose_colour(
         }
         cx.notify();
     }))
+}
+
+/// `part` with the height of this part in the cell of the sheet: the body
+/// of the sheet scrolls in the height that the title and the button row
+/// leave (review 3, M2).
+fn measured(cell: Rc<Cell<Option<Pixels>>>, part: impl IntoElement) -> AnyElement {
+    div()
+        .relative()
+        .flex_shrink_0()
+        .child(part)
+        .child(
+            canvas(
+                move |bounds_now, _, _| cell.set(Some(bounds_now.size.height)),
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full(),
+        )
+        .into_any_element()
 }
 
 /// The name of a page count, for example "3 pages" or "1 page".
@@ -144,6 +173,9 @@ impl DeviceView {
             return;
         };
         self.end_text_edit(cx);
+        // A menu or a popover of the inspector paints above the layer of the
+        // sheet: it closes first (review 3, M3).
+        self.close_kinds();
         let font = self
             .profile(&id)
             .and_then(|p| p.default_label_style.font.as_ref())
@@ -231,8 +263,10 @@ impl DeviceView {
     }
 
     /// Clear each part of the default title style of the profile of the
-    /// sheet: each part is the engine default again.
-    fn reset_default_title_style(&mut self) {
+    /// sheet: each part is the engine default again. The field of the font
+    /// clears too, else the close of the sheet writes the old family back
+    /// (review 3, H3).
+    fn reset_default_title_style(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(id) = self.sheet.profile.clone() else {
             return;
         };
@@ -245,6 +279,41 @@ impl DeviceView {
                 style: LabelStyle::default(),
             });
         }
+        self.sheet
+            .title_font
+            .update(cx, |input, cx| input.set_value("", window, cx));
+    }
+
+    /// Show the family of the default title style of `entry` in the field of
+    /// the font, unless the user types in the field. The engine sends the
+    /// style after a change, for example the "Reset" of the section, and
+    /// the event comes before the state of the window takes it (review 3,
+    /// H3).
+    fn show_sheet_title_font(
+        &mut self,
+        entry: &opencraft_engine::ProfileEntry,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self
+            .sheet
+            .title_font
+            .read(cx)
+            .focus_handle(cx)
+            .is_focused(window)
+        {
+            return;
+        }
+        let font = entry
+            .default_label_style
+            .font
+            .as_ref()
+            .and_then(Auto::value)
+            .cloned()
+            .unwrap_or_default();
+        self.sheet
+            .title_font
+            .update(cx, |input, cx| input.set_value(font, window, cx));
     }
 
     /// Apply the part of an engine event that the sheet uses: the sheet
@@ -259,8 +328,9 @@ impl DeviceView {
         match event {
             Event::Profiles { profiles, .. } => {
                 if let Some(id) = &self.sheet.profile {
-                    if !profiles.iter().any(|p| &p.id == id) {
-                        self.close_profile_sheet(window, cx);
+                    match profiles.iter().find(|p| &p.id == id) {
+                        Some(entry) => self.show_sheet_title_font(entry, window, cx),
+                        None => self.close_profile_sheet(window, cx),
                     }
                 }
             }
@@ -294,6 +364,7 @@ impl DeviceView {
             return;
         };
         self.save_sheet_name(cx);
+        self.save_sheet_title_font(cx);
         let name = self.sheet.name.read(cx).value().trim().to_string();
         let path = cx.prompt_for_new_path(&export_folder(), Some(&file_name(&name)));
         cx.spawn_in(window, async move |view, cx| {
@@ -350,6 +421,14 @@ impl DeviceView {
         self.profile(id)
             .map(|p| (p.pages.clone(), p.first_page))
             .unwrap_or_default()
+    }
+
+    /// The height of the title and of the button row of the card of the
+    /// sheet in the last frame, or `None` in the first frame.
+    fn sheet_chrome(&self) -> Option<Pixels> {
+        let title = self.sheet.title_height.get()?;
+        let footer = self.sheet.footer_height.get()?;
+        Some(title + footer)
     }
 
     /// The sheet, if it is open.
@@ -424,18 +503,52 @@ impl DeviceView {
         let done = controls::main_button("profile-done", "Done", theme::SPACE_18)
             .on_click(cx.listener(|view, _, window, cx| view.close_profile_sheet(window, cx)))
             .into_any_element();
-        let content = div()
+        // The body scrolls: the sheet has six sections, and at the minimum
+        // height of the window the last part of the body must not push the
+        // button row out of the card (review 3, M2; `docs/DESIGN.md`,
+        // section 4). The title stays at the top and the buttons at the
+        // bottom, as in a sheet of macOS. The card takes its height from the
+        // content, thus the body takes the height that the title and the
+        // button row leave: the sheet measures the two of them.
+        // The first frame measures the title and the button row, and it
+        // draws again.
+        let chrome = self.sheet_chrome().unwrap_or_else(|| {
+            window.request_animation_frame();
+            Pixels::ZERO
+        });
+        let max = window.viewport_size().height - theme::SHEET_TOP - theme::SHEET_BOTTOM;
+        let body = div()
+            .id("profile-sheet-body")
+            .debug_selector(|| "profile-sheet-body".into())
+            .flex_1()
+            .min_h_0()
             .flex()
             .flex_col()
-            .child(sheet_title(
-                "Profile settings",
-                format!("Profile “{}” · {}", entry.name, page_count(pages.len())),
-            ))
+            .overflow_y_scroll()
+            .when(chrome > px(0.), |body| {
+                body.max_h((max - chrome).max(theme::HEIGHT_SHEET_CONTROL))
+            })
             .child(form)
             .child(self.default_title_style(&entry, window, cx))
             .child(applications)
-            .child(share)
-            .child(button_row(Some(remove), vec![done]));
+            .child(share);
+        let title = measured(
+            self.sheet.title_height.clone(),
+            sheet_title(
+                "Profile settings",
+                format!("Profile “{}” · {}", entry.name, page_count(pages.len())),
+            ),
+        );
+        let buttons = measured(
+            self.sheet.footer_height.clone(),
+            button_row(Some(remove), vec![done]),
+        );
+        let content = div()
+            .flex()
+            .flex_col()
+            .child(title)
+            .child(body)
+            .child(buttons);
         Some(modal.render(content, window))
     }
 
@@ -457,7 +570,11 @@ impl DeviceView {
         let underline = style.underline.unwrap_or(false);
 
         let size_popup = self.default_size_popup(size, window, cx);
+        // The field takes the width that the size and the three buttons
+        // leave, as the field of the inspector does: the family shows.
         let font_row = div()
+            .flex_1()
+            .min_w_0()
             .flex()
             .items_center()
             .gap(theme::SPACE_8)
@@ -639,8 +756,8 @@ impl DeviceView {
             style != &LabelStyle::default(),
         )
         .when(style != &LabelStyle::default(), |d| {
-            d.on_click(cx.listener(|view, _, _, cx| {
-                view.reset_default_title_style();
+            d.on_click(cx.listener(|view, _, window, cx| {
+                view.reset_default_title_style(window, cx);
                 cx.notify();
             }))
         })

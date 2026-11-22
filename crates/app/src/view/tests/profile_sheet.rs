@@ -342,6 +342,118 @@ fn the_default_title_style_rows_send_the_profile_default(cx: &mut TestAppContext
     let _ = LabelChange::Size(None);
 }
 
+/// The "Reset" of the section "Default title style" clears the field of the
+/// font too: the close of the sheet does not write the old family back
+/// (review 3, H3).
+#[gpui_kit::test]
+fn the_reset_of_the_default_title_style_clears_the_font_field(cx: &mut TestAppContext) {
+    use opencraft_engine::{Auto, LabelStyle};
+    let (view, cx, tx, sent) = sheet_window(cx);
+    let menlo = LabelStyle {
+        font: Some(Auto::Value("Menlo".into())),
+        size: Some(28),
+        ..LabelStyle::default()
+    };
+    send(cx, &tx, work_with_style(menlo));
+    open_sheet(cx, "profile-work");
+    let input = cx.update(|_, cx| view.read(cx).sheet.title_font.clone());
+    let value = |cx: &mut VisualTestContext,
+                 input: &Entity<gpui_kit::component::input::InputState>| {
+        cx.update(|_, cx| input.read(cx).value().to_string())
+    };
+    assert_eq!(value(cx, &input), "Menlo", "the field shows the family");
+
+    // The reset clears each part of the style.
+    click(cx, "profile-title-reset");
+    assert_eq!(
+        last(&sent),
+        Some(Command::SetProfileDefaultLabelStyle {
+            profile: "work".into(),
+            style: LabelStyle::default(),
+        })
+    );
+    // The engine sends the profile with the style of the engine default: the
+    // field shows it, and it does not keep the old family.
+    send(cx, &tx, work_with_style(LabelStyle::default()));
+    assert_eq!(value(cx, &input), "", "the field clears with the style");
+
+    // "Done" writes no font back.
+    let count = sent.borrow().len();
+    click(cx, "profile-done");
+    assert!(!is_open(cx));
+    assert_eq!(
+        sent.borrow().len(),
+        count,
+        "the close writes no font: {:?}",
+        sent.borrow()
+    );
+}
+
+/// The sheet fits the smallest window, also with linked applications: the
+/// body scrolls and the button row stays in the card (review 3, M2;
+/// `docs/DESIGN.md`, section 4).
+#[gpui_kit::test]
+fn the_sheet_fits_the_smallest_window_with_linked_applications(cx: &mut TestAppContext) {
+    let (_view, cx, tx, _sent) = sheet_window(cx);
+    let (width, height) = theme::WINDOW_MIN;
+    cx.simulate_resize(size(px(width), px(height)));
+    cx.run_until_parked();
+    let mut work = entry("work", "Work", &["Mail", "Calls"], 1);
+    work.applications = ["Mail", "Safari", "Calendar"]
+        .into_iter()
+        .map(|name| opencraft_engine::ApplicationLink {
+            bundle_id: format!("com.apple.{}", name.to_lowercase()),
+            name: name.into(),
+        })
+        .collect();
+    send(
+        cx,
+        &tx,
+        profiles(
+            listed(vec![
+                entry("default", "Default", &["Main", "Meetings", "Media"], 0),
+                work,
+            ]),
+            "default",
+        ),
+    );
+    open_sheet(cx, "profile-work");
+    let sheet = cx.debug_bounds("profile-sheet").expect("the sheet");
+    let done = cx.debug_bounds("profile-done").expect("Done");
+    let remove = cx
+        .debug_bounds("profile-remove")
+        .expect("Remove the profile");
+    for (what, bounds) in [("Done", done), ("Remove the profile", remove)] {
+        assert!(
+            bounds.top() >= sheet.top() && bounds.bottom() <= sheet.bottom(),
+            "{what} {bounds:?} is in the card {sheet:?}"
+        );
+    }
+    // The buttons are below the body that scrolls.
+    let body = cx.debug_bounds("profile-sheet-body").expect("the body");
+    assert!(
+        body.bottom() <= done.top(),
+        "the body {body:?} is above the buttons"
+    );
+}
+
+/// A key command closes the open popover of the inspector before the sheet
+/// opens: the sheet is the top layer (review 3, M3).
+#[gpui_kit::test]
+fn a_key_command_closes_the_open_popover_of_the_inspector(cx: &mut TestAppContext) {
+    let (_view, cx, _tx, _sent) = sheet_window(cx);
+    click(cx, "surface-key face 2");
+    click(cx, "label-colour");
+    assert!(cx.debug_bounds("label-colour-popover").is_some());
+    cx.simulate_keystrokes("ctrl-cmd-p");
+    cx.run_until_parked();
+    assert!(is_open(cx), "the key command opens the sheet");
+    assert!(
+        cx.debug_bounds("label-colour-popover").is_none(),
+        "the popover closes"
+    );
+}
+
 #[gpui_kit::test]
 fn remove_asks_for_a_confirmation_and_the_sheet_closes_with_its_profile(cx: &mut TestAppContext) {
     let (_view, cx, tx, sent) = sheet_window(cx);
