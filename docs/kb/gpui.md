@@ -1368,6 +1368,20 @@ The guard of `view/repaint.rs` (issue #321) is in the application:
   the choice in Settings > General. The window test covers the observer path
   with the function that the observer calls.
 
+## A sheet that a key command opens (2026-11-22)
+
+**Measured.** The facts of the key command that opens the profile settings
+sheet (`crates/app/src/app_menu.rs`, `commands`; issue #482). The window
+tests are `view::tests::profile_sheet::a_key_command_opens_the_sheet_of_the_active_profile`
+and `the_command_palette_opens_the_sheet`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A row of `app_menu::commands` with a `shortcut` name and a `KeyBinding` in the key context `Workspace` gives three things at once: the command in the command palette, its key in the pane "Shortcuts", and the key command in the window. The palette shows a command only when the root element of the window has a handler for its action (`Window::is_action_available_in`). | Source; Measured | `crates/app/src/app_menu.rs`; `crates/app/src/view/palette.rs`, `open_palette`; `settings_window::tests::the_shortcuts_list_the_key_commands_that_have_a_key_binding` |
+| A sheet that a key command opens gets the same return of the focus as a popover: `focus_return` notes the control that had the focus at the key, `Modal` takes the note, and the close gives the focus back to that control. The window test presses ⌃⌘P with the focus on the row of a profile, and Escape gives the focus to that row again. | Measured | `crates/app/src/view/focus_return.rs`; `a_key_command_opens_the_sheet_of_the_active_profile` |
+| A background `type_text` of `cua-driver` 0.49.3 does not put text into a GPUI text field: the field of the command palette kept its placeholder, and the rows did not filter. A background `press_key` for each character does put the text in, and the rows filter. | Measured | `cua-driver` 0.49.3, real window, 2026-11-22 |
+| A native menu at the pointer (the right-click menu of a sidebar row) is not a keyboard path in a background run: the run sends keys to the window, and the menu of a process that is not in front takes no key. Thus a command that a person needs from the keyboard goes in `app_menu::commands` and not only in a native menu. | Source; Measured | The audit of 2026-11-22 (issue #482); `crates/app/src/view/sidebar.rs`, `open_menu` |
+
 ## A panel that follows the keyboard focus (2026-11-22)
 
 **Source; Measured.** The facts of the panel that scrolls to the control that

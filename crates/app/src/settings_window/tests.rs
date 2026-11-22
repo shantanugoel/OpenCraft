@@ -911,6 +911,7 @@ fn the_shortcuts_list_the_key_commands_that_have_a_key_binding(cx: &mut TestAppC
             ("Clear the control", "⌫".to_string()),
             ("Hide or show the sidebar", "⌃⌘S".to_string()),
             ("Hide or show the inspector", "⌥⌘I".to_string()),
+            ("Profile settings", "⌃⌘P".to_string()),
             ("Settings", "⌘,".to_string()),
             ("Quit OpenCraft", "⌘Q".to_string()),
         ]

@@ -61,7 +61,7 @@ fn order(cx: &mut VisualTestContext, key: &str, count: usize) -> Vec<String> {
 }
 
 /// Press Tab until the control `id` has the focus.
-fn tab_to(cx: &mut VisualTestContext, id: &str) {
+pub(super) fn tab_to(cx: &mut VisualTestContext, id: &str) {
     let mut seen = Vec::new();
     for _ in 0..200 {
         keys(cx, "tab");

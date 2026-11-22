@@ -405,6 +405,7 @@ and card of the window with the keyboard.
 | Change the choice of a control, for example Position | Left arrow or Right arrow |
 | Select an item in an open menu | Up arrow or Down arrow, then Space or Return |
 | Select a starter profile in the first start window | The arrow keys |
+| Open the settings of the active profile | ⌃⌘P |
 
 - The control with the focus has a blue ring. The ring shows only when you
   use the keyboard. A click does not move the focus to a control, and it
