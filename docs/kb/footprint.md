@@ -1,11 +1,55 @@
 # Footprint of OpenCraft
 
-Last update: 2026-11-21
+Last update: 2026-11-22
 
 This entry holds the measured values for the
 [product targets](../ROADMAP.md#product-targets). The reference is the vendor
 software: see [vsd-craft.md](vsd-craft.md#footprint-when-it-runs). Measure
 again at the end of each phase.
+
+## Phase 11: the clock key (2026-11-22)
+
+Issue [#456](https://github.com/shantanugoel/OpenCraft/issues/456) (ACT-31)
+adds the Clock and date kind. This section measures its idle processor use.
+[Decision 0043](../decisions/0043-faces-fonts-and-schema-8.md), section 6 has
+the design.
+
+### Idle processor use of one clock key (2026-11-22)
+
+The program is the release binary of the workspace at commit `2e17252`. It
+ran with a scratch `OPENCRAFT_PROFILES_DIR` whose active profile has one
+clock key on the **Press** gesture of key 3 (`format = "24h"`, label size
+32), and the window open. The connected N4 Pro showed the time, and no
+person operated the device. The installed application did not run during the
+measurement. The camera showed `10:52` and then `10:53` on the key, one
+minute apart.
+
+`scripts/measure-footprint.sh --pid` made one sample each 5 seconds for 120
+seconds, 116 seconds after the start of the process.
+
+| Measurement | One clock key | Confidence |
+|---|---|---|
+| Processes | 1 | Measured |
+| Physical footprint: minimum, median, maximum | 51.1, 51.1, 55.8 MiB | Measured |
+| Resident size, median | 115.9 MiB | Measured |
+| Processor time in 120 seconds | 0.72 s | Measured |
+| Processor use, mean (100 % is one core) | 0.6 % | Measured |
+| Processor use, maximum of a sample | 1.0 % | Measured |
+
+- The worker wakes about 6 times each minute while a clock is visible. It
+  sends a label only at the minute boundary, and each label is one image.
+  (Source: decision 0043, section 6)
+- A debug build with the same clock key visible for 7 hours 4 minutes used
+  2 minutes 43 seconds of processor time, which is 0.64 %. That value
+  includes the start and the window. (Measured: `ps -o time`)
+- The mean of 0.6 % is above the phase target of 0.5 % of one core. The
+  same program with no clock key could not be measured in this run: the
+  scratch program chose the profile with the clock key at each start. P11-M2
+  measures the phase target with all the features of Phase 11.
+- The clock handler is not the likely cause of the distance from 0.5 %: the
+  7-hour run and this 120-second run have the same rate, and the clock adds
+  6 wakes and one image each minute. The cause needs a measurement with and
+  without the clock key. (Inference)
 
 ## Phase 10: gesture timers, key states, and new actions (2026-11-21)
 

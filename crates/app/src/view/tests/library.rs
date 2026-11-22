@@ -609,3 +609,77 @@ fn a_short_move_is_a_click_and_not_a_drag(cx: &mut TestAppContext) {
     assert!(!matches!(sent.borrow().last(), Some(Command::Group { .. })));
     cx.update(|_, cx| assert_eq!(view.read(cx).library.dragging, None));
 }
+
+/// The real Clock kind appears in the library in the group "Logic". Its card
+/// has the field "Format" and the choices of its `KindDescription`
+/// (decision 0043, section 6): the shell has no list of kinds (rule 8).
+#[gpui_kit::test]
+fn the_clock_kind_appears_in_the_library_and_its_form_comes_from_its_description(
+    cx: &mut TestAppContext,
+) {
+    let clock = opencraft_actions::handlers()
+        .iter()
+        .flat_map(|handler| handler.kinds())
+        .find(|kind| kind.kind == "opencraft.clock")
+        .expect("the clock kind");
+    assert_eq!(clock.name, "Clock and date");
+    assert_eq!(clock.group, "Logic");
+    let format = clock
+        .fields
+        .iter()
+        .find(|field| field.key == "format")
+        .expect("the field Format");
+    let InputType::Choice { options } = &format.input else {
+        panic!("Format has no choices")
+    };
+    assert_eq!(
+        options
+            .iter()
+            .map(|option| option.value.as_str())
+            .collect::<Vec<_>>(),
+        ["24h", "12h", "date", "weekday-date", "time-date"]
+    );
+
+    let (_view, cx, tx, sent) = window(cx);
+    cx.simulate_resize(size(px(1120.), px(1600.)));
+    let binding = BindingId {
+        page: 0,
+        control: ControlId::new(ControlKind::Key, 2),
+        gesture: GestureKind::Press,
+        folder: None,
+    };
+    let action = Action {
+        kind: "opencraft.clock".into(),
+        settings: Settings::from([("format".into(), Value::Text("24h".into()))]),
+    };
+    tx.try_send(Event::Kinds(vec![clock])).unwrap();
+    tx.try_send(Event::Binding(BindingState {
+        binding,
+        action: Some(action),
+        available: true,
+        inert_by: None,
+    }))
+    .unwrap();
+    cx.run_until_parked();
+    click(cx, "surface-key face 2");
+    click(cx, "tab-library");
+    assert!(shows(cx, "library-group-0"), "the group Logic shows");
+    assert!(shows(cx, "library-0"), "the Clock row shows");
+
+    // The form of the card comes from the kind description: the field
+    // "Format" has the five choices, and the second one sets "12h".
+    click(cx, "tab-inspector");
+    assert!(shows(cx, "field-0"), "the Format field shows");
+    click(cx, "choice-0");
+    click(cx, "choice-0-1");
+    assert_eq!(
+        sent.borrow().last(),
+        Some(&Command::SetBinding {
+            binding,
+            action: Some(Action {
+                kind: "opencraft.clock".into(),
+                settings: Settings::from([("format".into(), Value::Text("12h".into()))]),
+            }),
+        })
+    );
+}

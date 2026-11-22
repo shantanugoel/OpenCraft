@@ -9,6 +9,10 @@ license.workspace = true
 opencraft-engine.workspace = true
 thiserror.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+# The local wall time of the clock kind.
+libc.workspace = true
+
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = { workspace = true, features = ["highsierra"] }
 core-foundation.workspace = true

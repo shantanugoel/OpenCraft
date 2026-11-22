@@ -201,6 +201,12 @@ For a timer key, set `opencraft.timer` on Press. Its settings are `mode`
 set `file` to the sound path and optionally set `volume` (0 to 100, default
 100). See the [Timer guide](../../docs/user/actions.md#timer).
 
+For a clock key, set `opencraft.clock` on Press. Its setting `format` is
+`24h` (default), `12h`, `date`, `weekday-date`, or `time-date`. OpenCraft
+changes the label of the key at each minute; no press action is necessary.
+Give the key a large label size for large digits. See the
+[Clock and date guide](../../docs/user/actions.md#clock-and-date).
+
 A key opens a folder with the kind `opencraft.open-folder`. Its setting
 `folder` is the identity of the folder. A folder opens only with such a key.
 To leave the folder, the user pushes a key with the kind

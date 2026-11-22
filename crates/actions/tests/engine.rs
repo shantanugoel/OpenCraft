@@ -8,7 +8,7 @@
 
 mod support;
 
-use opencraft_actions::handlers_with_clock;
+use opencraft_actions::{handlers_with_clocks, LocalTime};
 use opencraft_core::device::DESCRIPTORS;
 use opencraft_core::{Clock, Connector, Device, FakeTransport, Link, Transport};
 use opencraft_engine::{
@@ -113,6 +113,10 @@ struct World {
     device: Rc<RefCell<FakeTransport>>,
     nested: Arc<Mutex<Vec<Request>>>,
     system: Arc<Fake>,
+    /// The wall time that the clock kind reads.
+    wall: Arc<Mutex<LocalTime>>,
+    /// Each label that a handler sent to the engine, in order.
+    labels: Rc<RefCell<Vec<String>>>,
     _dir: TempDir,
 }
 
@@ -130,9 +134,19 @@ impl World {
         let system = Arc::new(Fake::default());
         let clock = Arc::new(Mutex::new(Instant::now()));
         let timer_clock = Arc::clone(&clock);
-        let mut all = handlers_with_clock(
+        let wall = Arc::new(Mutex::new(LocalTime {
+            month: 11,
+            day: 22,
+            weekday: 6,
+            hour: 14,
+            minute: 5,
+            second: 30,
+        }));
+        let wall_clock = Arc::clone(&wall);
+        let mut all = handlers_with_clocks(
             system.clone(),
             Arc::new(move || *timer_clock.lock().unwrap()),
+            Arc::new(move || Some(*wall_clock.lock().unwrap())),
         );
         all.push(Box::new(Recorder(nested.clone())));
         let (sender, messages) = mpsc::channel();
@@ -166,6 +180,8 @@ impl World {
             device,
             nested,
             system,
+            wall,
+            labels: Rc::new(RefCell::new(Vec::new())),
             _dir: dir,
         };
         for _ in 0..10 {
@@ -194,8 +210,9 @@ impl World {
                     busy = true;
                 }
             }
-            for message in self.messages.try_iter() {
-                self.engine.handler_message(message);
+            let messages: Vec<Message> = self.messages.try_iter().collect();
+            for message in messages {
+                self.deliver(message);
                 busy = true;
             }
             if !busy {
@@ -211,10 +228,24 @@ impl World {
         while !done(self) {
             assert!(Instant::now() < deadline, "the messages did not come");
             if let Ok(message) = self.messages.recv_timeout(Duration::from_millis(10)) {
-                self.engine.handler_message(message);
+                self.deliver(message);
             }
             self.pump();
         }
+    }
+
+    /// Give one message of a handler to the engine, and keep each label.
+    fn deliver(&mut self, message: Message) {
+        if let Message::Feedback {
+            feedback: Some(feedback),
+            ..
+        } = &message
+        {
+            if let Some(label) = &feedback.label {
+                self.labels.borrow_mut().push(label.clone());
+            }
+        }
+        self.engine.handler_message(message);
     }
 
     fn command(&mut self, command: Command) {
@@ -265,6 +296,34 @@ impl World {
 
     fn take_nested(&self) -> Vec<Request> {
         std::mem::take(&mut *self.nested.lock().unwrap())
+    }
+
+    /// Set the wall time that the clock kind reads.
+    fn set_wall(&self, wall: LocalTime) {
+        *self.wall.lock().unwrap() = wall;
+    }
+
+    fn wall(&self) -> LocalTime {
+        *self.wall.lock().unwrap()
+    }
+
+    fn take_labels(&mut self) -> Vec<String> {
+        std::mem::take(&mut *self.labels.borrow_mut())
+    }
+
+    /// Wake the clock worker after a change of the fake wall clock.
+    fn wake_clock(&mut self) {
+        for (handler, _) in &mut self.handlers {
+            if handler
+                .kinds()
+                .iter()
+                .any(|kind| kind.kind == "opencraft.clock")
+            {
+                handler.handle(Request::Resolve {
+                    kind: "opencraft.clock".into(),
+                });
+            }
+        }
     }
 }
 
@@ -331,6 +390,53 @@ fn a_timer_key_starts_on_short_press_resets_on_hold_and_rings_at_zero() {
             .count(),
         1
     );
+}
+
+#[test]
+fn a_clock_key_shows_the_time_and_changes_at_the_next_minute() {
+    let mut world = World::new();
+    world.bind_key_3(built_in(
+        "clock",
+        vec![("format", Value::Text("time-date".into()))],
+    ));
+    world.pump_until(|world| {
+        world
+            .labels
+            .borrow()
+            .iter()
+            .any(|label| label == "14:05\nNov 22")
+    });
+    world.take_labels();
+
+    // The next minute sends the new text one time.
+    world.set_wall(LocalTime {
+        minute: 6,
+        ..world.wall()
+    });
+    world.wake_clock();
+    world.pump_until(|world| {
+        world
+            .labels
+            .borrow()
+            .iter()
+            .any(|label| label == "14:06\nNov 22")
+    });
+    assert_eq!(world.take_labels(), ["14:06\nNov 22"]);
+
+    // A hidden clock sends nothing, also with a new minute.
+    let binding = key_3(world.engine.active_page());
+    world.command(Command::SetBinding {
+        binding,
+        action: None,
+    });
+    world.set_wall(LocalTime {
+        minute: 7,
+        ..world.wall()
+    });
+    world.wake_clock();
+    std::thread::sleep(Duration::from_millis(100));
+    world.pump();
+    assert!(world.take_labels().is_empty(), "a hidden clock sent a text");
 }
 
 #[test]
@@ -544,6 +650,7 @@ fn the_engine_sends_the_built_in_kinds_in_their_library_groups() {
             ("Action cycle", "Logic", None, false),
             ("Multi-function knob", "Logic", Some("Knob"), false),
             ("Timer", "Logic", None, false),
+            ("Clock and date", "Logic", None, false),
         ]
     );
 }
@@ -596,6 +703,7 @@ fn each_built_in_kind_has_an_icon_of_the_icon_set() {
             ("Action cycle", "repeat"),
             ("Multi-function knob", "sliders-horizontal"),
             ("Timer", "timer"),
+            ("Clock and date", "clock"),
         ]
     );
     for (_, icon) in icons {

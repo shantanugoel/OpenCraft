@@ -29,6 +29,7 @@ menu of the action kinds show the groups and the kinds in this order:
 | Logic | [Action cycle](#action-cycle) | Only for the actions that it contains |
 | Logic | [Multi-function knob](#multi-function-knob) | Only for the actions that it contains |
 | Logic | [Timer](#timer) | No |
+| Logic | [Clock and date](#clock-and-date) | No |
 
 The permission is in
 [Install and first start](install.md#give-the-accessibility-permission).
@@ -808,3 +809,25 @@ A timer continues to run when you change pages or folders. A countdown
 sounds its bell at zero, also when its key is not visible. Push and release
 the key again to start a new countdown. A change to the timer settings
 resets the timer.
+
+## Clock and date
+
+Set **Clock and date** on the **Press** gesture of a key. The key shows the
+time, the date, or both. The text changes at the next minute.
+
+| Setting | What to give |
+|---|---|
+| Format | **Time, 24-hour** for `14:05`, **Time, 12-hour** for `2:05 PM`, **Date** for `Nov 22`, **Weekday and date** for `Sat` above `Nov 22`, or **Time and date** for `14:05` above `Nov 22`. The default is **Time, 24-hour**. |
+
+The month and weekday names are English. The key shows the local time of the
+computer. It changes when you change the time zone, and it is correct again
+10 seconds after the computer wakes. Push and release the key to show the
+time again at once.
+
+The clock uses the **Text** row of its key: the position, the size, the
+colour, and the bold button. For large digits, click the size button and
+select **32 pt**, the largest size in the window of this version. Give the
+key no image and no icon, so that the digits use the full face.
+
+A clock key sends no work to the computer when you push it. The time is on
+the key that the device shows, and the window shows the same time.
