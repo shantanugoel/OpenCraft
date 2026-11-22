@@ -264,6 +264,7 @@ impl FirstStartView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        crate::appearance::follow(window, shell);
         let subscription = cx.observe_in(shell, window, |view, shell, window, cx| {
             // The shell notifies for each engine event, also for the input of
             // the device. Draw again only for a change that the window shows.

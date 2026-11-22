@@ -1,6 +1,6 @@
 # GPUI
 
-Last update: 2026-11-14
+Last update: 2026-11-22
 
 GPUI is the GUI toolkit of the Zed editor. The decision that uses these facts
 is [decision 0005](../decisions/0005-gpui.md).
@@ -867,6 +867,29 @@ the engine tests are in `crates/engine/tests/engine/move_control.rs`.
 | `opencraft ctl control move` moves a key in the running window: key 1 with the Mail icon and title went to key 2, and one ⌘Z put both keys back. The engine draws both surfaces of the step. | Measured | Real window at 1440 × 900 and 1080 × 700, scratch profile, 2026-11-22 |
 | The window at 1080 × 700 shows the whole page with the moved key, the device, and the right panel. | Measured | Window picture, 2026-11-22 |
 
+## The light and dark appearance (2026-11-22)
+
+The window has the appearance of macOS, or a forced light or dark appearance
+(Settings > General, decision 0029 section 21). The code is in
+`crates/app/src/appearance.rs`, and the palettes are in
+`crates/app/src/view/theme.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `App::set_window_appearance(Option<WindowAppearance>)` sets `NSApplication.appearance` on macOS with `setAppearance:`. `None` sets nil, and the application follows the appearance of the system again. While an appearance is forced, a window does not follow a change of the system appearance. On other platforms the call does nothing. | Source | `gpui-pre` 0.3.12 `src/app.rs`, `set_window_appearance`; `gpui-pre-macos` 0.3.12 `src/platform.rs`, `set_window_appearance` |
+| `App::window_appearance()` reads `NSApplication.effectiveAppearance` on macOS. It gives the forced appearance after `set_window_appearance(Some(..))`, and the appearance of the system when the override is nil. `App::set_window_appearance` does not change a palette of the window: the application sets `theme::set_appearance` and the Kit theme itself. | Source | `gpui-pre-macos` 0.3.12 `src/platform.rs`, `window_appearance`; `src/app.rs` |
+| `Window::appearance()` gives the appearance of the window. `Window::appearance_changed` reads the appearance of the platform window again and then calls each observer. GPUI defers the call because AppKit can change the appearance during an application update. | Source | `gpui-pre` 0.3.12 `src/window.rs`, `appearance`, `appearance_changed`, and `on_appearance_changed` |
+| `Window::observe_window_appearance(f)` returns a `Subscription`. `.detach()` keeps the observer until the window goes away; the callback gets `&mut Window` and `&mut App`. | Source | `gpui-pre` 0.3.12 `src/window.rs`; `src/subscription.rs`, `detach` |
+| `WindowAppearance` has the values `Light`, `VibrantLight`, `Dark`, and `VibrantDark`. The macOS platform maps an unknown `NSAppearance` name to `Light`, and it maps `aqua` and `darkAqua` to `Light` and `Dark`. | Source | `gpui-pre` 0.3.12 `src/platform.rs`, `WindowAppearance`; `gpui-pre-macos` 0.3.12 `src/window_appearance.rs` |
+| The Kit has its own theme for `Input`, `Scrollbar`, and `Tooltip`. `Theme::change(ThemeMode::Light or Dark, window, cx)` sets the mode of the global theme and refreshes every window; `window` is not read. `Theme::global(cx).mode` reads the mode. The window sets both the Kit theme and its own palette in one function (`crate::appearance::refresh`). | Source | `gpui-component` 0.9.1 `src/theme/mod.rs`, `change`, `global`; `crates/app/src/appearance.rs` |
+| The test platform has no public method for a crate outside GPUI to change the appearance of a window: `TestAppContext::test_window` and `TestWindow::simulate_appearance_change` are `pub(crate)`. A window test calls the function that the observer calls, `crate::appearance::refresh`, with the appearance of the window. | Source; Measured | `gpui-pre` 0.3.12 `src/app/test_context.rs`, `test_window`; `src/platform/test/window.rs`, `simulate_appearance_change`; `crates/app/src/view/tests/appearance.rs` |
+| A window test reads the colours of the frame: `Window::painted_quads()` gives each quad of the last frame, and `Quad::background.as_solid()` gives its colour. The method needs the `test-support` feature. | Source; Measured | `gpui-pre` 0.3.12 `src/window.rs`, `painted_quads`; `src/color.rs`, `as_solid`; `crates/app/src/view/tests/appearance.rs` |
+| The Kit theme and the palette of the window change together at each appearance event. A window that opens later reads the palette of the thread, thus it opens with the same appearance. | Source | `crates/app/src/appearance.rs`; `crates/app/src/view/theme.rs` |
+| The choice Light or Dark in Settings > General changed the main window, the Settings window, the profile settings sheet, and the icon picker at once, with no restart. The choice is in `shell.toml` as `appearance = "light"`, `"dark"`, or `"system"`. | Measured | Scratch app with `OPENCRAFT_NO_DEVICE`, 2026-11-22; pictures at 1440 × 900 and 1080 × 700 |
+| The native parts follow the appearance of the application: the window buttons and the title bar of each window, and a menu at the pointer. A Light choice showed the light traffic lights and a light menu; a Dark choice showed the dark ones. | Measured | Real window pictures, 2026-11-22; `App::set_window_appearance` |
+| The choice System at the first start gave the appearance of the computer (dark). The in-app choice was used for the pictures, thus no change of the appearance of the computer was necessary. A live change of the appearance of the computer was not measured; the window test changes the palette through the same function that the observer calls (`crate::appearance::refresh`). | Measured; Source | Real window, 2026-11-22; `crates/app/src/view/tests/appearance.rs` |
+| The light appearance of the parts of the kit (`Input` in the sheet and the search fields, `Scrollbar` in the inspector, `Tooltip`) agreed with the palette of the window in the real window at 1440 × 900 and 1080 × 700. | Measured | Real window pictures, 2026-11-22 |
+
 ## Menu keys in the application (2026-11-13)
 
 **Measured.** The application is the debug build of `opencraft` with the
@@ -1215,8 +1238,10 @@ The guard of `view/repaint.rs` (issue #321) is in the application:
   real pointer. The background route is refused with `drag_and_drop_session`
   (see [File drop and image paste](#file-drop-and-image-paste-2026-11-22));
   nobody did the foreground step.
-- The look of the Kit parts in the light theme. The window layout test used
-  the dark theme only.
+- A change of the appearance of the computer while OpenCraft runs. The owner
+  rule does not permit a change of the system setting, thus the pictures use
+  the choice in Settings > General. The window test covers the observer path
+  with the function that the observer calls.
 
 ## Sources
 

@@ -549,9 +549,9 @@ pub(crate) fn segmented(
 }
 
 /// A segment of a [`segmented`] control: it shares the free width with the
-/// other segments. The selected segment is `bg-segment-on` with
-/// `text-on-accent`; the other segments are transparent with
-/// `text-secondary`. `height` is [`theme::HEIGHT_SEGMENT`] or
+/// other segments. The selected segment is `bg_segment_on()` with
+/// `text_on_segment()`; the other segments are transparent with
+/// [`theme::text_secondary()`]. `height` is [`theme::HEIGHT_SEGMENT`] or
 /// [`theme::HEIGHT_SEGMENT_INSPECTOR`].
 pub(crate) fn segment(
     id: impl Into<SharedString>,
@@ -586,7 +586,7 @@ pub(crate) fn segment_if(
         .font_weight(gpui_kit::FontWeight::MEDIUM)
         .when(selected, |d| {
             d.bg(theme::bg_segment_on())
-                .text_color(theme::text_on_accent())
+                .text_color(theme::text_on_segment())
         })
         .when(enabled, |d| keyboard_focus(d, Ring::Inside))
         .when(!selected && enabled, |d| {
@@ -1063,8 +1063,8 @@ pub(super) fn search_field(
 }
 
 /// A square toggle button of 28 × 28 with a short text, for example "B" for
-/// bold (section 10.2). On: `bg-segment-on`, border `#5A5C63`,
-/// `text-on-accent`. Off: the look of a button, with `text-secondary`.
+/// bold (section 10.2). On: `bg_segment_on()`, border
+/// [`theme::border_toggle_on()`], [`theme::text_on_segment()`]. Off: the look of a button, with `text-secondary`.
 /// `tooltip` is the accessible label. The caller adds the click handler.
 pub(super) fn toggle_button(
     id: impl Into<SharedString>,
@@ -1088,7 +1088,7 @@ pub(super) fn toggle_button(
             if on {
                 d.bg(theme::bg_segment_on())
                     .border_color(theme::border_toggle_on())
-                    .text_color(theme::text_on_accent())
+                    .text_color(theme::text_on_segment())
             } else {
                 d.bg(theme::bg_control())
                     .border_color(theme::border_control())
@@ -1135,8 +1135,8 @@ pub(super) fn colour_button(
 }
 
 /// A filter chip (section 3.7): height 24, radius 12, padding 0 10, `label`
-/// weight 500. Selected: border `accent-line`, `accent-tint` 25 %,
-/// `text-on-accent`. Else: border `border-field`, transparent,
+/// weight 500. Selected: border [`theme::accent_line()`],
+/// [`theme::accent_tint_chip()`], [`theme::text_on_tint()`]. Else: border `border-field`, transparent,
 /// `text-secondary`, and a light background under the pointer. The caller
 /// adds the click handler. The tabs of the icon picker use it (section 14).
 pub(super) fn chip(
@@ -1161,7 +1161,7 @@ pub(super) fn chip(
             if selected {
                 d.border_color(theme::accent_line())
                     .bg(theme::accent_tint_chip())
-                    .text_color(theme::text_on_accent())
+                    .text_color(theme::text_on_tint())
             } else {
                 d.border_color(theme::border_field())
                     .text_color(theme::text_secondary())

@@ -81,7 +81,21 @@ OpenCraft window and the device continue to operate.
 
 ![The tab General of the Settings window](images/settings-general.png)
 
-The switches at the top of the tab:
+At the top of the tab, **Appearance** has the three buttons **System**,
+**Light**, and **Dark**:
+
+| Button | What it does |
+|---|---|
+| System | Uses the appearance of macOS. When you change the appearance of macOS, OpenCraft changes with it, also while a window is open. |
+| Light | Uses the light appearance. |
+| Dark | Uses the dark appearance. |
+
+The appearance changes the main window, the Settings window, and the menus
+at once. It also changes the window buttons and the dialogs of macOS.
+OpenCraft keeps the choice after a restart. The picture shows the dark
+appearance.
+
+The switches below **Appearance**:
 
 | Switch | What it does |
 |---|---|

@@ -290,7 +290,15 @@ fn drop_target(radius: f32, kind: bool) -> Div {
         .text_size(theme::TEXT_CAPTION)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(theme::text_on_accent())
-        .child(DROP_HERE)
+        // The tint is thin on a light canvas, thus the text has a backing.
+        .child(
+            div()
+                .rounded(theme::RADIUS_SEGMENT)
+                .bg(theme::badge_on_image())
+                .px(theme::SPACE_6)
+                .py(theme::SPACE_2)
+                .child(DROP_HERE),
+        )
         .opacity(0.)
         // A kind that this control cannot take shows no target.
         .when(kind, |d| {

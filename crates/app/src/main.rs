@@ -21,6 +21,7 @@
 //! start at login (decision 0021).
 
 mod app_menu;
+mod appearance;
 mod applications;
 mod control;
 #[cfg(unix)]
@@ -412,7 +413,10 @@ fn main() {
             async {}
         })
         .detach();
-        gpui_kit::component::Theme::change(gpui_kit::component::ThemeMode::Dark, None, cx);
+        // The appearance of Settings > General, and the theme of the
+        // controls of the kit, before a window shows (decision 0029,
+        // section 21).
+        appearance::apply(settings.appearance, cx);
         app_menu::install(cx, &settings.panes);
         let shell = cx.new(|cx| {
             let mut shell = Shell::new(config_dir, settings, send);

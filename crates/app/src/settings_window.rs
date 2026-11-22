@@ -406,6 +406,7 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        crate::appearance::follow(window, shell);
         Self::build(shell, snapshot, None, window, cx)
     }
 
@@ -568,7 +569,7 @@ impl SettingsView {
             .cursor_pointer()
             .when(selected, |d| {
                 d.bg(theme::bg_segment_on())
-                    .text_color(theme::text_on_accent())
+                    .text_color(theme::text_on_segment())
             })
             .when(!selected, |d| {
                 d.text_color(theme::text_secondary())
