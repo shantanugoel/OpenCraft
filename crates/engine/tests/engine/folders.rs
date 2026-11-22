@@ -494,7 +494,7 @@ fn copy_to_all_pages_is_not_possible_in_a_folder() {
 }
 
 #[test]
-fn a_loaded_old_profile_is_written_as_schema_5_with_no_folders() {
+fn a_loaded_old_profile_is_written_as_the_current_schema_with_no_folders() {
     for version in [3, 4] {
         let dir = TempDir::new().unwrap();
         let path = store_in(dir.path()).profile_path();
@@ -521,7 +521,7 @@ fn a_loaded_old_profile_is_written_as_schema_5_with_no_folders() {
         rig.poll_for(SAVE_DELAY + Duration::from_secs(1));
         let text = rig.profile_text().unwrap();
         assert!(
-            text.starts_with("schema_version = 7\n"),
+            text.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")),
             "version {version}: {text}"
         );
         assert!(text.contains("name = \"Renamed\""), "{text}");

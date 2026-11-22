@@ -88,8 +88,29 @@
 //! at place N of such a file the identity N+1 until it writes the file again,
 //! thus an unchanged file gives the same identities at each read.
 //!
+//! Schema version 8 adds the label keys of decision 0043:
+//!
+//! | Key | Value | With no key |
+//! |---|---|---|
+//! | `label_position` | `"top"`, `"middle"`, `"bottom"`, `"none"`, or `"auto"` | The default title style of the profile |
+//! | `label_color` | `#RRGGBB` or `"auto"` | The default title style of the profile |
+//! | `label_font` | A font family, or `"system"` | The default title style of the profile |
+//! | `label_size` | The font size in pixels, from 10 to 40 | The default title style of the profile |
+//! | `label_bold`, `label_italic`, `label_underline` | `true` or `false` | The default title style of the profile |
+//!
+//! `"auto"` is the automatic position and the automatic colour, and
+//! `"system"` is the system font. A surface uses an automatic value also
+//! when the default title style of the profile has a value. A key of version
+//! 8 in a file of version 1 to 7 has an error: the engine keeps that file as
+//! a backup (decision 0009).
+//!
+//! Version 8 writes a label key when the surface has an own value, also when
+//! the value is the engine default. Versions 4 to 7 wrote a size and a
+//! weight only when it was not the default. Thus an old surface with the
+//! default look has no such key and inherits, and it shows as before.
+//!
 //! ```toml
-//! schema_version = 7
+//! schema_version = 8
 //! name = "Default"
 //! model = "n4-pro"
 //! color = "#3B82F6"
@@ -128,9 +149,9 @@ use crate::error::{Error, Result};
 use crate::front::{same_bundle, valid_bundle_id, MAX_LINKS};
 use crate::profile::{control_key, parse_control_key};
 use crate::profile::{
-    default_model, parse_surface_key, surface_key, ApplicationLink, Background, BackgroundFit,
-    Color, Folder, FolderId, LabelPosition, LabelStyle, Page, PageId, Profile, SurfaceContent,
-    SurfaceIcon, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
+    default_model, parse_surface_key, surface_key, ApplicationLink, Auto, Background,
+    BackgroundFit, Color, Folder, FolderId, LabelPosition, LabelStyle, Page, PageId, Profile,
+    SurfaceContent, SurfaceIcon, MAX_LABEL_SIZE, MIN_LABEL_SIZE,
 };
 use crate::saved::SavedFile;
 use image::imageops::FilterType;
@@ -144,7 +165,23 @@ use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
 
 /// The schema version that this engine writes.
-pub const SCHEMA_VERSION: u32 = 7;
+pub const SCHEMA_VERSION: u32 = 8;
+
+/// The first schema version with the label keys of Phase 11 (decision 0043):
+/// the font, the italic form, the underline, the automatic word of the
+/// position and the colour, and the larger label size of ICON-04.
+pub const FACES_VERSION: u32 = 8;
+
+/// The largest `label_size` in a file of schema version 4 to 7. Version 8
+/// has [`MAX_LABEL_SIZE`] (decision 0043).
+const MAX_LABEL_SIZE_BEFORE_FACES: u8 = 40;
+
+/// The file word of the automatic position and the automatic colour.
+const AUTO_WORD: &str = "auto";
+
+/// The file word of the system font. A family with this name cannot be
+/// selected.
+const SYSTEM_FONT_WORD: &str = "system";
 
 /// The first schema version with long and double presses (decision 0042).
 const GESTURE_TIMERS_VERSION: u32 = 7;
@@ -850,6 +887,15 @@ struct SurfaceData {
     label_color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label_bold: Option<bool>,
+    /// The font family, or `"system"`. It came in version 8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_font: Option<String>,
+    /// It came in version 8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_italic: Option<bool>,
+    /// It came in version 8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_underline: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -871,6 +917,11 @@ impl SurfaceData {
             || self.label_bold.is_some()
             || self.icon.is_some()
             || self.icon_color.is_some()
+    }
+
+    /// True if the data has a label key of schema version 8.
+    fn has_version_8_keys(&self) -> bool {
+        self.label_font.is_some() || self.label_italic.is_some() || self.label_underline.is_some()
     }
 
     /// The icon of the file data. The error text names the key.
@@ -896,37 +947,75 @@ impl SurfaceData {
         }
     }
 
-    /// The label style of the file data. The error text names the key.
-    fn label_style(&self) -> std::result::Result<LabelStyle, String> {
-        let default = LabelStyle::default();
+    /// The label style of the file data. The error text names the key. A
+    /// label key of schema version 8 in a file of version 1 to 7 is an
+    /// error (decision 0043).
+    fn label_style(&self, version: u32) -> std::result::Result<LabelStyle, String> {
         let position = match &self.label_position {
             None => None,
-            Some(text) => Some(
+            Some(text) if text == AUTO_WORD => {
+                faces_key(version, "label_position")?;
+                Some(Auto::Auto)
+            }
+            Some(text) => Some(Auto::Value(
                 LabelPosition::from_key(text)
                     .ok_or_else(|| format!("label_position '{text}' is not a position"))?,
-            ),
+            )),
+        };
+        let max = if version < FACES_VERSION {
+            MAX_LABEL_SIZE_BEFORE_FACES
+        } else {
+            MAX_LABEL_SIZE
         };
         let size = match self.label_size {
-            None => default.size,
-            Some(size) if (MIN_LABEL_SIZE..=MAX_LABEL_SIZE).contains(&size) => size,
+            None => None,
+            Some(size) if (MIN_LABEL_SIZE..=max).contains(&size) => Some(size),
             Some(size) => {
                 return Err(format!(
-                    "label_size {size} is not from {MIN_LABEL_SIZE} to {MAX_LABEL_SIZE}"
+                    "label_size {size} is not from {MIN_LABEL_SIZE} to {max}"
                 ))
             }
         };
         let color = match &self.label_color {
             None => None,
-            Some(text) => Some(
+            Some(text) if text == AUTO_WORD => {
+                faces_key(version, "label_color")?;
+                Some(Auto::Auto)
+            }
+            Some(text) => Some(Auto::Value(
                 text.parse::<Color>()
                     .map_err(|e| format!("label_color '{text}': {e}"))?,
-            ),
+            )),
         };
+        let font = match &self.label_font {
+            None => None,
+            Some(name) => {
+                faces_key(version, "label_font")?;
+                if name == SYSTEM_FONT_WORD {
+                    Some(Auto::Auto)
+                } else if name.trim().is_empty() {
+                    return Err("label_font is empty".to_string());
+                } else {
+                    Some(Auto::Value(name.clone()))
+                }
+            }
+        };
+        let italic = self.label_italic;
+        if italic.is_some() {
+            faces_key(version, "label_italic")?;
+        }
+        let underline = self.label_underline;
+        if underline.is_some() {
+            faces_key(version, "label_underline")?;
+        }
         Ok(LabelStyle {
+            font,
             position,
             size,
             color,
-            bold: self.label_bold.unwrap_or(default.bold),
+            bold: self.label_bold,
+            italic,
+            underline,
         })
     }
 
@@ -940,15 +1029,28 @@ impl SurfaceData {
         }
     }
 
+    /// The data of one face. The engine writes a key when the face has an
+    /// own value, also when the value is the engine default (decision 0043).
     fn from_face(content: &SurfaceContent) -> Self {
-        let style = content.label_style;
-        let default = LabelStyle::default();
+        let style = &content.label_style;
         Self {
             label: content.label.clone(),
-            label_position: style.position.map(|p| p.key().to_string()),
-            label_size: (style.size != default.size).then_some(style.size),
-            label_color: style.color.map(|c| c.to_string()),
-            label_bold: (style.bold != default.bold).then_some(style.bold),
+            label_position: style.position.as_ref().map(|position| match position {
+                Auto::Auto => AUTO_WORD.to_string(),
+                Auto::Value(position) => position.key().to_string(),
+            }),
+            label_size: style.size,
+            label_color: style.color.as_ref().map(|color| match color {
+                Auto::Auto => AUTO_WORD.to_string(),
+                Auto::Value(color) => color.to_string(),
+            }),
+            label_bold: style.bold,
+            label_font: style.font.as_ref().map(|font| match font {
+                Auto::Auto => SYSTEM_FONT_WORD.to_string(),
+                Auto::Value(name) => name.clone(),
+            }),
+            label_italic: style.italic,
+            label_underline: style.underline,
             color: content.color.map(|c| c.to_string()),
             image: content.image.clone(),
             icon: content.icon.as_ref().map(|i| i.name.clone()),
@@ -992,6 +1094,15 @@ fn content_of(
     Ok((id, content))
 }
 
+/// An error if `version` has no label key of schema version 8. `key` names
+/// the key in the error text (decision 0043).
+fn faces_key(version: u32, key: &str) -> std::result::Result<(), String> {
+    if version < FACES_VERSION {
+        return Err(format!("{key} requires schema version {FACES_VERSION}"));
+    }
+    Ok(())
+}
+
 fn face_of(
     key: &str,
     surface: SurfaceData,
@@ -1009,12 +1120,16 @@ fn face_of(
             return Err(format!("{key}: '{image}' is not in the image directory"));
         }
     }
-    if version < LABEL_OPTIONS_VERSION && surface.has_version_4_keys() {
+    if version < LABEL_OPTIONS_VERSION
+        && (surface.has_version_4_keys() || surface.has_version_8_keys())
+    {
         return Err(format!(
             "{key}: version {version} has no label options and no icon"
         ));
     }
-    let label_style = surface.label_style().map_err(|e| format!("{key}: {e}"))?;
+    let label_style = surface
+        .label_style(version)
+        .map_err(|e| format!("{key}: {e}"))?;
     let icon = surface.icon().map_err(|e| format!("{key}: {e}"))?;
     Ok(SurfaceContent {
         label: surface.label.filter(|s| !s.is_empty()),
@@ -1329,6 +1444,7 @@ pub(crate) fn to_text(profile: &Profile) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::profile::DEFAULT_LABEL_SIZE;
     use image::{Rgba, RgbaImage};
     use opencraft_core::{SurfaceId, SurfaceKind};
     use tempfile::TempDir;
@@ -1406,7 +1522,7 @@ mod tests {
         let id = profile.pages()[0].id();
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        let want = r##"schema_version = 7
+        let want = r##"schema_version = 8
 name = "Default"
 model = "n4-pro"
 
@@ -1549,7 +1665,7 @@ image = "images/4f1c2a9be07d3356.png"
     }
 
     #[test]
-    fn each_old_version_keeps_its_content_when_saved_as_version_seven() {
+    fn each_old_version_keeps_its_content_when_saved_again() {
         let key = opencraft_core::ControlId::new(ControlKind::Key, 3);
         for version in 1..=6 {
             let (_dir, store) = store();
@@ -1621,14 +1737,17 @@ color = "#223344"
         assert!(loaded.backup.is_none(), "{:?}", loaded.backup);
         store.save(&loaded.profile).unwrap();
         let written = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(written.starts_with("schema_version = 7\n"));
+        assert!(
+            written.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")),
+            "{written}"
+        );
         assert_eq!(written.matches(".key-3.long-press]").count(), 2);
         assert_eq!(written.matches(".key-3.double-press]").count(), 2);
         assert_eq!(written.matches(".key-face-1.on]").count(), 2);
         let key = opencraft_core::SurfaceId::new(opencraft_core::SurfaceKind::KeyFace, 1);
         let face = loaded.profile.pages()[0].content(key).on.unwrap();
         assert_eq!(face.label.as_deref(), Some("Live"));
-        assert_eq!(face.label_style.size, 24);
+        assert_eq!(face.label_style.size, Some(24));
         assert_eq!(face.color, Some(Color::rgb(0x22, 0x33, 0x44)));
         assert_eq!(face.image.as_deref(), Some("images/0123456789abcdef.png"));
         let folder_face = loaded.profile.folders()[0].page.content(key).on.unwrap();
@@ -1696,12 +1815,12 @@ color = "#223344"
     #[test]
     fn a_file_with_a_newer_schema_version_is_kept_as_a_backup() {
         let (_dir, store) = store();
-        let text = "schema_version = 8\nname = \"Later\"\nnew_field = true\n";
+        let text = "schema_version = 9\nname = \"Later\"\nnew_field = true\n";
         let loaded = load_text(&store, text.as_bytes());
 
         assert_eq!(loaded.profile, Profile::default());
         let backup = loaded.backup.unwrap();
-        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 8 });
+        assert_eq!(backup.reason, BackupReason::NewerSchema { found: 9 });
         assert_eq!(backup.path, store.dir().join("profile.backup-1.toml"));
         // The content of the file did not change, and no profile file is
         // there until the next save.
@@ -1766,6 +1885,20 @@ color = "#223344"
             b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[applications]]\nbundle_id = \"not valid\"\nname = \"X\"\n",
             b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[applications]]\nbundle_id = \"com.apple.Safari\"\nname = \"\"\n",
             b"schema_version = 5\nname = \"x\"\nmodel = \"m\"\n[[applications]]\nbundle_id = \"com.apple.Safari\"\nname = \"Safari\"\n[[applications]]\nbundle_id = \"COM.APPLE.SAFARI\"\nname = \"Safari\"\n",
+            // Version 8 adds the font, the italic form, the underline, the
+            // automatic word of the position and the colour, and a label
+            // size above 40. A file of version 7 with one has an error.
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_font = \"Avenir Next\"\n",
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_italic = true\n",
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_underline = true\n",
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_position = \"auto\"\n",
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_color = \"auto\"\n",
+            b"schema_version = 7\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_size = 41\n",
+            // An old file of version 1 to 3 has no label options at all.
+            b"schema_version = 3\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_font = \"Avenir Next\"\n",
+            b"schema_version = 3\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_position = \"auto\"\n",
+            // A family name is not empty.
+            b"schema_version = 8\nname = \"x\"\nmodel = \"m\"\n[[pages]]\nid = \"0000000000000001\"\nname = \"p\"\n[pages.surfaces.key-face-1]\nlabel_font = \"\"\n",
         ];
         for (i, text) in cases.iter().enumerate() {
             let (_dir, store) = store();
@@ -1851,10 +1984,13 @@ name = "Second"
         // The load did not write the file.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
 
-        // The next write is version 7 with the same content and the model.
+        // The next write is the current version with the same content and
+        // the model.
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 7\nname = \"Old\"\nmodel = \"n4-pro\"\n"));
+        assert!(text.starts_with(&format!(
+            "schema_version = {SCHEMA_VERSION}\nname = \"Old\"\nmodel = \"n4-pro\"\n"
+        )));
         assert!(text.contains("hotkey = \"cmd+shift+4\""), "{text}");
         assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, profile);
@@ -1885,12 +2021,15 @@ label = "Sound"
             assert_eq!(page.content(id).label_style, LabelStyle::default(), "{id}");
         }
         assert_eq!(page.content(KEY_3).label.as_deref(), Some("Mail"));
-        // The load did not write the file. The next write is version 7, and
-        // it writes no label option.
+        // The load did not write the file. The next write is the current
+        // version, and it writes no label option.
         assert_eq!(fs::read_to_string(store.profile_path()).unwrap(), old);
         store.save(&loaded.profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 7\n"), "{text}");
+        assert!(
+            text.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")),
+            "{text}"
+        );
         assert!(!text.contains("label_"), "{text}");
         assert_eq!(store.load().unwrap().profile, loaded.profile);
     }
@@ -1902,19 +2041,20 @@ label = "Sound"
         let page = profile.page_mut(0).unwrap();
         page.update(KEY_3, |c| {
             c.label_style = LabelStyle {
-                position: Some(LabelPosition::Top),
-                size: 14,
-                color: Some(Color::rgb(0xFF, 0xCE, 0x73)),
-                bold: false,
+                position: Some(Auto::Value(LabelPosition::Top)),
+                size: Some(14),
+                color: Some(Auto::Value(Color::rgb(0xFF, 0xCE, 0x73))),
+                bold: Some(false),
+                ..LabelStyle::default()
             }
         });
         page.update(BAR_1, |c| {
-            c.label_style.position = Some(LabelPosition::Hidden);
+            c.label_style.position = Some(Auto::Value(LabelPosition::Hidden));
         });
         // Only a style, with no label.
         let key_1 = SurfaceId::new(SurfaceKind::KeyFace, 1);
         page.update(key_1, |c| {
-            c.label_style.position = Some(LabelPosition::Bottom)
+            c.label_style.position = Some(Auto::Value(LabelPosition::Bottom))
         });
         store.save(&profile).unwrap();
 
@@ -1938,11 +2078,64 @@ color = "#1E6FD9"
             let mut profile = Profile::default();
             profile.page_mut(0).unwrap().update(KEY_3, |c| {
                 c.label = Some("x".into());
-                c.label_style.position = Some(position);
+                c.label_style.position = Some(Auto::Value(position));
             });
             store.save(&profile).unwrap();
             assert_eq!(store.load().unwrap().profile, profile, "{position:?}");
         }
+    }
+
+    #[test]
+    fn the_label_keys_of_version_eight_have_their_text_form_and_load_again() {
+        let (_dir, store) = store();
+        let mut profile = Profile::new("P", vec![Page::new("Main")]);
+        let page = profile.page_mut(0).unwrap();
+        page.update(KEY_3, |c| {
+            c.label = Some("Mail".into());
+            c.label_style = LabelStyle {
+                font: Some(Auto::Value("Avenir Next".into())),
+                position: Some(Auto::Auto),
+                size: Some(24),
+                color: Some(Auto::Auto),
+                bold: Some(true),
+                italic: Some(true),
+                underline: Some(true),
+            };
+        });
+        // An own value that is equal to the engine default is written, and
+        // the automatic font is the word "system".
+        page.update(BAR_1, |c| {
+            c.label_style = LabelStyle {
+                font: Some(Auto::Auto),
+                size: Some(DEFAULT_LABEL_SIZE),
+                ..LabelStyle::default()
+            };
+        });
+        store.save(&profile).unwrap();
+
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(
+            text.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")),
+            "{text}"
+        );
+        for line in [
+            "label_font = \"Avenir Next\"",
+            "label_position = \"auto\"",
+            "label_size = 24",
+            "label_color = \"auto\"",
+            "label_bold = true",
+            "label_italic = true",
+            "label_underline = true",
+        ] {
+            assert!(text.contains(line), "{line} in {text}");
+        }
+        assert!(
+            text.contains(
+                "[pages.surfaces.bar-panel-1]\nlabel_size = 20\nlabel_font = \"system\"\n"
+            ),
+            "{text}"
+        );
+        assert_eq!(store.load().unwrap().profile, profile);
     }
 
     #[test]
@@ -1969,9 +2162,9 @@ color = "#1E6FD9"
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
         assert!(
-            text.starts_with(
-                "schema_version = 7\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
-            ),
+            text.starts_with(&format!(
+                "schema_version = {SCHEMA_VERSION}\nname = \"P\"\nmodel = \"n4-pro\"\ncolor = \"#3B82F6\"\nfirst_page = 2\n"
+            )),
             "{text}"
         );
         assert_eq!(store.load().unwrap().profile, profile);
@@ -2015,7 +2208,10 @@ color = "#1E6FD9"
         });
         store.save(&profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 7\n"), "{text}");
+        assert!(
+            text.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")),
+            "{text}"
+        );
         assert!(text.contains("name = \"Dial\""), "{text}");
         assert!(
             text.contains("bundle_id = \"us.zoom.xos\"\nname = \"zoom.us\""),
@@ -2031,7 +2227,10 @@ color = "#1E6FD9"
         assert_eq!(loaded.profile.pages().len(), 1);
         store.save(&loaded.profile).unwrap();
         let text = fs::read_to_string(store.profile_path()).unwrap();
-        assert!(text.starts_with("schema_version = 7\n"), "{text}");
+        assert!(
+            text.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")),
+            "{text}"
+        );
         assert!(text.contains("name = \"Main\""), "{text}");
         assert!(!text.contains("applications"), "{text}");
         assert!(store.summary().applications.is_empty());

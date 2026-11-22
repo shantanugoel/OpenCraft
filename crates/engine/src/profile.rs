@@ -106,74 +106,204 @@ impl LabelPosition {
 /// The font size of a label that has no size of its own, in pixels of the
 /// surface image. A label of the earlier versions has this size.
 pub const DEFAULT_LABEL_SIZE: u8 = 20;
+/// The weight of a label that has no weight of its own. A label of the
+/// earlier versions is bold.
+pub const DEFAULT_LABEL_BOLD: bool = true;
 /// The smallest and the largest font size of a label, in pixels.
 pub const MIN_LABEL_SIZE: u8 = 10;
 pub const MAX_LABEL_SIZE: u8 = 40;
 /// The font sizes that a shell offers, in pixels.
 pub const LABEL_SIZES: [u8; 9] = [10, 12, 14, 16, 18, 20, 24, 28, 32];
 
-/// How the label of a surface shows. The default is the look of the
-/// earlier versions: see each field.
+/// The value of one part of a label: the automatic value of the surface, or
+/// a value of the user.
+///
+/// A part of a label has three forms (decision 0043). No key in the profile
+/// file is `None` of an `Option<Auto<T>>`: the surface inherits the default
+/// title style of the profile. The automatic word of the file (`"auto"` for
+/// the position and the colour, `"system"` for the font) is [`Auto::Auto`]:
+/// the surface uses the automatic value also when the profile default has a
+/// value. A key with a value is [`Auto::Value`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LabelStyle {
-    /// `None`: the automatic position. It is [`LabelPosition::Middle`] on a
-    /// surface with no image and no icon, and [`LabelPosition::Bottom`] on a
-    /// surface with an image or an icon. See [`LabelStyle::position_for`].
-    pub position: Option<LabelPosition>,
-    /// The font size, in pixels of the surface image. If the text does not
-    /// fit at this size, the font becomes smaller. The default is
-    /// [`DEFAULT_LABEL_SIZE`].
-    pub size: u8,
-    /// `None`: black or white, the colour that shows best on the fill. See
-    /// [`crate::render::label_color`].
-    pub color: Option<Color>,
-    /// The weight of the font. The default is bold.
-    pub bold: bool,
+pub enum Auto<T> {
+    /// The automatic value of the surface, not the value of the default
+    /// title style of the profile.
+    Auto,
+    /// A value of the user.
+    Value(T),
 }
 
-impl Default for LabelStyle {
+impl<T> Auto<T> {
+    /// The value of the user. `None` is the automatic value.
+    pub fn value(&self) -> Option<&T> {
+        match self {
+            Self::Auto => None,
+            Self::Value(value) => Some(value),
+        }
+    }
+}
+
+/// How the label of a surface shows. A field with `None` is not a value of
+/// the surface: the surface inherits the default title style of the profile
+/// (decision 0043). See [`LabelStyle::resolve`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct LabelStyle {
+    /// The font family, for example `"Avenir Next"`. `None` is the system
+    /// font, and [`Auto::Auto`] is the system font too.
+    pub font: Option<Auto<String>>,
+    /// `None` or [`Auto::Auto`]: the automatic position. It is
+    /// [`LabelPosition::Middle`] on a surface with no image and no icon, and
+    /// [`LabelPosition::Bottom`] on a surface with an image or an icon. See
+    /// [`LabelStyle::position_for`].
+    pub position: Option<Auto<LabelPosition>>,
+    /// The font size, in pixels of the surface image. If the text does not
+    /// fit at this size, the font becomes smaller. The engine default is
+    /// [`DEFAULT_LABEL_SIZE`].
+    pub size: Option<u8>,
+    /// `None` or [`Auto::Auto`]: black or white, the colour that shows best
+    /// on the fill. See [`crate::render::label_color`].
+    pub color: Option<Auto<Color>>,
+    /// The weight of the font. The engine default is [`DEFAULT_LABEL_BOLD`].
+    pub bold: Option<bool>,
+    /// Italic. The engine default is upright.
+    pub italic: Option<bool>,
+    /// Underline. The engine default is no underline.
+    pub underline: Option<bool>,
+}
+
+/// A [`LabelStyle`] with a value for each field: the own value of the
+/// surface, or the value of the default title style of the profile, or the
+/// engine default. The renderer takes this type (decision 0043).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ResolvedLabelStyle {
+    /// `None`: the system font.
+    pub font: Option<String>,
+    /// `None`: the automatic position. See
+    /// [`ResolvedLabelStyle::position_for`].
+    pub position: Option<LabelPosition>,
+    /// The font size, in pixels of the surface image.
+    pub size: u8,
+    /// `None`: the automatic colour.
+    pub color: Option<Color>,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+}
+
+impl Default for ResolvedLabelStyle {
+    /// The engine default of each field: the system font, the automatic
+    /// position, [`DEFAULT_LABEL_SIZE`] pixels, the automatic colour, bold,
+    /// upright, and no underline.
     fn default() -> Self {
         Self {
+            font: None,
             position: None,
             size: DEFAULT_LABEL_SIZE,
             color: None,
-            bold: true,
+            bold: DEFAULT_LABEL_BOLD,
+            italic: false,
+            underline: false,
         }
     }
+}
+
+impl ResolvedLabelStyle {
+    /// The position of the label on a surface with a picture (an image or
+    /// an icon) or with no picture. See [`SurfaceContent::has_picture`].
+    pub fn position_for(&self, has_picture: bool) -> LabelPosition {
+        automatic_position(self.position, has_picture)
+    }
+}
+
+/// The position that shows when `position` is `None`, the automatic
+/// position.
+fn automatic_position(position: Option<LabelPosition>, has_picture: bool) -> LabelPosition {
+    position.unwrap_or(if has_picture {
+        LabelPosition::Bottom
+    } else {
+        LabelPosition::Middle
+    })
 }
 
 impl LabelStyle {
     /// The position of the label on a surface with a picture (an image or
-    /// an icon) or with no picture. See [`SurfaceContent::has_picture`].
+    /// an icon) or with no picture. This uses no default title style of the
+    /// profile: [`LabelStyle::resolve`] has it.
     pub fn position_for(&self, has_picture: bool) -> LabelPosition {
-        self.position.unwrap_or(if has_picture {
-            LabelPosition::Bottom
-        } else {
-            LabelPosition::Middle
-        })
+        self.resolve(&LabelStyle::default())
+            .position_for(has_picture)
+    }
+
+    /// The style with a value for each field. An own value wins, then the
+    /// value of `profile_default`, then the engine default. A field of
+    /// `profile_default` that is `None` gives the engine default, and an own
+    /// [`Auto::Auto`] gives the automatic value also when the profile default
+    /// has a value.
+    pub fn resolve(&self, profile_default: &LabelStyle) -> ResolvedLabelStyle {
+        ResolvedLabelStyle {
+            font: own_auto(self.font.as_ref(), profile_default.font.as_ref()),
+            position: own_auto(self.position.as_ref(), profile_default.position.as_ref()),
+            size: own_value(self.size.as_ref(), profile_default.size.as_ref())
+                .unwrap_or(DEFAULT_LABEL_SIZE),
+            color: own_auto(self.color.as_ref(), profile_default.color.as_ref()),
+            bold: own_value(self.bold.as_ref(), profile_default.bold.as_ref())
+                .unwrap_or(DEFAULT_LABEL_BOLD),
+            italic: own_value(self.italic.as_ref(), profile_default.italic.as_ref())
+                .unwrap_or(false),
+            underline: own_value(self.underline.as_ref(), profile_default.underline.as_ref())
+                .unwrap_or(false),
+        }
     }
 
     /// Apply `change`. A size goes into the range from [`MIN_LABEL_SIZE`] to
-    /// [`MAX_LABEL_SIZE`].
+    /// [`MAX_LABEL_SIZE`]. `None` makes the part inherit.
     pub fn apply(&mut self, change: LabelChange) {
         match change {
+            LabelChange::Font(font) => self.font = font,
             LabelChange::Position(position) => self.position = position,
-            LabelChange::Size(size) => self.size = size.clamp(MIN_LABEL_SIZE, MAX_LABEL_SIZE),
+            LabelChange::Size(size) => {
+                self.size = size.map(|size| size.clamp(MIN_LABEL_SIZE, MAX_LABEL_SIZE))
+            }
             LabelChange::Color(color) => self.color = color,
             LabelChange::Bold(bold) => self.bold = bold,
+            LabelChange::Italic(italic) => self.italic = italic,
+            LabelChange::Underline(underline) => self.underline = underline,
         }
     }
 }
 
-/// A change of one part of a [`LabelStyle`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// The value of one field: the own value, or else the value of the profile
+/// default.
+fn own_value<T: Clone>(own: Option<&T>, default: Option<&T>) -> Option<T> {
+    own.or(default).cloned()
+}
+
+/// The value of one field that has an automatic value. An own automatic value
+/// wins over a value of the profile default.
+fn own_auto<T: Clone>(own: Option<&Auto<T>>, default: Option<&Auto<T>>) -> Option<T> {
+    match (own, default) {
+        (Some(Auto::Auto), _) => None,
+        (Some(Auto::Value(value)), _) => Some(value.clone()),
+        (None, Some(Auto::Value(value))) => Some(value.clone()),
+        (None, _) => None,
+    }
+}
+
+/// A change of one part of a [`LabelStyle`]. `None` makes the part inherit
+/// the default title style of the profile. [`Auto::Auto`] makes it the
+/// automatic value of the surface.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum LabelChange {
-    /// `None` is the automatic position.
-    Position(Option<LabelPosition>),
-    Size(u8),
-    /// `None` is the automatic colour.
-    Color(Option<Color>),
-    Bold(bool),
+    /// [`Auto::Auto`] is the system font.
+    Font(Option<Auto<String>>),
+    /// [`Auto::Auto`] is the automatic position.
+    Position(Option<Auto<LabelPosition>>),
+    Size(Option<u8>),
+    /// [`Auto::Auto`] is the automatic colour.
+    Color(Option<Auto<Color>>),
+    Bold(Option<bool>),
+    Italic(Option<bool>),
+    Underline(Option<bool>),
 }
 
 /// What the user put on one surface. Each part is optional.
@@ -1073,7 +1203,7 @@ mod tests {
         let mut page = Page::new("Page 1");
         assert!(page.update(KEY_3, |c| c
             .label_style
-            .apply(LabelChange::Position(Some(LabelPosition::Top)))));
+            .apply(LabelChange::Position(Some(Auto::Value(LabelPosition::Top))))));
         assert_eq!(page.surfaces().count(), 1, "a style alone is content");
         assert!(page.update(KEY_3, |c| c.label_style.apply(LabelChange::Position(None))));
         assert_eq!(page.surfaces().count(), 0);
@@ -1081,13 +1211,24 @@ mod tests {
         let style = LabelStyle::default();
         assert_eq!(style.position_for(false), LabelPosition::Middle);
         assert_eq!(style.position_for(true), LabelPosition::Bottom);
-        assert_eq!((style.size, style.color, style.bold), (20, None, true));
+        let resolved = style.resolve(&LabelStyle::default());
+        assert_eq!(
+            (resolved.size, resolved.color, resolved.bold),
+            (DEFAULT_LABEL_SIZE, None, true)
+        );
+        assert!(!resolved.italic);
+        assert!(!resolved.underline);
+        assert_eq!(resolved.font, None);
         let mut style = LabelStyle::default();
-        style.apply(LabelChange::Size(4));
-        assert_eq!(style.size, MIN_LABEL_SIZE);
-        style.apply(LabelChange::Size(200));
-        assert_eq!(style.size, MAX_LABEL_SIZE);
-        style.apply(LabelChange::Position(Some(LabelPosition::Hidden)));
+        style.apply(LabelChange::Size(Some(4)));
+        assert_eq!(style.size, Some(MIN_LABEL_SIZE));
+        style.apply(LabelChange::Size(Some(200)));
+        assert_eq!(style.size, Some(MAX_LABEL_SIZE));
+        style.apply(LabelChange::Size(None));
+        assert_eq!(style.size, None);
+        style.apply(LabelChange::Position(Some(Auto::Value(
+            LabelPosition::Hidden,
+        ))));
         assert_eq!(style.position_for(true), LabelPosition::Hidden);
         for position in LabelPosition::ALL {
             assert_eq!(LabelPosition::from_key(position.key()), Some(position));

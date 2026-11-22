@@ -443,9 +443,9 @@ fn the_bar_panel_section_edits_the_bar_panel_of_the_feedback(cx: &mut TestAppCon
         sent.borrow().last(),
         Some(&Command::SetLabelStyle {
             surface: bar(),
-            change: opencraft_engine::LabelChange::Position(Some(
+            change: opencraft_engine::LabelChange::Position(Some(opencraft_engine::Auto::Value(
                 opencraft_engine::LabelPosition::Top
-            )),
+            ))),
         })
     );
     // The title field writes the label of the bar panel.

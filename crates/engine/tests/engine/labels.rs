@@ -3,7 +3,7 @@
 //! an earlier schema version shows as before.
 
 use super::*;
-use opencraft_engine::{LabelChange, LabelPosition, LabelStyle, Page};
+use opencraft_engine::{Auto, LabelChange, LabelPosition, LabelStyle, Page};
 
 fn style(rig: &mut Rig, change: LabelChange) {
     assert!(rig.engine.command(Command::SetLabelStyle {
@@ -38,10 +38,13 @@ fn each_position_shows_on_the_device_and_in_the_event_as_the_same_image() {
 
     let mut rows = Vec::new();
     for position in LabelPosition::ALL {
-        style(&mut rig, LabelChange::Position(Some(position)));
+        style(&mut rig, LabelChange::Position(Some(Auto::Value(position))));
         let events = rig.take_events();
         let state = last_state(&events, KEY_3);
-        assert_eq!(state.content.label_style.position, Some(position));
+        assert_eq!(
+            state.content.label_style.position,
+            Some(Auto::Value(position))
+        );
         let shown = shown_at(&sent(&device), KEY_3_SLOT);
         assert_same_picture(&shown, &state.image);
         rows.push(white_rows(&state.image));
@@ -74,10 +77,13 @@ fn the_options_stay_in_the_file_and_show_after_a_new_start() {
         surface: KEY_3,
         label: Some("Mail".into()),
     });
-    style(&mut rig, LabelChange::Position(Some(LabelPosition::Top)));
-    style(&mut rig, LabelChange::Size(28));
-    style(&mut rig, LabelChange::Color(Some(BLUE)));
-    style(&mut rig, LabelChange::Bold(false));
+    style(
+        &mut rig,
+        LabelChange::Position(Some(Auto::Value(LabelPosition::Top))),
+    );
+    style(&mut rig, LabelChange::Size(Some(28)));
+    style(&mut rig, LabelChange::Color(Some(Auto::Value(BLUE))));
+    style(&mut rig, LabelChange::Bold(Some(false)));
     let image = last_state(&rig.take_events(), KEY_3).image.clone();
     rig.poll_for(Duration::from_secs(1));
     let text = rig.profile_text().unwrap();
@@ -97,10 +103,11 @@ fn the_options_stay_in_the_file_and_show_after_a_new_start() {
     assert_eq!(
         state.content.label_style,
         LabelStyle {
-            position: Some(LabelPosition::Top),
-            size: 28,
-            color: Some(BLUE),
-            bold: false,
+            position: Some(Auto::Value(LabelPosition::Top)),
+            size: Some(28),
+            color: Some(Auto::Value(BLUE)),
+            bold: Some(false),
+            ..LabelStyle::default()
         }
     );
     assert_eq!(*state.image, *image);
@@ -109,26 +116,26 @@ fn the_options_stay_in_the_file_and_show_after_a_new_start() {
 #[test]
 fn a_size_out_of_the_range_goes_into_the_range() {
     let mut rig = Rig::new();
-    style(&mut rig, LabelChange::Size(200));
+    style(&mut rig, LabelChange::Size(Some(200)));
     assert_eq!(
         rig.engine.profile().pages()[0]
             .content(KEY_3)
             .label_style
             .size,
-        40
+        Some(40)
     );
-    style(&mut rig, LabelChange::Size(0));
+    style(&mut rig, LabelChange::Size(Some(0)));
     assert_eq!(
         rig.engine.profile().pages()[0]
             .content(KEY_3)
             .label_style
             .size,
-        10
+        Some(10)
     );
 }
 
 #[test]
-fn a_profile_of_version_three_shows_as_before_and_gets_version_four_at_the_next_change() {
+fn a_profile_of_version_three_shows_as_before_and_gets_the_current_version_at_the_next_change() {
     let dir = TempDir::new().unwrap();
     let store = store_in(dir.path());
     fs::create_dir_all(store.dir()).unwrap();
@@ -164,10 +171,13 @@ fn a_profile_of_version_three_shows_as_before_and_gets_version_four_at_the_next_
     rig.poll_for(Duration::from_secs(1));
     assert_eq!(rig.profile_text().as_deref(), Some(old));
 
-    style(&mut rig, LabelChange::Bold(false));
+    style(&mut rig, LabelChange::Bold(Some(false)));
     rig.poll_for(Duration::from_secs(1));
     let text = rig.profile_text().unwrap();
-    assert!(text.starts_with("schema_version = 7\n"), "{text}");
+    assert!(
+        text.starts_with(&format!("schema_version = {SCHEMA_VERSION}\n")),
+        "{text}"
+    );
     assert!(
         text.contains("label = \"Mail\"\nlabel_bold = false\n"),
         "{text}"

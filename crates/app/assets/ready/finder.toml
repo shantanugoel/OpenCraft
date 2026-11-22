@@ -1,7 +1,7 @@
 # Finder: files, views, and the sound volume.
 # A ready profile (issue #340). It links to one application.
 # It uses built-in icons and no image file.
-schema_version = 7
+schema_version = 8
 name = "Finder"
 model = "n4-pro"
 color = "#356AB6"

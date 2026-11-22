@@ -157,7 +157,7 @@ fn surface_image_on(
     if size.width == 0 || size.height == 0 {
         return canvas;
     }
-    let style = content.label_style;
+    let style = content.label_style.resolve(&LabelStyle::default());
     let icon = content.known_icon().filter(|_| image.is_none());
     let has_picture = image.is_some() || icon.is_some();
     let position = style.position_for(has_picture);
@@ -169,10 +169,7 @@ fn surface_image_on(
         size: style.size,
         bold: style.bold,
     };
-    let text_color = content
-        .label_style
-        .color
-        .unwrap_or_else(|| text_color(base.tone()));
+    let text_color = style.color.unwrap_or_else(|| text_color(base.tone()));
     let width = size.width.saturating_sub(2 * MARGIN);
     // The label on all of the surface, inside the margin.
     let full = Area {
@@ -281,8 +278,10 @@ fn align(position: LabelPosition) -> Align {
 /// or else black or white for the fill (see [`text_color`]). A shell can use
 /// it to show the colour of the label.
 pub fn label_color(content: &SurfaceContent) -> Color {
-    let LabelStyle { color, .. } = content.label_style;
-    color.unwrap_or_else(|| text_color(content.color.unwrap_or(DEFAULT_COLOR)))
+    let style = content.label_style.resolve(&LabelStyle::default());
+    style
+        .color
+        .unwrap_or_else(|| text_color(content.color.unwrap_or(DEFAULT_COLOR)))
 }
 
 /// The colour of the icon of `content`: the colour of its [`SurfaceIcon`],
@@ -546,6 +545,7 @@ pub fn text_color(background: Color) -> Color {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::profile::Auto;
     use image::{Rgba, RgbaImage};
 
     const KEY: Size = Size {
@@ -579,7 +579,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     fn at(position: LabelPosition) -> LabelStyle {
         LabelStyle {
-            position: Some(position),
+            position: Some(Auto::Value(position)),
             ..LabelStyle::default()
         }
     }
@@ -693,7 +693,7 @@ mod tests {
                 "Mail",
                 Some(Color::WHITE),
                 LabelStyle {
-                    color: Some(blue),
+                    color: Some(Auto::Value(blue)),
                     ..LabelStyle::default()
                 },
             ),
@@ -712,7 +712,7 @@ mod tests {
                 "x",
                 None,
                 LabelStyle {
-                    color: Some(blue),
+                    color: Some(Auto::Value(blue)),
                     ..LabelStyle::default()
                 }
             )),
@@ -730,7 +730,7 @@ mod tests {
             (width, columns.len())
         };
         let size = |size| LabelStyle {
-            size,
+            size: Some(size),
             ..LabelStyle::default()
         };
         let (small, _) = ink(size(12));
@@ -738,7 +738,7 @@ mod tests {
         let (large, _) = ink(size(32));
         assert!(small < normal && normal < large, "{small} {normal} {large}");
         let (_, regular_pixels) = ink(LabelStyle {
-            bold: false,
+            bold: Some(false),
             ..LabelStyle::default()
         });
         assert!(
@@ -1000,8 +1000,8 @@ mod tests {
         let face = base.face_mut(true);
         face.color = Some(Color::rgb(12, 24, 48));
         face.label = Some("On".into());
-        face.label_style.position = Some(LabelPosition::Top);
-        face.label_style.bold = false;
+        face.label_style.position = Some(Auto::Value(LabelPosition::Top));
+        face.label_style.bold = Some(false);
         let on_image = DynamicImage::ImageRgb8(RgbImage::from_pixel(20, 10, Rgb([9, 190, 14])));
         let face = base.face(true);
         let draw = |feedback: &Feedback| {

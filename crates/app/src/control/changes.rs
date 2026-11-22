@@ -336,14 +336,20 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
         }
         M::SetLabelStyle(p) => {
             let surface = surface(p.surface, state)?;
-            // No style is the default style of the engine.
-            let default = e::LabelStyle::default();
-            let style = p.style.unwrap_or(w::LabelStyle {
-                position: None,
-                size: default.size,
-                color: None,
-                bold: default.bold,
-            });
+            // No style makes each part inherit: the default title style of
+            // the profile, and then the engine default. A value sets an own
+            // value of the surface (decision 0043).
+            let style = p.style;
+            let position = style
+                .as_ref()
+                .and_then(|style| style.position)
+                .map(|position| e::Auto::Value(position.into()));
+            let size = style.as_ref().map(|style| style.size);
+            let color = match style.as_ref().and_then(|style| style.color.clone()) {
+                None => None,
+                Some(text) => Some(e::Auto::Value(parse(text, "colour")?)),
+            };
+            let bold = style.as_ref().map(|style| style.bold);
             let (place, _) = location(state, p.target)?;
             nothing(at(
                 place,
@@ -352,24 +358,22 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
                     commands: vec![
                         C::SetLabelStyle {
                             surface,
-                            change: e::LabelChange::Position(style.position.map(Into::into)),
+                            change: e::LabelChange::Position(position),
                         }
                         .for_face(p.on),
                         C::SetLabelStyle {
                             surface,
-                            change: e::LabelChange::Size(style.size),
+                            change: e::LabelChange::Size(size),
                         }
                         .for_face(p.on),
                         C::SetLabelStyle {
                             surface,
-                            change: e::LabelChange::Color(
-                                style.color.map(|c| parse(c, "colour")).transpose()?,
-                            ),
+                            change: e::LabelChange::Color(color),
                         }
                         .for_face(p.on),
                         C::SetLabelStyle {
                             surface,
-                            change: e::LabelChange::Bold(style.bold),
+                            change: e::LabelChange::Bold(bold),
                         }
                         .for_face(p.on),
                     ],

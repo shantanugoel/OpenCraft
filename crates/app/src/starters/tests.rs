@@ -7,7 +7,7 @@ use crate::state::gestures;
 use opencraft_actions::hotkey::Hotkey;
 use opencraft_engine::{
     icon_set, page_preview, profile::default_model, store::SCHEMA_VERSION, DeviceLayout, InputType,
-    KindDescription, SurfaceKind, Value,
+    KindDescription, LabelStyle, SurfaceKind, Value,
 };
 
 /// The descriptions of the built-in kinds, as the engine sends them.
@@ -185,7 +185,7 @@ fn each_key_face_and_bar_panel_of_a_starter_profile_has_an_icon_and_a_title() {
                 // and the title show well on the same fill.
                 assert_eq!(
                     content.icon.as_ref().and_then(|i| i.color),
-                    content.label_style.color,
+                    content.label_style.resolve(&LabelStyle::default()).color,
                     "{place}: {id:?}"
                 );
             }

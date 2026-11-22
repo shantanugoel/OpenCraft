@@ -486,10 +486,13 @@ fn step_of(command: &Command, location: &Location) -> Option<(String, Option<Tar
         ),
         Command::SetLabelStyle { change, .. } => step(
             match change {
+                LabelChange::Font(_) => "Set Title Font",
                 LabelChange::Position(_) => "Set Title Position",
                 LabelChange::Size(_) => "Set Title Size",
                 LabelChange::Color(_) => "Set Title Colour",
                 LabelChange::Bold(_) => "Set Title Weight",
+                LabelChange::Italic(_) => "Set Title Italic",
+                LabelChange::Underline(_) => "Set Title Underline",
             },
             None,
         ),
@@ -3223,7 +3226,7 @@ impl<C: Connector, S: FnMut(Event), K: Clock> Engine<C, S, K> {
             }
             Command::SetLabelStyle { surface, change } => {
                 self.change_face(surface, on, |c| {
-                    let before = c.label_style;
+                    let before = c.label_style.clone();
                     c.label_style.apply(change);
                     c.label_style != before
                 });
