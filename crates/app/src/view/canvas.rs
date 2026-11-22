@@ -9,7 +9,9 @@
 
 use super::{controls::square_button, library::KindDrag, pages::in_profile, *};
 use crate::settings::RightPanelTab;
-use gpui_kit::{assets::IconName, component::Icon, FontWeight, MouseButton, MouseDownEvent, Rgba};
+use gpui_kit::{
+    assets::IconName, component::Icon, ExternalPaths, FontWeight, MouseButton, MouseDownEvent, Rgba,
+};
 use opencraft_engine::{DeviceLayout, DeviceSettings, KnobLightMode, SurfaceLayout};
 
 /// The help line when no knob is selected (section 8.4).
@@ -264,10 +266,10 @@ fn hover_outline(group: SharedString, width: f32, height: f32, radius: f32, gap:
 
 /// The drop target on a control with the corner `radius` (section 12). It
 /// is on top of the image of the control, and it shows only while the
-/// pointer of a drag from the library is on the control. GPUI gives the
-/// style of `drag_over` from the hit test of the frame, thus only the control
-/// under the pointer shows it.
-fn drop_target(radius: f32) -> Div {
+/// pointer of a drag is on the control: a drag of a kind from the library,
+/// or a file from Finder. GPUI gives the style of `drag_over` from the hit
+/// test of the frame, thus only the control under the pointer shows it.
+fn drop_target(radius: f32, kind: bool) -> Div {
     div()
         .absolute()
         .top_0()
@@ -286,7 +288,11 @@ fn drop_target(radius: f32) -> Div {
         .text_color(theme::text_on_accent())
         .child(DROP_HERE)
         .opacity(0.)
-        .drag_over::<KindDrag>(|style, _, _, _| style.opacity(1.))
+        // A kind that this control cannot take shows no target.
+        .when(kind, |d| {
+            d.drag_over::<KindDrag>(|style, _, _, _| style.opacity(1.))
+        })
+        .drag_over::<ExternalPaths>(|style, _, _, _| style.opacity(1.))
 }
 
 impl DeviceView {
@@ -696,6 +702,11 @@ impl DeviceView {
             ControlKind::BarPanel
         };
         let drag = self.kind_drag_for(control_kind, cx);
+        // A drop target must be in the frame before the drop, and GPUI does
+        // not tell a view which value is in the drag (`docs/kb/gpui.md`).
+        // Thus each control has the target while any drag is active, and
+        // only the control under the pointer shows it.
+        let drop_zone = drag || cx.has_active_drag();
         let group: SharedString = format!("surface-{id}").into();
         div()
             .id(format!("surface-{id}"))
@@ -738,7 +749,7 @@ impl DeviceView {
             )
             // During a drag the plus icon is not there, so that the text
             // "Drop here" of the drop target is readable on an empty key.
-            .when(empty && !drag, |d| {
+            .when(empty && !drop_zone, |d| {
                 d.child(
                     div()
                         .id(format!("empty-{id}"))
@@ -796,8 +807,8 @@ impl DeviceView {
                     ))
                 }
             })
-            .when(drag, |d| {
-                d.child(drop_target(radius).debug_selector(move || format!("drop-{id}")))
+            .when(drop_zone, |d| {
+                d.child(drop_target(radius, drag).debug_selector(move || format!("drop-{id}")))
             })
             .on_click(cx.listener(move |view, _, window, cx| {
                 cx.stop_propagation();
@@ -818,7 +829,10 @@ impl DeviceView {
                     }
                 }),
             )
-            .can_drop(move |value, _, _| drag && value.downcast_ref::<KindDrag>().is_some())
+            .can_drop(move |value, _, _| {
+                value.downcast_ref::<ExternalPaths>().is_some()
+                    || (drag && value.downcast_ref::<KindDrag>().is_some())
+            })
             .on_drop(cx.listener(move |view, drag: &KindDrag, window, cx| {
                 if !view.can_drop_kind(control_kind, &drag.kind) {
                     return;
@@ -827,6 +841,15 @@ impl DeviceView {
                 if let Some(control) = view.state.selected_control {
                     view.drop_kind(control, &drag.kind, window, cx);
                 }
+            }))
+            // A file from Finder sets the image. The engine checks it and
+            // refuses a file that is not an image with its usual problem.
+            .on_drop(cx.listener(move |view, paths: &ExternalPaths, window, cx| {
+                let Some(path) = paths.paths().first().cloned() else {
+                    return;
+                };
+                view.select(id, window, cx);
+                view.set_image_path(id, path);
             }))
             .into_any_element()
     }
@@ -1065,7 +1088,7 @@ impl DeviceView {
                 }
             })
             .when(drag, |d| {
-                d.child(drop_target(radius).debug_selector(move || format!("drop-{id}")))
+                d.child(drop_target(radius, true).debug_selector(move || format!("drop-{id}")))
             })
             .on_click(cx.listener(move |view, _, window, cx| {
                 cx.stop_propagation();
@@ -1203,7 +1226,8 @@ impl DeviceView {
                     })
                     .when(drag, |d| {
                         d.child(
-                            drop_target(diameter / 2.).debug_selector(move || format!("drop-{id}")),
+                            drop_target(diameter / 2., true)
+                                .debug_selector(move || format!("drop-{id}")),
                         )
                     })
                     .on_click(cx.listener(move |view, _, window, cx| {

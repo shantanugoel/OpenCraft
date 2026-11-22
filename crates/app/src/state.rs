@@ -117,6 +117,13 @@ pub struct ViewState {
     /// before the first copy. A paste is possible only on a control of this
     /// kind (decision 0029, section 13).
     pub clipboard: Option<ControlKind>,
+    /// The system pasteboard as the window last read it (decision 0043,
+    /// section 5). A test sets it; the window reads it on macOS.
+    pub system_clipboard: crate::pasteboard::SystemClipboard,
+    /// The change count of the system pasteboard at the last copy of a
+    /// control. A different count means that the pasteboard item is newer
+    /// than the copy of the control.
+    pub control_copy_change_count: Option<i64>,
     /// The background of the active page, and its image from the engine
     /// (decision 0032). Before the first event, the page has no
     /// background.

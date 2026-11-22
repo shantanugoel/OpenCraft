@@ -68,6 +68,35 @@ impl DeviceView {
         self.state.clipboard == Some(control.kind)
     }
 
+    /// The surface that a paste of a system image changes: the selected key
+    /// face or bar panel. A knob has no surface of its own.
+    fn paste_surface(&self) -> Option<SurfaceId> {
+        let control = self.clipboard_control()?;
+        self.state
+            .layout
+            .as_ref()?
+            .controls
+            .iter()
+            .find(|c| c.id == control)?
+            .surface
+    }
+
+    /// True if the system pasteboard holds an item that is newer than the
+    /// copy of a control. A copy of a control keeps the change count of its
+    /// time, and a copy in another application changes it (decision 0043,
+    /// section 5).
+    fn system_image_is_newer(&self) -> bool {
+        self.state.system_clipboard.has_image()
+            && Some(self.state.system_clipboard.change_count)
+                != self.state.control_copy_change_count
+    }
+
+    /// True if a paste on the selected surface changes its image to the
+    /// item of the system pasteboard.
+    fn can_paste_system_image(&self) -> bool {
+        self.paste_surface().is_some() && self.system_image_is_newer()
+    }
+
     /// True if `control` has an appearance or a binding on the active page.
     /// The parts are those of the engine: the surface of the control, or the
     /// feedback bar panel of a knob and the bar panel control of it.
@@ -106,7 +135,10 @@ impl DeviceView {
     fn clipboard_items(&self, control: ControlId, all_pages: bool) -> Vec<(ClipboardItem, bool)> {
         let mut items = vec![
             (ClipboardItem::Copy, true),
-            (ClipboardItem::Paste, self.can_paste(control)),
+            (
+                ClipboardItem::Paste,
+                self.can_paste(control) || self.can_paste_system_image(),
+            ),
             (ClipboardItem::Clear, self.has_content(control)),
         ];
         // A folder is not a page of the cycle, so the copy cannot go to
@@ -165,11 +197,14 @@ impl DeviceView {
                 }))
             },
         )
-        .when(control.is_some_and(|c| self.can_paste(c)), |d| {
-            d.on_action(cx.listener(|view, _: &Paste, window, cx| {
-                view.clipboard(ClipboardItem::Paste, window, cx)
-            }))
-        })
+        .when(
+            control.is_some_and(|c| self.can_paste(c)) || self.can_paste_system_image(),
+            |d| {
+                d.on_action(cx.listener(|view, _: &Paste, window, cx| {
+                    view.clipboard(ClipboardItem::Paste, window, cx)
+                }))
+            },
+        )
         .when(control.is_some_and(|c| self.has_content(c)), |d| {
             d.on_action(cx.listener(|view, _: &Clear, window, cx| {
                 view.clipboard(ClipboardItem::Clear, window, cx)
@@ -186,9 +221,18 @@ impl DeviceView {
         match item {
             ClipboardItem::Copy => {
                 (self.send)(Command::CopyControl { control });
+                // The paste tells which item is newer: the copy of the
+                // control or the item of the system pasteboard.
+                self.state.control_copy_change_count = Some(self.system_change_count());
                 self.show_message(format!("{name} is copied"), window, cx);
             }
             ClipboardItem::Paste => {
+                // The system item is newer than a copy of a control, or no
+                // control is copied: it sets the image (decision 0043,
+                // section 5).
+                if self.paste_system_image(cx) {
+                    return;
+                }
                 if !self.can_paste(control) {
                     self.paste_not_possible(window, cx);
                     return;
@@ -208,8 +252,59 @@ impl DeviceView {
         }
     }
 
+    /// Set the image of `surface` from the system pasteboard. The bytes go
+    /// to a temporary file, because the engine makes the copy (rule 9).
+    /// The file goes away when the engine sends the surface, or when a
+    /// problem names it, or at the stop (decision 0043, section 5).
+    fn paste_image(&mut self, surface: SurfaceId, image: ClipboardImage, cx: &mut Context<Self>) {
+        let path = match image {
+            ClipboardImage::File(path) => path,
+            ClipboardImage::Bytes { bytes, extension } => {
+                match pasteboard::temporary_image(&bytes, extension) {
+                    Ok(path) => {
+                        self.pending_images.push(PendingImage {
+                            path: path.clone(),
+                            surface,
+                        });
+                        path
+                    }
+                    Err(error) => {
+                        self.state
+                            .problems
+                            .push(format!("OpenCraft could not write the image: {error}"));
+                        cx.notify();
+                        return;
+                    }
+                }
+            }
+        };
+        self.set_image_path(surface, path);
+    }
+
+    /// Paste the item of the system pasteboard when it is possible. Return
+    /// true if the item went to the surface.
+    fn paste_system_image(&mut self, cx: &mut Context<Self>) -> bool {
+        self.refresh_system_clipboard();
+        let (Some(surface), Some(image)) = (
+            self.paste_surface(),
+            self.state.system_clipboard.image.clone(),
+        ) else {
+            return false;
+        };
+        if !self.system_image_is_newer() {
+            return false;
+        }
+        self.paste_image(surface, image, cx);
+        true
+    }
+
     /// ⌘V when a paste is not possible: tell the user why in the status bar.
+    /// The pasteboard can have an image that the last frame did not see, thus
+    /// this handler reads it again before it gives the message.
     fn paste_not_possible(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.paste_system_image(cx) {
+            return;
+        }
         let text = match (self.clipboard_control(), self.state.clipboard) {
             (None, _) => super::library::SELECT_FIRST.to_string(),
             (Some(_), None) => "Copy a control first".to_string(),

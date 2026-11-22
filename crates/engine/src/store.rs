@@ -2406,6 +2406,82 @@ color = "#1E6FD9"
         assert_eq!((copy.width(), copy.height()), (40, 30));
     }
 
+    /// Write the bytes of a new image of `format` to `name`, and return the
+    /// path. The test does not use the file extension: the decoders guess
+    /// the format from the bytes, as they do for a paste.
+    fn image_bytes_file(dir: &Path, name: &str, format: image::ImageFormat) -> PathBuf {
+        let image = image::RgbImage::from_fn(7, 5, |x, y| image::Rgb([x as u8, y as u8, 9]));
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image)
+            .write_to(&mut bytes, format)
+            .unwrap();
+        let path = dir.join(name);
+        fs::write(&path, bytes.into_inner()).unwrap();
+        path
+    }
+
+    #[test]
+    fn an_image_of_each_format_becomes_a_png_copy_from_a_file_and_from_bytes() {
+        let (dir, store) = store();
+        for (name, format) in [
+            ("a.png", image::ImageFormat::Png),
+            ("b.jpg", image::ImageFormat::Jpeg),
+            ("c.bmp", image::ImageFormat::Bmp),
+            ("d.webp", image::ImageFormat::WebP),
+        ] {
+            let source = image_bytes_file(dir.path(), name, format);
+            let path = store.import_image(&source).unwrap();
+            assert!(path.ends_with(".png"), "{name} gives {path}");
+            let copy = store.load_image(&path).unwrap();
+            assert_eq!((copy.width(), copy.height()), (7, 5), "{name}");
+        }
+    }
+
+    /// A small TIFF file: 2 × 2 pixels, three samples of 8 bits, one strip
+    /// that is not compressed. A copy from Preview is often a TIFF.
+    fn tiff_bytes() -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"II\x2a\x00");
+        bytes.extend_from_slice(&8u32.to_le_bytes());
+        bytes.extend_from_slice(&10u16.to_le_bytes());
+        {
+            let mut entry = |tag: u16, kind: u16, count: u32, value: [u8; 4]| {
+                bytes.extend_from_slice(&tag.to_le_bytes());
+                bytes.extend_from_slice(&kind.to_le_bytes());
+                bytes.extend_from_slice(&count.to_le_bytes());
+                bytes.extend_from_slice(&value);
+            };
+            entry(256, 4, 1, 2u32.to_le_bytes()); // ImageWidth
+            entry(257, 4, 1, 2u32.to_le_bytes()); // ImageLength
+            entry(258, 3, 3, 134u32.to_le_bytes()); // BitsPerSample
+            entry(259, 3, 1, [1, 0, 0, 0]); // Compression: none
+            entry(262, 3, 1, [2, 0, 0, 0]); // Photometric: RGB
+            entry(273, 4, 1, 140u32.to_le_bytes()); // StripOffsets
+            entry(277, 3, 1, [3, 0, 0, 0]); // SamplesPerPixel
+            entry(278, 4, 1, 2u32.to_le_bytes()); // RowsPerStrip
+            entry(279, 4, 1, 12u32.to_le_bytes()); // StripByteCounts
+            entry(284, 3, 1, [1, 0, 0, 0]); // PlanarConfiguration
+        }
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        for sample in [8u16, 8, 8] {
+            bytes.extend_from_slice(&sample.to_le_bytes());
+        }
+        bytes.extend_from_slice(&[255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255]);
+        bytes
+    }
+
+    #[test]
+    fn a_tiff_is_accepted() {
+        let (dir, store) = store();
+        let source = dir.path().join("copy.tiff");
+        fs::write(&source, tiff_bytes()).unwrap();
+        let copy = store
+            .load_image(&store.import_image(&source).unwrap())
+            .unwrap();
+        assert_eq!((copy.width(), copy.height()), (2, 2));
+        assert_eq!(copy.to_rgba8().get_pixel(0, 0), &Rgba([255, 0, 0, 255]));
+    }
+
     #[test]
     fn a_file_that_is_not_an_image_gives_an_error_and_writes_nothing() {
         let (dir, store) = store();
