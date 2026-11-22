@@ -163,7 +163,7 @@ use crate::profile::{
     default_model, parse_surface_key, surface_key, ApplicationLink, Auto, Background,
     BackgroundFit, Color, Folder, FolderId, ImageCrop, LabelPosition, LabelStyle, Page, PageId,
     Profile, SurfaceContent, SurfaceIcon, MAX_IMAGE_PAN, MAX_IMAGE_ZOOM, MAX_LABEL_SIZE,
-    MIN_IMAGE_ZOOM, MIN_LABEL_SIZE,
+    MIN_IMAGE_ZOOM, MIN_LABEL_SIZE, SYSTEM_FONT_WORD,
 };
 use crate::saved::SavedFile;
 use image::imageops::FilterType;
@@ -190,10 +190,6 @@ const MAX_LABEL_SIZE_BEFORE_FACES: u8 = 40;
 
 /// The file word of the automatic position and the automatic colour.
 const AUTO_WORD: &str = "auto";
-
-/// The file word of the system font. A family with this name cannot be
-/// selected.
-const SYSTEM_FONT_WORD: &str = "system";
 
 /// The first schema version with long and double presses (decision 0042).
 const GESTURE_TIMERS_VERSION: u32 = 7;
@@ -1531,7 +1527,7 @@ pub(crate) fn to_text(profile: &Profile) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::profile::DEFAULT_LABEL_SIZE;
+    use crate::profile::{LabelChange, DEFAULT_LABEL_SIZE};
     use image::{Rgba, RgbaImage};
     use opencraft_core::{SurfaceId, SurfaceKind};
     use tempfile::TempDir;
@@ -2234,6 +2230,41 @@ color = "#1E6FD9"
             ),
             "{text}"
         );
+        assert_eq!(store.load().unwrap().profile, profile);
+    }
+
+    #[test]
+    fn a_font_change_cannot_write_a_file_that_does_not_load() {
+        let (_dir, store) = store();
+        let mut profile = Profile::new("P", vec![Page::new("Main")]);
+        profile.page_mut(0).unwrap().update(KEY_3, |c| {
+            c.label = Some("Mail".into());
+            c.label_style
+                .apply(LabelChange::Font(Some(Auto::Value("   ".into()))));
+            c.label_style.apply(LabelChange::Italic(Some(true)));
+        });
+        assert_eq!(
+            profile.pages()[0].content(KEY_3).label_style.font,
+            None,
+            "An empty family is no own value."
+        );
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(!text.contains("label_font"), "{text}");
+        assert_eq!(store.load().unwrap().profile, profile);
+
+        // The reserved word is the automatic font, and it loads again.
+        profile.page_mut(0).unwrap().update(KEY_3, |c| {
+            c.label_style
+                .apply(LabelChange::Font(Some(Auto::Value(" system ".into()))));
+        });
+        assert_eq!(
+            profile.pages()[0].content(KEY_3).label_style.font,
+            Some(Auto::Auto)
+        );
+        store.save(&profile).unwrap();
+        let text = fs::read_to_string(store.profile_path()).unwrap();
+        assert!(text.contains("label_font = \"system\""), "{text}");
         assert_eq!(store.load().unwrap().profile, profile);
     }
 

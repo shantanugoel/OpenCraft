@@ -978,7 +978,11 @@ impl DeviceView {
             .font_weight(gpui_kit::FontWeight::SEMIBOLD)
             .text_color(theme::text_secondary())
             .child("A")
-            .on_click(choose_text_colour(None, cx));
+            // A selected swatch changes nothing: a click on "Automatic" on an
+            // automatic colour makes no undo step (decision 0043).
+            .when(current.is_some(), |d| {
+                d.on_click(choose_text_colour(None, cx))
+            });
             let samples: Vec<_> = TEXT_COLOURS
                 .into_iter()
                 .chain(COLOURS)
