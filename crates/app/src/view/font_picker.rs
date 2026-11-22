@@ -270,7 +270,11 @@ impl DeviceView {
                     form::help(MISSING_FONT)
                         .min_w_0()
                         .id("label-font-missing")
-                        .debug_selector(|| "label-font-missing".into()),
+                        .debug_selector(|| "label-font-missing".into())
+                        // The hint is a text that VoiceOver must read: it
+                        // says that the family of the profile is not
+                        // installed.
+                        .readable_text(MISSING_FONT),
                 )
             })
             .into_any_element()

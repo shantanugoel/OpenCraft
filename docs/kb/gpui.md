@@ -1067,6 +1067,75 @@ tests are in `crates/app/src/view/tests/focus.rs`,
 | The popover of "Other colour" is a child element of its sample. The test action `WhoHasFocus` goes from the field up through the sample, and the sample answers with its ID: a test cannot tell the field from the sample there. | Measured | `escape_gives_the_focus_back_to_the_other_colour_sample` |
 | In the real window, Space on the text colour button, on "Choose icon…", and on the "+" of "Other colour" opened the popover. Escape closed it, and the same button had the focus and the ring. The next Tab went to the next control ("B", "Image file…", the "Press" card). A click on the button, then Escape, left no control with the focus and no ring. A click out of a popover that Space opened left no ring too. | Measured | Window pictures, Quartz key events |
 
+## Accessibility and keyboard audit of the Phase 11 window (2026-11-22)
+
+**Measured.** The application is the debug build of `opencraft` at commit
+`9768a27` with the window features of Phase 11 (the font picker, bold, italic
+and underline, the default title style of a profile, the sizes up to 80 pt,
+the crop of an image, the drop of an application, the move of a key, and the
+light and dark appearance). The build ran from a scratch `.app` on the
+internal disk, with `OPENCRAFT_NO_DEVICE` and a scratch profiles directory
+that had one profile and one page. The key of the page had an image, its own
+font, italic and underline, the zoom 250 %, and an offset. The profile had a
+default title style. `cua-driver` 0.49.3 sent background keys (Tab,
+Shift-Tab, Space, Return, Escape, and the arrow keys) and read each window
+with the Accessibility API: `AXTitle`, `AXRole`, `AXSubrole`, `AXValue`,
+`AXHelp`, `AXFocused`, `AXSelected`, and `AXActions`. Nobody turned on
+VoiceOver. The pictures and the logs are kept outside the repository. The
+window tests are in `crates/app/src/view/tests/accessibility.rs` and
+`crates/app/src/settings_window/tests.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| The first Accessibility read of a new window returns only the window and its three buttons. A second read 1.5 s later returns the full tree. This is the same fact as 2026-11-13 (`Window::is_a11y_active`). | Measured | `get_window_state` of the main window and of the Settings window |
+| A background key moves the Tab focus only while the window is the key window. A background drag of 3 px on the window gives it the key window, and then Tab and Shift-Tab move the focus. The main window had 58 Tab stops: the sidebar (9), the toolbar (2), the canvas header (1), the right panel tabs (2), the inspector (44), and the status bar (0). The order is the order of the paint. | Measured | Tab and Shift-Tab with `cua-driver`; window pictures; the AX tree |
+| `AXFocused` is true on the control with the GPUI focus (the button "Font", the field "Search fonts", a profile row). `AXFocused` is also true on the window. | Measured | The tree of each window |
+| Each button, menu row, and radio button of the Phase 11 parts has `AXPress`. A disabled button keeps `AXEnabled` true (the known GPUI 0.3.12 limit). | Measured | The tree; `docs/DESIGN.md` section 10 |
+| `AXHelp` is on the rows of the command palette only ("Action", "⌘,"). The rows of the font picker and of the drawn menus have no `AXHelp`. Their names are their labels. | Measured | The tree of the palette and of the popovers |
+| The sheet "Profile settings" opens only from the native right-click menu of a profile row. A background run cannot select a native menu item, and the command palette has no such command. The window test opens the sheet with the action `ProfileSettingsRow`. | Measured; Source | Background run; `crates/app/src/view/tests/accessibility.rs` |
+| The Settings window is a second window. While the main window lived, the background key events stayed with the main window, thus the Tab order of the Settings window was not measurable in this run. `AXPress` on the segment "Light" changed the appearance of both windows. The window test covers the Tab order and the labels "System", "Light", and "Dark". | Measured; Source | Background run; `crates/app/src/settings_window/tests.rs` |
+| The roles and the labels of the Phase 11 controls are the same in the light and the dark appearance. The appearance changes the palette only. | Measured | The trees and the pictures in both appearances |
+
+| Control (place) | Keyboard | AX role and label | Note |
+|---|---|---|---|
+| Row "Font" (inspector) | yes | `AXPopUpButton` "Font" = the family, for example "Menlo" | Space opens the picker |
+| Font picker (popover) | yes | `AXWindow`, subrole `AXDialog`, "Choose a font" | The focus trap keeps Tab in the popover |
+| Search field of the picker | yes | `AXTextField` "Search fonts" | It has the focus when the picker opens; typing filters the rows |
+| Rows of the picker | arrow keys and Return | `AXMenuItem` with the family name, `AXPress`, no `AXSelected` and no `AXFocused` | The current family is highlighted but its row is not shown (gap #480); the highlight has no state for VoiceOver (gap #481) |
+| Hint of a family that is not installed | no focus | `Role::Label` after the fix of this pull request (`AXStaticText` in the real tree) | Before the fix `form::help` had no role, thus VoiceOver did not read the hint |
+| Row "Text size" | yes | `AXPopUpButton` "Text size" = "24 pt" | The menu has 15 rows from "10 pt" to "80 pt" (`AXMenuItem`, `AXPress`). The first row is highlighted, not the current size. Tab does nothing while the menu is open. Return chooses the row; Escape closes it; the focus stays on the button. |
+| Row "Text": colour | yes | `AXButton` "Text colour: automatic (#FFFFFF)" | Space opens the colour popover; its samples are `AXRadioButton`; Escape closes it and the button has the focus again |
+| Row "Text": "B", "I", "U" | yes | `AXCheckBox` "Bold", "Italic", "Underline" with the value 1 or 0 | Space changes the value and the AX value follows it |
+| Row "Position" | yes, one stop for each segment | `AXRadioButton` "Top", "Middle", "Bottom", "None"; the value "1" is the selected segment | Each segment is a Tab stop. Right and Left do nothing (gap #483). Space chooses the focused segment. |
+| Row below "Text": the title default | yes (the button) | `AXStaticText` "This title has its own style." or "This title follows the profile default."; `AXButton` "Reset to the profile default" | The text is `readable_text`; the button shows only with an own style |
+| Crop: "Zoom" | yes | `AXPopUpButton` "Zoom" = "250 %" | The menu has 7 rows from "100 %" to "400 %", as `AXMenuItem`. The first row is highlighted; Down, Return, and Escape work as in the size menu. |
+| Crop: "Offset" | yes | `AXButton` "Move the image left", "Move the image right", "Move the image up", "Move the image down" | An axis with no overflow is disabled and has no `AXPress` |
+| Crop: "Reset" | yes | `AXButton` "Reset" | Disabled at the fit, with no `AXPress` |
+| Warning of a small image | no focus | `Role::Label` with the full sentence, for example "This image has 32 × 32 pixels. At 200 % it is smaller than the key face, thus it will look soft." | The text is `readable_text` |
+| Sheet "Profile settings" | **no** | `AXWindow`, subrole `AXDialog`, "Profile settings for Default"; the controls are read in the window test log | No keyboard path opens the sheet (gap #482). The new section "Default title style" has the text field "Default title font", the popup "Default title size", the buttons "Bold", "Italic", "Underline", "Reset", the segments "Automatic", "Top", "Middle", "Bottom", "None", and the samples "Automatic: black or white for the fill" and "Title #RRGGBB". |
+| Settings > General > "Appearance" | yes | `AXRadioButton` "System", "Light", "Dark"; the value "1" is the selected one | `AXPress` on "Light" changed the appearance. The row label is an `AXStaticText` "Appearance, System follows the appearance of macOS." |
+| Move or swap a key (KEY-14) | **no** | No control | The drag has no menu row, key binding, or palette command. The palette gives "No result for “move”." (gap #485) |
+| Drop of an application (KEY-13) | pointer only | No new control | The same result is available with the action "Open an application" in the library and the palette. |
+
+**Gaps that this audit found.** Each one has an issue:
+
+| Gap | Issue |
+|---|---|
+| The font picker opens at the start of the list; the current family is off-screen. | [#480](https://github.com/shantanugoel/OpenCraft/issues/480) |
+| The arrow-key highlight of the font picker and of a drawn menu has no accessibility state. | [#481](https://github.com/shantanugoel/OpenCraft/issues/481) |
+| The profile settings sheet has no keyboard path. | [#482](https://github.com/shantanugoel/OpenCraft/issues/482) |
+| A segmented control is one Tab stop for each segment and ignores the arrow keys. | [#483](https://github.com/shantanugoel/OpenCraft/issues/483) |
+| The inspector does not scroll to a control that Tab focuses below the visible part. | [#484](https://github.com/shantanugoel/OpenCraft/issues/484) |
+| A key face has no keyboard command to move or swap it. | [#485](https://github.com/shantanugoel/OpenCraft/issues/485) |
+
+**Not known**
+
+- Whether VoiceOver speaks each label of the Phase 11 window. This run read
+the attributes only. The listening check stays with the owner (issue
+[#243](https://github.com/shantanugoel/OpenCraft/issues/243)).
+- Whether the Settings window takes background key events in a run where the
+main window is closed. This run did not close the main window.
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
