@@ -5,7 +5,8 @@
 
 use super::*;
 use crate::app_menu::{Clear, Copy, CopyToAllPages, Paste};
-use gpui_kit::{MouseButton, MouseDownEvent};
+use crate::pasteboard::{ClipboardImage, SystemClipboard};
+use gpui_kit::{ExternalPaths, FileDropEvent, MouseButton, MouseDownEvent, PlatformInput};
 
 const KEY: ControlId = ControlId::new(ControlKind::Key, 2);
 const KNOB: ControlId = ControlId::new(ControlKind::Knob, 2);
@@ -188,4 +189,264 @@ fn a_focused_text_field_keeps_its_copy_paste_and_delete(cx: &mut TestAppContext)
     cx.update(|window, cx| window.dispatch_action(Box::new(Clear), cx));
     cx.run_until_parked();
     assert!(clipboard_commands(&sent).is_empty(), "{:?}", sent.borrow());
+}
+
+// MARK: An image from a file drop or a paste (decision 0043, section 5)
+
+/// The bytes of an image of the format, for a pasteboard or a file.
+fn image_bytes(format: image::ImageFormat) -> Vec<u8> {
+    let image = image::RgbaImage::from_pixel(3, 2, image::Rgba([10, 20, 30, 255]));
+    let mut cursor = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(image)
+        .write_to(&mut cursor, format)
+        .unwrap();
+    cursor.into_inner()
+}
+
+/// The system pasteboard of the window, as the window reads it in the
+/// application. A test has no pasteboard, so it sets the value.
+fn set_system_clipboard(
+    view: &Entity<DeviceView>,
+    cx: &mut VisualTestContext,
+    change_count: i64,
+    image: Option<ClipboardImage>,
+) {
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.state.system_clipboard = SystemClipboard {
+                change_count,
+                image,
+            };
+            cx.notify();
+        });
+    });
+    cx.run_until_parked();
+}
+
+/// Drop the file `path` on the element `id`, as Finder does.
+fn drop_file(cx: &mut VisualTestContext, id: &'static str, path: std::path::PathBuf) {
+    let position = cx
+        .debug_bounds(id)
+        .unwrap_or_else(|| panic!("No element: {id}"))
+        .center();
+    let paths = ExternalPaths(vec![path].into_iter().collect());
+    cx.update(|window, cx| {
+        window.dispatch_event(
+            PlatformInput::FileDrop(FileDropEvent::Entered {
+                position,
+                paths: paths.clone(),
+            }),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    // The control under the pointer shows the drop target.
+    let target = Box::leak(format!("drop-{}", &id["surface-".len()..]).into_boxed_str());
+    assert!(cx.debug_bounds(target).is_some(), "{target} does not show");
+    cx.update(|window, cx| {
+        window.dispatch_event(
+            PlatformInput::FileDrop(FileDropEvent::Submit { position }),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds(target).is_none(), "{target} stays");
+}
+
+/// The path of the last `SetImage` of the commands, and its surface.
+fn last_image(sent: &Commands) -> Option<(SurfaceId, std::path::PathBuf)> {
+    sent.borrow()
+        .iter()
+        .rev()
+        .find_map(|command| match command {
+            Command::SetImage {
+                surface,
+                path: Some(path),
+            } => Some((*surface, path.clone())),
+            _ => None,
+        })
+}
+
+#[gpui_kit::test]
+fn a_pasted_image_goes_to_a_temporary_file_and_sets_the_image(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    let bytes = image_bytes(image::ImageFormat::Png);
+    set_system_clipboard(
+        &view,
+        cx,
+        4,
+        Some(ClipboardImage::Bytes {
+            bytes: bytes.clone(),
+            extension: "png",
+        }),
+    );
+    // No control is copied: the image of the system pasteboard is the
+    // only paste.
+    assert!(available(cx, &Paste));
+    keys(cx, "cmd-v");
+    let (target, path) = last_image(&sent).expect("the paste sets the image");
+    assert_eq!(target, key());
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    assert!(
+        path.starts_with(std::env::temp_dir()),
+        "{} is not in the temporary directory",
+        path.display()
+    );
+    // The engine reads the file and sends the surface: the file goes away.
+    send(cx, &tx, surface(key(), "Picture"));
+    assert!(!path.exists(), "{} stays", path.display());
+}
+
+#[gpui_kit::test]
+fn a_paste_reads_the_pasteboard_even_when_the_last_frame_saw_no_image(cx: &mut TestAppContext) {
+    let (view, cx, _, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("picture.png");
+    std::fs::write(&path, image_bytes(image::ImageFormat::Png)).unwrap();
+    // A copy in another application does not draw a frame: the window has
+    // the handlers of the last frame, where the pasteboard had no image.
+    cx.update(|_, cx| {
+        view.update(cx, |view, _| {
+            view.state.system_clipboard = SystemClipboard {
+                change_count: 7,
+                image: Some(ClipboardImage::File(path.clone())),
+            };
+        });
+    });
+    keys(cx, "cmd-v");
+    assert_eq!(last_image(&sent), Some((key(), path)));
+}
+
+#[gpui_kit::test]
+fn a_pasted_image_a_webp_file_and_a_jpeg_file_set_the_image_of_a_bar_panel(
+    cx: &mut TestAppContext,
+) {
+    let (view, cx, _, sent) = window(cx);
+    click(cx, "surface-bar panel 3");
+    let directory = tempfile::tempdir().unwrap();
+    for (name, format) in [
+        ("picture.webp", image::ImageFormat::WebP),
+        ("picture.jpg", image::ImageFormat::Jpeg),
+    ] {
+        let path = directory.path().join(name);
+        std::fs::write(&path, image_bytes(format)).unwrap();
+        set_system_clipboard(&view, cx, 10, Some(ClipboardImage::File(path.clone())));
+        assert!(available(cx, &Paste), "{name}");
+        keys(cx, "cmd-v");
+        assert_eq!(last_image(&sent), Some((bar(), path)), "{name}");
+    }
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.selected, Some(bar())));
+}
+
+#[gpui_kit::test]
+fn the_newer_of_the_control_and_the_system_pasteboard_item_wins(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    click(cx, "surface-key face 2");
+    // The copy of the control at change count 1.
+    set_system_clipboard(&view, cx, 1, None);
+    keys(cx, "cmd-c");
+    send(cx, &tx, Event::Clipboard(ControlKind::Key));
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.control_copy_change_count, Some(1)));
+    // The same count: the copy of the control is the newer item.
+    keys(cx, "cmd-v");
+    assert_eq!(
+        clipboard_commands(&sent).last(),
+        Some(&Command::PasteControl { control: KEY })
+    );
+    // An image copied after the control: the count is different.
+    set_system_clipboard(
+        &view,
+        cx,
+        2,
+        Some(ClipboardImage::Bytes {
+            bytes: image_bytes(image::ImageFormat::Bmp),
+            extension: "bmp",
+        }),
+    );
+    keys(cx, "cmd-v");
+    let (target, path) = last_image(&sent).expect("the paste sets the image");
+    assert_eq!(target, key());
+    assert_eq!(&std::fs::read(path).unwrap()[..2], b"BM");
+}
+
+#[gpui_kit::test]
+fn a_focused_text_field_keeps_its_paste_when_the_system_pasteboard_has_an_image(
+    cx: &mut TestAppContext,
+) {
+    let (view, cx, _, sent) = window(cx);
+    cx.update(|window, _| window.activate_window());
+    click(cx, "surface-key face 2");
+    cx.update(|window, cx| {
+        let input = view.read(cx).input.clone();
+        window.focus(&input.focus_handle(cx), cx);
+    });
+    cx.run_until_parked();
+    set_system_clipboard(
+        &view,
+        cx,
+        6,
+        Some(ClipboardImage::Bytes {
+            bytes: image_bytes(image::ImageFormat::Png),
+            extension: "png",
+        }),
+    );
+    keys(cx, "cmd-v");
+    assert!(last_image(&sent).is_none(), "the field keeps the paste");
+    assert!(clipboard_commands(&sent).is_empty());
+}
+
+#[gpui_kit::test]
+fn a_file_dropped_on_a_key_face_or_a_bar_panel_sets_the_image_as_one_step(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    let directory = tempfile::tempdir().unwrap();
+    let key_file = directory.path().join("key.png");
+    std::fs::write(&key_file, image_bytes(image::ImageFormat::Png)).unwrap();
+    let panel_file = directory.path().join("panel.webp");
+    std::fs::write(&panel_file, image_bytes(image::ImageFormat::WebP)).unwrap();
+
+    drop_file(cx, "surface-key face 2", key_file.clone());
+    assert_eq!(last_image(&sent), Some((key(), key_file.clone())));
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.selected, Some(key())));
+    send(cx, &tx, surface(key(), "Picture"));
+
+    // The drop of a bar panel selects it, and one drop is one command.
+    let before = sent.borrow().len();
+    drop_file(cx, "surface-bar panel 3", panel_file.clone());
+    assert_eq!(sent.borrow().len(), before + 1, "{:?}", sent.borrow());
+    assert_eq!(last_image(&sent), Some((bar(), panel_file.clone())));
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.selected, Some(bar())));
+
+    // One step of the history: the undo command is there after the event
+    // of the engine, and ⌘Z sends it.
+    send(
+        cx,
+        &tx,
+        Event::History {
+            undo: Some("Set Image".into()),
+            redo: None,
+        },
+    );
+    assert!(available(cx, &crate::app_menu::Undo));
+    keys(cx, "cmd-z");
+    assert_eq!(sent.borrow().last(), Some(&Command::Undo));
+}
+
+#[gpui_kit::test]
+fn a_file_dropped_on_a_key_face_that_is_not_an_image_goes_to_the_engine(cx: &mut TestAppContext) {
+    let (view, cx, tx, sent) = window(cx);
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("notes.txt");
+    std::fs::write(&file, "this is not an image").unwrap();
+    drop_file(cx, "surface-key face 2", file.clone());
+    // The engine checks the file (rule 9). It refuses it with the usual
+    // problem that names the file.
+    assert_eq!(last_image(&sent), Some((key(), file.clone())));
+    let text = format!(
+        "OpenCraft could not use the image: cannot use the image {}: the image format is not supported",
+        file.display()
+    );
+    send(cx, &tx, Event::Problem(text.clone()));
+    cx.update(|_, cx| assert_eq!(view.read(cx).state.problems, [text]));
 }

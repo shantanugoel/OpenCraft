@@ -38,6 +38,7 @@
 use crate::{
     app_menu::{Redo, ToggleInspector, ToggleSidebar, Undo, WORKSPACE},
     images,
+    pasteboard::{self, ClipboardImage},
     settings::Panes,
     shell::Shell,
     state::{ViewState, HIGHLIGHT_TIME},
@@ -57,7 +58,7 @@ use gpui_kit::{
 use opencraft_engine::{
     Color, Command, ControlId, ControlKind, Event, Gesture, SurfaceId, SurfaceKind,
 };
-use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Instant};
+use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc, time::Instant};
 
 mod actions;
 mod application_picker;
@@ -119,6 +120,14 @@ fn control_name(id: ControlId) -> String {
 /// engine event from it (decision 0020). The view keeps its own copy because
 /// it also does work for each event in the window: the images, the text
 /// fields, and the changes that wait for a reply.
+/// A temporary image file that the engine has not read yet. The window
+/// removes it when the surface of the destination comes, when a problem
+/// names it, or at the stop (decision 0043, section 5).
+struct PendingImage {
+    path: PathBuf,
+    surface: SurfaceId,
+}
+
 pub struct DeviceView {
     pub(crate) state: ViewState,
     shell: Entity<Shell>,
@@ -175,6 +184,9 @@ pub struct DeviceView {
     repaint: repaint::Repaint,
     /// A window that becomes visible or active draws a frame at once.
     _frame_observers: [Subscription; 2],
+    /// The temporary image files of the pastes that the engine has not
+    /// read yet (decision 0043, section 5).
+    pending_images: Vec<PendingImage>,
 }
 
 impl DeviceView {
@@ -278,6 +290,7 @@ impl DeviceView {
             _focus_return: focus_return,
             repaint: repaint::Repaint::default(),
             _frame_observers: frame_observers,
+            pending_images: Vec::new(),
         };
         // The selection can already be in the state when the window opens,
         // for example after a start with no window. A change of the
@@ -290,6 +303,7 @@ impl DeviceView {
     }
 
     fn receive(&mut self, event: Event, window: &mut Window, cx: &mut Context<Self>) {
+        self.remove_read_images(&event);
         if let Event::Binding(binding) = &event {
             self.acknowledge(binding);
             self.permission_event(binding, window, cx);
@@ -430,6 +444,73 @@ impl DeviceView {
         (self.send)(command.for_face(self.editing_on_face(surface)));
     }
 
+    /// Set the image of `surface` from the file `path`, as the file dialog
+    /// does. The engine reads, checks, and copies the file on its thread.
+    /// A drop and a paste use this one path (decision 0043, section 5).
+    pub(super) fn set_image_path(&mut self, surface: SurfaceId, path: PathBuf) {
+        self.send_surface(
+            surface,
+            Command::SetImage {
+                surface,
+                path: Some(path),
+            },
+        );
+    }
+
+    /// Read the system pasteboard when its change count is different. A
+    /// test and a different platform have no system pasteboard: the state
+    /// gives the value.
+    fn refresh_system_clipboard(&mut self) {
+        #[cfg(all(target_os = "macos", not(test)))]
+        {
+            let count = pasteboard::change_count();
+            if count != self.state.system_clipboard.change_count {
+                self.state.system_clipboard = pasteboard::read(count);
+            }
+        }
+    }
+
+    /// The change count of the system pasteboard now. A test and a
+    /// different platform use the value of the state.
+    fn system_change_count(&self) -> i64 {
+        #[cfg(all(target_os = "macos", not(test)))]
+        {
+            pasteboard::change_count()
+        }
+        #[cfg(not(all(target_os = "macos", not(test))))]
+        {
+            self.state.system_clipboard.change_count
+        }
+    }
+
+    /// Remove the temporary image files that the engine has read, or that
+    /// it refused with a problem that names the file (decision 0043,
+    /// section 5).
+    fn remove_read_images(&mut self, event: &Event) {
+        match event {
+            Event::Surface(surface) => {
+                if let Some(index) = self
+                    .pending_images
+                    .iter()
+                    .position(|pending| pending.surface == surface.id)
+                {
+                    let pending = self.pending_images.remove(index);
+                    let _ = std::fs::remove_file(pending.path);
+                }
+            }
+            Event::Problem(text) => {
+                self.pending_images.retain(|pending| {
+                    let named = text.contains(pending.path.to_string_lossy().as_ref());
+                    if named {
+                        let _ = std::fs::remove_file(&pending.path);
+                    }
+                    !named
+                });
+            }
+            _ => {}
+        }
+    }
+
     fn set_title(&mut self, surface: SurfaceId, label: Option<String>) {
         let on = self.editing_on_face(surface);
         let set = Command::SetLabel { surface, label }.for_face(on);
@@ -516,6 +597,7 @@ impl DeviceView {
 
 impl Render for DeviceView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.refresh_system_clipboard();
         focus_return::begin_frame();
         self.repaint.frame();
         // The modal layer is not in the element of the key context of the
@@ -580,6 +662,16 @@ impl DeviceView {
             .text_color(theme::text_primary())
             .text_size(theme::TEXT_BODY)
             .child(self.panes_layout(window, cx))
+    }
+}
+
+/// A window that stops removes the temporary image files of the pastes
+/// that the engine did not read (decision 0043, section 5).
+impl Drop for DeviceView {
+    fn drop(&mut self) {
+        for pending in self.pending_images.drain(..) {
+            let _ = std::fs::remove_file(pending.path);
+        }
     }
 }
 

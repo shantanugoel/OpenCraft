@@ -110,7 +110,16 @@ You can use an image file in place of an icon.
 
 1. In the row **Icon**, click **Image file…**. Or click **Image file…** in
    the icon picker.
-2. In the file dialog, select a PNG or JPEG file, and click **Choose**.
+2. In the file dialog, select an image file, and click **Choose**.
+
+You can also do these steps:
+
+- Drag an image file from Finder onto a key face or a bar panel.
+- Copy an image, or an image file in Finder, and push ⌘V. The control must
+  be selected, and no text field must have the focus.
+
+OpenCraft accepts PNG, JPEG, BMP, WebP, and TIFF files. A different file
+shows a message above the status bar.
 
 The key face shows the image above the title. A transparent part of the
 image shows the fill of the key face.
@@ -118,6 +127,8 @@ image shows the fill of the key face.
 - OpenCraft makes a copy of the image in the profile. You can move or delete
   the original file after this step.
 - A large image becomes smaller. A square image is best for a key face.
+- A drop and a paste are one change. You can undo them. See
+  [Undo a change](#undo-a-change).
 - To remove the image, click **Choose icon…**, and click **No icon**.
 
 ## 4. Set an action

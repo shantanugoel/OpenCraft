@@ -41,6 +41,7 @@ mod mcp;
 mod menu;
 #[cfg(target_os = "macos")]
 mod menu_bar;
+mod pasteboard;
 #[cfg(target_os = "macos")]
 mod power;
 mod ready;
