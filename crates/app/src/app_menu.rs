@@ -39,6 +39,7 @@ actions!(
         AddPage,
         PageSettings,
         DeviceSettings,
+        ProfileSettings,
         AddProfile,
         ImportProfile,
         SelectPrevious,
@@ -253,6 +254,12 @@ pub fn commands(panes: &Panes, edit: &EditMenu) -> Vec<AppCommand> {
         .menu(View, 0)
         .shortcut("Hide or show the inspector")
         .palette(6),
+        // The sheet has no menu row: decision 0029, section 7.3, gives the
+        // application no profile commands in the menu bar. The palette and
+        // the key command open it, also from the keyboard (issue 482).
+        AppCommand::new("Profile settings…", I::Settings, ProfileSettings)
+            .shortcut("Profile settings")
+            .palette(16),
         AppCommand::new("Settings…", I::Settings, OpenSettings)
             .menu(AppMenu, 1)
             .shortcut("Settings")
@@ -302,6 +309,7 @@ pub fn install(cx: &mut App, panes: &Panes) {
         KeyBinding::new("cmd-w", CloseWindow, Some(FIRST_START)),
         KeyBinding::new("ctrl-cmd-s", ToggleSidebar, Some(WORKSPACE)),
         KeyBinding::new("alt-cmd-i", ToggleInspector, Some(WORKSPACE)),
+        KeyBinding::new("ctrl-cmd-p", ProfileSettings, Some(WORKSPACE)),
         // A focused text field has its own bindings for these keys, in a
         // deeper key context: it keeps them (`docs/kb/gpui.md`).
         KeyBinding::new("cmd-z", Undo, Some(WORKSPACE)),

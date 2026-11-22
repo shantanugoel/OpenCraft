@@ -354,9 +354,11 @@ shows "*application* stays linked to *profile*."
 ### Profile settings
 
 Right-click a profile in the sidebar, and select **Profile Settings…**. A
-sheet opens on the window. You can open the settings of each profile, also
-of a profile that is not active. The window does not operate while the
-sheet is open.
+sheet opens on the window. You can push ⌃⌘P, or push ⌘K and type "profile
+settings", to open the settings of the active profile. To change another
+profile, select it in the sidebar first. The window does not operate while
+the sheet is open. Escape closes the sheet, and the keyboard focus goes back
+to the control that had it.
 
 ![The profile settings sheet of the profile "Streaming", with a colour and the first page "Audio"](images/profile-settings.png)
 

@@ -993,6 +993,21 @@ impl DeviceView {
     }
 }
 
+impl DeviceView {
+    /// Open the sheet of the active profile, from the key command or the
+    /// command palette (issue 482). With no active profile, it does nothing.
+    pub(super) fn open_active_profile_sheet(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(id) = self.state.profile.clone() else {
+            return;
+        };
+        self.open_profile_sheet(id, window, cx);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

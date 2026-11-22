@@ -2,9 +2,10 @@
 //! right-click menu of a profile, it is modal, each control sends its
 //! command, and the export and the import go to the engine.
 
+use super::focus::tab_to;
 use super::pages::{pages, send};
 use super::*;
-use crate::view::sidebar::ProfileSettingsRow;
+use crate::view::{controls::tests::focused, sidebar::ProfileSettingsRow};
 use gpui_kit::{MouseButton, MouseDownEvent, Pixels, Role};
 use opencraft_engine::ProfileEntry;
 use std::path::PathBuf;
@@ -659,4 +660,56 @@ fn the_list_shows_the_profile_that_has_the_link_of_an_application(cx: &mut TestA
         links(cx),
         [Some("Linked to “Work”".to_string()), None, None]
     );
+}
+
+#[gpui_kit::test]
+fn a_key_command_opens_the_sheet_of_the_active_profile(cx: &mut TestAppContext) {
+    let (view, cx, _tx, _sent) = sheet_window(cx);
+    // The focus is on a control: the sheet goes back to it at the close.
+    tab_to(cx, "profile-work");
+    assert_eq!(focused(cx).as_deref(), Some("profile-work"));
+    cx.simulate_keystrokes("ctrl-cmd-p");
+    cx.run_until_parked();
+    assert!(is_open(cx), "the key command opens the sheet");
+    cx.update(|window, cx| {
+        let view = view.read(cx);
+        assert_eq!(
+            view.sheet.profile.as_deref(),
+            Some("default"),
+            "the sheet shows the active profile"
+        );
+        assert!(
+            view.sheet.focus.is_focused(window),
+            "the focus goes to the sheet"
+        );
+    });
+    // Escape closes the sheet, and the focus goes back to the control that
+    // had it.
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!is_open(cx));
+    assert_eq!(
+        focused(cx).as_deref(),
+        Some("profile-work"),
+        "the focus goes back to the control that had it"
+    );
+}
+
+#[gpui_kit::test]
+fn the_command_palette_opens_the_sheet(cx: &mut TestAppContext) {
+    let (view, cx, _tx, _sent) = sheet_window(cx);
+    cx.simulate_keystrokes("cmd-k");
+    cx.run_until_parked();
+    cx.simulate_input("profile settings");
+    cx.run_until_parked();
+    // The first row is the command: Return runs it.
+    assert!(cx.debug_bounds("palette-row-0").is_some());
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(is_open(cx), "the palette command opens the sheet");
+    cx.update(|window, cx| {
+        let view = view.read(cx);
+        assert_eq!(view.sheet.profile.as_deref(), Some("default"));
+        assert!(view.sheet.focus.is_focused(window));
+    });
 }

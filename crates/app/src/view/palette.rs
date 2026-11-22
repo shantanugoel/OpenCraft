@@ -39,7 +39,8 @@ use super::{
 use crate::{
     app_menu::{
         self, AddPage, AddProfile, AddReadyProfile, DeviceSettings, EditMenu, ImportProfile,
-        OpenInInspector, PageSettings, Search, SelectNext, SelectPrevious, PALETTE,
+        OpenInInspector, PageSettings, ProfileSettings, Search, SelectNext, SelectPrevious,
+        PALETTE,
     },
     state::gestures,
 };
@@ -204,6 +205,9 @@ impl DeviceView {
             .on_action(cx.listener(|view, _: &DeviceSettings, window, cx| {
                 view.select_device(window, cx);
                 view.show_inspector(window, cx);
+            }))
+            .on_action(cx.listener(|view, _: &ProfileSettings, window, cx| {
+                view.open_active_profile_sheet(window, cx);
             }))
             .on_action(cx.listener(|view, _: &AddProfile, window, cx| {
                 // The new row is in the sidebar.
