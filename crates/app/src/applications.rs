@@ -121,19 +121,60 @@ pub fn filter(applications: &[InstalledApplication], query: &str) -> Vec<Install
         .collect()
 }
 
-/// The icon of the application at `path`, or `None` when this system
-/// cannot draw one. Call this on the user interface thread: AppKit draws
-/// the icon there. The scan does not call this.
-pub fn application_icon(path: &Path) -> Option<image::RgbaImage> {
+/// The number of pixels of the side of the icon of a key face that a drop
+/// of an application sets (decision 0043, section 5). A key face is 112
+/// pixels, and a Retina screen draws two pixels for each of its points.
+/// The picker icon stays [`ICON_PIXELS`] pixels.
+pub(crate) const KEY_ICON_PIXELS: u32 = 256;
+
+/// The side of the icon of an application in the picker, in pixels. The
+/// window shows it at `theme::ICON_APPLICATION` points.
+const ICON_PIXELS: u32 = 32;
+
+/// The icon of the application at `path`, at `pixels` pixels on a side, or
+/// `None` when this system cannot draw one. Call this on the user
+/// interface thread: AppKit draws the icon there. A key face needs the
+/// larger [`KEY_ICON_PIXELS`] size; a 32-pixel icon is blurred there. The
+/// scan does not call this.
+pub fn application_icon_sized(path: &Path, pixels: u32) -> Option<image::RgbaImage> {
     #[cfg(target_os = "macos")]
     {
-        macos::icon(path)
+        macos::icon(path, pixels)
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = path;
+        let _ = (path, pixels);
         None
     }
+}
+
+/// The icon of the application at `path` for the picker, or `None`.
+pub fn application_icon(path: &Path) -> Option<image::RgbaImage> {
+    application_icon_sized(path, ICON_PIXELS)
+}
+
+/// The icon of the application at `path` as a PNG of [`KEY_ICON_PIXELS`]
+/// pixels, or `None` when this system cannot draw one. The window writes
+/// these bytes to a temporary file and sends `Command::SetImage`, thus the
+/// engine still checks and copies the image (rule 9).
+pub fn application_icon_png(path: &Path) -> Option<Vec<u8>> {
+    let icon = application_icon_sized(path, KEY_ICON_PIXELS)?;
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(icon)
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .ok()?;
+    Some(bytes.into_inner())
+}
+
+/// True when `path` is the directory of an application bundle: a
+/// directory whose name ends with `.app`. A file with that name, and a
+/// path inside a bundle, are not a bundle.
+pub(crate) fn is_application_bundle(path: &Path) -> bool {
+    path.is_dir()
+        && path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.to_ascii_lowercase().ends_with(".app"))
 }
 
 /// The bundle identifier of the application at `path`, when `path` is an
@@ -509,11 +550,6 @@ mod macos {
     use objc2_foundation::{NSMutableDictionary, NSObject, NSPoint, NSRect, NSSize, NSString};
     use std::ffi::CStr;
 
-    /// The side of an application icon, in pixels. The window shows it at
-    /// `theme::ICON_APPLICATION` points. A Retina screen can draw a larger
-    /// bitmap; the cache keeps the bitmap that AppKit returns.
-    const ICON_PIXELS: u32 = 32;
-
     pub fn binary_plist(path: &Path) -> HashMap<String, String> {
         let Some(text) = path.to_str() else {
             return HashMap::new();
@@ -550,14 +586,14 @@ mod macos {
             .into_owned()
     }
 
-    /// Draw the workspace icon into a bitmap. `initWithFocusedViewRect` is
-    /// deprecated. Its replacement snapshots a view, and an icon is not a
-    /// view.
+    /// Draw the workspace icon into a bitmap of `pixels` pixels on a side.
+    /// `initWithFocusedViewRect` is deprecated. Its replacement snapshots a
+    /// view, and an icon is not a view.
     #[allow(deprecated)]
-    pub fn icon(path: &Path) -> Option<image::RgbaImage> {
+    pub fn icon(path: &Path, pixels: u32) -> Option<image::RgbaImage> {
         let text = path.to_str()?;
         let image = NSWorkspace::sharedWorkspace().iconForFile(&NSString::from_str(text));
-        let side = f64::from(ICON_PIXELS);
+        let side = f64::from(pixels);
         image.setSize(NSSize::new(side, side));
         image.lockFocus();
         let rep = NSBitmapImageRep::initWithFocusedViewRect(
@@ -713,6 +749,69 @@ mod tests {
             again.iter().filter(|app| app.name == "Mail & News").count(),
             1
         );
+    }
+
+    #[test]
+    fn an_application_bundle_is_a_directory_with_the_app_suffix() {
+        let root = tempfile::tempdir().unwrap();
+        let bundle = write_bundle(root.path(), "Demo.app", &plist("Demo", "Demo", ""));
+        assert!(is_application_bundle(&bundle));
+        let upper = root.path().join("Upper.APP");
+        std::fs::create_dir_all(&upper).unwrap();
+        assert!(is_application_bundle(&upper));
+        let file = root.path().join("Notes.app");
+        std::fs::write(&file, "not a bundle").unwrap();
+        assert!(!is_application_bundle(&file), "a file is not a bundle");
+        let folder = root.path().join("Applications");
+        std::fs::create_dir_all(&folder).unwrap();
+        assert!(!is_application_bundle(&folder));
+        assert!(!is_application_bundle(&bundle.join("Contents")));
+        assert!(!is_application_bundle(&root.path().join("Missing.app")));
+    }
+
+    #[test]
+    fn a_dropped_bundle_gives_its_name_and_bundle_identifier() {
+        let root = tempfile::tempdir().unwrap();
+        let bundle = write_bundle(
+            root.path(),
+            "Demo.app",
+            &plist("Demo &amp; Test", "DemoBundle", "com.example.demo"),
+        );
+        let app = application_at(bundle.clone());
+        assert_eq!(app.name, "Demo & Test");
+        assert_eq!(app.bundle_identifier, "com.example.demo");
+        assert_eq!(app.path, bundle);
+        assert_eq!(
+            bundle_identifier_at(&bundle).as_deref(),
+            Some("com.example.demo")
+        );
+        // A bundle with no identifier, and a path that is not a bundle.
+        let plain = write_bundle(root.path(), "Plain.app", &plist("Plain", "", ""));
+        assert_eq!(bundle_identifier_at(&plain), None);
+        assert_eq!(bundle_identifier_at(root.path()), None);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_key_icon_is_a_256_pixel_png() {
+        let root = tempfile::tempdir().unwrap();
+        let bundle = write_bundle(
+            root.path(),
+            "Demo.app",
+            &plist("Demo", "Demo", "com.example.demo"),
+        );
+        // AppKit draws the generic application icon of the bundle.
+        let icon = application_icon_sized(&bundle, KEY_ICON_PIXELS).expect("an icon");
+        assert_eq!(icon.dimensions(), (KEY_ICON_PIXELS, KEY_ICON_PIXELS));
+        assert_eq!(
+            application_icon(&bundle).map(|icon| icon.dimensions()),
+            Some((ICON_PIXELS, ICON_PIXELS))
+        );
+        let bytes = application_icon_png(&bundle).expect("a PNG");
+        assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+        let decoded = image::load_from_memory(&bytes).expect("a PNG of the icon");
+        assert_eq!(decoded.width(), KEY_ICON_PIXELS);
+        assert_eq!(decoded.height(), KEY_ICON_PIXELS);
     }
 
     #[test]

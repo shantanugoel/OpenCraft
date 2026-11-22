@@ -833,6 +833,25 @@ is the one of [part 4](#4-drag-and-drop-from-the-right-pane-to-the-centre-pane).
 | A background `press_key` (⌘V) and a 3 px background `drag` work on a GPUI window. The 3 px drag selects the control under the pointer. | Measured | Real window, 2026-11-22 |
 | Key 1 and key 2 of the device showed the BMP and the WebP image in the USB camera picture. | Measured | USB camera (OpenCV index 0), 2026-11-22 |
 
+## Application drop and paste (2026-11-22)
+
+**Measured.** The application is the debug build of `opencraft` wrapped in a
+scratch `.app` with a copy of a profile, the setting
+`show_window_at_start = true`, and `OPENCRAFT_NO_DEVICE=1`; the window is
+1440 × 900 at 1366 × 854 in the picture, and at 1080 × 700. The driver acted
+in the background only. The window tests are in
+`crates/app/src/view/tests/application_drop.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A background `press_key` (⌘V and ⌘Z) works in a GPUI window from a scratch `.app` wrapper with `LSUIElement`. | Measured | `cua-driver` 0.49.3, 2026-11-22 |
+| A `.app` file URL on the system pasteboard (written by `NSPasteboard.writeObjects` of an `NSURL`) with ⌘V on a selected key face sets the action "Open an application" with the path of the bundle, the title "Mail", and a 256-pixel icon. One ⌘Z removed the action, the title, and the image; ⇧⌘Z put them back. | Measured | Real window, 2026-11-22; `crates/app/src/view/application_drop.rs` |
+| The 256-pixel icon shows the blue Mail envelope on the 112-pixel key face with no visible blur. | Measured | Window picture at 1440 × 900 |
+| A 1366 × 854 capture is the content of a 1440 × 900 window: the frame has a title bar and a border. A 1080 × 700 window captures 1080 × 700. | Measured | `get_window_state`, `screenshot_width`; window pictures |
+| At 1080 × 700 the whole changed part shows: the key face with its icon and title, and the inspector with "Open an application". The help line ends with "…". | Measured | Window picture, 2026-11-22 |
+| A control socket path in a long scratch directory fails with the problem "path must be shorter than SUN_LEN". Use a short directory, for example `/tmp/<name>`. | Measured | Window picture, 2026-11-22 |
+| The device shows the blue Mail icon at the 112-pixel key face, above the title "Mail", with no visible blur, from the 256-pixel icon that the engine copied into the profile. | Measured | USB camera (OpenCV index 0), 2026-11-22; the profile of the scratch directory |
+
 ## Menu keys in the application (2026-11-13)
 
 **Measured.** The application is the debug build of `opencraft` with the

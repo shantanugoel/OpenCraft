@@ -366,7 +366,10 @@ the CLI, and the MCP do not change.
   not change. Run `scripts/notices.sh` after the change to `Cargo.toml`, and
   commit `THIRD-PARTY-NOTICES.txt` if it changes.
 - A file path from `ExternalPaths` (a drop from Finder) goes to `SetImage` as
-  it is. A path to an application bundle is KEY-13, not an image.
+  it is. A path to an application bundle is KEY-13, not an image: a drop or
+  a paste of a bundle sets the action that opens the application, with the
+  icon and the name. KEY-13 finds the kind by its path field of kind
+  `Application` in `Event::Kinds` (rule 12).
 
 **The system pasteboard.**
 

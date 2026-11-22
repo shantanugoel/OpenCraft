@@ -230,7 +230,7 @@ impl DeviceView {
                 // The system item is newer than a copy of a control, or no
                 // control is copied: it sets the image (decision 0043,
                 // section 5).
-                if self.paste_system_image(cx) {
+                if self.paste_system_image(window, cx) {
                     return;
                 }
                 if !self.can_paste(control) {
@@ -282,8 +282,10 @@ impl DeviceView {
     }
 
     /// Paste the item of the system pasteboard when it is possible. Return
-    /// true if the item went to the surface.
-    fn paste_system_image(&mut self, cx: &mut Context<Self>) -> bool {
+    /// true if the item went to the surface. A path of an application bundle
+    /// sets the action that opens it, as a drop of the bundle does
+    /// (KEY-13). Any other image sets the image.
+    fn paste_system_image(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.refresh_system_clipboard();
         let (Some(surface), Some(image)) = (
             self.paste_surface(),
@@ -294,6 +296,13 @@ impl DeviceView {
         if !self.system_image_is_newer() {
             return false;
         }
+        if let ClipboardImage::File(path) = &image {
+            if crate::applications::is_application_bundle(path) {
+                let path = path.clone();
+                self.drop_application(surface, path, window, cx);
+                return true;
+            }
+        }
         self.paste_image(surface, image, cx);
         true
     }
@@ -302,7 +311,7 @@ impl DeviceView {
     /// The pasteboard can have an image that the last frame did not see, thus
     /// this handler reads it again before it gives the message.
     fn paste_not_possible(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.paste_system_image(cx) {
+        if self.paste_system_image(window, cx) {
             return;
         }
         let text = match (self.clipboard_control(), self.state.clipboard) {
