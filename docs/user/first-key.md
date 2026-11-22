@@ -202,6 +202,37 @@ The action "Open a URL" does not need a permission of macOS.
 
 Each action kind has its own settings. They are in [Actions](actions.md).
 
+### Drag an application from Finder onto a key face
+
+You can set the action of a key with a drag from Finder. The key gets the
+action "Open an application", and the icon and the name of the application
+in one step.
+
+1. Open the folder that has the application, for example **Applications**.
+2. Push and hold the mouse button on the application, and move the pointer
+   onto a key face in the OpenCraft window.
+3. Release the mouse button.
+
+![A key with the icon and the name of an application, set by a drop from Finder](images/drop-application.png)
+
+The key face shows the icon of the application above the title. The action
+"Open an application" on **Press** opens the application. The status bar
+shows the change, for example "Key 2 gets “Open an application” for Press".
+
+- The drop sets the path and the bundle identifier of the application in
+the action (decision 0037). If you move the application to a different
+folder, OpenCraft still opens it.
+- The drop replaces the action of **Press**, the title, and the image of
+the key face. One Command-Z (**Undo Drop Application**) restores all of
+them.
+- A drop on a bar panel sets the action "Open an application" on **Tap**.
+- A drop of a folder that does not end with `.app` is an image. OpenCraft
+refuses it with a message above the status bar.
+
+To make this change on an existing key, you can also click **Choose…** in
+the field **Application, file or folder**. See
+[Open an application](actions.md#open-an-application).
+
 ## 5. Push the key
 
 1. Push key 1 on the device.

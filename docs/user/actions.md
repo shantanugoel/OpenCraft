@@ -187,6 +187,10 @@ OpenCraft saves each change immediately, as in
 
 ![The application picker. The search is Safari, and the list shows Safari.](images/application-picker.png)
 
+You can also drag the application from Finder onto a key face. The key
+then gets this action with the icon and the name of the application. See
+[Drag an application from Finder onto a key face](first-key.md#drag-an-application-from-finder-onto-a-key-face).
+
 - When you choose an application that has a bundle identifier, OpenCraft
   stores the bundle identifier and the path. The profile keeps the path as
   you gave it.

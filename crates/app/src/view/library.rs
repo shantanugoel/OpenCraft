@@ -283,7 +283,7 @@ impl DeviceView {
     /// `Command::Group` with the name `name`: one step of the history
     /// (decision 0030). A group in `change` gives its commands to this
     /// group. A change that sends nothing sends no group.
-    fn one_step(&mut self, name: &str, change: impl FnOnce(&mut Self)) {
+    pub(super) fn one_step(&mut self, name: &str, change: impl FnOnce(&mut Self)) {
         let commands: Rc<RefCell<Vec<Command>>> = Rc::default();
         let collect = commands.clone();
         let send = std::mem::replace(

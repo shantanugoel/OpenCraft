@@ -844,12 +844,18 @@ impl DeviceView {
             }))
             // A file from Finder sets the image. The engine checks it and
             // refuses a file that is not an image with its usual problem.
+            // An application bundle sets the action that opens it, with the
+            // icon of the application (KEY-13).
             .on_drop(cx.listener(move |view, paths: &ExternalPaths, window, cx| {
                 let Some(path) = paths.paths().first().cloned() else {
                     return;
                 };
                 view.select(id, window, cx);
-                view.set_image_path(id, path);
+                if crate::applications::is_application_bundle(&path) {
+                    view.drop_application(id, path, window, cx);
+                } else {
+                    view.set_image_path(id, path);
+                }
             }))
             .into_any_element()
     }

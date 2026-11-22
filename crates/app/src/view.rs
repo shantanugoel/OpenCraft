@@ -19,6 +19,7 @@
 //! | `library` | The "Library" tab: the action kinds in their groups |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
 //! | `application_picker` | The list of installed applications for a path field of kind Application |
+//! | `application_drop` | A drop of an application bundle from Finder onto a key face |
 //! | `nested` | The nested card of a contained action, and the step list of a sequence |
 //! | `states` | The appearance of each state of a toggle |
 //! | `device`, `pages`, `hotkey` | The state of the device settings, the changes of the pages and the profiles, the hotkey names |
@@ -61,6 +62,7 @@ use opencraft_engine::{
 use std::{collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc, time::Instant};
 
 mod actions;
+mod application_drop;
 mod application_picker;
 pub(crate) mod canvas;
 mod clipboard;
