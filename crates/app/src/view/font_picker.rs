@@ -397,7 +397,13 @@ impl DeviceView {
         };
         let picker = &mut self.inspector.font_picker;
         if picker.shown != shown {
-            picker.list.reset(shown.len());
+            // Each row has the same height. The hint of that height lets
+            // `scroll_to_reveal_item` show a row that is below the visible
+            // part, also on the first frame, before any row is measured
+            // (issue 480).
+            picker
+                .list
+                .reset_with_uniform_height(shown.len(), theme::HEIGHT_MENU_ROW);
             picker.shown = shown;
         }
         if picker.highlight >= picker.shown.len() {

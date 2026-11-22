@@ -1136,6 +1136,21 @@ the attributes only. The listening check stays with the owner (issue
 - Whether the Settings window takes background key events in a run where the
 main window is closed. This run did not close the main window.
 
+## Scroll of a list to an item (2026-11-22)
+
+**Measured.** Window tests of [issue 480](https://github.com/shantanugoel/OpenCraft/issues/480)
+in `crates/app/src/view/tests/label_options.rs` and
+`crates/app/src/view/tests/actions.rs`, on the no-display test platform. The
+pick lists of the font picker and of the application picker are
+`ListState` lists with rows of one height.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| `ListState::scroll_to_reveal_item(ix)` reads the height of each item from the sum tree of the list. An item that the list has not drawn has no measurement, and its height is 0. A call after `ListState::reset` thus computes the place of the item as if each item had no height, and the list stays where it is. | Source | `gpui-pre` 0.3.12 `src/elements/list.rs`, `scroll_to_reveal_item`, `reset`, `ListItem::summary` |
+| `ListState::reset_with_uniform_height(count, height)` gives each unmeasured item the same height hint, and `scroll_to_reveal_item` then computes the place of an item below the visible part at the first frame. The font picker and the application picker use it, because all of their rows have one height. | Source; Measured | `the_font_picker_shows_the_row_of_the_current_family`; `the_application_picker_shows_the_row_of_the_current_application` |
+| `scroll_to_reveal_item` reads the height of the visible part from the last layout, and that height is 0 before the first paint. The item then goes to the top of the visible part, and not to its bottom. It shows in both cases. | Source | `gpui-pre` 0.3.12 `src/elements/list.rs`, `scroll_to_reveal_item`, `last_layout_bounds` |
+| The list of a popover is virtual: a row that is not in the visible part has no place in the frame, and `debug_bounds` of a window test gives no place for it. Thus a window test checks that the row of the current value has a place in the popover. | Measured | `the_font_picker_shows_the_row_of_the_current_family`; `cx.debug_bounds` |
+
 ## Release measurements
 
 **Measured.** The computer has an Apple M1 Max, 10 CPU cores, and 32 GiB of
