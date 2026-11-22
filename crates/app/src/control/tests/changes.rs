@@ -485,6 +485,40 @@ fn the_style_request_sets_the_font_family_and_the_system_font() {
 }
 
 #[test]
+fn a_style_request_with_no_style_makes_every_part_inherit() {
+    let mut live = Live::new();
+    let surface = surface_1();
+    let target = live.at(0);
+    live.ok(
+        "set_label_style",
+        json!({"target": target, "surface": surface,
+               "style": {"font": "Menlo", "position": "top", "size": 30,
+                         "color": "#ff0000", "bold": false, "italic": true,
+                         "underline": true}}),
+    );
+    // A request with no style clears each part, also the font, the italic
+    // form, and the underline that came in schema 8 (decision 0043).
+    live.ok(
+        "set_label_style",
+        json!({"target": target, "surface": surface, "style": null}),
+    );
+    let key = live.content(target)["surfaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == surface)
+        .unwrap()
+        .clone();
+    assert!(key["label_style"]["font"].is_null());
+    assert!(key["label_style"]["position"].is_null());
+    assert_eq!(key["label_style"]["size"], 20);
+    assert!(key["label_style"]["color"].is_null());
+    assert_eq!(key["label_style"]["bold"], true);
+    assert_eq!(key["label_style"]["italic"], false);
+    assert_eq!(key["label_style"]["underline"], false);
+}
+
+#[test]
 fn the_surface_requests_can_write_and_read_the_on_face() {
     let mut live = Live::new();
     let surface = surface_1();

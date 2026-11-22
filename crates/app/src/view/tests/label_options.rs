@@ -175,6 +175,24 @@ fn the_colour_popover_sets_automatic_a_sample_or_a_hex_value(cx: &mut TestAppCon
 }
 
 #[gpui_kit::test]
+fn the_selected_automatic_text_colour_makes_no_change(cx: &mut TestAppContext) {
+    let (_view, cx, tx, sent) = window(cx);
+    click(cx, "surface-bar panel 3");
+    // The profile has the automatic colour as an own value of the surface.
+    let automatic = LabelStyle {
+        color: Some(Auto::Auto),
+        ..LabelStyle::default()
+    };
+    send(cx, &tx, styled(bar(), automatic, false));
+    click(cx, "label-colour");
+    click(cx, "label-colour-automatic");
+    assert!(
+        changes(&sent, bar()).is_empty(),
+        "a click on the selected automatic swatch makes no change"
+    );
+}
+
+#[gpui_kit::test]
 fn the_bold_button_switches_the_weight(cx: &mut TestAppContext) {
     let (_view, cx, tx, sent) = window(cx);
     click(cx, "surface-key face 2");

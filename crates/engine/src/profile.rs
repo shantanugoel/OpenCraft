@@ -103,6 +103,10 @@ impl LabelPosition {
     }
 }
 
+/// The file word of the system font. A family with this name cannot be
+/// selected, and the word is not a family name (decision 0043).
+pub const SYSTEM_FONT_WORD: &str = "system";
+
 /// The font size of a label that has no size of its own, in pixels of the
 /// surface image. A label of the earlier versions has this size.
 pub const DEFAULT_LABEL_SIZE: u8 = 20;
@@ -320,10 +324,13 @@ impl LabelStyle {
     }
 
     /// Apply `change`. A size goes into the range from [`MIN_LABEL_SIZE`] to
-    /// [`MAX_LABEL_SIZE`]. `None` makes the part inherit.
+    /// [`MAX_LABEL_SIZE`]. `None` makes the part inherit. An empty family
+    /// name is no family, and the reserved word "system" is the automatic
+    /// font: a change cannot make a profile file that does not load again
+    /// (decision 0043, section 2).
     pub fn apply(&mut self, change: LabelChange) {
         match change {
-            LabelChange::Font(font) => self.font = font,
+            LabelChange::Font(font) => self.font = normalize_font(font),
             LabelChange::Position(position) => self.position = position,
             LabelChange::Size(size) => {
                 self.size = size.map(|size| size.clamp(MIN_LABEL_SIZE, MAX_LABEL_SIZE))
@@ -332,6 +339,26 @@ impl LabelStyle {
             LabelChange::Bold(bold) => self.bold = bold,
             LabelChange::Italic(italic) => self.italic = italic,
             LabelChange::Underline(underline) => self.underline = underline,
+        }
+    }
+}
+
+/// The font of a change, without an empty family name and without the
+/// reserved word as a family name. The profile file refuses both, thus an
+/// apply cannot make a file that does not load again (decision 0043).
+fn normalize_font(font: Option<Auto<String>>) -> Option<Auto<String>> {
+    match font {
+        None => None,
+        Some(Auto::Auto) => Some(Auto::Auto),
+        Some(Auto::Value(name)) => {
+            let name = name.trim();
+            if name.is_empty() {
+                None
+            } else if name == SYSTEM_FONT_WORD {
+                Some(Auto::Auto)
+            } else {
+                Some(Auto::Value(name.to_string()))
+            }
         }
     }
 }
@@ -1312,6 +1339,28 @@ mod tests {
             .iter()
             .all(|s| (MIN_LABEL_SIZE..=MAX_LABEL_SIZE).contains(s)));
         assert!(LABEL_SIZES.contains(&DEFAULT_LABEL_SIZE));
+    }
+
+    #[test]
+    fn a_font_change_cannot_make_a_family_that_the_file_refuses() {
+        let mut style = LabelStyle::default();
+        for (font, expected) in [
+            (Some(Auto::Value(String::new())), None),
+            (Some(Auto::Value("   ".into())), None),
+            (Some(Auto::Value(" system ".into())), Some(Auto::Auto)),
+            (
+                Some(Auto::Value("Avenir Next".into())),
+                Some(Auto::Value("Avenir Next".into())),
+            ),
+            (None, None),
+        ] {
+            style.apply(LabelChange::Font(font));
+            assert_eq!(style.font, expected);
+            assert!(style.font.as_ref().is_none_or(|font| match font {
+                Auto::Auto => true,
+                Auto::Value(name) => !name.trim().is_empty() && name != SYSTEM_FONT_WORD,
+            }));
+        }
     }
 
     #[test]
