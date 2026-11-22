@@ -88,11 +88,19 @@ fn each_position_segment_sets_its_position_on_a_key_face_and_a_bar_panel(cx: &mu
 #[gpui_kit::test]
 fn the_size_menu_sets_each_size_and_shows_the_size_of_the_profile(cx: &mut TestAppContext) {
     let (view, cx, tx, sent) = window(cx);
+    // The menu has each size at the smallest window.
+    cx.simulate_resize(size(px(1080.), px(700.)));
     click(cx, "surface-key face 2");
     assert!(cx.debug_bounds("label-size-menu").is_none());
     for size in opencraft_engine::LABEL_SIZES {
         click(cx, "label-size");
-        assert!(cx.debug_bounds("label-size-menu").is_some(), "{size}");
+        let menu = cx
+            .debug_bounds("label-size-menu")
+            .unwrap_or_else(|| panic!("no size menu for {size}"));
+        assert!(
+            menu.origin.y >= px(0.) && menu.bottom() <= px(700.),
+            "the size menu is in the window: {menu:?}"
+        );
         // A test ID must be static.
         let id: &'static str = format!("label-size-{size}").leak();
         click(cx, id);

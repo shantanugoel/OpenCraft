@@ -24,6 +24,8 @@ Last update: 2026-11-22
 | A surface resolves each part of its title style in this order: the own value of the surface, the value of the default title style of the profile, the engine default. | Source | `crates/engine/src/profile.rs`, `LabelStyle::resolve` |
 | The profile file has the table `[default_label_style]`. `FileData` puts the field before `pages`, thus the TOML serializer writes the table before the array of page tables. | Source | `crates/engine/src/store.rs`, `FileData` and `to_text` |
 | A file of schema 1 to 7 with `[default_label_style]` is an error with a backup. A file of schema 8 loads it, and the engine writes no table for the empty style. | Source | `crates/engine/src/store.rs`, the schema tests |
+| At 80 pixels, the ink of the emoji 😀 is 80 × 80 pixels on a 112 × 112 face, and the ink of 🔇 is 79 × 79. The ink of the ZWJ sequence 👨‍💻 is 71 × 77 at 80 pixels and 64 × 70 at 72 pixels: its design has wider side bearings. | Measured | Test `an_emoji_fills_the_face_at_a_large_size_and_does_not_touch_an_edge`, 2026-11-22 |
+| The label size steps above 40 are 8 pixels to 40, then 2 pixels. A label of 80 has 21 layouts at most. | Source | `crates/engine/src/label.rs`, `Font::sizes` |
 
 ## Candidates and fonts
 

@@ -2475,6 +2475,22 @@ color = "#1E6FD9"
     }
 
     #[test]
+    fn schema_eight_accepts_a_label_size_of_eighty() {
+        let text = format!(
+            "schema_version = {SCHEMA_VERSION}\nname = \"P\"\nmodel = \"n4-pro\"\n\
+             [[pages]]\nid = \"0000000000000001\"\nname = \"Main\"\n\
+             [pages.surfaces.key-face-3]\nlabel_size = 80\n"
+        );
+        let profile = parse(&text).unwrap();
+        assert_eq!(profile.pages()[0].content(KEY_3).label_style.size, Some(80));
+        // Version 7 refuses the same size (decision 0043, section 3).
+        let old = "schema_version = 7\nname = \"P\"\nmodel = \"n4-pro\"\n\
+                   [[pages]]\nid = \"0000000000000001\"\nname = \"Main\"\n\
+                   [pages.surfaces.key-face-3]\nlabel_size = 80\n";
+        assert!(parse(old).is_err());
+    }
+
+    #[test]
     fn the_default_title_style_refuses_a_bad_value() {
         for (key, value, text) in [
             ("font", "\"\"", "font is empty"),

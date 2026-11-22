@@ -113,11 +113,12 @@ pub const DEFAULT_LABEL_SIZE: u8 = 20;
 /// The weight of a label that has no weight of its own. A label of the
 /// earlier versions is bold.
 pub const DEFAULT_LABEL_BOLD: bool = true;
-/// The smallest and the largest font size of a label, in pixels.
+/// The smallest and the largest font size of a label, in pixels. A file of
+/// schema version 4 to 7 accepts at most 40 (decision 0043, section 3).
 pub const MIN_LABEL_SIZE: u8 = 10;
-pub const MAX_LABEL_SIZE: u8 = 40;
+pub const MAX_LABEL_SIZE: u8 = 80;
 /// The font sizes that a shell offers, in pixels.
-pub const LABEL_SIZES: [u8; 9] = [10, 12, 14, 16, 18, 20, 24, 28, 32];
+pub const LABEL_SIZES: [u8; 15] = [10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80];
 
 /// The smallest zoom of an image, in percent. It is the fit: the largest
 /// image with its proportion, at the centre (decision 0043).

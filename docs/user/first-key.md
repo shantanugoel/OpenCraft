@@ -53,7 +53,7 @@ below the field **Title**.
 | Row | Control | What it does |
 |---|---|---|
 | **Position** | **Top**, **Middle**, **Bottom**, **None** | Puts the title at the top, at the centre, or at the bottom of the key face. **None** hides the title. The text stays in the field **Title**. |
-| **Text** | The size button, for example "20 pt" | Click it, and click a size from 10 pt to 32 pt. |
+| **Text** | The size button, for example "20 pt" | Click it, and click a size from 10 pt to 80 pt. A large size makes an emoji or large digits fill the key face. |
 | **Text** | The colour button | Click it, and click a colour. Or type the colour as `#RRGGBB`, and push Return. **A** (Automatic) selects black or white for the fill. To close the colour list with no change, push Esc. |
 | **Text** | **B** | Bold. Click it to change the title to bold or to normal. **B** is light when the title is bold. |
 | **Text** | **I** | Italic. A font that has an italic face shows it. A font with no italic face is slanted. **I** is light when the title is italic. |
