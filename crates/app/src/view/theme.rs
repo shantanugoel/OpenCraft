@@ -1120,6 +1120,8 @@ pub const DROP_TARGET_BORDER: Pixels = px(2.);
 /// hangs below the pointer, so that the pointer and the text "Drop here" of
 /// the target stay visible.
 pub const DRAG_PICTURE_OFFSET: (Pixels, Pixels) = (px(4.), px(14.));
+/// The side of the picture of the key face in the drag picture (KEY-14).
+pub const SIDE_KEY_DRAG_IMAGE: Pixels = px(24.);
 
 // MARK: The Settings window (section 17)
 

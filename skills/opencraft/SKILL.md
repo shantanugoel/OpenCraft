@@ -117,7 +117,8 @@ limits below are the same for the tools.
   `page duplicate`, `page rename`, `page move`, `page remove`,
   `page set-first`, `page set-background`, `page set-background-fit`,
   `folder add`, `folder rename`, `folder move`, `folder remove`,
-  `control paste`, `control clear`, and `control copy-to-all-pages`. The other
+  `control paste`, `control clear`, `control move`, and
+  `control copy-to-all-pages`. The other
   requests are not steps: all `profile` commands, `page select`, `folder open`,
   `folder close`, `control copy`, and `device set-settings`. The command
   `undo --profile ID` reverses the last step of the active profile, and the
@@ -330,6 +331,7 @@ Run `opencraft ctl <command> --help` for the details and an example.
 | `control copy` | target `--control` | Copy a control |
 | `control paste` | target `--control` | Paste onto a control |
 | `control clear` | target `--control` | Remove surface and bindings |
+| `control move` | target `--from --to` | Move a control to an empty control, or swap two controls |
 | `control copy-to-all-pages` | target `--control` | Copy to the other pages |
 | `device set-settings` | `--brightness` `--screen-off-minutes` `--haptic` `--knob-mode` `--knob-brightness` `--knob-colors` | Change the given values only |
 | `undo` | `--profile` | Undo the last change |

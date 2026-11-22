@@ -274,6 +274,7 @@ fn named(method: &w::Method) -> w::Changed {
         M::CopyControl(p) | M::PasteControl(p) | M::ClearControl(p) | M::CopyToAllPages(p) => {
             target(&p.target)
         }
+        M::MoveControl(p) => target(&p.target),
         M::CloseFolder(p) => target(&p.target),
         M::OpenFolder(p) => place(&p.target.profile, Some(&p.target.page), Some(&p.folder)),
         M::AddPage(p) => profile(&p.profile),
@@ -511,6 +512,12 @@ fn build(method: w::Method, state: &w::State) -> Result<Built, String> {
             let control = control(p.control, state)?;
             let (place, _) = location(state, p.target)?;
             nothing(at(place, C::CopyToAllPages { control }))
+        }
+        M::MoveControl(p) => {
+            let from = control(p.from, state)?;
+            let to = control(p.to, state)?;
+            let (place, _) = location(state, p.target)?;
+            nothing(at(place, C::MoveControl { from, to }))
         }
         M::AddPage(p) => Built {
             command: at(profile_place(p.profile), C::AddPage { copy_of: None }),

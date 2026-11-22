@@ -718,6 +718,7 @@ pub(super) fn permitted(command: &e::Command) -> bool {
         e::Command::PasteControl { .. } => true,
         e::Command::ClearControl { .. } => true,
         e::Command::CopyToAllPages { .. } => true,
+        e::Command::MoveControl { .. } => true,
         e::Command::SetDeviceSettings(_) => true,
         e::Command::PowerNotice(_) => false,
         e::Command::FrontApplication(_) => false,

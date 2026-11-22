@@ -266,6 +266,7 @@ mod focus_return;
 mod history;
 mod hotkey;
 mod icons;
+mod key_drag;
 mod knob;
 mod label_options;
 mod library;

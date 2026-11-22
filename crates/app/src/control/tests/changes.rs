@@ -687,6 +687,65 @@ fn binding_and_control_requests_set_remove_copy_paste_clear_and_copy_to_all_page
 }
 
 #[test]
+fn a_move_request_moves_a_key_or_swaps_two_keys_in_one_step() {
+    let mut live = Live::new();
+    let key1 = json!({"kind": "key", "number": 1});
+    let key2 = json!({"kind": "key", "number": 2});
+    live.ok(
+        "set_label",
+        json!({"target": live.at(0), "surface": surface_1(), "label": "Mail"}),
+    );
+    live.ok(
+        "set_binding",
+        json!({"target": live.at(0), "control": key1, "gesture": "press",
+               "action": {"kind": "test", "settings": {}}}),
+    );
+    // A move to an empty key, and the undo of the whole change.
+    live.ok(
+        "move_control",
+        json!({"target": live.at(0), "from": key1, "to": key2}),
+    );
+    let content = live.content(live.at(0));
+    assert_eq!(content["bindings"].as_array().unwrap().len(), 1);
+    assert_eq!(content["bindings"][0]["control"]["number"], 2);
+    assert!(live.label(0).is_null());
+    assert_eq!(live.read("history")["undo"], "Move Key");
+    live.made("undo", json!({"profile": live.active}));
+    assert_eq!(live.label(0), "Mail");
+    // A destination with content swaps with the control: key 1 gets the
+    // label and the action of key 2.
+    let key_face_2: Value = serde_json::from_str(r#"{"kind":"key_face","number":2}"#).unwrap();
+    live.ok(
+        "set_label",
+        json!({"target": live.at(0), "surface": key_face_2, "label": "Other"}),
+    );
+    live.ok(
+        "move_control",
+        json!({"target": live.at(0), "from": key1, "to": key2}),
+    );
+    let label_of = |content: &Value, number: u8| -> Value {
+        content["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|surface| {
+                surface["id"]["kind"] == "key_face" && surface["id"]["number"] == number
+            })
+            .map(|surface| surface["label"].clone())
+            .unwrap_or(Value::Null)
+    };
+    let content = live.content(live.at(0));
+    assert_eq!(label_of(&content, 1), "Other");
+    assert_eq!(label_of(&content, 2), "Mail");
+    // A move of a control that does not exist is not a request.
+    let (code, _) = live.fails(
+        "move_control",
+        json!({"target": live.at(0), "from": {"kind": "key", "number": 99}, "to": key2}),
+    );
+    assert_eq!(code, "invalid_params");
+}
+
+#[test]
 fn a_binding_needs_a_gesture_that_the_control_can_make_and_the_layout_lists_them() {
     let mut live = Live::new();
     let layout = live.read("layout");

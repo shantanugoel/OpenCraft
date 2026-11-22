@@ -220,6 +220,20 @@ pub struct ControlParams {
     pub control: ControlId,
 }
 
+/// A move of one control onto another control of the same kind, at one
+/// place. The result of a move and of a swap is the same: the two
+/// controls have the content of the other one.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MoveControlParams {
+    pub target: Target,
+    /// The control that moves.
+    pub from: ControlId,
+    /// The destination. A control with no appearance and no binding takes
+    /// the content; any other control swaps with `from`.
+    pub to: ControlId,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenamePageParams {
@@ -421,6 +435,7 @@ pub enum Method {
     PasteControl(ControlParams),
     ClearControl(ControlParams),
     CopyToAllPages(ControlParams),
+    MoveControl(MoveControlParams),
     AddPage(ProfileParams),
     DuplicatePage(PageTargetParams),
     RenamePage(RenamePageParams),
@@ -486,6 +501,7 @@ impl Method {
             | Self::PasteControl(_)
             | Self::ClearControl(_)
             | Self::CopyToAllPages(_)
+            | Self::MoveControl(_)
             | Self::AddPage(_)
             | Self::DuplicatePage(_)
             | Self::RenamePage(_)
@@ -544,6 +560,7 @@ impl Method {
             Self::PasteControl(_) => "paste_control",
             Self::ClearControl(_) => "clear_control",
             Self::CopyToAllPages(_) => "copy_to_all_pages",
+            Self::MoveControl(_) => "move_control",
             Self::AddPage(_) => "add_page",
             Self::DuplicatePage(_) => "duplicate_page",
             Self::RenamePage(_) => "rename_page",
@@ -605,6 +622,7 @@ pub const METHODS: &[&str] = &[
     "paste_control",
     "clear_control",
     "copy_to_all_pages",
+    "move_control",
     "add_page",
     "duplicate_page",
     "rename_page",

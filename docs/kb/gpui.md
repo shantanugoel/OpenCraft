@@ -852,6 +852,21 @@ in the background only. The window tests are in
 | A control socket path in a long scratch directory fails with the problem "path must be shorter than SUN_LEN". Use a short directory, for example `/tmp/<name>`. | Measured | Window picture, 2026-11-22 |
 | The device shows the blue Mail icon at the 112-pixel key face, above the title "Mail", with no visible blur, from the 256-pixel icon that the engine copied into the profile. | Measured | USB camera (OpenCV index 0), 2026-11-22; the profile of the scratch directory |
 
+## A drag of a key on the canvas (2026-11-22)
+
+**Measured.** The application is the debug build of `opencraft` wrapped in a
+scratch `.app` with a copy of a profile and `OPENCRAFT_NO_DEVICE=1`; the
+window is 1440 × 900 and 1080 × 700. The driver acted in the background
+only. The window tests are in `crates/app/src/view/tests/key_drag.rs`, and
+the engine tests are in `crates/engine/tests/engine/move_control.rs`.
+
+| Fact | Confidence | Source |
+|---|---|---|
+| A window-scoped background `drag` of cua-driver does not start a GPUI drag. The moves of the drag change the hover state (the control below the pointer gets its hover outline), but the drop does nothing. The same happens for the drag of a library row, which works with real mouse events. A 3 px background drag acts as a click, and it selects the control. The cause is not measured; the guess is that a drag that starts a macOS drag-and-drop session, or the button state of the per-pid events, is the difference. | Measured | `cua-driver` 0.49.3, `drag`, `delivery_mode:"background"`; `crates/app/src/view/library.rs`, `crates/app/src/view/key_drag.rs`; window pictures, 2026-11-22 |
+| The in-app drag of a key face and its drop are covered by the GPUI test platform only: `simulate_mouse_down`, eight `simulate_mouse_move` steps with the left button, and `simulate_mouse_up` run `on_drag` and the `KeyDrag` drop. | Measured | `crates/app/src/view/tests/key_drag.rs` |
+| `opencraft ctl control move` moves a key in the running window: key 1 with the Mail icon and title went to key 2, and one ⌘Z put both keys back. The engine draws both surfaces of the step. | Measured | Real window at 1440 × 900 and 1080 × 700, scratch profile, 2026-11-22 |
+| The window at 1080 × 700 shows the whole page with the moved key, the device, and the right panel. | Measured | Window picture, 2026-11-22 |
+
 ## Menu keys in the application (2026-11-13)
 
 **Measured.** The application is the debug build of `opencraft` with the

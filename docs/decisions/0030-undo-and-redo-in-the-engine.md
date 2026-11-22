@@ -92,6 +92,11 @@ the shell gives. A shell uses it for a change of many parts that has no
 engine command of its own. The engine ignores Undo, Redo, and the text edit
 commands in a group.
 
+Note (2026-11-22): `Command::MoveControl` moves a control or swaps two
+controls of a page in one command, thus it is one step "Move Key" (issue
+[#451](https://github.com/shantanugoel/OpenCraft/issues/451)). A control of
+another kind gives "Move Control".
+
 Note (2026-11-13): in a text edit, the target of a group is the target of
 its first command, if each command of the group has a target. Thus the
 letters of one text field of the "Turn" card of a knob, which writes the

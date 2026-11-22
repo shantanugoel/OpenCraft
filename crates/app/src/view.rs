@@ -17,6 +17,7 @@
 //! | `page_inspector` | The inspector of the page, with the swipe gestures of the touch bar |
 //! | `knob` | The inspector of a knob: the "Turn" card, and the section of its bar panel |
 //! | `library` | The "Library" tab: the action kinds in their groups |
+//! | `key_drag` | A drag of a key face onto another key face on the canvas |
 //! | `actions` | The gesture cards of the selected control, and the settings form of the open card |
 //! | `application_picker` | The list of installed applications for a path field of kind Application |
 //! | `application_drop` | A drop of an application bundle from Finder onto a key face |
@@ -77,6 +78,7 @@ mod history;
 mod hotkey;
 mod icon_picker;
 mod inspector;
+mod key_drag;
 mod knob;
 mod library;
 mod menu;
@@ -190,6 +192,9 @@ pub struct DeviceView {
     /// The temporary image files of the pastes that the engine has not
     /// read yet (decision 0043, section 5).
     pending_images: Vec<PendingImage>,
+    /// The control of the key that is in a drag on the canvas (KEY-14).
+    /// `None` when no key is in a drag.
+    dragging_key: Option<ControlId>,
 }
 
 impl DeviceView {
@@ -294,6 +299,7 @@ impl DeviceView {
             repaint: repaint::Repaint::default(),
             _frame_observers: frame_observers,
             pending_images: Vec::new(),
+            dragging_key: None,
         };
         // The selection can already be in the state when the window opens,
         // for example after a start with no window. A change of the
