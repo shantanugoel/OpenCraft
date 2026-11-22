@@ -5001,7 +5001,7 @@ dependencies = [
 
 [[package]]
 name = "opencraft-actions"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "core-foundation 0.10.1",
  "core-graphics 0.25.0",
@@ -5015,7 +5015,7 @@ dependencies = [
 
 [[package]]
 name = "opencraft-app"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "async-channel",
  "gpui-kit",
@@ -5036,7 +5036,7 @@ dependencies = [
 
 [[package]]
 name = "opencraft-cli"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "libc",
  "opencraft-core",
@@ -5044,7 +5044,7 @@ dependencies = [
 
 [[package]]
 name = "opencraft-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "hidapi",
  "image",
@@ -5054,7 +5054,7 @@ dependencies = [
 
 [[package]]
 name = "opencraft-engine"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "base64 0.22.1",
  "core-foundation 0.10.1",

@@ -5,12 +5,14 @@ controllers. It replaces **VSD Craft**, the vendor software of VSD and
 Mirabox. It is written in Rust. It has no Electron and no embedded web
 browser.
 
-> **Status: version 0.6.0.** OpenCraft operates the VSD StreamDock N4 Pro
+> **Status: version 0.7.0.** OpenCraft operates the VSD StreamDock N4 Pro
 > on macOS: keys (with short, long, double press, hold, and two-state faces),
 > knobs (including multi-function knobs), the touch bar, pages, profiles, and
-> device settings. A profile can follow the front application, and a key can
-> open a folder of keys. Another program can configure OpenCraft through a
-> socket, when you permit it. It has no plug-ins yet. The
+> device settings. A key face can use an image from Finder or the clipboard,
+> an installed font, an emoji, or a clock. The window has a light and a dark
+> theme. A profile can follow the front application, and a key can open a
+> folder of keys. Another program can configure OpenCraft through a socket,
+> when you permit it. It has no plug-ins yet. The
 > [roadmap](docs/ROADMAP.md#status) gives the state of each phase. The
 > [changelog](CHANGELOG.md) lists the changes in this version.
 

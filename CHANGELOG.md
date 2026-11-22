@@ -4,6 +4,68 @@ This file lists the changes for each version. Its form follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-22
+
+This version makes a key look correct quickly: images from Finder and the
+clipboard, crop and zoom, installed fonts, italic and underline, a default
+title style, emoji keys, clock keys, and a light theme.
+
+### Added
+
+- **Key image from Finder or the clipboard**: drop an image file on a key
+  face or a bar panel, or paste an image or an image file. OpenCraft now
+  also reads BMP, WebP, and TIFF images.
+- **Drop an application on a key**: a `.app` from Finder (or a paste of it)
+  makes an **Open an application** key with the name and the icon of the
+  application, in one undo step.
+- **Crop and zoom** of a key image: zoom from 100 % to 400 % and move the
+  image with four arrows. The window warns when the image is too small for
+  the zoom.
+- **Move keys**: drag a key onto another key to move it or to swap the two
+  keys. The command palette (⌘K) can also move the selected key.
+- **Installed fonts** for labels. A missing font shows the system font with
+  no error, and the profile keeps the name of the font.
+- **Italic** and **underline** in the label options.
+- **Default title style** of a profile (**Profile settings**). A key with no
+  own style uses it. The inspector shows if a key follows the default.
+- **Emoji keys**: the label size goes up to 80 points, so that an emoji fills
+  the key face.
+- **Clock and date** (`opencraft.clock`): a key that shows the time, the
+  date, or both, in 24-hour or 12-hour form.
+- **Light theme**: **Settings > General > Appearance** has System, Light, and
+  Dark. System follows macOS.
+- **Keyboard**: ⌃⌘P opens the profile settings. A segmented control is one
+  Tab stop, and the arrow keys change its choice. The inspector scrolls to
+  the control that has the focus.
+- The control socket, `opencraft ctl`, and the MCP server can set fonts,
+  italic, underline, the default title style, the image crop, and a key move.
+
+### Changed
+
+- OpenCraft writes profile schema 8, which adds the font, italic, underline,
+  default title style, and image crop keys. A profile file from version 0.6.0
+  loads and changes to schema 8. Version 0.6.0 cannot read a schema 8 file.
+- The text cursor of a text field stops blinking 5 seconds after the last key
+  press, so that an idle window uses less processor time.
+
+### Fixed
+
+- A stopwatch in a sequence, a toggle, an action cycle, or a knob function
+  no longer wakes OpenCraft each second for ever.
+- A text colour of a label now shows exactly on displays with a wide colour
+  range, and an underline has the colour of its text.
+
+### Known limits
+
+- Only the N4 Pro is supported.
+- Only Mac computers with Apple silicon and macOS 12 or later. The project
+  tested OpenCraft on macOS 27 only.
+- Send a hotkey, Hold a hotkey, Type text, Media key, Mouse event, Launchpad,
+  Screenshot, Lock, and Show desktop need the Accessibility permission.
+- The Sleep function does nothing when macOS does not allow sleep.
+  OpenCraft then names the cause.
+- OpenCraft has no plug-ins.
+
 ## [0.6.0] - 2026-11-22
 
 This version adds long press and double press gestures, push-to-talk key holds,

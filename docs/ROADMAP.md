@@ -28,7 +28,7 @@ application that other persons can adopt.
 | 8 | Everyday actions | Complete |
 | 9 | Profiles that follow the work | Complete |
 | 10 | Long press, double press, and key states | Complete |
-| 11 | Faces and editing | In progress |
+| 11 | Faces and editing | Complete, with owner checks open |
 
 ## Checks for each phase
 
@@ -706,7 +706,7 @@ keys to version 6.
 (KNOB-03), and [#437](https://github.com/shantanugoel/OpenCraft/issues/437)
 (P10-M1).
 
-## Phase 11: Faces and editing (in progress)
+## Phase 11: Faces and editing (complete)
 
 **Goal.** The user makes a key look correct quickly: an image from Finder
 or the clipboard, crop and zoom, installed fonts, a default title style, a
@@ -741,18 +741,37 @@ release is 0.7.0.
 
 **Exit criteria.**
 
-- [ ] A PNG, JPEG, BMP, or WebP image dropped from Finder or pasted from the
+- [x] A PNG, JPEG, BMP, or WebP image dropped from Finder or pasted from the
   clipboard shows on the key, on the device and in the window.
-- [ ] An application dropped from Finder makes a key that opens it, with its
+- [x] An application dropped from Finder makes a key that opens it, with its
   icon.
-- [ ] Crop and zoom stay with the image after a restart.
-- [ ] A label uses an installed font, italic, and underline. A missing font
+- [x] Crop and zoom stay with the image after a restart.
+- [x] A label uses an installed font, italic, and underline. A missing font
   falls back to the system font with no error.
-- [ ] A key with no own style uses the default title style of the profile.
-- [ ] The clock key changes each minute, and the idle processor use stays
+- [x] A key with no own style uses the default title style of the profile.
+- [x] The clock key changes each minute, and the idle processor use stays
   below 0.5 % of one core.
-- [ ] The window follows the light or dark setting of macOS. The audit result
+- [x] The window follows the light or dark setting of macOS. The audit result
   is in [kb/gpui.md](kb/gpui.md).
+
+**Result.** The phase is complete on 2026-11-22, and the
+[checks for each phase](#checks-for-each-phase) are done.
+
+- All task issues (`#447` to `#459`), the bug `#469`, and the accessibility
+  gaps of the audit (`#480` to `#485`) are complete. Three reviews found
+  faults, and the fixes are merged.
+- The owner approved closing the phase and releasing version 0.7.0 before
+  the owner checks in [checks/phase-11-checks.md](checks/phase-11-checks.md).
+  The owner does those checks later and opens an issue for each fault.
+  Thus a person did not yet drag a file from Finder or drag a key with the
+  pointer. Window tests send the same drop events, a paste uses the same
+  path, and the USB camera showed each face on the connected N4 Pro.
+- The memory and processor measurements are in
+  [kb/footprint.md](kb/footprint.md): 64.9 MiB with the window open and
+  28.8 MiB with `--login`. An idle window uses 0.13 % to 0.18 % of one core,
+  and the clock key adds no measurable processor use.
+- The audit of the window with the accessibility API and the keyboard is in
+  [kb/gpui.md](kb/gpui.md). VoiceOver speech is not checked.
 
 **Decisions that this phase forces.** The fonts of the labels, the label
 styles, the crop and zoom of an image, the clock handler, and the new profile
